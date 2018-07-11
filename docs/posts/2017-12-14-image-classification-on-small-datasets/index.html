@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="radix" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+<title>TensorFlow for R Blog: Image Classification on Small Datasets with Keras</title>
+
+<meta property="description" itemprop="description" content="Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.&#10;"/>
+
+<link rel="canonical" href="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"/>
+<link rel="icon" type="image/png" href="images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2017-12-14"/>
+<meta property="article:created" itemprop="dateCreated" content="2017-12-14"/>
+<meta name="article:author" content="François Chollet"/>
+<meta name="article:author" content="J.J. Allaire"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="TensorFlow for R Blog: Image Classification on Small Datasets with Keras"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.&#10;"/>
+<meta property="og:url" content="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"/>
+<meta property="og:image" content="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/images/swapping_fc_classifier.png"/>
+<meta property="og:image:width" content="678"/>
+<meta property="og:image:height" content="453"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="TensorFlow for R Blog"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="TensorFlow for R Blog: Image Classification on Small Datasets with Keras"/>
+<meta property="twitter:description" content="Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.&#10;"/>
+<meta property="twitter:url" content="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"/>
+<meta property="twitter:image" content="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/images/swapping_fc_classifier.png"/>
+<meta property="twitter:image:width" content="678"/>
+<meta property="twitter:image:height" content="453"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="TensorFlow for R Blog: Image Classification on Small Datasets with Keras"/>
+<meta name="citation_fulltext_html_url" content="https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"/>
+<meta name="citation_online_date" content="2017/12/14"/>
+<meta name="citation_publication_date" content="2017/12/14"/>
+<meta name="citation_author" content="François Chollet"/>
+<meta name="citation_author" content="J.J. Allaire"/>
+<!--/radix_placeholder_meta_tags-->
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","date","categories","preview","creative_commons","output","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["Image Classification on Small Datasets with Keras"]},{"type":"character","attributes":{},"value":["Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url"]}},"value":[{"type":"character","attributes":{},"value":["François Chollet"]},{"type":"character","attributes":{},"value":["https://github.com/fchollet"]}]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url"]}},"value":[{"type":"character","attributes":{},"value":["J.J. Allaire"]},{"type":"character","attributes":{},"value":["https://github.com/jjallaire"]}]}]},{"type":"character","attributes":{},"value":["12-14-2017"]},{"type":"character","attributes":{},"value":["Keras","Examples","Images"]},{"type":"character","attributes":{},"value":["images/swapping_fc_classifier.png"]},{"type":"NULL"},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"]},{"type":"character","attributes":{},"value":["https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["image-classification-on-small-datasets_files/bowser-1.9.3/bowser.min.js","image-classification-on-small-datasets_files/distill-2.2.21/template.v2.js","image-classification-on-small-datasets_files/jquery-1.11.3/jquery.min.js","image-classification-on-small-datasets_files/webcomponents-2.0.0/webcomponents.js","images/5-3_metrics_plot_feature_extraction_with_augmentation-r.png","images/5-3_metrics_plot_fine_tuning-r.png","images/cats_vs_dogs_samples.jpg","images/swapping_fc_classifier.png","images/vgg16_fine_tuning.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.radix-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.radix-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #455a64;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.radix-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.radix-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .radix-site-nav {
+    display: none;
+  }
+}
+
+.radix-site-header {
+
+}
+
+.radix-site-footer {
+
+}
+
+
+/* Site Header */
+
+.radix-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.radix-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .radix-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.radix-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.radix-site-header a,
+.radix-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.radix-site-header .title {
+  font-size: 18px;
+}
+
+.radix-site-header .logo {
+  padding: 0;
+}
+
+.radix-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.radix-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .radix-site-header .logo img {
+    display: inline-block;
+  }
+  .radix-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .radix-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .radix-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.radix-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .radix-site-header a, .radix-site-header .nav-dropdown  {display: none;}
+  .radix-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .radix-site-header .title {
+    margin-left: 0;
+  }
+  .radix-site-header .nav-right {
+    margin-right: 0;
+  }
+  .radix-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .radix-site-header.responsive {position: relative;}
+  .radix-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .radix-site-header.responsive a,
+  .radix-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .radix-site-header.responsive .nav-left,
+  .radix-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .radix-site-header.responsive .nav-dropdown {float: none;}
+  .radix-site-header.responsive .nav-dropdown-content {position: relative;}
+  .radix-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.radix-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for table of contents */
+
+.d-toc {
+  color: rgba(0,0,0,0.8);
+  font-size: 0.8em;
+  line-height: 1em;
+}
+
+.d-toc-header {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  margin-top: 0;
+  margin-bottom: 1.3em;
+}
+
+.d-toc a {
+  border-bottom: none;
+}
+
+.d-toc ul {
+  padding-left: 0;
+}
+
+.d-toc li>ul {
+  padding-top: 0.8em;
+  padding-left: 16px;
+  margin-bottom: 0.6em;
+}
+
+.d-toc ul,
+.d-toc li {
+  list-style-type: none;
+}
+
+.d-toc li {
+  margin-bottom: 0.9em;
+}
+
+.d-toc-separator {
+  margin-top: 20px;
+  margin-bottom: 2em;
+}
+
+.d-article-with-toc {
+  border-top: none;
+  padding-top: 0;
+}
+
+
+
+/* Tweak code blocks (note that this CSS is repeated above in an injection
+   into the d-code shadow dom) */
+
+pre.d-code code.d-code {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+pre.text-output {
+
+  font-size: 12px;
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+@media(min-width: 768px) {
+pre.d-code code.d-code  {
+    padding-left: 18px;
+    font-size: 14px;
+}
+pre.text-output {
+  font-size: 14px;
+}
+}
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // create d-bibliography
+  var bibliography = $('<d-bibliography></d-bibliography>');
+  $('#distill-bibliography').wrap(bibliography);
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace citations with <d-cite>
+  $('.citation').each(function(i, val) {
+    appendix = true;
+    var cites = $(this).attr('data-cites').split(" ");
+    var dt_cite = $('<d-cite></d-cite>');
+    dt_cite.attr('key', cites.join());
+    $(this).replaceWith(dt_cite);
+  });
+  // remove refs
+  $('#refs').remove();
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#fn1>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.text();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.text(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-toc a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // replace code blocks with d-code
+  $('pre>code').each(function(i, val) {
+    var code = $(this);
+    var pre = code.parent();
+    var clz = "";
+    var language = pre.attr('class');
+    if (language) {
+      if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+        language = "clike";
+      language = ' language="' + language + '"';
+      var dt_code = $('<d-code block' + language + clz + '></d-code>');
+      dt_code.text(code.text());
+      pre.replaceWith(dt_code);
+    } else {
+      code.addClass('text-output').unwrap().changeElementType('pre');
+    }
+  });
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    $(this).children().not('d-code, pre.text-output')
+      .wrap($('<div class="' + layout + '"></div>'));
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // table of contents
+    if (have_authors) // adjust border if we are in authors
+      $('.d-toc').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+    $('d-code').each(function(i, val) {
+      var style = document.createElement('style');
+      style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                        '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+      if (this.shadowRoot)
+        this.shadowRoot.appendChild(style);
+    });
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-toc-header').remove();
+  $('.d-toc').remove();
+  $('.d-toc-separator').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    $(this).find('img, .html-widget').css('width', '100%');
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Image Classification on Small Datasets with Keras","description":"Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.\n","authors":[{"author":"François Chollet","authorURL":"https://github.com/fchollet","affiliation":"&nbsp;","affiliationURL":"#"},{"author":"J.J. Allaire","authorURL":"https://github.com/jjallaire","affiliation":"&nbsp;","affiliationURL":"#"}],"publishedDate":"2017-12-14T00:00:00.000-05:00","citationText":"Chollet & Allaire, 2017"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="radix-site-nav radix-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">TensorFlow for R Blog</a>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../about.html">About</a>
+<a href="../../index.xml">
+<i class="fa fa-rss"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Image Classification on Small Datasets with Keras</h1>
+<p>Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.</p>
+</div>
+
+<div class="d-byline">
+  François Chollet <a href="https://github.com/fchollet" class="uri">https://github.com/fchollet</a> 
+  
+,   J.J. Allaire <a href="https://github.com/jjallaire" class="uri">https://github.com/jjallaire</a> 
+  
+<br/>12-14-2017
+</div>
+
+<div class="d-article">
+<h2 id="training-a-convnet-with-a-small-dataset">Training a convnet with a small dataset</h2>
+<p>Having to train an image-classification model using very little data is a common situation, which you’ll likely encounter in practice if you ever do computer vision in a professional context. A “few” samples can mean anywhere from a few hundred to a few tens of thousands of images. As a practical example, we’ll focus on classifying images as dogs or cats, in a dataset containing 4,000 pictures of cats and dogs (2,000 cats, 2,000 dogs). We’ll use 2,000 pictures for training – 1,000 for validation, and 1,000 for testing.</p>
+<p>In Chapter 5 of the <a href="https://www.manning.com/books/deep-learning-with-r">Deep Learning with R</a> book we review three techniques for tackling this problem. The first of these is training a small model from scratch on what little data you have (which achieves an accuracy of 82%). Subsequently we use <em>feature extraction with a pretrained network</em> (resulting in an accuracy of 90%) and <em>fine-tuning a pretrained network</em> (with a final accuracy of 97%). In this post we’ll cover only the second and third techniques.</p>
+<h3 id="the-relevance-of-deep-learning-for-small-data-problems">The relevance of deep learning for small-data problems</h3>
+<p>You’ll sometimes hear that deep learning only works when lots of data is available. This is valid in part: one fundamental characteristic of deep learning is that it can find interesting features in the training data on its own, without any need for manual feature engineering, and this can only be achieved when lots of training examples are available. This is especially true for problems where the input samples are very high-dimensional, like images.</p>
+<p>But what constitutes lots of samples is relative – relative to the size and depth of the network you’re trying to train, for starters. It isn’t possible to train a convnet to solve a complex problem with just a few tens of samples, but a few hundred can potentially suffice if the model is small and well regularized and the task is simple. Because convnets learn local, translation-invariant features, they’re highly data efficient on perceptual problems. Training a convnet from scratch on a very small image dataset will still yield reasonable results despite a relative lack of data, without the need for any custom feature engineering. You’ll see this in action in this section.</p>
+<p>What’s more, deep-learning models are by nature highly repurposable: you can take, say, an image-classification or speech-to-text model trained on a large-scale dataset and reuse it on a significantly different problem with only minor changes. Specifically, in the case of computer vision, many pretrained models (usually trained on the ImageNet dataset) are now publicly available for download and can be used to bootstrap powerful vision models out of very little data. That’s what you’ll do in the next section. Let’s start by getting your hands on the data.</p>
+<h2 id="downloading-the-data">Downloading the data</h2>
+<p>The Dogs vs. Cats dataset that you’ll use isn’t packaged with Keras. It was made available by Kaggle as part of a computer-vision competition in late 2013, back when convnets weren’t mainstream. You can download the original dataset from <a href="https://www.kaggle.com/c/dogs-vs-cats/data" class="uri">https://www.kaggle.com/c/dogs-vs-cats/data</a> (you’ll need to create a Kaggle account if you don’t already have one – don’t worry, the process is painless).</p>
+<p>The pictures are medium-resolution color JPEGs. Here are some examples:</p>
+<p><img src="images/cats_vs_dogs_samples.jpg" style="width:80.0%" /></p>
+<p>Unsurprisingly, the dogs-versus-cats Kaggle competition in 2013 was won by entrants who used convnets. The best entries achieved up to 95% accuracy. Below you’ll end up with a 97% accuracy, even though you’ll train your models on less than 10% of the data that was available to the competitors.</p>
+<p>This dataset contains 25,000 images of dogs and cats (12,500 from each class) and is 543 MB (compressed). After downloading and uncompressing it, you’ll create a new dataset containing three subsets: a training set with 1,000 samples of each class, a validation set with 500 samples of each class, and a test set with 500 samples of each class.</p>
+<p>Following is the code to do this:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+original_dataset_dir &lt;- &quot;~/Downloads/kaggle_original_data&quot;
+
+base_dir &lt;- &quot;~/Downloads/cats_and_dogs_small&quot;
+dir.create(base_dir)
+
+train_dir &lt;- file.path(base_dir, &quot;train&quot;)
+dir.create(train_dir)
+validation_dir &lt;- file.path(base_dir, &quot;validation&quot;)
+dir.create(validation_dir)
+test_dir &lt;- file.path(base_dir, &quot;test&quot;)
+dir.create(test_dir)
+
+train_cats_dir &lt;- file.path(train_dir, &quot;cats&quot;)
+dir.create(train_cats_dir)
+
+train_dogs_dir &lt;- file.path(train_dir, &quot;dogs&quot;)
+dir.create(train_dogs_dir)
+
+validation_cats_dir &lt;- file.path(validation_dir, &quot;cats&quot;)
+dir.create(validation_cats_dir)
+
+validation_dogs_dir &lt;- file.path(validation_dir, &quot;dogs&quot;)
+dir.create(validation_dogs_dir)
+
+test_cats_dir &lt;- file.path(test_dir, &quot;cats&quot;)
+dir.create(test_cats_dir)
+
+test_dogs_dir &lt;- file.path(test_dir, &quot;dogs&quot;)
+dir.create(test_dogs_dir)
+
+fnames &lt;- paste0(&quot;cat.&quot;, 1:1000, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames), 
+          file.path(train_cats_dir)) 
+
+fnames &lt;- paste0(&quot;cat.&quot;, 1001:1500, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames), 
+          file.path(validation_cats_dir))
+
+fnames &lt;- paste0(&quot;cat.&quot;, 1501:2000, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames),
+          file.path(test_cats_dir))
+
+fnames &lt;- paste0(&quot;dog.&quot;, 1:1000, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames),
+          file.path(train_dogs_dir))
+
+fnames &lt;- paste0(&quot;dog.&quot;, 1001:1500, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames),
+          file.path(validation_dogs_dir)) 
+
+fnames &lt;- paste0(&quot;dog.&quot;, 1501:2000, &quot;.jpg&quot;)
+file.copy(file.path(original_dataset_dir, fnames),
+          file.path(test_dogs_dir))</code></pre>
+</div>
+<h2 id="using-a-pretrained-convnet">Using a pretrained convnet</h2>
+<p>A common and highly effective approach to deep learning on small image datasets is to use a pretrained network. A <em>pretrained network</em> is a saved network that was previously trained on a large dataset, typically on a large-scale image-classification task. If this original dataset is large enough and general enough, then the spatial hierarchy of features learned by the pretrained network can effectively act as a generic model of the visual world, and hence its features can prove useful for many different computer-vision problems, even though these new problems may involve completely different classes than those of the original task. For instance, you might train a network on ImageNet (where classes are mostly animals and everyday objects) and then repurpose this trained network for something as remote as identifying furniture items in images. Such portability of learned features across different problems is a key advantage of deep learning compared to many older, shallow-learning approaches, and it makes deep learning very effective for small-data problems.</p>
+<p>In this case, let’s consider a large convnet trained on the ImageNet dataset (1.4 million labeled images and 1,000 different classes). ImageNet contains many animal classes, including different species of cats and dogs, and you can thus expect to perform well on the dogs-versus-cats classification problem.</p>
+<p>You’ll use the <a href="https://arxiv.org/abs/1409.1556">VGG16 architecture</a>, developed by Karen Simonyan and Andrew Zisserman in 2014; it’s a simple and widely used convnet architecture for ImageNet. Although it’s an older model, far from the current state of the art and somewhat heavier than many other recent models, I chose it because its architecture is similar to what you’re already familiar with and is easy to understand without introducing any new concepts. This may be your first encounter with one of these cutesy model names – VGG, ResNet, Inception, Inception-ResNet, Xception, and so on; you’ll get used to them, because they will come up frequently if you keep doing deep learning for computer vision.</p>
+<p>There are two ways to use a pretrained network: <em>feature extraction</em> and <em>fine-tuning</em>. We’ll cover both of them. Let’s start with feature extraction.</p>
+<h3 id="feature-extraction">Feature extraction</h3>
+<p>Feature extraction consists of using the representations learned by a previous network to extract interesting features from new samples. These features are then run through a new classifier, which is trained from scratch.</p>
+<p>As you saw previously, convnets used for image classification comprise two parts: they start with a series of pooling and convolution layers, and they end with a densely connected classifier. The first part is called the <em>convolutional base</em> of the model. In the case of convnets, feature extraction consists of taking the convolutional base of a previously trained network, running the new data through it, and training a new classifier on top of the output.</p>
+<p><img src="images/swapping_fc_classifier.png" style="width:80.0%" /></p>
+<p>Why only reuse the convolutional base? Could you reuse the densely connected classifier as well? In general, doing so should be avoided. The reason is that the representations learned by the convolutional base are likely to be more generic and therefore more reusable: the feature maps of a convnet are presence maps of generic concepts over a picture, which is likely to be useful regardless of the computer-vision problem at hand. But the representations learned by the classifier will necessarily be specific to the set of classes on which the model was trained – they will only contain information about the presence probability of this or that class in the entire picture. Additionally, representations found in densely connected layers no longer contain any information about <em>where</em> objects are located in the input image: these layers get rid of the notion of space, whereas the object location is still described by convolutional feature maps. For problems where object location matters, densely connected features are largely useless.</p>
+<p>Note that the level of generality (and therefore reusability) of the representations extracted by specific convolution layers depends on the depth of the layer in the model. Layers that come earlier in the model extract local, highly generic feature maps (such as visual edges, colors, and textures), whereas layers that are higher up extract more-abstract concepts (such as “cat ear” or “dog eye”). So if your new dataset differs a lot from the dataset on which the original model was trained, you may be better off using only the first few layers of the model to do feature extraction, rather than using the entire convolutional base.</p>
+<p>In this case, because the ImageNet class set contains multiple dog and cat classes, it’s likely to be beneficial to reuse the information contained in the densely connected layers of the original model. But we’ll choose not to, in order to cover the more general case where the class set of the new problem doesn’t overlap the class set of the original model.</p>
+<p>Let’s put this in practice by using the convolutional base of the VGG16 network, trained on ImageNet, to extract interesting features from cat and dog images, and then train a dogs-versus-cats classifier on top of these features.</p>
+<p>The VGG16 model, among others, comes prepackaged with Keras. Here’s the list of image-classification models (all pretrained on the ImageNet dataset) that are available as part of Keras:</p>
+<ul>
+<li>Xception</li>
+<li>Inception V3</li>
+<li>ResNet50</li>
+<li>VGG16</li>
+<li>VGG19</li>
+<li>MobileNet</li>
+</ul>
+<p>Let’s instantiate the VGG16 model.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+
+conv_base &lt;- application_vgg16(
+  weights = &quot;imagenet&quot;,
+  include_top = FALSE,
+  input_shape = c(150, 150, 3)
+)</code></pre>
+</div>
+<p>You pass three arguments to the function:</p>
+<ul>
+<li><code>weights</code> specifies the weight checkpoint from which to initialize the model.</li>
+<li><code>include_top</code> refers to including (or not) the densely connected classifier on top of the network. By default, this densely connected classifier corresponds to the 1,000 classes from ImageNet. Because you intend to use your own densely connected classifier (with only two classes: <code>cat</code> and <code>dog</code>), you don’t need to include it.</li>
+<li><code>input_shape</code> is the shape of the image tensors that you’ll feed to the network. This argument is purely optional: if you don’t pass it, the network will be able to process inputs of any size.</li>
+</ul>
+<p>Here’s the detail of the architecture of the VGG16 convolutional base. It’s similar to the simple convnets you’re already familiar with:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+summary(conv_base)</code></pre>
+</div>
+<pre><code>
+Layer (type)                     Output Shape          Param #  
+================================================================
+input_1 (InputLayer)             (None, 150, 150, 3)   0       
+________________________________________________________________
+block1_conv1 (Convolution2D)     (None, 150, 150, 64)  1792     
+________________________________________________________________
+block1_conv2 (Convolution2D)     (None, 150, 150, 64)  36928    
+________________________________________________________________
+block1_pool (MaxPooling2D)       (None, 75, 75, 64)    0        
+________________________________________________________________
+block2_conv1 (Convolution2D)     (None, 75, 75, 128)   73856    
+________________________________________________________________
+block2_conv2 (Convolution2D)     (None, 75, 75, 128)   147584   
+________________________________________________________________
+block2_pool (MaxPooling2D)       (None, 37, 37, 128)   0        
+________________________________________________________________
+block3_conv1 (Convolution2D)     (None, 37, 37, 256)   295168   
+________________________________________________________________
+block3_conv2 (Convolution2D)     (None, 37, 37, 256)   590080   
+________________________________________________________________
+block3_conv3 (Convolution2D)     (None, 37, 37, 256)   590080   
+________________________________________________________________
+block3_pool (MaxPooling2D)       (None, 18, 18, 256)   0        
+________________________________________________________________
+block4_conv1 (Convolution2D)     (None, 18, 18, 512)   1180160  
+________________________________________________________________
+block4_conv2 (Convolution2D)     (None, 18, 18, 512)   2359808  
+________________________________________________________________
+block4_conv3 (Convolution2D)     (None, 18, 18, 512)   2359808  
+________________________________________________________________
+block4_pool (MaxPooling2D)       (None, 9, 9, 512)     0        
+________________________________________________________________
+block5_conv1 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_conv2 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_conv3 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_pool (MaxPooling2D)       (None, 4, 4, 512)     0        
+================================================================
+Total params: 14,714,688
+Trainable params: 14,714,688
+Non-trainable params: 0</code></pre>
+<p>The final feature map has shape <code>(4, 4, 512)</code>. That’s the feature on top of which you’ll stick a densely connected classifier.</p>
+<p>At this point, there are two ways you could proceed:</p>
+<ul>
+<li><p>Running the convolutional base over your dataset, recording its output to an array on disk, and then using this data as input to a standalone, densely connected classifier similar to those you saw in part 1 of this book. This solution is fast and cheap to run, because it only requires running the convolutional base once for every input image, and the convolutional base is by far the most expensive part of the pipeline. But for the same reason, this technique won’t allow you to use data augmentation.</p></li>
+<li><p>Extending the model you have (<code>conv_base</code>) by adding dense layers on top, and running the whole thing end to end on the input data. This will allow you to use data augmentation, because every input image goes through the convolutional base every time it’s seen by the model. But for the same reason, this technique is far more expensive than the first.</p></li>
+</ul>
+<p>In this post we’ll cover the second technique in detail (in the book we cover both). Note that this technique is so expensive that you should only attempt it if you have access to a GPU – it’s absolutely intractable on a CPU.</p>
+<h3 id="feature-extraction-with-data-augmentation">Feature extraction with data augmentation</h3>
+<p>Because models behave just like layers, you can add a model (like <code>conv_base</code>) to a sequential model just like you would add a layer.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;% 
+  conv_base %&gt;% 
+  layer_flatten() %&gt;% 
+  layer_dense(units = 256, activation = &quot;relu&quot;) %&gt;% 
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+</div>
+<p>This is what the model looks like now:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+summary(model)</code></pre>
+</div>
+<pre><code>
+Layer (type)                     Output Shape          Param #  
+================================================================
+vgg16 (Model)                    (None, 4, 4, 512)     14714688                                     
+________________________________________________________________
+flatten_1 (Flatten)              (None, 8192)          0        
+________________________________________________________________
+dense_1 (Dense)                  (None, 256)           2097408  
+________________________________________________________________
+dense_2 (Dense)                  (None, 1)             257      
+================================================================
+Total params: 16,812,353
+Trainable params: 16,812,353
+Non-trainable params: 0</code></pre>
+<p>As you can see, the convolutional base of VGG16 has 14,714,688 parameters, which is very large. The classifier you’re adding on top has 2 million parameters.</p>
+<p>Before you compile and train the model, it’s very important to freeze the convolutional base. <em>Freezing</em> a layer or set of layers means preventing their weights from being updated during training. If you don’t do this, then the representations that were previously learned by the convolutional base will be modified during training. Because the dense layers on top are randomly initialized, very large weight updates would be propagated through the network, effectively destroying the representations previously learned.</p>
+<p>In Keras, you freeze a network using the <code>freeze_weights()</code> function:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+length(model$trainable_weights)</code></pre>
+</div>
+<pre><code>
+[1] 30</code></pre>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+freeze_weights(conv_base)
+length(model$trainable_weights)</code></pre>
+</div>
+<pre><code>
+[1] 4</code></pre>
+<p>With this setup, only the weights from the two dense layers that you added will be trained. That’s a total of four weight tensors: two per layer (the main weight matrix and the bias vector). Note that in order for these changes to take effect, you must first compile the model. If you ever modify weight trainability after compilation, you should then recompile the model, or these changes will be ignored.</p>
+<h4 id="using-data-augmentation">Using data augmentation</h4>
+<p>Overfitting is caused by having too few samples to learn from, rendering you unable to train a model that can generalize to new data. Given infinite data, your model would be exposed to every possible aspect of the data distribution at hand: you would never overfit. Data augmentation takes the approach of generating more training data from existing training samples, by <em>augmenting</em> the samples via a number of random transformations that yield believable-looking images. The goal is that at training time, your model will never see the exact same picture twice. This helps expose the model to more aspects of the data and generalize better.</p>
+<p>In Keras, this can be done by configuring a number of random transformations to be performed on the images read by an <code>image_data_generator()</code>. For example:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_datagen = image_data_generator(
+  rescale = 1/255,
+  rotation_range = 40,
+  width_shift_range = 0.2,
+  height_shift_range = 0.2,
+  shear_range = 0.2,
+  zoom_range = 0.2,
+  horizontal_flip = TRUE,
+  fill_mode = &quot;nearest&quot;
+)</code></pre>
+</div>
+<p>These are just a few of the options available (for more, see the Keras documentation). Let’s quickly go over this code:</p>
+<ul>
+<li><code>rotation_range</code> is a value in degrees (0–180), a range within which to randomly rotate pictures.</li>
+<li><code>width_shift</code> and <code>height_shift</code> are ranges (as a fraction of total width or height) within which to randomly translate pictures vertically or horizontally.</li>
+<li><code>shear_range</code> is for randomly applying shearing transformations.</li>
+<li><code>zoom_range</code> is for randomly zooming inside pictures.</li>
+<li><code>horizontal_flip</code> is for randomly flipping half the images horizontally – relevant when there are no assumptions of horizontal asymmetry (for example, real-world pictures).</li>
+<li><code>fill_mode</code> is the strategy used for filling in newly created pixels, which can appear after a rotation or a width/height shift.</li>
+</ul>
+<p>Now we can train our model using the image data generator:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# Note that the validation data shouldn&#39;t be augmented!
+test_datagen &lt;- image_data_generator(rescale = 1/255)  
+
+train_generator &lt;- flow_images_from_directory(
+  train_dir,                  # Target directory  
+  train_datagen,              # Data generator
+  target_size = c(150, 150),  # Resizes all images to 150 × 150
+  batch_size = 20,
+  class_mode = &quot;binary&quot;       # binary_crossentropy loss for binary labels
+)
+
+validation_generator &lt;- flow_images_from_directory(
+  validation_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  batch_size = 20,
+  class_mode = &quot;binary&quot;
+)
+
+model %&gt;% compile(
+  loss = &quot;binary_crossentropy&quot;,
+  optimizer = optimizer_rmsprop(lr = 2e-5),
+  metrics = c(&quot;accuracy&quot;)
+)
+
+history &lt;- model %&gt;% fit_generator(
+  train_generator,
+  steps_per_epoch = 100,
+  epochs = 30,
+  validation_data = validation_generator,
+  validation_steps = 50
+)</code></pre>
+</div>
+<p>Let’s plot the results. As you can see, you reach a validation accuracy of about 90%.</p>
+<p><img src="images/5-3_metrics_plot_feature_extraction_with_augmentation-r.png" /></p>
+<h3 id="fine-tuning">Fine-tuning</h3>
+<p>Another widely used technique for model reuse, complementary to feature extraction, is <em>fine-tuning</em> Fine-tuning consists of unfreezing a few of the top layers of a frozen model base used for feature extraction, and jointly training both the newly added part of the model (in this case, the fully connected classifier) and these top layers. This is called <em>fine-tuning</em> because it slightly adjusts the more abstract representations of the model being reused, in order to make them more relevant for the problem at hand.</p>
+<p><img src="images/vgg16_fine_tuning.png" style="width:60.0%" /></p>
+<p>I stated earlier that it’s necessary to freeze the convolution base of VGG16 in order to be able to train a randomly initialized classifier on top. For the same reason, it’s only possible to fine-tune the top layers of the convolutional base once the classifier on top has already been trained. If the classifier isn’t already trained, then the error signal propagating through the network during training will be too large, and the representations previously learned by the layers being fine-tuned will be destroyed. Thus the steps for fine-tuning a network are as follows:</p>
+<ul>
+<li>Add your custom network on top of an already-trained base network.</li>
+<li>Freeze the base network.</li>
+<li>Train the part you added.</li>
+<li>Unfreeze some layers in the base network.</li>
+<li>Jointly train both these layers and the part you added.</li>
+</ul>
+<p>You already completed the first three steps when doing feature extraction. Let’s proceed with step 4: you’ll unfreeze your <code>conv_base</code> and then freeze individual layers inside it.</p>
+<p>As a reminder, this is what your convolutional base looks like:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+summary(conv_base)</code></pre>
+</div>
+<pre><code>
+Layer (type)                     Output Shape          Param #  
+================================================================
+input_1 (InputLayer)             (None, 150, 150, 3)   0        
+________________________________________________________________
+block1_conv1 (Convolution2D)     (None, 150, 150, 64)  1792     
+________________________________________________________________
+block1_conv2 (Convolution2D)     (None, 150, 150, 64)  36928    
+________________________________________________________________
+block1_pool (MaxPooling2D)       (None, 75, 75, 64)    0        
+________________________________________________________________
+block2_conv1 (Convolution2D)     (None, 75, 75, 128)   73856    
+________________________________________________________________
+block2_conv2 (Convolution2D)     (None, 75, 75, 128)   147584   
+________________________________________________________________
+block2_pool (MaxPooling2D)       (None, 37, 37, 128)   0        
+________________________________________________________________
+block3_conv1 (Convolution2D)     (None, 37, 37, 256)   295168   
+________________________________________________________________
+block3_conv2 (Convolution2D)     (None, 37, 37, 256)   590080   
+________________________________________________________________
+block3_conv3 (Convolution2D)     (None, 37, 37, 256)   590080   
+________________________________________________________________
+block3_pool (MaxPooling2D)       (None, 18, 18, 256)   0        
+________________________________________________________________
+block4_conv1 (Convolution2D)     (None, 18, 18, 512)   1180160  
+________________________________________________________________
+block4_conv2 (Convolution2D)     (None, 18, 18, 512)   2359808  
+________________________________________________________________
+block4_conv3 (Convolution2D)     (None, 18, 18, 512)   2359808  
+________________________________________________________________
+block4_pool (MaxPooling2D)       (None, 9, 9, 512)     0        
+________________________________________________________________
+block5_conv1 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_conv2 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_conv3 (Convolution2D)     (None, 9, 9, 512)     2359808  
+________________________________________________________________
+block5_pool (MaxPooling2D)       (None, 4, 4, 512)     0        
+================================================================
+Total params: 14714688</code></pre>
+<p>You’ll fine-tune all of the layers from <code>block3_conv1</code> and on. Why not fine-tune the entire convolutional base? You could. But you need to consider the following:</p>
+<ul>
+<li>Earlier layers in the convolutional base encode more-generic, reusable features, whereas layers higher up encode more-specialized features. It’s more useful to fine-tune the more specialized features, because these are the ones that need to be repurposed on your new problem. There would be fast-decreasing returns in fine-tuning lower layers.</li>
+<li>The more parameters you’re training, the more you’re at risk of overfitting. The convolutional base has 15 million parameters, so it would be risky to attempt to train it on your small dataset.</li>
+</ul>
+<p>Thus, in this situation, it’s a good strategy to fine-tune only some of the layers in the convolutional base. Let’s set this up, starting from where you left off in the previous example.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+unfreeze_weights(conv_base, from = &quot;block3_conv1&quot;)</code></pre>
+</div>
+<p>Now you can begin fine-tuning the network. You’ll do this with the RMSProp optimizer, using a very low learning rate. The reason for using a low learning rate is that you want to limit the magnitude of the modifications you make to the representations of the three layers you’re fine-tuning. Updates that are too large may harm these representations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% compile(
+  loss = &quot;binary_crossentropy&quot;,
+  optimizer = optimizer_rmsprop(lr = 1e-5),
+  metrics = c(&quot;accuracy&quot;)
+)
+
+history &lt;- model %&gt;% fit_generator(
+  train_generator,
+  steps_per_epoch = 100,
+  epochs = 100,
+  validation_data = validation_generator,
+  validation_steps = 50
+)</code></pre>
+</div>
+<p>Let’s plot our results:</p>
+<p><img src="images/5-3_metrics_plot_fine_tuning-r.png" /></p>
+<p>You’re seeing a nice 6% absolute improvement in accuracy, from about 90% to above 96%.</p>
+<p>Note that the loss curve doesn’t show any real improvement (in fact, it’s deteriorating). You may wonder, how could accuracy stay stable or improve if the loss isn’t decreasing? The answer is simple: what you display is an average of pointwise loss values; but what matters for accuracy is the distribution of the loss values, not their average, because accuracy is the result of a binary thresholding of the class probability predicted by the model. The model may still be improving even if this isn’t reflected in the average loss.</p>
+<p>You can now finally evaluate this model on the test data:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+test_generator &lt;- flow_images_from_directory(
+  test_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  batch_size = 20,
+  class_mode = &quot;binary&quot;
+)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% evaluate_generator(test_generator, steps = 50)</code></pre>
+</div>
+<pre><code>
+$loss
+[1] 0.2158171
+
+$acc
+[1] 0.965</code></pre>
+<p>Here you get a test accuracy of 96.5%. In the original Kaggle competition around this dataset, this would have been one of the top results. But using modern deep-learning techniques, you managed to reach this result using only a small fraction of the training data available (about 10%). There is a huge difference between being able to train on 20,000 samples compared to 2,000 samples!</p>
+<h2 id="take-aways-using-convnets-with-small-datasets">Take-aways: using convnets with small datasets</h2>
+<p>Here’s what you should take away from the exercises in the past two sections:</p>
+<ul>
+<li>Convnets are the best type of machine-learning models for computer-vision tasks. It’s possible to train one from scratch even on a very small dataset, with decent results.</li>
+<li>On a small dataset, overfitting will be the main issue. Data augmentation is a powerful way to fight overfitting when you’re working with image data.</li>
+<li>It’s easy to reuse an existing convnet on a new dataset via feature extraction. This is a valuable technique for working with small image datasets.</li>
+<li>As a complement to feature extraction, you can use fine-tuning, which adapts to a new problem some of the representations previously learned by an existing model. This pushes performance a bit further.</li>
+</ul>
+<p>Now you have a solid set of tools for dealing with image-classification problems – in particular with small datasets.</p>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Chollet &amp; Allaire (2017, Dec. 14). TensorFlow for R Blog: Image Classification on Small Datasets with Keras. Retrieved from https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{chollet2017image,
+  author = {Chollet, François and Allaire, J.J.},
+  title = {TensorFlow for R Blog: Image Classification on Small Datasets with Keras},
+  url = {https://rstudio.github.io/tensorflow-blog/posts/2017-12-14-image-classification-on-small-datasets/},
+  year = {2017}
+}</pre>
+</div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

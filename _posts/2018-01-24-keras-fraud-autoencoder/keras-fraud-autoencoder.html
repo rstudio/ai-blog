@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="radix" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>Predicting Fraud with Autoencoders and Keras</title>
+  
+  <meta property="description" itemprop="description" content="In this post we will train an autoencoder to detect credit card fraud. We will also&#10;demonstrate how to train Keras models in the cloud using CloudML. The basis of our &#10;model will be the Kaggle Credit Card Fraud Detection dataset.&#10;"/>
+  
+  
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2018-01-25"/>
+  <meta property="article:created" itemprop="dateCreated" content="2018-01-25"/>
+  <meta name="article:author" content="Daniel Falbel"/>
+  
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="Predicting Fraud with Autoencoders and Keras"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="In this post we will train an autoencoder to detect credit card fraud. We will also&#10;demonstrate how to train Keras models in the cloud using CloudML. The basis of our &#10;model will be the Kaggle Credit Card Fraud Detection dataset.&#10;"/>
+  <meta property="og:locale" content="en_US"/>
+  
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="Predicting Fraud with Autoencoders and Keras"/>
+  <meta property="twitter:description" content="In this post we will train an autoencoder to detect credit card fraud. We will also&#10;demonstrate how to train Keras models in the cloud using CloudML. The basis of our &#10;model will be the Kaggle Credit Card Fraud Detection dataset.&#10;"/>
+  
+  <!--/radix_placeholder_meta_tags-->
+  <!--radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","date","categories","preview","output"]}},"value":[{"type":"character","attributes":{},"value":["Predicting Fraud with Autoencoders and Keras"]},{"type":"character","attributes":{},"value":["In this post we will train an autoencoder to detect credit card fraud. We will also\ndemonstrate how to train Keras models in the cloud using CloudML. The basis of our \nmodel will be the Kaggle Credit Card Fraud Detection dataset.\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Daniel Falbel"]},{"type":"character","attributes":{},"value":["https://github.com/dfalbel"]},{"type":"character","attributes":{},"value":["Curso-R"]},{"type":"character","attributes":{},"value":["http://curso-r.com/"]}]}]},{"type":"character","attributes":{},"value":["01-25-2018"]},{"type":"character","attributes":{},"value":["Keras","Examples","Autoencoders","Cloud"]},{"type":"character","attributes":{},"value":["images/preview.png"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["images/cloudml_report.png","images/joy-division.png","images/money.png","images/precision.png","images/preview.png","images/recall.png","keras-fraud-autoencoder_files/bowser-1.9.3/bowser.min.js","keras-fraud-autoencoder_files/distill-2.2.21/template.v2.js","keras-fraud-autoencoder_files/jquery-1.11.3/jquery.min.js","keras-fraud-autoencoder_files/webcomponents-2.0.0/webcomponents.js"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+  
+  <style type="text/css">
+  
+  body {
+    background-color: white;
+  }
+  
+  .pandoc-table {
+    width: 100%;
+  }
+  
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+  
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+  
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+  
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+  
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+  
+  d-article {
+    padding-bottom: 30px;
+  }
+  
+  d-appendix {
+    padding-top: 30px;
+  }
+  
+  d-article>p>img {
+    width: 100%;
+  }
+  
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+  
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  /* CSS for table of contents */
+  
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+  
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+  
+  .d-toc a {
+    border-bottom: none;
+  }
+  
+  .d-toc ul {
+    padding-left: 0;
+  }
+  
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+  
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+  
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+  
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+  
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  
+  
+  
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+  
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  pre.text-output {
+  
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  @media(min-width: 768px) {
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+  
+  /* Tweak 1000px media break to show more text */
+  
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+  
+    .grid {
+      grid-column-gap: 16px;
+    }
+  
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption {
+      font-size: 13px;
+    }
+  }
+  
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+  
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+  
+  
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+  
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  
+  /* Social footer */
+  
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+  
+  .disqus-comments {
+    margin-right: 30px;
+  }
+  
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+  
+  #disqus_thread {
+    margin-top: 30px;
+  }
+  
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+  
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+  
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+  
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+  
+  
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+  
+  
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+  
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+  
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+  
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+  
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+  
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+  
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+  
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+  
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+  
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+  
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  </style>
+  
+  <script type="application/javascript">
+  
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+  
+  // show body when load is complete
+  function on_load_complete() {
+  
+    // set body to visible
+    document.body.style.visibility = 'visible';
+  
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+  
+  function init_distill() {
+  
+    init_common();
+  
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+  
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+  
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+  
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+  
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+  
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+  
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+  
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+  
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+  
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#fn1>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.text();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.text(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+  
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+  
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+  
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+  
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+  
+      // capture layout
+      var layout = $(this).attr('data-layout');
+  
+      // apply layout to markdown level block elements
+      $(this).children().not('d-code, pre.text-output')
+        .wrap($('<div class="' + layout + '"></div>'));
+  
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+  
+    // load distill framework
+    load_distill_framework();
+  
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+  
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+  
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+  
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+  
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+  
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+  
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+  
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+  
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+  
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+  
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+  
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+  
+      // clear polling timer
+      clearInterval(tid);
+  
+      // show body now that everything is ready
+      on_load_complete();
+    }
+  
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+  
+  }
+  
+  function init_downlevel() {
+  
+    init_common();
+  
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+  
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+  
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+  
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+  
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+  
+  
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+  
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+  
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+  
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+  
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+  
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+  
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+  
+    $('body').addClass('downlevel');
+  
+    on_load_complete();
+  }
+  
+  
+  function init_common() {
+  
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+  
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+  
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+  
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+  
+    // mark figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      $(this).find('img, .html-widget').css('width', '100%');
+    });
+  
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+  
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+  
+  
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+  
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+  
+  </script>
+  
+  <!--/radix_placeholder_distill-->
+  <script src="keras-fraud-autoencoder_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="keras-fraud-autoencoder_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="keras-fraud-autoencoder_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="keras-fraud-autoencoder_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Predicting Fraud with Autoencoders and Keras","description":"In this post we will train an autoencoder to detect credit card fraud. We will also\ndemonstrate how to train Keras models in the cloud using CloudML. The basis of our \nmodel will be the Kaggle Credit Card Fraud Detection dataset.\n","authors":[{"author":"Daniel Falbel","authorURL":"https://github.com/dfalbel","affiliation":"Curso-R","affiliationURL":"http://curso-r.com/"}],"publishedDate":"2018-01-25T00:00:00.000-05:00","citationText":"Falbel, 2018"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Predicting Fraud with Autoencoders and Keras</h1>
+<p>In this post we will train an autoencoder to detect credit card fraud. We will also demonstrate how to train Keras models in the cloud using CloudML. The basis of our model will be the Kaggle Credit Card Fraud Detection dataset.</p>
+</div>
+
+<div class="d-byline">
+  Daniel Falbel <a href="https://github.com/dfalbel" class="uri">https://github.com/dfalbel</a> (Curso-R)<a href="http://curso-r.com/" class="uri">http://curso-r.com/</a>
+  
+<br/>01-25-2018
+</div>
+
+<div class="d-article">
+<h2 id="overview">Overview</h2>
+<p>In this post we will train an autoencoder to detect credit card fraud. We will also demonstrate how to train Keras models in the cloud using <a href="https://tensorflow.rstudio.com/tools/cloudml/">CloudML</a>.</p>
+<p>The basis of our model will be the Kaggle <a href="https://www.kaggle.com/mlg-ulb/creditcardfraud">Credit Card Fraud Detection</a> dataset, which was collected during a research collaboration of Worldline and the <a href="http://mlg.ulb.ac.be">Machine Learning Group</a> of ULB (Université Libre de Bruxelles) on big data mining and fraud detection.</p>
+<p>The dataset contains credit card transactions by European cardholders made over a two day period in September 2013. There are 492 frauds out of 284,807 transactions. The dataset is highly unbalanced, the positive class (frauds) account for only 0.172% of all transactions.</p>
+<h2 id="reading-the-data">Reading the data</h2>
+<p>After downloading the data from <a href="https://www.kaggle.com/dalpozz/creditcardfraud">Kaggle</a>, you can read it in to R with <code>read_csv()</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(readr)
+df &lt;- read_csv(&quot;data-raw/creditcard.csv&quot;, col_types = list(Time = col_number()))</code></pre>
+</div>
+<p>The input variables consist of only numerical values which are the result of a PCA transformation. In order to preserve confidentiality, no more information about the original features was provided. The features V1, …, V28 were obtained with PCA. There are however 2 features (<em>Time</em> and <em>Amount</em>) that were not transformed. <em>Time</em> is the seconds elapsed between each transaction and the first transaction in the dataset. <em>Amount</em> is the transaction amount and could be used for cost-sensitive learning. The <em>Class</em> variable takes value 1 in case of fraud and 0 otherwise.</p>
+<h2 id="autoencoders">Autoencoders</h2>
+<p>Since only 0.172% of the observations are frauds, we have a highly unbalanced classification problem. With this kind of problem, traditional classification approaches usually don’t work very well because we have only a very small sample of the rarer class.</p>
+<p>An <a href="https://en.wikipedia.org/wiki/Autoencoder">autoencoder</a> is a neural network that is used to learn a representation (encoding) for a set of data, typically for the purpose of dimensionality reduction. For this problem we will train an autoencoder to encode non-fraud observations from our training set. Since frauds are supposed to have a different distribution then normal transactions, we expect that our autoencoder will have higher reconstruction errors on frauds then on normal transactions. This means that we can use the reconstruction error as a quantity that indicates if a transaction is fraudulent or not.</p>
+<p>If you want to learn more about autoencoders, a good starting point is this <a href="https://www.youtube.com/watch?v=FzS3tMl4Nsc">video from Larochelle</a> on YouTube and <a href="http://www.deeplearningbook.org/contents/autoencoders.html">Chapter 14</a> from the <a href="http://www.deeplearningbook.org/">Deep Learning</a> book by Goodfellow et al.</p>
+<h2 id="visualization">Visualization</h2>
+<p>For an autoencoder to work well we have a strong initial assumption: that the distribution of variables for normal transactions is different from the distribution for fraudulent ones. Let’s make some plots to verify this. Variables were transformed to a <code>[0,1]</code> interval for plotting.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+df %&gt;%
+  gather(variable, value, -Class) %&gt;%
+  ggplot(aes(y = as.factor(variable), 
+             fill = as.factor(Class), 
+             x = percent_rank(value))) +
+  geom_density_ridges()</code></pre>
+</div>
+<p><img src="images/joy-division.png" /></p>
+<p>We can see that distributions of variables for fraudulent transactions are very different then from normal ones, except for the <em>Time</em> variable, which seems to have the exact same distribution.</p>
+<h2 id="preprocessing">Preprocessing</h2>
+<p>Before the modeling steps we need to do some preprocessing. We will split the dataset into train and test sets and then we will <a href="https://www.quora.com/What-is-the-meaning-of-min-max-normalization">Min-max normalize</a> our data (this is done because neural networks work much better with small input values). We will also remove the <em>Time</em> variable as it has the exact same distribution for normal and fraudulent transactions.</p>
+<p>Based on the <em>Time</em> variable we will use the first 200,000 observations for training and the rest for testing. This is good practice because when using the model we want to predict future frauds based on transactions that happened before.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+df_train &lt;- df %&gt;% filter(row_number(Time) &lt;= 200000) %&gt;% select(-Time)
+df_test &lt;- df %&gt;% filter(row_number(Time) &gt; 200000) %&gt;% select(-Time)</code></pre>
+</div>
+<p>Now let’s work on normalization of inputs. We created 2 functions to help us. The first one gets descriptive statistics about the dataset that are used for scaling. Then we have a function to perform the min-max scaling. It’s important to note that we applied the same normalization constants for training and test sets.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(purrr)
+
+#&#39; Gets descriptive statistics for every variable in the dataset.
+get_desc &lt;- function(x) {
+  map(x, ~list(
+    min = min(.x),
+    max = max(.x),
+    mean = mean(.x),
+    sd = sd(.x)
+  ))
+} 
+
+#&#39; Given a dataset and normalization constants it will create a min-max normalized
+#&#39; version of the dataset.
+normalization_minmax &lt;- function(x, desc) {
+  map2_dfc(x, desc, ~(.x - .y$min)/(.y$max - .y$min))
+}</code></pre>
+</div>
+<p>Now let’s create normalized versions of our datasets. We also transformed our data frames to matrices since this is the format expected by Keras.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+desc &lt;- df_train %&gt;% 
+  select(-Class) %&gt;% 
+  get_desc()
+
+x_train &lt;- df_train %&gt;%
+  select(-Class) %&gt;%
+  normalization_minmax(desc) %&gt;%
+  as.matrix()
+
+x_test &lt;- df_test %&gt;%
+  select(-Class) %&gt;%
+  normalization_minmax(desc) %&gt;%
+  as.matrix()
+
+y_train &lt;- df_train$Class
+y_test &lt;- df_test$Class</code></pre>
+</div>
+<h1 id="model-definition">Model definition</h1>
+<p>We will now define our model in Keras, a symmetric autoencoder with 4 dense layers.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+model &lt;- keras_model_sequential()
+model %&gt;%
+  layer_dense(units = 15, activation = &quot;tanh&quot;, input_shape = ncol(x_train)) %&gt;%
+  layer_dense(units = 10, activation = &quot;tanh&quot;) %&gt;%
+  layer_dense(units = 15, activation = &quot;tanh&quot;) %&gt;%
+  layer_dense(units = ncol(x_train))
+
+summary(model)</code></pre>
+</div>
+<pre><code>
+___________________________________________________________________________________
+Layer (type)                         Output Shape                     Param #      
+===================================================================================
+dense_1 (Dense)                      (None, 15)                       450          
+___________________________________________________________________________________
+dense_2 (Dense)                      (None, 10)                       160          
+___________________________________________________________________________________
+dense_3 (Dense)                      (None, 15)                       165          
+___________________________________________________________________________________
+dense_4 (Dense)                      (None, 29)                       464          
+===================================================================================
+Total params: 1,239
+Trainable params: 1,239
+Non-trainable params: 0
+___________________________________________________________________________________</code></pre>
+<p>We will then compile our model, using the mean squared error loss and the Adam optimizer for training.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% compile(
+  loss = &quot;mean_squared_error&quot;, 
+  optimizer = &quot;adam&quot;
+)</code></pre>
+</div>
+<h2 id="training-the-model">Training the model</h2>
+<p>We can now train our model using the <code>fit()</code> function. Training the model is reasonably fast (~ 14s per epoch on my laptop). We will only feed to our model the observations of normal (non-fraudulent) transactions.</p>
+<p>We will use <code>callback_model_checkpoint()</code> in order to save our model after each epoch. By passing the argument <code>save_best_only = TRUE</code> we will keep on disk only the epoch with smallest loss value on the test set. We will also use <code>callback_early_stopping()</code> to stop training if the validation loss stops decreasing for 5 epochs.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+checkpoint &lt;- callback_model_checkpoint(
+  filepath = &quot;model.hdf5&quot;, 
+  save_best_only = TRUE, 
+  period = 1,
+  verbose = 1
+)
+
+early_stopping &lt;- callback_early_stopping(patience = 5)
+
+model %&gt;% fit(
+  x = x_train[y_train == 0,], 
+  y = x_train[y_train == 0,], 
+  epochs = 100, 
+  batch_size = 32,
+  validation_data = list(x_test[y_test == 0,], x_test[y_test == 0,]), 
+  callbacks = list(checkpoint, early_stopping)
+)</code></pre>
+</div>
+<pre><code>
+Train on 199615 samples, validate on 84700 samples
+Epoch 1/100
+199615/199615 [==============================] - 17s 83us/step - loss: 0.0036 - val_loss: 6.8522e-04d from inf to 0.00069, saving model to model.hdf5
+Epoch 2/100
+199615/199615 [==============================] - 17s 86us/step - loss: 4.7817e-04 - val_loss: 4.7266e-04d from 0.00069 to 0.00047, saving model to model.hdf5
+Epoch 3/100
+199615/199615 [==============================] - 19s 94us/step - loss: 3.7753e-04 - val_loss: 4.2430e-04d from 0.00047 to 0.00042, saving model to model.hdf5
+Epoch 4/100
+199615/199615 [==============================] - 19s 94us/step - loss: 3.3937e-04 - val_loss: 4.0299e-04d from 0.00042 to 0.00040, saving model to model.hdf5
+Epoch 5/100
+199615/199615 [==============================] - 19s 94us/step - loss: 3.2259e-04 - val_loss: 4.0852e-04 improve
+Epoch 6/100
+199615/199615 [==============================] - 18s 91us/step - loss: 3.1668e-04 - val_loss: 4.0746e-04 improve
+...</code></pre>
+<p>After training we can get the final loss for the test set by using the <code>evaluate()</code> fucntion.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+loss &lt;- evaluate(model, x = x_test[y_test == 0,], y = x_test[y_test == 0,])
+loss</code></pre>
+</div>
+<pre><code>
+        loss 
+0.0003534254 </code></pre>
+<h2 id="tuning-with-cloudml">Tuning with CloudML</h2>
+<p>We may be able to get better results by tuning our model hyperparameters. We can tune, for example, the normalization function, the learning rate, the activation functions and the size of hidden layers. CloudML uses Bayesian optimization to tune hyperparameters of models as described in <a href="https://cloud.google.com/blog/big-data/2017/08/hyperparameter-tuning-in-cloud-machine-learning-engine-using-bayesian-optimization">this blog post</a>.</p>
+<p>We can use the <a href="https://tensorflow.rstudio.com/tools/cloudml/">cloudml package</a> to tune our model, but first we need to prepare our project by creating a <a href="https://tensorflow.rstudio.com/tools/training_flags.html">training flag</a> for each hyperparameter and a <code>tuning.yml</code> file that will tell CloudML what parameters we want to tune and how.</p>
+<p>The full script used for training on CloudML can be found at <a href="https://github.com/dfalbel/fraud-autoencoder-example" class="uri">https://github.com/dfalbel/fraud-autoencoder-example</a>. The most important modifications to the code were adding the training flags:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+FLAGS &lt;- flags(
+  flag_string(&quot;normalization&quot;, &quot;minmax&quot;, &quot;One of minmax, zscore&quot;),
+  flag_string(&quot;activation&quot;, &quot;relu&quot;, &quot;One of relu, selu, tanh, sigmoid&quot;),
+  flag_numeric(&quot;learning_rate&quot;, 0.001, &quot;Optimizer Learning Rate&quot;),
+  flag_integer(&quot;hidden_size&quot;, 15, &quot;The hidden layer size&quot;)
+)</code></pre>
+</div>
+<p>We then used the <code>FLAGS</code> variable inside the script to drive the hyperparameters of the model, for example:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% compile(
+  optimizer = optimizer_adam(lr = FLAGS$learning_rate), 
+  loss = &#39;mean_squared_error&#39;,
+)</code></pre>
+</div>
+<p>We also created a <code>tuning.yml</code> file describing how hyperparameters should be varied during training, as well as what metric we wanted to optimize (in this case it was the validation loss: <code>val_loss</code>).</p>
+<p><strong>tuning.yml</strong></p>
+<pre class="markup"><code>
+trainingInput:
+  scaleTier: CUSTOM
+  masterType: standard_gpu
+  hyperparameters:
+    goal: MINIMIZE
+    hyperparameterMetricTag: val_loss
+    maxTrials: 10
+    maxParallelTrials: 5
+    params:
+      - parameterName: normalization
+        type: CATEGORICAL
+        categoricalValues: [zscore, minmax]
+      - parameterName: activation
+        type: CATEGORICAL
+        categoricalValues: [relu, selu, tanh, sigmoid]
+      - parameterName: learning_rate
+        type: DOUBLE
+        minValue: 0.000001
+        maxValue: 0.1
+        scaleType: UNIT_LOG_SCALE
+      - parameterName: hidden_size
+        type: INTEGER
+        minValue: 5
+        maxValue: 50
+        scaleType: UNIT_LINEAR_SCALE</code></pre>
+<p>We describe the type of machine we want to use (in this case a <code>standard_gpu</code> instance), the metric we want to minimize while tuning, and the the maximum number of trials (i.e. number of combinations of hyperparameters we want to test). We then specify how we want to vary each hyperparameter during tuning.</p>
+<p>You can learn more about the tuning.yml file <a href="https://tensorflow.rstudio.com/tools/cloudml/articles/tuning.html">at the Tensorflow for R documentation</a> and at <a href="https://cloud.google.com/ml-engine/reference/rest/v1/projects.jobs#HyperparameterSpec">Google’s official documentation on CloudML</a>.</p>
+<p>Now we are ready to send the job to Google CloudML. We can do this by running:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(cloudml)
+cloudml_train(&quot;train.R&quot;, config = &quot;tuning.yml&quot;)</code></pre>
+</div>
+<p>The cloudml package takes care of uploading the dataset and installing any R package dependencies required to run the script on CloudML. If you are using RStudio v1.1 or higher, it will also allow you to monitor your job in a background terminal. You can also monitor your job using the <a href="https://console.cloud.google.com">Google Cloud Console</a>.</p>
+<p>After the job is finished we can collect the job results with:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+job_collect()</code></pre>
+</div>
+<p>This will copy the files from the job with the best <code>val_loss</code> performance on CloudML to your local system and open a report summarizing the training run.</p>
+<p><img src="images/cloudml_report.png" style="border: 1px solid rgba(0,0,0,0.1);" /></p>
+<p>Since we used a callback to save model checkpoints during training, the model file was also copied from Google CloudML. Files created during training are copied to the “runs” subdirectory of the working directory from which <code>cloudml_train()</code> is called. You can determine this directory for the most recent run with:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+latest_run()$run_dir</code></pre>
+</div>
+<pre><code>
+[1] runs/cloudml_2018_01_23_221244595-03</code></pre>
+<p>You can also list all previous runs and their validation losses with:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ls_runs(order = metric_val_loss, decreasing = FALSE)</code></pre>
+</div>
+<pre><code>
+                    run_dir metric_loss metric_val_loss
+1 runs/2017-12-09T21-01-11Z      0.2577          0.1482
+2 runs/2017-12-09T21-00-11Z      0.2655          0.1505
+3 runs/2017-12-09T19-59-44Z      0.2597          0.1402
+4 runs/2017-12-09T19-56-48Z      0.2610          0.1459
+
+Use View(ls_runs()) to view all columns</code></pre>
+<p>In our case the job downloaded from CloudML was saved to <code>runs/cloudml_2018_01_23_221244595-03/</code>, so the saved model file is available at <code>runs/cloudml_2018_01_23_221244595-03/model.hdf5</code>. We can now use our tuned model to make predictions.</p>
+<h2 id="making-predictions">Making predictions</h2>
+<p>Now that we trained and tuned our model we are ready to generate predictions with our autoencoder. We are interested in the MSE for each observation and we expect that observations of fraudulent transactions will have higher MSE’s.</p>
+<p>First, let’s load our model.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- load_model_hdf5(&quot;runs/cloudml_2018_01_23_221244595-03/model.hdf5&quot;, 
+                         compile = FALSE)</code></pre>
+</div>
+<p>Now let’s calculate the MSE for the training and test set observations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+pred_train &lt;- predict(model, x_train)
+mse_train &lt;- apply((x_train - pred_train)^2, 1, sum)
+
+pred_test &lt;- predict(model, x_test)
+mse_test &lt;- apply((x_test - pred_test)^2, 1, sum)</code></pre>
+</div>
+<p>A good measure of model performance in highly unbalanced datasets is the Area Under the ROC Curve (AUC). AUC has a nice interpretation for this problem, it’s the probability that a fraudulent transaction will have higher MSE then a normal one. We can calculate this using the <a href="https://CRAN.R-project.org/package=Metrics">Metrics</a> package, which implements a wide variety of common machine learning model performance metrics.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(Metrics)
+auc(y_train, mse_train)
+auc(y_test, mse_test)</code></pre>
+</div>
+<pre><code>
+[1] 0.9546814
+[1] 0.9403554</code></pre>
+<p>To use the model in practice for making predictions we need to find a threshold <span class="math inline">\(k\)</span> for the MSE, then if if <span class="math inline">\(MSE &gt; k\)</span> we consider that transaction a fraud (otherwise we consider it normal). To define this value it’s useful to look at precision and recall while varying the threshold <span class="math inline">\(k\)</span>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+possible_k &lt;- seq(0, 0.5, length.out = 100)
+precision &lt;- sapply(possible_k, function(k) {
+  predicted_class &lt;- as.numeric(mse_test &gt; k)
+  sum(predicted_class == 1 &amp; y_test == 1)/sum(predicted_class)
+})
+
+qplot(possible_k, precision, geom = &quot;line&quot;) 
+  + labs(x = &quot;Threshold&quot;, y = &quot;Precision&quot;)</code></pre>
+</div>
+<p><img src="images/precision.png" /></p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+recall &lt;- sapply(possible_k, function(k) {
+  predicted_class &lt;- as.numeric(mse_test &gt; k)
+  sum(predicted_class == 1 &amp; y_test == 1)/sum(y_test)
+})
+qplot(possible_k, recall, geom = &quot;line&quot;) 
+  + labs(x = &quot;Threshold&quot;, y = &quot;Recall&quot;)</code></pre>
+</div>
+<p><img src="images/recall.png" /></p>
+<p>A good starting point would be to choose the threshold with maximum precision but we could also base our decision on how much money we might lose from fraudulent transactions.</p>
+<p>Suppose each manual verification of fraud costs us $1 but if we don’t verify a transaction and it’s a fraud we will lose this transaction amount. Let’s find for each threshold value how much money we would lose.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+cost_per_verification &lt;- 1
+
+lost_money &lt;- sapply(possible_k, function(k) {
+  predicted_class &lt;- as.numeric(mse_test &gt; k)
+  sum(cost_per_verification * predicted_class + (predicted_class == 0) * y_test * df_test$Amount) 
+})
+
+qplot(possible_k, lost_money, geom = &quot;line&quot;) + labs(x = &quot;Threshold&quot;, y = &quot;Lost Money&quot;)</code></pre>
+</div>
+<p><img src="images/money.png" /></p>
+<p>We can find the best threshold in this case with:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+possible_k[which.min(lost_money)]</code></pre>
+</div>
+<pre><code>
+[1] 0.005050505</code></pre>
+<p>If we needed to manually verify all frauds, it would cost us ~$13,000. Using our model we can reduce this to ~$2,500.</p>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

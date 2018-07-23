@@ -1,0 +1,405 @@
+---
+title: "tbd"
+description: |
+  tbd
+author:
+  - name: Sigrid Keydana
+    url: tbd
+    affiliation: RStudio
+    affiliation_url: http://www.rstudio.com/
+date: 07-30-2018
+preview: tbd
+categories:
+  - Keras
+  - TensorFlow
+  - Eager execution
+  - Machine translation
+output:
+  radix::radix_article:
+    self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+
+
+As of this writing, it is not difficult to find example code (be it in R or Python) showing how to perform sequence to sequence translation. However, it has been established quite some time ago (tbd footnote) that depending on the task, incorporating an attention mechanism significantly improves performance. Ideally, if we're using Keras, we'd just have an attention layer handling this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward, the main reason being that we need to train the decoder in a loop, at each point feeding the training input as well as the output from the encoder.
+
+Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow Eager Execution](https://www.tensorflow.org/guide/eager) happened, and turned out to be a game changer for a number of things that used to be difficult (last not least, debugging). With eager execution, operations are executed immediately, instead of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more intricate to accomplish.
+
+Under these circumstances, it is not surprising that the [interactive notebook on neural machine translation](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb), published on Colaboratory, got a lot of attention (if you allow me the pun) for its straightforward implementation and highly intellegible explanations.
+Our goal here is to do the same thing from R. We will not end up with Keras code exactly the way we used to write it, but a hybrid of Keras layers and imperative code enabled by TensorFlow eager execution.
+
+
+### Enable eager execution
+
+There are two things we have to do to get this to work. For one, we need to call `tfe_enable_eager_execution()` right at the beginning of the program. Secondly, we need to use the TensorFlow implementation of Keras, not the "Keras Keras" so to say. This is because at a later point, we are going to access `model$variables` which at this point does not exist in "Keras Keras".
+
+Still from the TensorFlow stack, we are going to use [tfdatasets](tbd). So we end up with the following libraries needed for this example:
+
+
+```{r}
+library(keras)
+use_implementation("tensorflow")
+
+library(tensorflow)
+tfe_enable_eager_execution()
+
+library(tfdatasets)
+
+library(purrr)
+library(stringr)
+library(reshape2)
+library(viridis)
+library(ggplot2)
+library(tibble)
+```
+
+
+### Prepare the data
+
+As our focus is on implementing the attention mechanism, we're going to do a quick pass through pre-preprocessing.
+All operations are contained in short functions that are independently testable (which also makes it easy should you want to experiment with different preprocessing actions).
+
+The site [http://www.manythings.org/anki/](http://www.manythings.org/anki/) is a great source for multilingual datasets. For variation, we'll choose a different dataset from the colab notebook, and try to translate English to Dutch. I'm going to assume you have the unzipped file `nld.txt` in a subdirectory called `data` in your current directory. 
+The file contains 28224 sentence pairs, of which we are going to use the first 10000. Under this restriction, sentences range from one-word exclamations
+
+```
+Run!	Ren!
+Wow!	Da's niet gek!
+Fire!	Vuur!
+```
+
+over short phrases 
+
+```
+Are you crazy?	Ben je gek?
+Do cats dream?	Dromen katten?
+Feed the bird!	Geef de vogel voer!
+```
+
+to simple sentences such as
+
+```
+My brother will kill me.	Mijn broer zal me vermoorden.
+No one knows the future.	Niemand kent de toekomst.
+Please ask someone else.	Vraag alsjeblieft iemand anders.
+```
+
+
+```{r}
+filepath <- file.path("data", "nld.txt")
+
+lines <- readLines(filepath, n = 10000)
+sentences <- str_split(lines, "\t")
+```
+
+
+Basic preprocessing includes adding space before punctuation, replacing special characters, reducing multiple spaces to one, and adding `<start>` and `<stop>` tokens at the beginnings resp. ends of the sentences.
+
+```{r}
+space_before_punct <- function(sentence) {
+  str_replace_all(sentence, "([?.!])", " \\1")
+}
+
+replace_special_chars <- function(sentence) {
+  str_replace_all(sentence, "[^a-zA-Z?.!,¿]+", " ")
+}
+
+add_tokens <- function(sentence) {
+  paste0("<start> ", sentence, " <stop>")
+}
+add_tokens <- Vectorize(add_tokens, USE.NAMES = FALSE)
+
+preprocess_sentence <- compose(add_tokens,
+                               str_squish,
+                               replace_special_chars,
+                               space_before_punct)
+
+word_pairs <- map(sentences, preprocess_sentence)
+```
+
+
+As usual with text data, we need to create lookup indices to get from words to integers and vice versa: one index each for the source and target languages.
+
+```{r}
+create_index <- function(sentences) {
+  unique_words <- sentences %>% unlist() %>% paste(collapse = " ") %>%
+    str_split(pattern = " ") %>% .[[1]] %>% unique() %>% sort()
+  index <- data.frame(
+    word = unique_words,
+    index = 1:length(unique_words),
+    stringsAsFactors = FALSE
+  ) %>%
+    add_row(word = "<pad>",
+                    index = 0,
+                    .before = 1)
+  index
+}
+
+word2index <- function(word, index_df) {
+  index_df[index_df$word == word, "index"]
+}
+index2word <- function(index, index_df) {
+  index_df[index_df$index == index, "word"]
+}
+
+src_index <- create_index(map(word_pairs, ~ .[[1]]))
+target_index <- create_index(map(word_pairs, ~ .[[2]]))
+```
+
+
+Conversion of text to integers uses the above indices as well as Keras' convenient `pad_sequences()` function, at the end of which we have matrices of integers containing the source and target sentences, padded up to maximum sentence length found in the source and target corpus, respectively.
+
+
+```{r}
+sentence2digits <- function(sentence, index_df) {
+  map((sentence %>% str_split(pattern = " "))[[1]], function(word)
+    word2index(word, index_df))
+}
+
+sentlist2diglist <- function(sentence_list, index_df) {
+  map(sentence_list, function(sentence)
+    sentence2digits(sentence, index_df))
+}
+
+src_diglist <-
+  sentlist2diglist(map(word_pairs, ~ .[[1]]), src_index)
+src_maxlen <- map(src_diglist, length) %>% unlist() %>% max()
+src_matrix <-
+  pad_sequences(src_diglist, maxlen = src_maxlen,  padding = "post")
+
+target_diglist <-
+  sentlist2diglist(map(word_pairs, ~ .[[2]]), target_index)
+target_maxlen <- map(target_diglist, length) %>% unlist() %>% max()
+target_matrix <-
+  pad_sequences(target_diglist, maxlen = target_maxlen, padding = "post")
+```
+
+
+All that remains to be done is the train-test-split.
+
+```{r}
+train_indices <-
+  sample(nrow(src_matrix), size = nrow(src_matrix) * 0.8)
+
+validation_indices <- setdiff(1:nrow(src_matrix), train_indices)
+
+x_train <- src_matrix[train_indices, ]
+y_train <- target_matrix[train_indices, ]
+
+x_valid <- src_matrix[validation_indices, ]
+y_valid <- target_matrix[validation_indices, ]
+
+buffer_size <- nrow(x_train)
+
+# just for convenience, so we may get a glimpse at translation performance already during training
+train_sentences <- sentences[train_indices]
+validation_sentences <- sentences[validation_indices]
+validation_sample <- sample(validation_sentences, 5)
+```
+
+
+### Create the datasets to iterate over
+
+While this section does not contain much code quantity-wise, it contains an important technique: the use of datasets.
+Remember the olden times when we used to pass in hand-crafted generators to Keras models? With [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html#reading-datasets), we can scalably feed data directly to the Keras `fit` function, having various preparatory actions being performed directly in native code. In our case, we will not be using `fit` as you'll see below, instead iterate directly over the tensors contained in the dataset. 
+
+```{r}
+train_dataset <- 
+  tensor_slices_dataset(keras_array(list(x_train, y_train)))  %>%
+  dataset_shuffle(buffer_size = buffer_size) %>%
+  dataset_batch(batch_size, drop_remainder = TRUE)
+
+validation_dataset <-
+  tensor_slices_dataset(keras_array(list(x_valid, y_valid))) %>%
+  dataset_shuffle(buffer_size = buffer_size) %>%
+  dataset_batch(batch_size, drop_remainder = TRUE)
+```
+
+Now we are ready to roll! In fact, before talking about that training loop we need to dive into the implementation of the core logic: the custom layers responsible to perform the attention operation.
+
+
+### Attention encoder
+
+We will create two custom layers, only the second of which is going to incorporate attention logic.
+
+However, it's worth introducing the encoder in detail too, because technically this is not a custom layer but a custom model, as described in the [corresponding vignette](https://github.com/rstudio/keras/blob/master/vignettes/custom_models.Rmd).
+
+Custom models allow you to create member layers and then specify custom functionality defining the operations to be performed on these layers.
+
+Let's look at the complete code for the encoder.
+
+```{r}
+attention_encoder <-
+  function(gru_units,
+           embedding_dim,
+           src_vocab_size,
+           name = NULL) {
+    
+    keras_model_custom(name = name, function(model) {
+      
+      model$embedding <-
+        layer_embedding(
+          input_dim = src_vocab_size,
+          output_dim = embedding_dim
+          )
+      model$gru <-
+        layer_gru(
+          units = gru_units,
+          return_sequences = TRUE,
+          return_state = TRUE
+          )
+      
+      function(inputs, mask = NULL) {
+        
+        x <- inputs[[1]]
+        hidden <- inputs[[2]]
+        
+        x <- model$embedding(x)
+        c(output, state) %<-% model$gru(x, initial_state = hidden)
+    
+        list(output, state)
+      }
+    })
+  }
+```
+
+The encoder has two layers, an embedding and a GRU layer. The ensuing anonymous function specifies what should happen when the layer is called. 
+One thing that might look unexpected is the argument passed to that function: It is a list of tensors, where the first element are the inputs, and the second is the hidden state at the point the layer is called (in traditional Keras RNN usage, we are accustomed to seeing state manipulations being done transparently for us.)
+As the input to the call flows through the operations, let's keep track of the shapes involved:
+
+- `x`, the input, is of size `(batch_size, max_length_input)`, where `max_length_input` is the number of digits constituting a source sentence. (Remember we've padded them to be of uniform length.) In familiar RNN parlance, we could also speak of `timesteps` here (we soon will).
+
+- After the embedding step, the tensors will have an additional axis, as each timestep (token) will have been embedded as an `embedding_dim`-dimensional vector. So our shapes are now `(batch_size, max_length_input, embedding_dim)`.
+
+- Note how when calling the GRU, we're passing in the hidden state we received as `initial_state`. We get back a list: the GRU output and last hidden state.
+
+At this point, it helps to look up RNN output shapes in the [documentation](https://tensorflow.rstudio.com/keras/reference/layer_simple_rnn.html).
+
+We have specified our GRU to return sequences as well as the state. Having asked for the state means we'll get back a list of tensors: the output, and the last state(s) - a single last state in this case as we're using GRU. That state itself will be of shape `(batch_size, gru_units)`.
+Having asked for sequences means the output will be of shape `(batch_size, max_length_input, gru_units)`. So that's that. We bundle output and last state in a list and pass it to the calling code.
+
+Before we show the decoder, we need to say a few things about attention.
+
+
+### Attention in a nutshell
+
+
+As T. Luong nicely puts it in his [thesis](tbd), the idea of the attention mechanism is 
+
+> to provide a 'random access memory' of source hidden states which one can constantly refer to as translation progresses.
+
+This means that at every timestep, the decoder receives not just the previous decoder hidden state, but also the complete output from the encoder. It then "makes up its mind" as to what part of the encoded input matters at the current point in time.
+Although various attention mechanisms exist, the basic procedure often goes like this.
+First, we create a _score_ that relates the decoder hidden state at a given timestep to the encoder hidden states at every timestep.
+Different score functions exist; the following is commonly referred to as _Bahdanau style_ (additive) attention (after [tbd](tbd))
+
+$$score(\mathbf{h_t},\bar{\mathbf{h_s}}) = \mathbf{v_a}^T tanh(\mathbf{W_1}\mathbf{h_t} + \mathbf{W_2}\bar{\mathbf{h_s}})$$
+
+From these scores, we want to find the encoder states that matter most to the current decoder timestep.
+Basically, we just normalize the scores doing a softmax, which leaves us with a set of _attention weights_:
+
+$$\alpha_{ts} = \frac{exp(score(\mathbf{h_t},\bar{\mathbf{h_s}}))}{\sum_{s'=1}^{S}{score(\mathbf{h_t},\bar{\mathbf{h_{s'}}})}}$$
+
+
+TBD 
+
+
+
+### Attention decoder
+
+Here's the decoder with the attention mechanism - not too long in terms of code, but with a lot going on.
+
+```{r}
+
+attention_decoder <-
+  function(object,
+           gru_units,
+           embedding_dim,
+           target_vocab_size,
+           name = NULL) {
+    
+    keras_model_custom(name = name, function(model) {
+      model$gru <-
+        layer_gru(
+          units = gru_units,
+          return_sequences = TRUE,
+          return_state = TRUE
+        )
+      model$embedding <-
+        layer_embedding(input_dim = target_vocab_size, output_dim = embedding_dim)
+      gru_units <- gru_units
+      model$fc <- layer_dense(units = target_vocab_size)
+      model$W1 <- layer_dense(units = gru_units)
+      model$W2 <- layer_dense(units = gru_units)
+      model$V <- layer_dense(units = 1L)
+ 
+      function(inputs, mask = NULL) {
+        
+        x <- inputs[[1]]
+        hidden <- inputs[[2]]
+        encoder_output <- inputs[[3]]
+        
+        # encoder_output is of shape (batch_size, max_length_input, gru_units)
+        # hidden has shape (batch_size, gru_units)
+        # hidden_with_time_axis has shape (batch_size, 1, gru_units)
+        # we are doing this to perform addition to calculate the score
+        hidden_with_time_axis <- k_expand_dims(hidden, 2L)
+        # score has shape (batch_size, max_length, gru_units)
+        score <-
+          k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis))
+        
+        # Softmax by default is applied on the last axis but here we want to apply
+        # it on the 2nd axis, since the shape of score is
+        # (batch_size, max_length, gru_units).
+        # Max_length is the length of our input.
+        # Since we are trying to assign a weight to each input,
+        # softmax should be applied on that axis.
+        
+        # attention_weights has shape (batch_size, max_length_input, 1)
+        # we get 1 at the last axis because we are applying score to self$V
+        attention_weights <- k_softmax(model$V(score), axis =  2)
+        
+        # context_vector has shape (batch_size, gru_units)
+        # Same reason as above for choosing axis 2.
+        context_vector <- attention_weights * encoder_output
+        context_vector <- k_sum(context_vector, axis = 2)
+        
+        # x shape after passing through embedding is (batch_size, 1, embedding_dim)
+        # here timesteps is 1 because we're forecasting 1 at a time
+        x <- model$embedding(x)
+        
+        # x shape after concatenation is (batch_size, 1, embedding_dim + gru_units)
+        x <-
+          k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
+        
+        c(output, state) %<-% model$gru(x)
+        
+        # output shape is (batch_size * max_length, gru_units)
+        output <- k_reshape(output, c(-1L , gru_units))
+        
+        # final output shape is (batch_size * max_length, target_vocab_size)
+        x <- model$fc(output)
+        
+        # shapes are now:
+        # x:(batch_size, target_vocab_size)
+        # state: (batch_size, gru_size)
+        # attention_weights is (batch_size, src_maxlen, 1)
+        list(x, state, attention_weights)
+        
+      }
+      
+    })
+  }
+
+```
+
+
+Firstly, we notice that in addition to the usual embedding and GRU layers we'd expect in a decoder, there are a few additional dense layers. We'll comment on those as we go.
+
+This time, the input to what is effectively the `call` function consists  of three parts: input, hidden state, and the output from the encoder.
+
+  

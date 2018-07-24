@@ -4,7 +4,6 @@ description: |
   tbd
 author:
   - name: Sigrid Keydana
-    url: tbd
     affiliation: RStudio
     affiliation_url: http://www.rstudio.com/
 date: 07-30-2018
@@ -297,21 +296,29 @@ Although various attention mechanisms exist, the basic procedure often goes like
 First, we create a _score_ that relates the decoder hidden state at a given timestep to the encoder hidden states at every timestep.
 Different score functions exist; the following is commonly referred to as _Bahdanau style_ (additive) attention (after [tbd](tbd))
 
-$$score(\mathbf{h_t},\bar{\mathbf{h_s}}) = \mathbf{v_a}^T tanh(\mathbf{W_1}\mathbf{h_t} + \mathbf{W_2}\bar{\mathbf{h_s}})$$
+$$score(\mathbf{h}_t,\bar{\mathbf{h}_s}) = \mathbf{v}_a^T tanh(\mathbf{W_1}\mathbf{h}_t + \mathbf{W_2}\bar{\mathbf{h}_s})$$
 
 From these scores, we want to find the encoder states that matter most to the current decoder timestep.
 Basically, we just normalize the scores doing a softmax, which leaves us with a set of _attention weights_:
 
-$$\alpha_{ts} = \frac{exp(score(\mathbf{h_t},\bar{\mathbf{h_s}}))}{\sum_{s'=1}^{S}{score(\mathbf{h_t},\bar{\mathbf{h_{s'}}})}}$$
+$$\alpha_{ts} = \frac{exp(score(\mathbf{h}_t,\bar{\mathbf{h}_s}))}{\sum_{s'=1}^{S}{score(\mathbf{h}_t,\bar{\mathbf{h}_{s'}})}}$$
 
 
-TBD 
+From these _attention weights_, we create the _context vector_. This is basically an average of the source hidden states, weighted by the _attention weights_:
 
+$$\mathbf{c}_t= \sum_s{\alpha_{ts} \bar{\mathbf{h}_s}}$$
+
+
+Now we need to relate this to the state the decoder is in. We calculate the _attention vector_ from a concatenation of context vector and current decoder hidden state:
+
+$$\mathbf{a}_t = tanh(\mathbf{W_c} [ \mathbf{c}_t ; \mathbf{h}_t])$$
+
+In sum, we see how at each timestep, the attention mechanism combines information from the sequence of encoder states, and the current decoder hidden state. We'll soon see a third source of information entering the calculation, which will be dependent on whether we're in the training or the prediction phase.
 
 
 ### Attention decoder
 
-Here's the decoder with the attention mechanism - not too long in terms of code, but with a lot going on.
+Now let's look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the above logic, which will not prevent the code from successfully translating our example sentences. Feel free to experiment with more intricate logic if you're curious!
 
 ```{r}
 
@@ -343,51 +350,27 @@ attention_decoder <-
         hidden <- inputs[[2]]
         encoder_output <- inputs[[3]]
         
-        # encoder_output is of shape (batch_size, max_length_input, gru_units)
-        # hidden has shape (batch_size, gru_units)
-        # hidden_with_time_axis has shape (batch_size, 1, gru_units)
-        # we are doing this to perform addition to calculate the score
-        hidden_with_time_axis <- k_expand_dims(hidden, 2L)
-        # score has shape (batch_size, max_length, gru_units)
+        hidden_with_time_axis <- k_expand_dims(hidden, 2)
+        
         score <-
-          k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis))
+          model$V(k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis)))
         
-        # Softmax by default is applied on the last axis but here we want to apply
-        # it on the 2nd axis, since the shape of score is
-        # (batch_size, max_length, gru_units).
-        # Max_length is the length of our input.
-        # Since we are trying to assign a weight to each input,
-        # softmax should be applied on that axis.
+        attention_weights <- k_softmax(score, axis = 2)
         
-        # attention_weights has shape (batch_size, max_length_input, 1)
-        # we get 1 at the last axis because we are applying score to self$V
-        attention_weights <- k_softmax(model$V(score), axis =  2)
-        
-        # context_vector has shape (batch_size, gru_units)
-        # Same reason as above for choosing axis 2.
         context_vector <- attention_weights * encoder_output
         context_vector <- k_sum(context_vector, axis = 2)
-        
-        # x shape after passing through embedding is (batch_size, 1, embedding_dim)
-        # here timesteps is 1 because we're forecasting 1 at a time
+    
         x <- model$embedding(x)
-        
-        # x shape after concatenation is (batch_size, 1, embedding_dim + gru_units)
+       
         x <-
           k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
         
         c(output, state) %<-% model$gru(x)
-        
-        # output shape is (batch_size * max_length, gru_units)
-        output <- k_reshape(output, c(-1L , gru_units))
-        
-        # final output shape is (batch_size * max_length, target_vocab_size)
+   
+        output <- k_reshape(output, c(-1, gru_units))
+    
         x <- model$fc(output)
-        
-        # shapes are now:
-        # x:(batch_size, target_vocab_size)
-        # state: (batch_size, gru_size)
-        # attention_weights is (batch_size, src_maxlen, 1)
+ 
         list(x, state, attention_weights)
         
       }
@@ -401,5 +384,318 @@ attention_decoder <-
 Firstly, we notice that in addition to the usual embedding and GRU layers we'd expect in a decoder, there are a few additional dense layers. We'll comment on those as we go.
 
 This time, the input to what is effectively the `call` function consists  of three parts: input, hidden state, and the output from the encoder.
+
+Now first we need to calculate the score, which basically means addition of two matrix multiplications.
+For that addition, the shapes have to match. Now `encoder_output` is of shape `(batch_size, max_length_input, gru_units)`, while `hidden` has shape `(batch_size, gru_units)`. We thus add an axis "in the middle", obtaining `hidden_with_time_axis`, of shape `(batch_size, 1, gru_units)`.
+
+After applying the _tanh_ and the fully connected layer to the result of the addition, `score` will be of shape `(batch_size, max_length_input, 1). Now the next step calculates the softmax, to get the _attention weights_.
+Now softmax by default is applied on the last axis - but here we're applying it on the second axis, since it is with respect to the input timesteps we want to normalize the scores.
+
+After normalization, the shape is still `batch_size, max_length_input, 1`.
+
+Now we compute the context vector, as a weighted average of encoder hidden states. Its shape now is `(batch_size, gru_units)`. Note that like with the softmax operation above, we sum over the second axis, which corresponds to the number of timesteps in the input received from the encoder.
+
+Now we still have to take care of the third source of information: the input. After it has been passed through the embedding layer, it's shape is `(batch_size, 1, embedding_dim)`. Here, the second axis is of dimension 1 as we're forecasting a single token at a time.
+
+Now, let's concatenate the context vector and the embedded input, to arrive at the _attention vector_.
+If you compare the code with the formula above, you'll see that here we're skipping the tanh and the additional fully connected layer, and just leave it at the concatenation.
+After concatenation, the shape now is `(batch_size, 1, embedding_dim + gru_units)`.
+
+The ensuing GRU operation, as usual, gives us back output and shape tensors. The output tensor is flattened to shape `(batch_size, gru_units)` and passed through the final densely connected layer, after which the output has shape `(batch_size, target_vocab_size)`. With that, we're going to be able to forecast the next token for every input in the batch.
+
+Remains to return everything we're interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the attention_weights for this batch (for plotting). And that's that! 
+
+         
+ ### Creating the "model"
+ 
+ We're almost ready to train the model. The model? We don't have a model yet. The next steps will feel a bit unusual if you're accustomed to the traditional Keras _create model -> compile model -> fit model _ workflow.
+ Let's have a look.
+ 
+ First, we need a few bookkeeping variables.
+ 
+ 
+```{r}
+batch_size <- 32
+embedding_dim <- 64
+gru_units <- 256
+
+src_vocab_size <- nrow(src_index)
+target_vocab_size <- nrow(target_index)
+```
+ 
+ 
+Now, we create the encoder and decoder objects - it's tempting to call them layers, but technically both inherit from `RModel`. 
+
+```{r}
+encoder <- attention_encoder(
+  gru_units = gru_units,
+  embedding_dim = embedding_dim,
+  src_vocab_size = src_vocab_size
+)
+
+decoder <- attention_decoder(
+  gru_units = gru_units,
+  embedding_dim = embedding_dim,
+  target_vocab_size = target_vocab_size
+)
+```
+
+
+So as we're going along, assembling a model "from pieces", we still need a loss function, and an optimizer.
+
+```{r}
+optimizer <- tf$train$AdamOptimizer()
+
+cx_loss <- function(y_true, y_pred) {
+  mask <- ifelse(y_true == 0L, 0, 1)
+  loss <-
+    tf$nn$sparse_softmax_cross_entropy_with_logits(labels = y_true,
+                                                   logits = y_pred) * mask
+  tf$reduce_mean(loss)
+}
+
+```
+
+Now we're ready to train.
+
+### Training phase
+
+In the training phase, we're using _teacher forcing_, which is the established name for feeding the model the (correct) target at time $t$ as input for the next calculation step at time $t + 1$.
+This is in contrast to the inference phase, when the decoder output is fed back as input to the next time step.
+
+The training phase consists of three loops: firstly, we're looping over epochs, secondly, over the dataset, and thirdly, over the target sequence we're predicting.
+
+For each batch, we're encoding the source sequence, getting back the output sequence as well as the last hidden state. The hidden state we then use to initialize the decoder.
+Now, we enter the target sequence prediction loop. For each timestep to be predicted, we call the decoder with the input (which due to teacher forcing is the ground truth from the previous step), its previous hidden state, and the complete encoder output. At each step, the decoder returns predictions, its hidden state and the attention weights.
+
+
+
+```{r}
+n_epochs <- 50
+
+encoder_init_hidden <- k_zeros(c(batch_size, gru_units))
+
+for (epoch in seq_len(n_epochs)) {
+  
+  total_loss <- 0
+  iteration <- 0
+    
+  iter <- make_iterator_one_shot(train_dataset)
+    
+  until_out_of_range({
+    batch <- iterator_get_next(iter)
+    loss <- 0
+    x <- batch[[1]]
+    y <- batch[[2]]
+    iteration <- iteration + 1
+      
+    with(tf$GradientTape() %as% tape, {
+      c(enc_output, enc_hidden) %<-% encoder(list(x, encoder_init_hidden))
+ 
+      dec_hidden <- enc_hidden
+      dec_input <-
+        k_expand_dims(rep(list(
+          word2index("<start>", target_index)
+        ), batch_size))
+        
+
+      for (t in seq_len(target_maxlen - 1)) {
+        c(preds, dec_hidden, weights) %<-%
+          decoder(list(dec_input, dec_hidden, enc_output))
+        loss <- loss + cx_loss(y[, t], preds)
+     
+        dec_input <- k_expand_dims(y[, t])
+      }
+    })
+      
+    total_loss <-
+      total_loss + loss / k_cast_to_floatx(dim(y)[2])
+      
+      paste0(
+        "Batch loss (epoch/batch): ",
+        epoch,
+        "/",
+        iter,
+        ": ",
+        (loss / k_cast_to_floatx(dim(y)[2])) %>% as.double() %>% round(4),
+        "\n"
+      )
+      
+    variables <- c(encoder$variables, decoder$variables)
+    gradients <- tape$gradient(loss, variables)
+      
+    optimizer$apply_gradients(purrr::transpose(list(gradients, variables)),
+                              global_step = tf$train$get_or_create_global_step())
+      
+  })
+    
+    paste0(
+      "Total loss (epoch): ",
+      epoch,
+      ": ",
+      (total_loss / k_cast_to_floatx(buffer_size)) %>% as.double() %>% round(4),
+      "\n"
+    )
+}
+```
+
+
+How does backpropagation work with this new flow? With eager execution, a `GradientTape` records operations performed on the forward pass. This recording is then "played back" to perform backpropagation.
+Concretely put, during the forward pass, we have the tape recording the model's actions, and we keep incrementally updating the loss.
+Then, outside the tape's context, we ask the tape for the gradients of the accumulated loss with respect to the model's variables. Once we know the gradients, we can have the optimizer apply them to those variables.
+This `variables` slot, by the way, does not (as of this writing) exist in "Keras Keras", which is why we have to resort to the TensorFlow implementation.
+
+
+### Inference
+
+As soon as we have a trained model, we can get translating! Actually, we don't have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!).
+The [complete code for this post](tbd) will do it like this, however here we're arranging the steps in a more didactical order...
+
+The inference loop differs from the training procedure mainly it that it does not use teacher forcing.
+Instead, we feed back the current prediction as input to the next decoding timestep.
+The actual predicted word is chosen from the exponentiated raw scores returned by the decoder using a multinomial distribution.
+We also include a function to plot a heatmap that shows where in the source attention is being directed as the translation is produced.
+
+```{r}
+evaluate <-
+  function(sentence) {
+    attention_matrix <-
+      matrix(0, nrow = target_maxlen, ncol = src_maxlen)
+    
+    sentence <- preprocess_sentence(sentence)
+    input <- sentence2digits(sentence, src_index)
+    input <-
+      pad_sequences(list(input), maxlen = src_maxlen,  padding = "post")
+    input <- k_constant(input)
+    
+    result <- ""
+    
+    hidden <- k_zeros(c(1, gru_units))
+    c(enc_output, enc_hidden) %<-% encoder(list(input, hidden))
+    
+    dec_hidden <- enc_hidden
+    dec_input <-
+      k_expand_dims(list(word2index("<start>", target_index)))
+    
+    for (t in seq_len(target_maxlen - 1)) {
+      c(preds, dec_hidden, attention_weights) %<-%
+        decoder(list(dec_input, dec_hidden, enc_output))
+      attention_weights <- k_reshape(attention_weights, c(-1))
+      attention_matrix[t, ] <- attention_weights %>% as.double()
+      
+      pred_idx <-
+        tf$multinomial(k_exp(preds), num_samples = 1)[1, 1] %>% as.double()
+      pred_word <- index2word(pred_idx, target_index)
+      
+      if (pred_word == '<stop>') {
+        result <-
+          paste0(result, pred_word)
+        return (list(result, sentence, attention_matrix))
+      } else {
+        result <-
+          paste0(result, pred_word, " ")
+        dec_input <- k_expand_dims(list(pred_idx))
+      }
+    }
+    list(str_trim(result), sentence, attention_matrix)
+  }
+
+plot_attention <-
+  function(attention_matrix,
+           words_sentence,
+           words_result) {
+    melted <- melt(attention_matrix)
+    ggplot(data = melted, aes(
+      x = factor(Var2),
+      y = factor(Var1),
+      fill = value
+    )) +
+      geom_tile() + scale_fill_viridis() + guides(fill = FALSE) +
+      theme(axis.ticks = element_blank()) +
+      xlab("") +
+      ylab("") +
+      scale_x_discrete(labels = words_sentence, position = "top") +
+      scale_y_discrete(labels = words_result)
+  }
+
+
+translate <- function(sentence) {
+  c(result, sentence, attention_matrix) %<-% evaluate(sentence)
+  print(paste0("Input: ",  sentence))
+  print(paste0("Predicted translation: ", result))
+  attention_matrix <-
+    attention_matrix[1:length(str_split(result, " ")[[1]]),
+                     1:length(str_split(sentence, " ")[[1]])]
+  plot_attention(attention_matrix,
+                 str_split(sentence, " ")[[1]],
+                 str_split(result, " ")[[1]])
+}
+```
+
+
+### Learning to translate
+
+
+Using the [sample code], you can see yourself how learning progresses. This is how it worked in our case.
+(We are always looking at the same sentences - sampled from the training and test sets, respectively - so we can more easily see the evolution.)
+
+On completion of the very first epoch, our network starts every Dutch sentence with _Ik_. No doubt, there must be many sentences starting in the first person in our corpus!
+
+(Note: these five sentences are all from the training set.)
+```
+[1] "Input: <start> I did that easily . <stop>"
+[1] "Predicted translation: <start> Ik . <stop>"
+[1] "Input: <start> Look in the mirror . <stop>"
+[1] "Predicted translation: <start> Ik . <stop>"
+[1] "Input: <start> Tom wanted revenge . <stop>"
+[1] "Predicted translation: <start> Ik . <stop>"
+[1] "Input: <start> It s very kind of you . <stop>"
+[1] "Predicted translation: <start> Ik . <stop>"
+[1] "Input: <start> I refuse to answer . <stop>"
+[1] "Predicted translation: <start> Ik . <stop>"
+```
+
+One epoch later it seems to have picked up common phrases, although their use does not look related to the input. 
+And definitely, it has problems to recognize when it's over...
+
+```
+[1] "Input: <start> I did that easily . <stop>"
+[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
+[1] "Input: <start> Look in the mirror . <stop>"
+[1] "Predicted translation: <start> Tom is een een een een een een een een een een"
+[1] "Input: <start> Tom wanted revenge . <stop>"
+[1] "Predicted translation: <start> Tom is een een een een een een een een een een"
+[1] "Input: <start> It s very kind of you . <stop>"
+[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
+[1] "Input: <start> I refuse to answer . <stop>"
+[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
+```
+
+Jumping ahead to epoch 7, the translations still are completely wrong, but somehow start capturing overall sentence structure (like the imperative in sentence 2).
+
+```
+[1] "Input: <start> I did that easily . <stop>"
+[1] "Predicted translation: <start> Ik heb je niet . <stop>"
+[1] "Input: <start> Look in the mirror . <stop>"
+[1] "Predicted translation: <start> Ga naar de buurt . <stop>"
+[1] "Input: <start> Tom wanted revenge . <stop>"
+[1] "Predicted translation: <start> Tom heeft Tom . <stop>"
+[1] "Input: <start> It s very kind of you . <stop>"
+[1] "Predicted translation: <start> Het is een auto . <stop>"
+[1] "Input: <start> I refuse to answer . <stop>"
+[1] "Predicted translation: <start> Ik heb de buurt . <stop>"
+```
+
+
+
+
+
+### Next up
+
+There are many ways to go from here. For one, we didn't do any hyperparameter optimization.
+Second, provided you have access to the required hardware, you might be curious how good an algorithm like this can get when trained on a real big dataset, using a real big network.
+Third, alternative attention mechanisms have been suggested (see e.g. [T. Luong's thesis](https://github.com/lmthang/thesis/blob/master/thesis.pdf)) which we followed rather closely in the description of attention above.
+Last not least, no one said attention need be useful only in the context of machine translation. Out there, a plenty of sequence prediction (time series) problems are waiting to be checked for its potential usefulness...
+
 
   

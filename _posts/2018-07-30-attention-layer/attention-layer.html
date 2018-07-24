@@ -44,7 +44,7 @@
   <!--radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-rmarkdown-metadata">
-  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","date","preview","categories","output"]}},"value":[{"type":"character","attributes":{},"value":["tbd"]},{"type":"character","attributes":{},"value":["tbd\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["tbd"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["http://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["07-30-2018"]},{"type":"character","attributes":{},"value":["tbd"]},{"type":"character","attributes":{},"value":["Keras","TensorFlow","Eager execution","Machine translation"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]}]}
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","date","preview","categories","output"]}},"value":[{"type":"character","attributes":{},"value":["tbd"]},{"type":"character","attributes":{},"value":["tbd\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["http://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["07-30-2018"]},{"type":"character","attributes":{},"value":["tbd"]},{"type":"character","attributes":{},"value":["Keras","TensorFlow","Eager execution","Machine translation"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]}]}
   </script>
   <!--/radix_placeholder_rmarkdown_metadata-->
   
@@ -871,7 +871,7 @@
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"tbd","description":"tbd","authors":[{"author":"Sigrid Keydana","authorURL":"tbd","affiliation":"RStudio","affiliationURL":"http://www.rstudio.com/"}],"publishedDate":"2018-07-30T00:00:00.000+02:00","citationText":"Keydana, 2018"}
+{"title":"tbd","description":"tbd","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"http://www.rstudio.com/"}],"publishedDate":"2018-07-30T00:00:00.000+02:00","citationText":"Keydana, 2018"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -886,7 +886,7 @@
 </div>
 
 <div class="d-byline">
-  Sigrid Keydana tbd (RStudio)<a href="http://www.rstudio.com/" class="uri">http://www.rstudio.com/</a>
+  Sigrid Keydana  (RStudio)<a href="http://www.rstudio.com/" class="uri">http://www.rstudio.com/</a>
   
 <br/>07-30-2018
 </div>
@@ -1105,11 +1105,16 @@ attention_encoder &lt;-
 <p>to provide a ‘random access memory’ of source hidden states which one can constantly refer to as translation progresses.</p>
 </blockquote>
 <p>This means that at every timestep, the decoder receives not just the previous decoder hidden state, but also the complete output from the encoder. It then “makes up its mind” as to what part of the encoded input matters at the current point in time. Although various attention mechanisms exist, the basic procedure often goes like this. First, we create a <em>score</em> that relates the decoder hidden state at a given timestep to the encoder hidden states at every timestep. Different score functions exist; the following is commonly referred to as <em>Bahdanau style</em> (additive) attention (after <a href="tbd" class="uri">tbd</a>)</p>
-<p><span class="math display">\[score(\mathbf{h_t},\bar{\mathbf{h_s}}) = \mathbf{v_a}^T tanh(\mathbf{W_1}\mathbf{h_t} + \mathbf{W_2}\bar{\mathbf{h_s}})\]</span></p>
+<p><span class="math display">\[score(\mathbf{h}_t,\bar{\mathbf{h}_s}) = \mathbf{v}_a^T tanh(\mathbf{W_1}\mathbf{h}_t + \mathbf{W_2}\bar{\mathbf{h}_s})\]</span></p>
 <p>From these scores, we want to find the encoder states that matter most to the current decoder timestep. Basically, we just normalize the scores doing a softmax, which leaves us with a set of <em>attention weights</em>:</p>
-<p><span class="math display">\[\alpha_{ts} = \frac{exp(score(\mathbf{h_t},\bar{\mathbf{h_s}}))}{\sum{score(\mathbf{h_t},\bar{\mathbf{h_{s&#39;}}})}}\]</span></p>
+<p><span class="math display">\[\alpha_{ts} = \frac{exp(score(\mathbf{h}_t,\bar{\mathbf{h}_s}))}{\sum_{s&#39;=1}^{S}{score(\mathbf{h}_t,\bar{\mathbf{h}_{s&#39;}})}}\]</span></p>
+<p>From these <em>attention weights</em>, we create the <em>context vector</em>. This is basically an average of the source hidden states, weighted by the <em>attention weights</em>:</p>
+<p><span class="math display">\[\mathbf{c}_t= \sum_s{\alpha_{ts} \bar{\mathbf{h}_s}}\]</span></p>
+<p>Now we need to relate this to the state the decoder is in. We calculate the <em>attention vector</em> from a concatenation of context vector and current decoder hidden state:</p>
+<p><span class="math display">\[\mathbf{a}_t = tanh(\mathbf{W_c} [ \mathbf{c}_t ; \mathbf{h}_t])\]</span></p>
+<p>In sum, we see how at each timestep, the attention mechanism combines information from the sequence of encoder states, and the current decoder hidden state. We’ll soon see a third source of information entering the calculation, which will be dependent on whether we’re in the training or the prediction phase.</p>
 <h3 id="attention-decoder">Attention decoder</h3>
-<p>Here’s the decoder with the attention mechanism - not too long in terms of code, but with a lot going on.</p>
+<p>Now let’s look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the above logic, which will not prevent the code from successfully translating our example sentences. Feel free to experiment with more intricate logic if you’re curious!</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 attention_decoder &lt;-
@@ -1140,51 +1145,27 @@ attention_decoder &lt;-
         hidden &lt;- inputs[[2]]
         encoder_output &lt;- inputs[[3]]
         
-        # encoder_output is of shape (batch_size, max_length_input, gru_units)
-        # hidden has shape (batch_size, gru_units)
-        # hidden_with_time_axis has shape (batch_size, 1, gru_units)
-        # we are doing this to perform addition to calculate the score
-        hidden_with_time_axis &lt;- k_expand_dims(hidden, 2L)
-        # score has shape (batch_size, max_length, gru_units)
+        hidden_with_time_axis &lt;- k_expand_dims(hidden, 2)
+        
         score &lt;-
-          k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis))
+          model$V(k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis)))
         
-        # Softmax by default is applied on the last axis but here we want to apply
-        # it on the 2nd axis, since the shape of score is
-        # (batch_size, max_length, gru_units).
-        # Max_length is the length of our input.
-        # Since we are trying to assign a weight to each input,
-        # softmax should be applied on that axis.
+        attention_weights &lt;- k_softmax(score, axis = 2)
         
-        # attention_weights has shape (batch_size, max_length_input, 1)
-        # we get 1 at the last axis because we are applying score to self$V
-        attention_weights &lt;- k_softmax(model$V(score), axis =  2)
-        
-        # context_vector has shape (batch_size, gru_units)
-        # Same reason as above for choosing axis 2.
         context_vector &lt;- attention_weights * encoder_output
         context_vector &lt;- k_sum(context_vector, axis = 2)
-        
-        # x shape after passing through embedding is (batch_size, 1, embedding_dim)
-        # here timesteps is 1 because we&#39;re forecasting 1 at a time
+    
         x &lt;- model$embedding(x)
-        
-        # x shape after concatenation is (batch_size, 1, embedding_dim + gru_units)
+       
         x &lt;-
           k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
         
         c(output, state) %&lt;-% model$gru(x)
-        
-        # output shape is (batch_size * max_length, gru_units)
-        output &lt;- k_reshape(output, c(-1L , gru_units))
-        
-        # final output shape is (batch_size * max_length, target_vocab_size)
+   
+        output &lt;- k_reshape(output, c(-1, gru_units))
+    
         x &lt;- model$fc(output)
-        
-        # shapes are now:
-        # x:(batch_size, target_vocab_size)
-        # state: (batch_size, gru_size)
-        # attention_weights is (batch_size, src_maxlen, 1)
+ 
         list(x, state, attention_weights)
         
       }
@@ -1194,6 +1175,249 @@ attention_decoder &lt;-
 </div>
 <p>Firstly, we notice that in addition to the usual embedding and GRU layers we’d expect in a decoder, there are a few additional dense layers. We’ll comment on those as we go.</p>
 <p>This time, the input to what is effectively the <code>call</code> function consists of three parts: input, hidden state, and the output from the encoder.</p>
+<p>Now first we need to calculate the score, which basically means addition of two matrix multiplications. For that addition, the shapes have to match. Now <code>encoder_output</code> is of shape <code>(batch_size, max_length_input, gru_units)</code>, while <code>hidden</code> has shape <code>(batch_size, gru_units)</code>. We thus add an axis “in the middle”, obtaining <code>hidden_with_time_axis</code>, of shape <code>(batch_size, 1, gru_units)</code>.</p>
+<p>After applying the <em>tanh</em> and the fully connected layer to the result of the addition, <code>score</code> will be of shape `(batch_size, max_length_input, 1). Now the next step calculates the softmax, to get the <em>attention weights</em>. Now softmax by default is applied on the last axis - but here we’re applying it on the second axis, since it is with respect to the input timesteps we want to normalize the scores.</p>
+<p>After normalization, the shape is still <code>batch_size, max_length_input, 1</code>.</p>
+<p>Now we compute the context vector, as a weighted average of encoder hidden states. Its shape now is <code>(batch_size, gru_units)</code>. Note that like with the softmax operation above, we sum over the second axis, which corresponds to the number of timesteps in the input received from the encoder.</p>
+<p>Now we still have to take care of the third source of information: the input. After it has been passed through the embedding layer, it’s shape is <code>(batch_size, 1, embedding_dim)</code>. Here, the second axis is of dimension 1 as we’re forecasting a single token at a time.</p>
+<p>Now, let’s concatenate the context vector and the embedded input, to arrive at the <em>attention vector</em>. If you compare the code with the formula above, you’ll see that here we’re skipping the tanh and the additional fully connected layer, and just leave it at the concatenation. After concatenation, the shape now is <code>(batch_size, 1, embedding_dim + gru_units)</code>.</p>
+<p>The ensuing GRU operation, as usual, gives us back output and shape tensors. The output tensor is flattened to shape <code>(batch_size, gru_units)</code> and passed through the final densely connected layer, after which the output has shape <code>(batch_size, target_vocab_size)</code>. With that, we’re going to be able to forecast the next token for every input in the batch.</p>
+<p>Remains to return everything we’re interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the attention_weights for this batch (for plotting). And that’s that!</p>
+<p>### Creating the “model”</p>
+<p>We’re almost ready to train the model. The model? We don’t have a model yet. The next steps will feel a bit unusual if you’re accustomed to the traditional Keras <em>create model -&gt; compile model -&gt; fit model </em> workflow. Let’s have a look.</p>
+<p>First, we need a few bookkeeping variables.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+batch_size &lt;- 32
+embedding_dim &lt;- 64
+gru_units &lt;- 256
+
+src_vocab_size &lt;- nrow(src_index)
+target_vocab_size &lt;- nrow(target_index)</code></pre>
+</div>
+<p>Now, we create the encoder and decoder objects - it’s tempting to call them layers, but technically both inherit from <code>RModel</code>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+encoder &lt;- attention_encoder(
+  gru_units = gru_units,
+  embedding_dim = embedding_dim,
+  src_vocab_size = src_vocab_size
+)
+
+decoder &lt;- attention_decoder(
+  gru_units = gru_units,
+  embedding_dim = embedding_dim,
+  target_vocab_size = target_vocab_size
+)</code></pre>
+</div>
+<p>So as we’re going along, assembling a model “from pieces”, we still need a loss function, and an optimizer.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+optimizer &lt;- tf$train$AdamOptimizer()
+
+cx_loss &lt;- function(y_true, y_pred) {
+  mask &lt;- ifelse(y_true == 0L, 0, 1)
+  loss &lt;-
+    tf$nn$sparse_softmax_cross_entropy_with_logits(labels = y_true,
+                                                   logits = y_pred) * mask
+  tf$reduce_mean(loss)
+}</code></pre>
+</div>
+<p>Now we’re ready to train.</p>
+<h3 id="training-phase">Training phase</h3>
+<p>In the training phase, we’re using <em>teacher forcing</em>, which is the established name for feeding the model the (correct) target at time <span class="math inline">\(t\)</span> as input for the next calculation step at time <span class="math inline">\(t + 1\)</span>. This is in contrast to the inference phase, when the decoder output is fed back as input to the next time step.</p>
+<p>The training phase consists of three loops: firstly, we’re looping over epochs, secondly, over the dataset, and thirdly, over the target sequence we’re predicting.</p>
+<p>For each batch, we’re encoding the source sequence, getting back the output sequence as well as the last hidden state. The hidden state we then use to initialize the decoder. Now, we enter the target sequence prediction loop. For each timestep to be predicted, we call the decoder with the input (which due to teacher forcing is the ground truth from the previous step), its previous hidden state, and the complete encoder output. At each step, the decoder returns predictions, its hidden state and the attention weights.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+n_epochs &lt;- 50
+
+encoder_init_hidden &lt;- k_zeros(c(batch_size, gru_units))
+
+for (epoch in seq_len(n_epochs)) {
+  
+  total_loss &lt;- 0
+  iteration &lt;- 0
+    
+  iter &lt;- make_iterator_one_shot(train_dataset)
+    
+  until_out_of_range({
+    batch &lt;- iterator_get_next(iter)
+    loss &lt;- 0
+    x &lt;- batch[[1]]
+    y &lt;- batch[[2]]
+    iteration &lt;- iteration + 1
+      
+    with(tf$GradientTape() %as% tape, {
+      c(enc_output, enc_hidden) %&lt;-% encoder(list(x, encoder_init_hidden))
+ 
+      dec_hidden &lt;- enc_hidden
+      dec_input &lt;-
+        k_expand_dims(rep(list(
+          word2index(&quot;&lt;start&gt;&quot;, target_index)
+        ), batch_size))
+        
+
+      for (t in seq_len(target_maxlen - 1)) {
+        c(preds, dec_hidden, weights) %&lt;-%
+          decoder(list(dec_input, dec_hidden, enc_output))
+        loss &lt;- loss + cx_loss(y[, t], preds)
+     
+        dec_input &lt;- k_expand_dims(y[, t])
+      }
+    })
+      
+    total_loss &lt;-
+      total_loss + loss / k_cast_to_floatx(dim(y)[2])
+      
+      paste0(
+        &quot;Batch loss (epoch/batch): &quot;,
+        epoch,
+        &quot;/&quot;,
+        iter,
+        &quot;: &quot;,
+        (loss / k_cast_to_floatx(dim(y)[2])) %&gt;% as.double() %&gt;% round(4),
+        &quot;\n&quot;
+      )
+      
+    variables &lt;- c(encoder$variables, decoder$variables)
+    gradients &lt;- tape$gradient(loss, variables)
+      
+    optimizer$apply_gradients(purrr::transpose(list(gradients, variables)),
+                              global_step = tf$train$get_or_create_global_step())
+      
+  })
+    
+    paste0(
+      &quot;Total loss (epoch): &quot;,
+      epoch,
+      &quot;: &quot;,
+      (total_loss / k_cast_to_floatx(buffer_size)) %&gt;% as.double() %&gt;% round(4),
+      &quot;\n&quot;
+    )
+}</code></pre>
+</div>
+<p>How does backpropagation work with this new flow? With eager execution, a <code>GradientTape</code> records operations performed on the forward pass. This recording is then “played back” to perform backpropagation. Concretely put, during the forward pass, we have the tape recording the model’s actions, and we keep incrementally updating the loss. Then, outside the tape’s context, we ask the tape for the gradients of the accumulated loss with respect to the model’s variables. Once we know the gradients, we can have the optimizer apply them to those variables. This <code>variables</code> slot, by the way, does not (as of this writing) exist in “Keras Keras”, which is why we have to resort to the TensorFlow implementation.</p>
+<h3 id="inference">Inference</h3>
+<p>As soon as we have a trained model, we can get translating! Actually, we don’t have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!). The <a href="tbd">complete code for this post</a> will do it like this, however here we’re arranging the steps in a more didactical order…</p>
+<p>The inference loop differs from the training procedure mainly it that it does not use teacher forcing. Instead, we feed back the current prediction as input to the next decoding timestep. The actual predicted word is chosen from the exponentiated raw scores returned by the decoder using a multinomial distribution. We also include a function to plot a heatmap that shows where in the source attention is being directed as the translation is produced.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+evaluate &lt;-
+  function(sentence) {
+    attention_matrix &lt;-
+      matrix(0, nrow = target_maxlen, ncol = src_maxlen)
+    
+    sentence &lt;- preprocess_sentence(sentence)
+    input &lt;- sentence2digits(sentence, src_index)
+    input &lt;-
+      pad_sequences(list(input), maxlen = src_maxlen,  padding = &quot;post&quot;)
+    input &lt;- k_constant(input)
+    
+    result &lt;- &quot;&quot;
+    
+    hidden &lt;- k_zeros(c(1, gru_units))
+    c(enc_output, enc_hidden) %&lt;-% encoder(list(input, hidden))
+    
+    dec_hidden &lt;- enc_hidden
+    dec_input &lt;-
+      k_expand_dims(list(word2index(&quot;&lt;start&gt;&quot;, target_index)))
+    
+    for (t in seq_len(target_maxlen - 1)) {
+      c(preds, dec_hidden, attention_weights) %&lt;-%
+        decoder(list(dec_input, dec_hidden, enc_output))
+      attention_weights &lt;- k_reshape(attention_weights, c(-1))
+      attention_matrix[t, ] &lt;- attention_weights %&gt;% as.double()
+      
+      pred_idx &lt;-
+        tf$multinomial(k_exp(preds), num_samples = 1)[1, 1] %&gt;% as.double()
+      pred_word &lt;- index2word(pred_idx, target_index)
+      
+      if (pred_word == &#39;&lt;stop&gt;&#39;) {
+        result &lt;-
+          paste0(result, pred_word)
+        return (list(result, sentence, attention_matrix))
+      } else {
+        result &lt;-
+          paste0(result, pred_word, &quot; &quot;)
+        dec_input &lt;- k_expand_dims(list(pred_idx))
+      }
+    }
+    list(str_trim(result), sentence, attention_matrix)
+  }
+
+plot_attention &lt;-
+  function(attention_matrix,
+           words_sentence,
+           words_result) {
+    melted &lt;- melt(attention_matrix)
+    ggplot(data = melted, aes(
+      x = factor(Var2),
+      y = factor(Var1),
+      fill = value
+    )) +
+      geom_tile() + scale_fill_viridis() + guides(fill = FALSE) +
+      theme(axis.ticks = element_blank()) +
+      xlab(&quot;&quot;) +
+      ylab(&quot;&quot;) +
+      scale_x_discrete(labels = words_sentence, position = &quot;top&quot;) +
+      scale_y_discrete(labels = words_result)
+  }
+
+
+translate &lt;- function(sentence) {
+  c(result, sentence, attention_matrix) %&lt;-% evaluate(sentence)
+  print(paste0(&quot;Input: &quot;,  sentence))
+  print(paste0(&quot;Predicted translation: &quot;, result))
+  attention_matrix &lt;-
+    attention_matrix[1:length(str_split(result, &quot; &quot;)[[1]]),
+                     1:length(str_split(sentence, &quot; &quot;)[[1]])]
+  plot_attention(attention_matrix,
+                 str_split(sentence, &quot; &quot;)[[1]],
+                 str_split(result, &quot; &quot;)[[1]])
+}</code></pre>
+</div>
+<h3 id="learning-to-translate">Learning to translate</h3>
+<p>Using the [sample code], you can see yourself how learning progresses. This is how it worked in our case. (We are always looking at the same sentences - sampled from the training and test sets, respectively - so we can more easily see the evolution.)</p>
+<p>On completion of the very first epoch, our network starts every Dutch sentence with <em>Ik</em>. No doubt, there must be many sentences starting in the first person in our corpus!</p>
+<p>(Note: these five sentences are all from the training set.)</p>
+<pre><code>
+[1] &quot;Input: &lt;start&gt; I did that easily . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; Look in the mirror . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; Tom wanted revenge . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; It s very kind of you . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; I refuse to answer . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik . &lt;stop&gt;&quot;</code></pre>
+<p>One epoch later it seems to have picked up common phrases, although their use does not look related to the input. And definitely, it has problems to recognize when it’s over…</p>
+<pre><code>
+[1] &quot;Input: &lt;start&gt; I did that easily . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik ben een een een een een een een een een een&quot;
+[1] &quot;Input: &lt;start&gt; Look in the mirror . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Tom is een een een een een een een een een een&quot;
+[1] &quot;Input: &lt;start&gt; Tom wanted revenge . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Tom is een een een een een een een een een een&quot;
+[1] &quot;Input: &lt;start&gt; It s very kind of you . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik ben een een een een een een een een een een&quot;
+[1] &quot;Input: &lt;start&gt; I refuse to answer . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik ben een een een een een een een een een een&quot;</code></pre>
+<p>Jumping ahead to epoch 7, the translations still are completely wrong, but somehow start capturing overall sentence structure (like the imperative in sentence 2).</p>
+<pre><code>
+[1] &quot;Input: &lt;start&gt; I did that easily . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik heb je niet . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; Look in the mirror . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ga naar de buurt . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; Tom wanted revenge . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Tom heeft Tom . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; It s very kind of you . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Het is een auto . &lt;stop&gt;&quot;
+[1] &quot;Input: &lt;start&gt; I refuse to answer . &lt;stop&gt;&quot;
+[1] &quot;Predicted translation: &lt;start&gt; Ik heb de buurt . &lt;stop&gt;&quot;</code></pre>
+<h3 id="next-up">Next up</h3>
+<p>There are many ways to go from here. For one, we didn’t do any hyperparameter optimization. Second, provided you have access to the required hardware, you might be curious how good an algorithm like this can get when trained on a real big dataset, using a real big network. Third, alternative attention mechanisms have been suggested (see e.g. <a href="https://github.com/lmthang/thesis/blob/master/thesis.pdf">T. Luong’s thesis</a>) which we followed rather closely in the description of attention above. Last not least, no one said attention need be useful only in the context of machine translation. Out there, a plenty of sequence prediction (time series) problems are waiting to be checked for its potential usefulness…</p>
 <!--radix_placeholder_article_footer-->
 <!--/radix_placeholder_article_footer-->
 </div>

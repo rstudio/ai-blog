@@ -1,7 +1,7 @@
 ---
-title: "tbd"
+title: "Looking for attention? Here it is"
 description: |
-  tbd
+  No way one could compete with that title: "Attention is all you need". Also, in our text attention is not all you need: We're showing how to augment a classic Keras seq2seq model with an attention mechanism. This text is based on the   excellent "Neural Machine Translation" tutorial featuring prominently among the TensorFlow eager execution docs.  We're explaining how to port this to R. And of course, we need to differentiate ourselves by using a different dataset.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -22,13 +22,11 @@ output:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-
-
-As of this writing, it is not difficult to find example code (be it in R or Python) showing how to perform sequence to sequence translation. However, it has been established quite some time ago (tbd footnote) that depending on the task, incorporating an attention mechanism significantly improves performance. Ideally, if we're using Keras, we'd just have an attention layer handling this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward, the main reason being that we need to train the decoder in a loop, at each point feeding the training input as well as the output from the encoder.
+As of this writing, it is not difficult to find sample code (be it R or Python) that shows how to perform sequence to sequence translation. However, it has been established already a few years ago ^[footnote] that depending on the task, incorporating an attention mechanism significantly improves performance. Ideally, using Keras, we'd just have an attention layer handling this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward.
 
 Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow Eager Execution](https://www.tensorflow.org/guide/eager) happened, and turned out to be a game changer for a number of things that used to be difficult (last not least, debugging). With eager execution, operations are executed immediately, instead of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more intricate to accomplish.
 
-Under these circumstances, it is not surprising that the [interactive notebook on neural machine translation](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb), published on Colaboratory, got a lot of attention (if you allow me the pun) for its straightforward implementation and highly intellegible explanations.
+Under these circumstances, it is not surprising that the [interactive notebook on neural machine translation](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb), published on Colaboratory, got a lot of attention for its straightforward implementation and highly intellegible explanations.
 Our goal here is to do the same thing from R. We will not end up with Keras code exactly the way we used to write it, but a hybrid of Keras layers and imperative code enabled by TensorFlow eager execution.
 
 
@@ -615,7 +613,8 @@ plot_attention <-
       xlab("") +
       ylab("") +
       scale_x_discrete(labels = words_sentence, position = "top") +
-      scale_y_discrete(labels = words_result)
+      scale_y_discrete(labels = words_result) + 
+      theme(aspect.ratio = 1)
   }
 
 
@@ -642,52 +641,186 @@ Using the [sample code], you can see yourself how learning progresses. This is h
 On completion of the very first epoch, our network starts every Dutch sentence with _Ik_. No doubt, there must be many sentences starting in the first person in our corpus!
 
 (Note: these five sentences are all from the training set.)
+
 ```
-[1] "Input: <start> I did that easily . <stop>"
-[1] "Predicted translation: <start> Ik . <stop>"
-[1] "Input: <start> Look in the mirror . <stop>"
-[1] "Predicted translation: <start> Ik . <stop>"
-[1] "Input: <start> Tom wanted revenge . <stop>"
-[1] "Predicted translation: <start> Ik . <stop>"
-[1] "Input: <start> It s very kind of you . <stop>"
-[1] "Predicted translation: <start> Ik . <stop>"
-[1] "Input: <start> I refuse to answer . <stop>"
-[1] "Predicted translation: <start> Ik . <stop>"
+Input: <start> I did that easily . <stop>
+Predicted translation: <start> Ik . <stop>
+
+Input: <start> Look in the mirror . <stop>
+Predicted translation: <start> Ik . <stop>
+
+Input: <start> Tom wanted revenge . <stop>
+Predicted translation: <start> Ik . <stop>
+
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Ik . <stop>
+
+Input: <start> I refuse to answer . <stop>
+Predicted translation: <start> Ik . <stop>
 ```
 
 One epoch later it seems to have picked up common phrases, although their use does not look related to the input. 
 And definitely, it has problems to recognize when it's over...
 
 ```
-[1] "Input: <start> I did that easily . <stop>"
-[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
-[1] "Input: <start> Look in the mirror . <stop>"
-[1] "Predicted translation: <start> Tom is een een een een een een een een een een"
-[1] "Input: <start> Tom wanted revenge . <stop>"
-[1] "Predicted translation: <start> Tom is een een een een een een een een een een"
-[1] "Input: <start> It s very kind of you . <stop>"
-[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
-[1] "Input: <start> I refuse to answer . <stop>"
-[1] "Predicted translation: <start> Ik ben een een een een een een een een een een"
+Input: <start> I did that easily . <stop>
+Predicted translation: <start> Ik ben een een een een een een een een een een
+
+Input: <start> Look in the mirror . <stop>
+Predicted translation: <start> Tom is een een een een een een een een een een
+
+Input: <start> Tom wanted revenge . <stop>
+Predicted translation: <start> Tom is een een een een een een een een een een
+
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Ik ben een een een een een een een een een een
+
+Input: <start> I refuse to answer . <stop>
+Predicted translation: <start> Ik ben een een een een een een een een een een
 ```
 
 Jumping ahead to epoch 7, the translations still are completely wrong, but somehow start capturing overall sentence structure (like the imperative in sentence 2).
 
 ```
-[1] "Input: <start> I did that easily . <stop>"
-[1] "Predicted translation: <start> Ik heb je niet . <stop>"
-[1] "Input: <start> Look in the mirror . <stop>"
-[1] "Predicted translation: <start> Ga naar de buurt . <stop>"
-[1] "Input: <start> Tom wanted revenge . <stop>"
-[1] "Predicted translation: <start> Tom heeft Tom . <stop>"
-[1] "Input: <start> It s very kind of you . <stop>"
-[1] "Predicted translation: <start> Het is een auto . <stop>"
-[1] "Input: <start> I refuse to answer . <stop>"
-[1] "Predicted translation: <start> Ik heb de buurt . <stop>"
+Input: <start> I did that easily . <stop>
+Predicted translation: <start> Ik heb je niet . <stop>
+
+Input: <start> Look in the mirror . <stop>
+Predicted translation: <start> Ga naar de buurt . <stop>
+
+Input: <start> Tom wanted revenge . <stop>
+Predicted translation: <start> Tom heeft Tom . <stop>
+
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Het is een auto . <stop>
+
+Input: <start> I refuse to answer . <stop>
+Predicted translation: <start> Ik heb de buurt . <stop>
+```
+
+Fast forward to epoch 17. Samples from the training set are starting to look better:
+
+```
+Input: <start> I did that easily . <stop>
+Predicted translation: <start> Ik heb dat hij gedaan . <stop>
+
+Input: <start> Look in the mirror . <stop>
+Predicted translation: <start> Kijk in de spiegel . <stop>
+
+Input: <start> Tom wanted revenge . <stop>
+Predicted translation: <start> Tom wilde dood . <stop>
+
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Het is erg goed voor je . <stop>
+
+Input: <start> I refuse to answer . <stop>
+Predicted translation: <start> Ik speel te antwoorden . <stop>
 ```
 
 
+Whereas samples from the test set still look pretty random. Although interestingly, not random in the sense of not having syntactic or semantic structure! _Breng de televisie op_ is a perfectly reasonable sentence, if not the most lucky translation of _Think happy thoughts_.
 
+```
+Input: <start> It s entirely my fault . <stop>
+Predicted translation: <start> Het is het mijn woord . <stop>
+
+Input: <start> You re trustworthy . <stop>
+Predicted translation: <start> Je bent net . <stop>
+
+Input: <start> I want to live in Italy . <stop>
+Predicted translation: <start> Ik wil in een leugen . <stop>
+
+Input: <start> He has seven sons . <stop>
+Predicted translation: <start> Hij heeft Frans uit . <stop>
+
+Input: <start> Think happy thoughts . <stop>
+Predicted translation: <start> Breng de televisie op . <stop>
+```
+
+Where are we at after 30 epochs? By now, the training samples have been pretty much memorized (the third sentence is suffering from political correctness though, matching _Tom wanted revenge_ to _Tom wilde vrienden_:
+
+```
+Input: <start> I did that easily . <stop>
+Predicted translation: <start> Ik heb dat zonder moeite gedaan . <stop>
+
+Input: <start> Look in the mirror . <stop>
+Predicted translation: <start> Kijk in de spiegel . <stop>
+
+Input: <start> Tom wanted revenge . <stop>
+Predicted translation: <start> Tom wilde vrienden . <stop>
+
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Het is erg aardig van je . <stop>
+
+Input: <start> I refuse to answer . <stop>
+Predicted translation: <start> Ik weiger te antwoorden . <stop>
+```
+
+How about the test sentences? They've started to look much better,. One sentence (_Ik wil in Itali leven_) has even been translated entirely correctly. And we see something like the concept of numerals appearing (_seven_ translated by _acht_)...
+
+```
+Input: <start> It s entirely my fault . <stop>
+Predicted translation: <start> Het is bijna mijn beurt . <stop>
+
+Input: <start> You re trustworthy . <stop>
+Predicted translation: <start> Je bent zo zijn . <stop>
+
+Input: <start> I want to live in Italy . <stop>
+Predicted translation: <start> Ik wil in Itali leven . <stop>
+
+Input: <start> He has seven sons . <stop>
+Predicted translation: <start> Hij heeft acht geleden . <stop>
+
+Input: <start> Think happy thoughts . <stop>
+Predicted translation: <start> Zorg alstublieft goed uit . <stop>
+```
+
+As you see it can be quite interesting watching the network's "language capability" evolve.
+Now, how about subjecting our network to a little CT scan? Since we're collecting the attention weights, we can visualize what part of the source text the decoder is _attending to_ at every timestep.
+
+
+### What is the decoder looking at?
+
+First, let's take an example where word orders in both languages are the same.
+
+```
+Input: <start> It s very kind of you . <stop>
+Predicted translation: <start> Het is erg aardig van je . <stop>
+```
+
+```{r, layout="l-body-outset", eval=TRUE, echo=FALSE}
+knitr::include_graphics("images/train-4.png")
+```
+
+We see that overall, given a sample where respective sentences align very well, the decoder pretty much looks where it is supposed to. 
+Let's pick something a little more complicated.
+
+```
+Input: <start> I did that easily . <stop>"
+Predicted translation: <start> Ik heb dat zonder moeite gedaan . <stop>
+```
+
+The translation is correct, but word order in both languages isn't the same here: _did_ corresponds to the analytic perfect _heb ... gedaan_. Will we be able to see that in the attention plot?
+
+```{r, layout="l-body-outset", eval=TRUE, echo=FALSE}
+knitr::include_graphics("images/train-1.png")
+```
+
+The answer is no. It would be interesting to check again after training for a couple more epochs.
+
+Finally, let's investigate this translation from the test set (which is entirely correct):
+
+```
+Input: <start> I want to live in Italy . <stop>
+Predicted translation: <start> Ik wil in Itali leven . <stop>
+```
+
+```{r, layout="l-body-outset", eval=TRUE, echo=FALSE}
+knitr::include_graphics("images/validation-3.png")
+```
+
+
+These two sentences don't align well. We see that Dutch _in_ correctly picks English _in_ (skipping over _to live_), then _Itali_ attends to _Italy_. Finally _leven_ is produced without us witnessing the decoder looking back to _live_. Here again, it would be interesting to watch what happens a few epochs later!
 
 
 ### Next up
@@ -697,5 +830,8 @@ Second, provided you have access to the required hardware, you might be curious 
 Third, alternative attention mechanisms have been suggested (see e.g. [T. Luong's thesis](https://github.com/lmthang/thesis/blob/master/thesis.pdf)) which we followed rather closely in the description of attention above.
 Last not least, no one said attention need be useful only in the context of machine translation. Out there, a plenty of sequence prediction (time series) problems are waiting to be checked for its potential usefulness...
 
-
-  
+```
+[1] "Input: <start> I did that easily . <stop>"              
+[2] "Input: <start> Ik heb dat zonder moeite gedaan . <stop>"
+[1] "Predicted translation: <start> Ik heb dat zonder moeite gedaan . <stop>
+```

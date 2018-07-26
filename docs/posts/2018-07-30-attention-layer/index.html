@@ -1596,8 +1596,8 @@ attention_decoder &lt;-
 <p>After applying the <code>tanh</code> and the fully connected layer to the result of the addition, <code>score</code> will be of shape <code>(batch_size, max_length_input, 1)</code>. The next step calculates the softmax, to get the <em>attention weights</em>. Now softmax by default is applied on the last axis - but here we’re applying it on the second axis, since it is with respect to the input timesteps we want to normalize the scores.</p>
 <p>After normalization, the shape is still <code>(batch_size, max_length_input, 1)</code>.</p>
 <p>Next up we compute the context vector, as a weighted average of encoder hidden states. Its shape is <code>(batch_size, gru_units)</code>. Note that like with the softmax operation above, we sum over the second axis, which corresponds to the number of timesteps in the input received from the encoder.</p>
-<p>We still have to take care of the third source of information: the input. After it has been passed through the embedding layer, it’s shape is <code>(batch_size, 1, embedding_dim)</code>. Here, the second axis is of dimension 1 as we’re forecasting a single token at a time.</p>
-<p>Now, let’s concatenate the context vector and the embedded input, to arrive at the <em>attention vector</em>. If you compare the code with the formula above, you’ll see that here we’re skipping the tanh and the additional fully connected layer, and just leave it at the concatenation. After concatenation, the shape now is <code>(batch_size, 1, embedding_dim + gru_units)</code>.</p>
+<p>We still have to take care of the third source of information: the input. Having been passed through the embedding layer, its shape is <code>(batch_size, 1, embedding_dim)</code>. Here, the second axis is of dimension 1 as we’re forecasting a single token at a time.</p>
+<p>Now, let’s concatenate the context vector and the embedded input, to arrive at the <em>attention vector</em>. If you compare the code with the formula above, you’ll see that here we’re skipping the <code>tanh</code> and the additional fully connected layer, and just leave it at the concatenation. After concatenation, the shape now is <code>(batch_size, 1, embedding_dim + gru_units)</code>.</p>
 <p>The ensuing GRU operation, as usual, gives us back output and shape tensors. The output tensor is flattened to shape <code>(batch_size, gru_units)</code> and passed through the final densely connected layer, after which the output has shape <code>(batch_size, target_vocab_size)</code>. With that, we’re going to be able to forecast the next token for every input in the batch.</p>
 <p>Remains to return everything we’re interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the <em>attention weights</em> for this batch (for plotting). And that’s that!</p>
 <h3 id="creating-the-model">Creating the “model”</h3>
@@ -1716,7 +1716,7 @@ for (epoch in seq_len(n_epochs)) {
 </div>
 <p>How does backpropagation work with this new flow? With eager execution, a <code>GradientTape</code> records operations performed on the forward pass. This recording is then “played back” to perform backpropagation. Concretely put, during the forward pass, we have the tape recording the model’s actions, and we keep incrementally updating the loss. Then, outside the tape’s context, we ask the tape for the gradients of the accumulated loss with respect to the model’s variables. Once we know the gradients, we can have the optimizer apply them to those variables. This <code>variables</code> slot, by the way, does not (as of this writing) exist in “Keras Keras”, which is why we have to resort to the TensorFlow implementation.</p>
 <h3 id="inference">Inference</h3>
-<p>As soon as we have a trained model, we can get translating! Actually, we don’t have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!). The <a href="tbd">complete code for this post</a> will do it like this, however here we’re arranging the steps in a more didactical order…</p>
+<p>As soon as we have a trained model, we can get translating! Actually, we don’t have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!). The <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R">complete code for this post</a> will do it like this, however here we’re arranging the steps in a more didactical order.</p>
 <p>The inference loop differs from the training procedure mainly it that it does not use teacher forcing. Instead, we feed back the current prediction as input to the next decoding timestep. The actual predicted word is chosen from the exponentiated raw scores returned by the decoder using a multinomial distribution. We also include a function to plot a heatmap that shows where in the source attention is being directed as the translation is produced.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1796,7 +1796,7 @@ translate &lt;- function(sentence) {
 }</code></pre>
 </div>
 <h3 id="learning-to-translate">Learning to translate</h3>
-<p>Using the [sample code], you can see yourself how learning progresses. This is how it worked in our case. (We are always looking at the same sentences - sampled from the training and test sets, respectively - so we can more easily see the evolution.)</p>
+<p>Using the <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R">sample code</a>, you can see yourself how learning progresses. This is how it worked in our case. (We are always looking at the same sentences - sampled from the training and test sets, respectively - so we can more easily see the evolution.)</p>
 <p>On completion of the very first epoch, our network starts every Dutch sentence with <em>Ik</em>. No doubt, there must be many sentences starting in the first person in our corpus!</p>
 <p>(Note: these five sentences are all from the training set.)</p>
 <pre><code>
@@ -1878,7 +1878,7 @@ Predicted translation: &lt;start&gt; Hij heeft Frans uit . &lt;stop&gt;
 
 Input: &lt;start&gt; Think happy thoughts . &lt;stop&gt;
 Predicted translation: &lt;start&gt; Breng de televisie op . &lt;stop&gt;</code></pre>
-<p>Where are we at after 30 epochs? By now, the training samples have been pretty much memorized (the third sentence is suffering from political correctness though, matching <em>Tom wanted revenge</em> to <em>Tom wilde vrienden</em>:</p>
+<p>Where are we at after 30 epochs? By now, the training samples have been pretty much memorized (the third sentence is suffering from political correctness though, matching <em>Tom wanted revenge</em> to <em>Tom wilde vrienden</em>):</p>
 <pre><code>
 Input: &lt;start&gt; I did that easily . &lt;stop&gt;
 Predicted translation: &lt;start&gt; Ik heb dat zonder moeite gedaan . &lt;stop&gt;
@@ -1894,7 +1894,7 @@ Predicted translation: &lt;start&gt; Het is erg aardig van je . &lt;stop&gt;
 
 Input: &lt;start&gt; I refuse to answer . &lt;stop&gt;
 Predicted translation: &lt;start&gt; Ik weiger te antwoorden . &lt;stop&gt;</code></pre>
-<p>How about the test sentences? They’ve started to look much better,. One sentence (<em>Ik wil in Itali leven</em>) has even been translated entirely correctly. And we see something like the concept of numerals appearing (<em>seven</em> translated by <em>acht</em>)…</p>
+<p>How about the test sentences? They’ve started to look much better. One sentence (<em>Ik wil in Itali leven</em>) has even been translated entirely correctly. And we see something like the concept of numerals appearing (<em>seven</em> translated by <em>acht</em>)…</p>
 <pre><code>
 Input: &lt;start&gt; It s entirely my fault . &lt;stop&gt;
 Predicted translation: &lt;start&gt; Het is bijna mijn beurt . &lt;stop&gt;
@@ -1937,7 +1937,7 @@ Predicted translation: &lt;start&gt; Ik wil in Itali leven . &lt;stop&gt;</code>
 </div>
 <p>These two sentences don’t align well. We see that Dutch <em>in</em> correctly picks English <em>in</em> (skipping over <em>to live</em>), then <em>Itali</em> attends to <em>Italy</em>. Finally <em>leven</em> is produced without us witnessing the decoder looking back to <em>live</em>. Here again, it would be interesting to watch what happens a few epochs later!</p>
 <h3 id="next-up">Next up</h3>
-<p>There are many ways to go from here. For one, we didn’t do any hyperparameter optimization. Second, provided you have access to the required hardware, you might be curious how good an algorithm like this can get when trained on a real big dataset, using a real big network. Third, alternative attention mechanisms have been suggested (see e.g. <a href="https://github.com/lmthang/thesis/blob/master/thesis.pdf">T. Luong’s thesis</a>) which we followed rather closely in the description of attention above. Last not least, no one said attention need be useful only in the context of machine translation. Out there, a plenty of sequence prediction (time series) problems are waiting to be checked for its potential usefulness…</p>
+<p>There are many ways to go from here. For one, we didn’t do any hyperparameter optimization.<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> Second, provided you have access to the required hardware, you might be curious how good an algorithm like this can get when trained on a real big dataset, using a real big network. Third, alternative attention mechanisms have been suggested (see e.g. <a href="https://github.com/lmthang/thesis/blob/master/thesis.pdf">T. Luong’s thesis</a> which we followed rather closely in the description of attention above). Last not least, no one said attention need be useful only in the context of machine translation. Out there, a plenty of sequence prediction (time series) problems are waiting to be checked for its potential usefulness…</p>
 <pre><code>
 [1] &quot;Input: &lt;start&gt; I did that easily . &lt;stop&gt;&quot;              
 [2] &quot;Input: &lt;start&gt; Ik heb dat zonder moeite gedaan . &lt;stop&gt;&quot;
@@ -1959,9 +1959,10 @@ Predicted translation: &lt;start&gt; Ik wil in Itali leven . &lt;stop&gt;</code>
 <section class="footnotes">
 <hr />
 <ol>
-<li id="fn1"><p>First and foremost, this was the case for neural machine translation (see <span class="citation" data-cites="BahdanauCB14">Bahdanau, Cho, and Bengio (<a href="#ref-BahdanauCB14">2014</a>)</span> and <span class="citation" data-cites="LuongPM15">Luong, Pham, and Manning (<a href="#ref-LuongPM15">2015</a>)</span> for prominent work). But other areas performing sequence to sequence translation were profiting from incorporating an attention mechanism, too: E.g., <span class="citation" data-cites="XuBKCCSZB15">Xu et al. (<a href="#ref-XuBKCCSZB15">2015</a>)</span> applied attention to image captioning, and <span class="citation" data-cites="VinyalsKKPSH14">Vinyals et al. (<a href="#ref-VinyalsKKPSH14">2014</a>)</span>, to parsing.<a href="#fnref1" class="footnote-back">↩</a></p></li>
-<li id="fn2"><p>In our description, we’re closely following <span class="citation" data-cites="LuongPM15">Luong, Pham, and Manning (<a href="#ref-LuongPM15">2015</a>)</span>, in accordance with the colaboratory notebook on NMT.<a href="#fnref2" class="footnote-back">↩</a></p></li>
-<li id="fn3"><p>When referring to this as <em>Bahdanau style attention</em>, we - like others - do not imply exact agreement with the formulae in <span class="citation" data-cites="BahdanauCB14">Bahdanau, Cho, and Bengio (<a href="#ref-BahdanauCB14">2014</a>)</span>. It is about the general way encoder and decoder hidden states are combined - additively (or by concatenation) or multiplicatively.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn1"><p>First and foremost, this was the case for neural machine translation (see <span class="citation" data-cites="BahdanauCB14">(Bahdanau, Cho, and Bengio <a href="#ref-BahdanauCB14">2014</a>)</span> and <span class="citation" data-cites="LuongPM15">(Luong, Pham, and Manning <a href="#ref-LuongPM15">2015</a>)</span> for prominent work). But other areas performing sequence to sequence translation were profiting from incorporating an attention mechanism, too: E.g., <span class="citation" data-cites="XuBKCCSZB15">(Xu et al. <a href="#ref-XuBKCCSZB15">2015</a>)</span> applied attention to image captioning, and <span class="citation" data-cites="VinyalsKKPSH14">(Vinyals et al. <a href="#ref-VinyalsKKPSH14">2014</a>)</span>, to parsing.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>In our description, we’re closely following <span class="citation" data-cites="LuongPM15">(Luong, Pham, and Manning <a href="#ref-LuongPM15">2015</a>)</span>, in accordance with the colaboratory notebook on NMT.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>When referring to this as <em>Bahdanau style attention</em>, we - like others - do not imply exact agreement with the formulae in <span class="citation" data-cites="BahdanauCB14">(Bahdanau, Cho, and Bengio <a href="#ref-BahdanauCB14">2014</a>)</span>. It is about the general way encoder and decoder hidden states are combined - additively (or by concatenation) or multiplicatively.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>See e.g. <span class="citation" data-cites="LuongPM15">(Luong, Pham, and Manning <a href="#ref-LuongPM15">2015</a>)</span> for an extensive experiment on architectures and hyperparameters for NMT.<a href="#fnref4" class="footnote-back">↩</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

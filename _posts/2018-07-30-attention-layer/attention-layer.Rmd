@@ -6,13 +6,15 @@ author:
   - name: Sigrid Keydana
     affiliation: RStudio
     affiliation_url: http://www.rstudio.com/
+bibliography: bibliography.bib
 date: 07-30-2018
 preview: tbd
 categories:
+  - Attention 
+  - Neural machine translation
   - Keras
   - TensorFlow
   - Eager execution
-  - Machine translation
 output:
   radix::radix_article:
     self_contained: false
@@ -22,9 +24,9 @@ output:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-As of this writing, it is not difficult to find sample code (be it R or Python) that shows how to perform sequence to sequence translation. However, it has been established already a few years ago ^[footnote] that depending on the task, incorporating an attention mechanism significantly improves performance. Ideally, using Keras, we'd just have an attention layer handling this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward.
+As of this writing, it is not difficult to find sample code that shows how to perform sequence to sequence translation using Keras. However, a few years ago already it has been established that depending on the task, incorporating an attention mechanism significantly improves performance. ^[First and foremost, this was the case for neural machine translation (see @DBLP:journals/corr/BahdanauCB14 and @DBLP:journals/corr/LuongPM15 for prominent work). But other areas performing sequence to sequence translation were profiting from incorporating an attention mechanism, too: E.g., @DBLP:journals/corr/XuBKCCSZB15 applied attention to image captioning, and @DBLP:journals/corr/VinyalsKKPSH14, to parsing.] Ideally, using Keras, we'd just have an attention layer managing this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward.
 
-Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow Eager Execution](https://www.tensorflow.org/guide/eager) happened, and turned out to be a game changer for a number of things that used to be difficult (last not least, debugging). With eager execution, operations are executed immediately, instead of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more intricate to accomplish.
+Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow eager execution](https://www.tensorflow.org/guide/eager) happened, and turned out a game changer for a number of things that used to be difficult (last not least, debugging). With eager execution, operations are executed immediately, as opposed to of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more challenging to accomplish.
 
 Under these circumstances, it is not surprising that the [interactive notebook on neural machine translation](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb), published on Colaboratory, got a lot of attention for its straightforward implementation and highly intellegible explanations.
 Our goal here is to do the same thing from R. We will not end up with Keras code exactly the way we used to write it, but a hybrid of Keras layers and imperative code enabled by TensorFlow eager execution.
@@ -34,7 +36,7 @@ Our goal here is to do the same thing from R. We will not end up with Keras code
 
 There are two things we have to do to get this to work. For one, we need to call `tfe_enable_eager_execution()` right at the beginning of the program. Secondly, we need to use the TensorFlow implementation of Keras, not the "Keras Keras" so to say. This is because at a later point, we are going to access `model$variables` which at this point does not exist in "Keras Keras".
 
-Still from the TensorFlow stack, we are going to use [tfdatasets](tbd). So we end up with the following libraries needed for this example:
+Still from the TensorFlow stack, we are going to use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html). So we end up with the following libraries needed for this example:
 
 
 ```{r}
@@ -148,7 +150,7 @@ target_index <- create_index(map(word_pairs, ~ .[[2]]))
 ```
 
 
-Conversion of text to integers uses the above indices as well as Keras' convenient `pad_sequences()` function, at the end of which we have matrices of integers containing the source and target sentences, padded up to maximum sentence length found in the source and target corpus, respectively.
+Conversion of text to integers uses the above indices as well as Keras' convenient `pad_sequences` function, which leaves us with matrices of integers, padded up to maximum sentence length found in the source and target corpora, respectively.
 
 
 ```{r}
@@ -201,8 +203,8 @@ validation_sample <- sample(validation_sentences, 5)
 
 ### Create the datasets to iterate over
 
-While this section does not contain much code quantity-wise, it contains an important technique: the use of datasets.
-Remember the olden times when we used to pass in hand-crafted generators to Keras models? With [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html#reading-datasets), we can scalably feed data directly to the Keras `fit` function, having various preparatory actions being performed directly in native code. In our case, we will not be using `fit` as you'll see below, instead iterate directly over the tensors contained in the dataset. 
+This section does not contain much code, but it shows an important technique: the use of datasets.
+Remember the olden times when we used to pass in hand-crafted generators to Keras models? With [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html), we can scalably feed data directly to the Keras `fit` function, having various preparatory actions being performed directly in native code. In our case, we will not be using `fit`, instead iterate directly over the tensors contained in the dataset. 
 
 ```{r}
 train_dataset <- 
@@ -223,9 +225,9 @@ Now we are ready to roll! In fact, before talking about that training loop we ne
 
 We will create two custom layers, only the second of which is going to incorporate attention logic.
 
-However, it's worth introducing the encoder in detail too, because technically this is not a custom layer but a custom model, as described in the [corresponding vignette](https://github.com/rstudio/keras/blob/master/vignettes/custom_models.Rmd).
+However, it's worth introducing the encoder in detail too, because technically this is not a custom layer but a custom model, as described [here](https://github.com/rstudio/keras/blob/master/vignettes/custom_models.Rmd).
 
-Custom models allow you to create member layers and then specify custom functionality defining the operations to be performed on these layers.
+Custom models allow you to create member layers and then, specify custom functionality defining the operations to be performed on these layers.
 
 Let's look at the complete code for the encoder.
 
@@ -276,8 +278,8 @@ As the input to the call flows through the operations, let's keep track of the s
 
 At this point, it helps to look up RNN output shapes in the [documentation](https://tensorflow.rstudio.com/keras/reference/layer_simple_rnn.html).
 
-We have specified our GRU to return sequences as well as the state. Having asked for the state means we'll get back a list of tensors: the output, and the last state(s) - a single last state in this case as we're using GRU. That state itself will be of shape `(batch_size, gru_units)`.
-Having asked for sequences means the output will be of shape `(batch_size, max_length_input, gru_units)`. So that's that. We bundle output and last state in a list and pass it to the calling code.
+We have specified our GRU to return sequences as well as the state. Us asking for the state means we'll get back a list of tensors: the output, and the last state(s) - a single last state in this case as we're using GRU. That state itself will be of shape `(batch_size, gru_units)`.
+Us asking for sequences means the output will be of shape `(batch_size, max_length_input, gru_units)`. So that's that. We bundle output and last state in a list and pass it to the calling code.
 
 Before we show the decoder, we need to say a few things about attention.
 
@@ -285,19 +287,21 @@ Before we show the decoder, we need to say a few things about attention.
 ### Attention in a nutshell
 
 
-As T. Luong nicely puts it in his [thesis](tbd), the idea of the attention mechanism is 
+As T. Luong nicely puts it in his [thesis](https://github.com/lmthang/thesis/blob/master/thesis.pdf), the idea of the attention mechanism is 
 
 > to provide a 'random access memory' of source hidden states which one can constantly refer to as translation progresses.
 
 This means that at every timestep, the decoder receives not just the previous decoder hidden state, but also the complete output from the encoder. It then "makes up its mind" as to what part of the encoded input matters at the current point in time.
-Although various attention mechanisms exist, the basic procedure often goes like this.
+Although various attention mechanisms exist, the basic procedure often goes like this. ^[In our description, we're closely following @DBLP:journals/corr/LuongPM15, in accordance with the colaboratory notebook on NMT.]
+
 First, we create a _score_ that relates the decoder hidden state at a given timestep to the encoder hidden states at every timestep.
-Different score functions exist; the following is commonly referred to as _Bahdanau style_ (additive) attention (after [tbd](tbd))
+
+The score function can take different shapes; the following is commonly referred to as _Bahdanau style_ (additive) attention ^[When referring to this as _Bahdanau style attention_, we - like others - do not imply exact agreement with the formulae in @DBLP:journals/corr/BahdanauCB14. It is about the general way encoder and decoder hidden states are combined - additively (or by concatenation) or multiplicatively.]
 
 $$score(\mathbf{h}_t,\bar{\mathbf{h}_s}) = \mathbf{v}_a^T tanh(\mathbf{W_1}\mathbf{h}_t + \mathbf{W_2}\bar{\mathbf{h}_s})$$
 
 From these scores, we want to find the encoder states that matter most to the current decoder timestep.
-Basically, we just normalize the scores doing a softmax, which leaves us with a set of _attention weights_:
+Basically, we just normalize the scores doing a softmax, which leaves us with a set of _attention weights_ (also called _alignment vectors_):
 
 $$\alpha_{ts} = \frac{exp(score(\mathbf{h}_t,\bar{\mathbf{h}_s}))}{\sum_{s'=1}^{S}{score(\mathbf{h}_t,\bar{\mathbf{h}_{s'}})}}$$
 
@@ -316,7 +320,7 @@ In sum, we see how at each timestep, the attention mechanism combines informatio
 
 ### Attention decoder
 
-Now let's look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the above logic, which will not prevent the code from successfully translating our example sentences. Feel free to experiment with more intricate logic if you're curious!
+Now let's look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the score function, which will not prevent the decoder from successfully translating our example sentences. 
 
 ```{r}
 
@@ -350,8 +354,7 @@ attention_decoder <-
         
         hidden_with_time_axis <- k_expand_dims(hidden, 2)
         
-        score <-
-          model$V(k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis)))
+        score <- model$V(k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis)))
         
         attention_weights <- k_softmax(score, axis = 2)
         
@@ -360,8 +363,7 @@ attention_decoder <-
     
         x <- model$embedding(x)
        
-        x <-
-          k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
+        x <- k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
         
         c(output, state) %<-% model$gru(x)
    
@@ -381,19 +383,19 @@ attention_decoder <-
 
 Firstly, we notice that in addition to the usual embedding and GRU layers we'd expect in a decoder, there are a few additional dense layers. We'll comment on those as we go.
 
-This time, the input to what is effectively the `call` function consists  of three parts: input, hidden state, and the output from the encoder.
+This time, the first argument to what is effectively the `call` function consists  of three parts: input, hidden state, and the output from the encoder.
 
-Now first we need to calculate the score, which basically means addition of two matrix multiplications.
+First we need to calculate the score, which basically means addition of two matrix multiplications.
 For that addition, the shapes have to match. Now `encoder_output` is of shape `(batch_size, max_length_input, gru_units)`, while `hidden` has shape `(batch_size, gru_units)`. We thus add an axis "in the middle", obtaining `hidden_with_time_axis`, of shape `(batch_size, 1, gru_units)`.
 
-After applying the _tanh_ and the fully connected layer to the result of the addition, `score` will be of shape `(batch_size, max_length_input, 1). Now the next step calculates the softmax, to get the _attention weights_.
+After applying the `tanh` and the fully connected layer to the result of the addition, `score` will be of shape `(batch_size, max_length_input, 1)`. The next step calculates the softmax, to get the _attention weights_.
 Now softmax by default is applied on the last axis - but here we're applying it on the second axis, since it is with respect to the input timesteps we want to normalize the scores.
 
-After normalization, the shape is still `batch_size, max_length_input, 1`.
+After normalization, the shape is still `(batch_size, max_length_input, 1)`.
 
-Now we compute the context vector, as a weighted average of encoder hidden states. Its shape now is `(batch_size, gru_units)`. Note that like with the softmax operation above, we sum over the second axis, which corresponds to the number of timesteps in the input received from the encoder.
+Next up we compute the context vector, as a weighted average of encoder hidden states. Its shape is `(batch_size, gru_units)`. Note that like with the softmax operation above, we sum over the second axis, which corresponds to the number of timesteps in the input received from the encoder.
 
-Now we still have to take care of the third source of information: the input. After it has been passed through the embedding layer, it's shape is `(batch_size, 1, embedding_dim)`. Here, the second axis is of dimension 1 as we're forecasting a single token at a time.
+We still have to take care of the third source of information: the input. After it has been passed through the embedding layer, it's shape is `(batch_size, 1, embedding_dim)`. Here, the second axis is of dimension 1 as we're forecasting a single token at a time.
 
 Now, let's concatenate the context vector and the embedded input, to arrive at the _attention vector_.
 If you compare the code with the formula above, you'll see that here we're skipping the tanh and the additional fully connected layer, and just leave it at the concatenation.
@@ -401,10 +403,10 @@ After concatenation, the shape now is `(batch_size, 1, embedding_dim + gru_units
 
 The ensuing GRU operation, as usual, gives us back output and shape tensors. The output tensor is flattened to shape `(batch_size, gru_units)` and passed through the final densely connected layer, after which the output has shape `(batch_size, target_vocab_size)`. With that, we're going to be able to forecast the next token for every input in the batch.
 
-Remains to return everything we're interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the attention_weights for this batch (for plotting). And that's that! 
+Remains to return everything we're interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the _attention weights_ for this batch (for plotting). And that's that! 
 
          
- ### Creating the "model"
+### Creating the "model"
  
  We're almost ready to train the model. The model? We don't have a model yet. The next steps will feel a bit unusual if you're accustomed to the traditional Keras _create model -> compile model -> fit model _ workflow.
  Let's have a look.

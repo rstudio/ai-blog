@@ -1,5 +1,5 @@
 ---
-title: "An attention mechanism for Keras"
+title: "Attention-based Neural Machine Translation with Keras"
 description: |
   As sequence to sequence prediction tasks get more involved, attention mechanisms have proven helpful. A prominent example is neural machine translation. Following a recent Google Colaboratory notebook, we show how to implement attention in R.
 author:
@@ -10,10 +10,9 @@ bibliography: bibliography.bib
 date: 07-30-2018
 categories:
   - Attention 
-  - Neural machine translation
+  - Translation
   - Keras
-  - TensorFlow
-  - Eager execution
+  - Eager
 output:
   radix::radix_article:
     self_contained: false
@@ -24,23 +23,40 @@ preview: images/train-4-thumbnail.png
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-As of this writing, it is not difficult to find sample code that shows how to perform sequence to sequence translation using Keras. However, a few years ago already it has been established that depending on the task, incorporating an attention mechanism significantly improves performance. 
+These days it is not difficult to find sample code that demonstrates sequence to sequence translation using Keras. However, within the past few years it has been established that depending on the task, incorporating an attention mechanism significantly improves performance. 
 First and foremost, this was the case for neural machine translation (see [@BahdanauCB14] and [@LuongPM15] for prominent work). 
 But other areas performing sequence to sequence translation were profiting from incorporating an attention mechanism, too: E.g., [@XuBKCCSZB15] applied attention to image captioning, and [@VinyalsKKPSH14], to parsing.
 
 Ideally, using Keras, we'd just have an attention layer managing this for us. Unfortunately, as can be seen googling for code snippets and blog posts, implementing attention in pure Keras is not that straightforward.
 
-Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow eager execution](https://www.tensorflow.org/guide/eager) happened, and turned out a game changer for a number of things that used to be difficult (last not least, debugging). With eager execution, operations are executed immediately, as opposed to of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more challenging to accomplish.
+Consequently, until a short time ago, the best thing to do seemed to be translating the [TensorFlow Neural Machine Translation Tutorial](https://github.com/tensorflow/nmt) to R TensorFlow. Then, [TensorFlow eager execution](https://www.tensorflow.org/guide/eager) happened, and turned out a game changer for a number of things that used to be difficult (not the least of which is debugging). With eager execution, tensor operations are executed immediately, as opposed to of building a graph to be evaluated later. This means we can immediately inspect the values in our tensors - and it also means we can imperatively code loops to perform interleavings of sorts that earlier were more challenging to accomplish.
 
 Under these circumstances, it is not surprising that the [interactive notebook on neural machine translation](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/nmt_with_attention/nmt_with_attention.ipynb), published on Colaboratory, got a lot of attention for its straightforward implementation and highly intellegible explanations.
 Our goal here is to do the same thing from R. We will not end up with Keras code exactly the way we used to write it, but a hybrid of Keras layers and imperative code enabled by TensorFlow eager execution.
 
+## Prerequisites
 
-### Enable eager execution
+The code in this post depends on the development versions of several of the TensorFlow R packages. You can install these packages as follows:
 
-There are two things we have to do to get this to work. For one, we need to call `tfe_enable_eager_execution()` right at the beginning of the program. Secondly, we need to use the TensorFlow implementation of Keras, not the "Keras Keras" so to say. This is because at a later point, we are going to access `model$variables` which at this point does not exist in "Keras Keras".
+```r
+devtools::install_github(c(
+  "rstudio/reticulate"
+  "rstudio/tensorflow",
+  "rstudio/keras",
+  "rstudio/tfdatasets"
+))
+```
 
-Still from the TensorFlow stack, we are going to use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html). So we end up with the following libraries needed for this example:
+You should also be sure that you are running the very latest version of TensorFlow (v1.9), which you can install as follows:
+
+```r
+library(tensorflow)
+install_tensorflow()
+```
+
+There are additional requirements for using TensorFlow eager execution. First, we need to call `tfe_enable_eager_execution()` right at the beginning of the program. Second, we need to use implementation of Keras included in TensorFlow, rather than the base Keras implementaiton. This is because at a later point, we are going to access `model$variables` which at this point does not exist in base Keras.
+
+We'll also use the [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) package for our input pipeline. So we end up with the following libraries needed for this example:
 
 
 ```{r}
@@ -61,12 +77,12 @@ library(tibble)
 ```
 
 
-### Prepare the data
+## Preparing the data
 
 As our focus is on implementing the attention mechanism, we're going to do a quick pass through pre-preprocessing.
 All operations are contained in short functions that are independently testable (which also makes it easy should you want to experiment with different preprocessing actions).
 
-The site [http://www.manythings.org/anki/](http://www.manythings.org/anki/) is a great source for multilingual datasets. For variation, we'll choose a different dataset from the colab notebook, and try to translate English to Dutch. I'm going to assume you have the unzipped file `nld.txt` in a subdirectory called `data` in your current directory. 
+The site <https://www.manythings.org/anki/> is a great source for multilingual datasets. For variation, we'll choose a different dataset from the colab notebook, and try to translate English to Dutch. I'm going to assume you have the unzipped file `nld.txt` in a subdirectory called `data` in your current directory. 
 The file contains 28224 sentence pairs, of which we are going to use the first 10000. Under this restriction, sentences range from one-word exclamations
 
 ```
@@ -182,7 +198,7 @@ target_matrix <-
 ```
 
 
-All that remains to be done is the train-test-split.
+All that remains to be done is the train-test split.
 
 ```{r}
 train_indices <-
@@ -198,14 +214,15 @@ y_valid <- target_matrix[validation_indices, ]
 
 buffer_size <- nrow(x_train)
 
-# just for convenience, so we may get a glimpse at translation performance already during training
+# just for convenience, so we may get a glimpse at translation 
+# performance during training
 train_sentences <- sentences[train_indices]
 validation_sentences <- sentences[validation_indices]
 validation_sample <- sample(validation_sentences, 5)
 ```
 
 
-### Create the datasets to iterate over
+## Creating datasets to iterate over
 
 This section does not contain much code, but it shows an important technique: the use of datasets.
 Remember the olden times when we used to pass in hand-crafted generators to Keras models? With [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html), we can scalably feed data directly to the Keras `fit` function, having various preparatory actions being performed directly in native code. In our case, we will not be using `fit`, instead iterate directly over the tensors contained in the dataset. 
@@ -222,10 +239,10 @@ validation_dataset <-
   dataset_batch(batch_size, drop_remainder = TRUE)
 ```
 
-Now we are ready to roll! In fact, before talking about that training loop we need to dive into the implementation of the core logic: the custom layers responsible to perform the attention operation.
+Now we are ready to roll! In fact, before talking about that training loop we need to dive into the implementation of the core logic: the custom layers responsible for performing the attention operation.
 
 
-### Attention encoder
+## Attention encoder
 
 We will create two custom layers, only the second of which is going to incorporate attention logic.
 
@@ -237,6 +254,7 @@ Let's look at the complete code for the encoder.
 
 ```{r}
 attention_encoder <-
+  
   function(gru_units,
            embedding_dim,
            src_vocab_size,
@@ -248,13 +266,14 @@ attention_encoder <-
         layer_embedding(
           input_dim = src_vocab_size,
           output_dim = embedding_dim
-          )
+        )
+      
       model$gru <-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
           return_state = TRUE
-          )
+        )
       
       function(inputs, mask = NULL) {
         
@@ -282,13 +301,13 @@ As the input to the call flows through the operations, let's keep track of the s
 
 At this point, it helps to look up RNN output shapes in the [documentation](https://tensorflow.rstudio.com/keras/reference/layer_simple_rnn.html).
 
-We have specified our GRU to return sequences as well as the state. Us asking for the state means we'll get back a list of tensors: the output, and the last state(s) - a single last state in this case as we're using GRU. That state itself will be of shape `(batch_size, gru_units)`.
-Us asking for sequences means the output will be of shape `(batch_size, max_length_input, gru_units)`. So that's that. We bundle output and last state in a list and pass it to the calling code.
+We have specified our GRU to return sequences as well as the state. Our asking for the state means we'll get back a list of tensors: the output, and the last state(s) - a single last state in this case as we're using GRU. That state itself will be of shape `(batch_size, gru_units)`.
+Our asking for sequences means the output will be of shape `(batch_size, max_length_input, gru_units)`. So that's that. We bundle output and last state in a list and pass it to the calling code.
 
 Before we show the decoder, we need to say a few things about attention.
 
 
-### Attention in a nutshell
+## Attention in a nutshell
 
 
 As T. Luong nicely puts it in his [thesis](https://github.com/lmthang/thesis/blob/master/thesis.pdf), the idea of the attention mechanism is 
@@ -328,7 +347,7 @@ $$\mathbf{a}_t = tanh(\mathbf{W_c} [ \mathbf{c}_t ; \mathbf{h}_t])$$
 In sum, we see how at each timestep, the attention mechanism combines information from the sequence of encoder states, and the current decoder hidden state. We'll soon see a third source of information entering the calculation, which will be dependent on whether we're in the training or the prediction phase.
 
 
-### Attention decoder
+## Attention decoder
 
 Now let's look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the score function, which will not prevent the decoder from successfully translating our example sentences. 
 
@@ -342,14 +361,18 @@ attention_decoder <-
            name = NULL) {
     
     keras_model_custom(name = name, function(model) {
+      
       model$gru <-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
           return_state = TRUE
         )
+      
       model$embedding <-
-        layer_embedding(input_dim = target_vocab_size, output_dim = embedding_dim)
+        layer_embedding(input_dim = target_vocab_size, 
+                        output_dim = embedding_dim)
+      
       gru_units <- gru_units
       model$fc <- layer_dense(units = target_vocab_size)
       model$W1 <- layer_dense(units = gru_units)
@@ -364,7 +387,8 @@ attention_decoder <-
         
         hidden_with_time_axis <- k_expand_dims(hidden, 2)
         
-        score <- model$V(k_tanh(model$W1(encoder_output) + model$W2(hidden_with_time_axis)))
+        score <- model$V(k_tanh(model$W1(encoder_output) + 
+                                model$W2(hidden_with_time_axis)))
         
         attention_weights <- k_softmax(score, axis = 2)
         
@@ -416,12 +440,12 @@ The ensuing GRU operation, as usual, gives us back output and shape tensors. The
 Remains to return everything we're interested in: the output (to be used for forecasting), the last GRU hidden state (to be passed back in to the decoder), and the _attention weights_ for this batch (for plotting). And that's that! 
 
          
-### Creating the "model"
+## Creating the "model"
  
  We're almost ready to train the model. The model? We don't have a model yet. The next steps will feel a bit unusual if you're accustomed to the traditional Keras _create model -> compile model -> fit model _ workflow.
  Let's have a look.
  
- First, we need a few bookkeeping variables.
+First, we need a few bookkeeping variables.
  
  
 ```{r}
@@ -434,7 +458,7 @@ target_vocab_size <- nrow(target_index)
 ```
  
  
-Now, we create the encoder and decoder objects - it's tempting to call them layers, but technically both inherit from `RModel`. 
+Now, we create the encoder and decoder objects - it's tempting to call them layers, but technically both are custom Keras models.
 
 ```{r}
 encoder <- attention_encoder(
@@ -468,7 +492,7 @@ cx_loss <- function(y_true, y_pred) {
 
 Now we're ready to train.
 
-### Training phase
+## Training phase
 
 In the training phase, we're using _teacher forcing_, which is the established name for feeding the model the (correct) target at time $t$ as input for the next calculation step at time $t + 1$.
 This is in contrast to the inference phase, when the decoder output is fed back as input to the next time step.
@@ -493,6 +517,7 @@ for (epoch in seq_len(n_epochs)) {
   iter <- make_iterator_one_shot(train_dataset)
     
   until_out_of_range({
+    
     batch <- iterator_get_next(iter)
     loss <- 0
     x <- batch[[1]]
@@ -516,6 +541,7 @@ for (epoch in seq_len(n_epochs)) {
      
         dec_input <- k_expand_dims(y[, t])
       }
+      
     })
       
     total_loss <-
@@ -527,15 +553,18 @@ for (epoch in seq_len(n_epochs)) {
         "/",
         iter,
         ": ",
-        (loss / k_cast_to_floatx(dim(y)[2])) %>% as.double() %>% round(4),
+        (loss / k_cast_to_floatx(dim(y)[2])) %>% 
+          as.double() %>% round(4),
         "\n"
       )
       
     variables <- c(encoder$variables, decoder$variables)
     gradients <- tape$gradient(loss, variables)
       
-    optimizer$apply_gradients(purrr::transpose(list(gradients, variables)),
-                              global_step = tf$train$get_or_create_global_step())
+    optimizer$apply_gradients(
+      purrr::transpose(list(gradients, variables)),
+      global_step = tf$train$get_or_create_global_step()
+    )
       
   })
     
@@ -543,7 +572,8 @@ for (epoch in seq_len(n_epochs)) {
       "Total loss (epoch): ",
       epoch,
       ": ",
-      (total_loss / k_cast_to_floatx(buffer_size)) %>% as.double() %>% round(4),
+      (total_loss / k_cast_to_floatx(buffer_size)) %>% 
+        as.double() %>% round(4),
       "\n"
     )
 }
@@ -553,10 +583,10 @@ for (epoch in seq_len(n_epochs)) {
 How does backpropagation work with this new flow? With eager execution, a `GradientTape` records operations performed on the forward pass. This recording is then "played back" to perform backpropagation.
 Concretely put, during the forward pass, we have the tape recording the model's actions, and we keep incrementally updating the loss.
 Then, outside the tape's context, we ask the tape for the gradients of the accumulated loss with respect to the model's variables. Once we know the gradients, we can have the optimizer apply them to those variables.
-This `variables` slot, by the way, does not (as of this writing) exist in "Keras Keras", which is why we have to resort to the TensorFlow implementation.
+This `variables` slot, by the way, does not (as of this writing) exist in the base implementation of Keras, which is why we have to resort to the TensorFlow implementation.
 
 
-### Inference
+## Inference
 
 As soon as we have a trained model, we can get translating! Actually, we don't have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!).
 The [complete code for this post](https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R) will do it like this, however here we're arranging the steps in a more didactical order.
@@ -644,7 +674,7 @@ translate <- function(sentence) {
 ```
 
 
-### Learning to translate
+## Learning to translate
 
 
 Using the [sample code](https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R), you can see yourself how learning progresses. This is how it worked in our case.
@@ -791,7 +821,7 @@ As you see it can be quite interesting watching the network's "language capabili
 Now, how about subjecting our network to a little CT scan? Since we're collecting the attention weights, we can visualize what part of the source text the decoder is _attending to_ at every timestep.
 
 
-### What is the decoder looking at?
+## What is the decoder looking at?
 
 First, let's take an example where word orders in both languages are the same.
 
@@ -835,7 +865,7 @@ knitr::include_graphics("images/validation-3.png")
 These two sentences don't align well. We see that Dutch _in_ correctly picks English _in_ (skipping over _to live_), then _Itali_ attends to _Italy_. Finally _leven_ is produced without us witnessing the decoder looking back to _live_. Here again, it would be interesting to watch what happens a few epochs later!
 
 
-### Next up
+## Next up
 
 There are many ways to go from here. For one, we didn't do any hyperparameter optimization.
 (See e.g. [@LuongPM15] for an extensive experiment on architectures and hyperparameters for NMT.)

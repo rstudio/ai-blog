@@ -603,7 +603,7 @@
       var href = $(this).attr('href');
       var id = href.replace('#', '');
       var fn = $('#' + id);
-      var fn_p = $('#fn1>p');
+      var fn_p = $('#' + id + '>p');
       fn_p.find('.footnote-back').remove();
       var text = fn_p.text();
       var dtfn = $('<d-footnote></d-footnote>');
@@ -1121,15 +1121,15 @@ attention_encoder &lt;-
            src_vocab_size,
            name = NULL) {
     
-    keras_model_custom(name = name, function(model) {
+    keras_model_custom(name = name, function(self) {
       
-      model$embedding &lt;-
+      self$embedding &lt;-
         layer_embedding(
           input_dim = src_vocab_size,
           output_dim = embedding_dim
         )
       
-      model$gru &lt;-
+      self$gru &lt;-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
@@ -1141,8 +1141,8 @@ attention_encoder &lt;-
         x &lt;- inputs[[1]]
         hidden &lt;- inputs[[2]]
         
-        x &lt;- model$embedding(x)
-        c(output, state) %&lt;-% model$gru(x, initial_state = hidden)
+        x &lt;- self$embedding(x)
+        c(output, state) %&lt;-% self$gru(x, initial_state = hidden)
     
         list(output, state)
       }
@@ -1189,24 +1189,24 @@ attention_decoder &lt;-
            target_vocab_size,
            name = NULL) {
     
-    keras_model_custom(name = name, function(model) {
+    keras_model_custom(name = name, function(self) {
       
-      model$gru &lt;-
+      self$gru &lt;-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
           return_state = TRUE
         )
       
-      model$embedding &lt;-
+      self$embedding &lt;-
         layer_embedding(input_dim = target_vocab_size, 
                         output_dim = embedding_dim)
       
       gru_units &lt;- gru_units
-      model$fc &lt;- layer_dense(units = target_vocab_size)
-      model$W1 &lt;- layer_dense(units = gru_units)
-      model$W2 &lt;- layer_dense(units = gru_units)
-      model$V &lt;- layer_dense(units = 1L)
+      self$fc &lt;- layer_dense(units = target_vocab_size)
+      self$W1 &lt;- layer_dense(units = gru_units)
+      self$W2 &lt;- layer_dense(units = gru_units)
+      self$V &lt;- layer_dense(units = 1L)
  
       function(inputs, mask = NULL) {
         
@@ -1216,23 +1216,23 @@ attention_decoder &lt;-
         
         hidden_with_time_axis &lt;- k_expand_dims(hidden, 2)
         
-        score &lt;- model$V(k_tanh(model$W1(encoder_output) + 
-                                model$W2(hidden_with_time_axis)))
+        score &lt;- self$V(k_tanh(self$W1(encoder_output) + 
+                                self$W2(hidden_with_time_axis)))
         
         attention_weights &lt;- k_softmax(score, axis = 2)
         
         context_vector &lt;- attention_weights * encoder_output
         context_vector &lt;- k_sum(context_vector, axis = 2)
     
-        x &lt;- model$embedding(x)
+        x &lt;- self$embedding(x)
        
         x &lt;- k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
         
-        c(output, state) %&lt;-% model$gru(x)
+        c(output, state) %&lt;-% self$gru(x)
    
         output &lt;- k_reshape(output, c(-1, gru_units))
     
-        x &lt;- model$fc(output)
+        x &lt;- self$fc(output)
  
         list(x, state, attention_weights)
         

@@ -401,8 +401,9 @@ d-title {
 
 </style>
 
-<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
-<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.0.13/css/fa-svg-with-js.css" rel="stylesheet"/>
+<script src="../../site_libs/font-awesome-5.0.13/js/fontawesome-all.min.js"></script>
+<script src="../../site_libs/font-awesome-5.0.13/js/fa-v4-shims.min.js"></script>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
 <!--/radix_placeholder_navigation_in_header-->
   <!--radix_placeholder_distill-->
@@ -1268,7 +1269,7 @@ gtag('config', 'UA-102325748-2');
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"Attention-based Neural Machine Translation with Keras","description":"As sequence to sequence prediction tasks get more involved, attention mechanisms have proven helpful. A prominent example is neural machine translation. Following a recent Google Colaboratory notebook, we show how to implement attention in R.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"http://www.rstudio.com/"}],"publishedDate":"2018-07-30T00:00:00.000-04:00","citationText":"Keydana, 2018"}
+{"title":"Attention-based Neural Machine Translation with Keras","description":"As sequence to sequence prediction tasks get more involved, attention mechanisms have proven helpful. A prominent example is neural machine translation. Following a recent Google Colaboratory notebook, we show how to implement attention in R.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"http://www.rstudio.com/"}],"publishedDate":"2018-07-30T00:00:00.000+02:00","citationText":"Keydana, 2018"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -1494,15 +1495,15 @@ attention_encoder &lt;-
            src_vocab_size,
            name = NULL) {
     
-    keras_model_custom(name = name, function(model) {
+    keras_model_custom(name = name, function(self) {
       
-      model$embedding &lt;-
+      self$embedding &lt;-
         layer_embedding(
           input_dim = src_vocab_size,
           output_dim = embedding_dim
         )
       
-      model$gru &lt;-
+      self$gru &lt;-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
@@ -1514,8 +1515,8 @@ attention_encoder &lt;-
         x &lt;- inputs[[1]]
         hidden &lt;- inputs[[2]]
         
-        x &lt;- model$embedding(x)
-        c(output, state) %&lt;-% model$gru(x, initial_state = hidden)
+        x &lt;- self$embedding(x)
+        c(output, state) %&lt;-% self$gru(x, initial_state = hidden)
     
         list(output, state)
       }
@@ -1562,24 +1563,24 @@ attention_decoder &lt;-
            target_vocab_size,
            name = NULL) {
     
-    keras_model_custom(name = name, function(model) {
+    keras_model_custom(name = name, function(self) {
       
-      model$gru &lt;-
+      self$gru &lt;-
         layer_gru(
           units = gru_units,
           return_sequences = TRUE,
           return_state = TRUE
         )
       
-      model$embedding &lt;-
+      self$embedding &lt;-
         layer_embedding(input_dim = target_vocab_size, 
                         output_dim = embedding_dim)
       
       gru_units &lt;- gru_units
-      model$fc &lt;- layer_dense(units = target_vocab_size)
-      model$W1 &lt;- layer_dense(units = gru_units)
-      model$W2 &lt;- layer_dense(units = gru_units)
-      model$V &lt;- layer_dense(units = 1L)
+      self$fc &lt;- layer_dense(units = target_vocab_size)
+      self$W1 &lt;- layer_dense(units = gru_units)
+      self$W2 &lt;- layer_dense(units = gru_units)
+      self$V &lt;- layer_dense(units = 1L)
  
       function(inputs, mask = NULL) {
         
@@ -1589,23 +1590,23 @@ attention_decoder &lt;-
         
         hidden_with_time_axis &lt;- k_expand_dims(hidden, 2)
         
-        score &lt;- model$V(k_tanh(model$W1(encoder_output) + 
-                                model$W2(hidden_with_time_axis)))
+        score &lt;- self$V(k_tanh(self$W1(encoder_output) + 
+                                self$W2(hidden_with_time_axis)))
         
         attention_weights &lt;- k_softmax(score, axis = 2)
         
         context_vector &lt;- attention_weights * encoder_output
         context_vector &lt;- k_sum(context_vector, axis = 2)
     
-        x &lt;- model$embedding(x)
+        x &lt;- self$embedding(x)
        
         x &lt;- k_concatenate(list(k_expand_dims(context_vector, 2), x), axis = 3)
         
-        c(output, state) %&lt;-% model$gru(x)
+        c(output, state) %&lt;-% self$gru(x)
    
         output &lt;- k_reshape(output, c(-1, gru_units))
     
-        x &lt;- model$fc(output)
+        x &lt;- self$fc(output)
  
         list(x, state, attention_weights)
         

@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="radix" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>Neural style transfer with eager execution and Keras</title>
+  
+  <meta property="description" itemprop="description" content="Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images."/>
+  
+  
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2018-09-09"/>
+  <meta property="article:created" itemprop="dateCreated" content="2018-09-09"/>
+  <meta name="article:author" content="Sigrid Keydana"/>
+  
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="Neural style transfer with eager execution and Keras"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images."/>
+  <meta property="og:locale" content="en_US"/>
+  
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="Neural style transfer with eager execution and Keras"/>
+  <meta property="twitter:description" content="Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images."/>
+  
+  <!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=A neural algorithm of artistic style;citation_publication_date=2015;citation_volume=abs/1508.06576;citation_author=Leon A. Gatys;citation_author=Alexander S. Ecker;citation_author=Matthias Bethge"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","bibliography","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Neural style transfer with eager execution and Keras"]},{"type":"character","attributes":{},"value":["Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images. \n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["http://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["09-09-2018"]},{"type":"character","attributes":{},"value":["Neural style transfer","Keras","Eager"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/attention.png"]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","eager-style-transfer_files/bowser-1.9.3/bowser.min.js","eager-style-transfer_files/distill-2.2.21/template.v2.js","eager-style-transfer_files/jquery-1.11.3/jquery.min.js","eager-style-transfer_files/webcomponents-2.0.0/webcomponents.js","images/isar.jpg","images/style_epoch_1000.png","images/The_Great_Wave_off_Kanagawa.jpg"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+  
+  <style type="text/css">
+  
+  body {
+    background-color: white;
+  }
+  
+  .pandoc-table {
+    width: 100%;
+  }
+  
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+  
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+  
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+  
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+  
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .shaded-content {
+    background: white;
+  }
+  
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+  
+  d-article {
+    padding-bottom: 30px;
+  }
+  
+  d-appendix {
+    padding-top: 30px;
+  }
+  
+  d-article>p>img {
+    width: 100%;
+  }
+  
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+  
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  /* CSS for table of contents */
+  
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+  
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+  
+  .d-toc a {
+    border-bottom: none;
+  }
+  
+  .d-toc ul {
+    padding-left: 0;
+  }
+  
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+  
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+  
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+  
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+  
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  
+  
+  
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+  
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  pre.text-output {
+  
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  @media(min-width: 768px) {
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+  
+  /* Figure */
+  
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+  
+  .figure img {
+    width: 100%;
+  }
+  
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+  
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+  
+  
+  
+  /* Tweak 1000px media break to show more text */
+  
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+  
+    .grid {
+      grid-column-gap: 16px;
+    }
+  
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption, .figure .caption, figure figcaption {
+      font-size: 13px;
+    }
+  }
+  
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+  
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+  
+  
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+  
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  
+  /* Social footer */
+  
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+  
+  .disqus-comments {
+    margin-right: 30px;
+  }
+  
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+  
+  #disqus_thread {
+    margin-top: 30px;
+  }
+  
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+  
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+  
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+  
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+  
+  
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+  
+  
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+  
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+  
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+  
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+  
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+  
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+  
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+  
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+  
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+  
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+  
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  </style>
+  
+  <script type="application/javascript">
+  
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+  
+  // show body when load is complete
+  function on_load_complete() {
+  
+    // set body to visible
+    document.body.style.visibility = 'visible';
+  
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+  
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+  
+  function init_distill() {
+  
+    init_common();
+  
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+  
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+  
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+  
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+  
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+  
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+  
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+  
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+  
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+  
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#' + id + '>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.text();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.text(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+  
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+  
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+  
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+  
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+  
+      // capture layout
+      var layout = $(this).attr('data-layout');
+  
+      // apply layout to markdown level block elements
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+  
+  
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+  
+    // load distill framework
+    load_distill_framework();
+  
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+  
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+  
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+  
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+  
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+  
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+  
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+  
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+  
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+  
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+  
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+  
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+  
+      // clear polling timer
+      clearInterval(tid);
+  
+      // show body now that everything is ready
+      on_load_complete();
+    }
+  
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+  
+  }
+  
+  function init_downlevel() {
+  
+    init_common();
+  
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+  
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+  
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+  
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+  
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+  
+  
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+  
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+  
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+  
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+  
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+  
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+  
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+  
+    $('body').addClass('downlevel');
+  
+    on_load_complete();
+  }
+  
+  
+  function init_common() {
+  
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+  
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+  
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+  
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+  
+    // mark figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      $(this).find('img, .html-widget').css('width', '100%');
+    });
+  
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+  
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.radix-site-header a').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+  
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+  
+  
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+  
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+  
+  </script>
+  
+  <!--/radix_placeholder_distill-->
+  <script src="eager-style-transfer_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="eager-style-transfer_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="eager-style-transfer_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="eager-style-transfer_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Neural style transfer with eager execution and Keras","description":"Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"http://www.rstudio.com/"}],"publishedDate":"2018-09-09T00:00:00.000+02:00","citationText":"Keydana, 2018"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Neural style transfer with eager execution and Keras</h1>
+<p>Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images.</p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="http://www.rstudio.com/" class="uri">http://www.rstudio.com/</a>
+  
+<br/>09-09-2018
+</div>
+
+<div class="d-article">
+<p>How would your summer holiday’s photos look had Edvard Munch painted them? (Perhaps it’s better not to know). Let’s take a more comforting example: How would a nice, summarly river landscape look if painted by Katsushika Hokusai?</p>
+<p>Style transfer on images is not new, but got a boost when <span class="citation" data-cites="GatysEB15a">(Gatys, Ecker, and Bethge <a href="#ref-GatysEB15a">2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
+<p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow. However, there is an important difference: This post uses TensorFlow eager execution, allowing for an imperative way of coding that makes it easy to map concepts to code. Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
+<p>As usual, please make sure you have the required package versions installed. And no need to copy the snippets - you’ll find the complete code among the <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/eager-styletransfer.R">Keras examples</a>.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>The code in this post depends on the development versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
+<pre class="r"><code>
+devtools::install_github(c(
+  &quot;rstudio/reticulate&quot;
+  &quot;rstudio/tensorflow&quot;,
+  &quot;rstudio/keras&quot;,
+  &quot;rstudio/tfdatasets&quot;
+))</code></pre>
+<p>You should also be sure that you are running the very latest version of TensorFlow (v1.10), which you can install like so:</p>
+<pre class="r"><code>
+library(tensorflow)
+install_tensorflow()</code></pre>
+<p>Let’s get started!</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+use_implementation(&quot;tensorflow&quot;)
+
+library(tensorflow)
+tfe_enable_eager_execution(device_policy = &quot;silent&quot;)
+
+library(purrr)
+library(glue)</code></pre>
+</div>
+<h2 id="input-images">Input images</h2>
+<p>Here is our content image - replace by an image of your own:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# If you have enough memory on your GPU, no need to load the images
+# at such small size.
+# This is the size I found working for a 4G GPU.
+img_shape &lt;- c(128, 128, 3)
+
+content_path &lt;- &quot;isar.jpg&quot;
+
+content_image &lt;-  image_load(content_path, target_size = img_shape[1:2])
+content_image %&gt;% 
+  image_to_array() %&gt;%
+  `/`(., 255) %&gt;%
+  as.raster() %&gt;%
+  plot()</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<p><img src="images/isar.jpg" /><!-- --></p>
+</div>
+<p>And here’s the style model, Hokusai’s <em>The Great Wave off Kanagawa</em>, which you can download from <a href="https://upload.wikimedia.org/wikipedia/commons/0/0a/The_Great_Wave_off_Kanagawa.jpg">Wikimedia Commons</a>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+style_path &lt;- &quot;The_Great_Wave_off_Kanagawa.jpg&quot;
+
+style_image &lt;-  image_load(content_path, target_size = img_shape[1:2])
+style_image %&gt;% 
+  image_to_array() %&gt;%
+  `/`(., 255) %&gt;%
+  as.raster() %&gt;%
+  plot()</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<p><img src="images/The_Great_Wave_off_Kanagawa.jpg" /><!-- --></p>
+</div>
+<p>We create a wrapper that loads and preprocesses the input images for us. As we will be working with VGG19, a network that has been trained on ImageNet, we need to transform our input images in the same way that was used training it. Later, we’ll apply the inverse transformation to our combination image before displaying it.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+load_and_process_image &lt;- function(path) {
+  img &lt;- image_load(path, target_size = img_shape[1:2]) %&gt;%
+    image_to_array() %&gt;%
+    k_expand_dims(axis = 1) %&gt;%
+    imagenet_preprocess_input()
+}
+
+deprocess_image &lt;- function(x) {
+  x &lt;- x[1, , ,]
+  # Remove zero-center by mean pixel
+  x[, , 1] &lt;- x[, , 1] + 103.939
+  x[, , 2] &lt;- x[, , 2] + 116.779
+  x[, , 3] &lt;- x[, , 3] + 123.68
+  # &#39;BGR&#39;-&gt;&#39;RGB&#39;
+  x &lt;- x[, , c(3, 2, 1)]
+  x[x &gt; 255] &lt;- 255
+  x[x &lt; 0] &lt;- 0
+  x[] &lt;- as.integer(x) / 255
+  x
+}</code></pre>
+</div>
+<h2 id="setting-the-scene">Setting the scene</h2>
+<p>We are going to use a neural network, but we won’t be training it. Neural style transfer is a bit uncommon in that we don’t optimize the network’s weights, but back propagate the loss to the input layer (the image), in order to move it in the desired direction.</p>
+<p>We will be interested in two kinds of outputs from the network, corresponding to our two goals. Firstly, we want to keep the combination image similar to the content image, on a high level. In a convnet, upper layers map to more holistic concepts, so we are picking a layer high up in the graph to compare outputs from the source and the combination.</p>
+<p>Secondly, the generated image should “look like” the style image. Style corresponds to lower level features like texture, shapes, strokes… So to compare the combination against the style example, we choose a set of lower level conv blocks for comparison and aggregate the results.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+content_layers &lt;- c(&quot;block5_conv2&quot;)
+style_layers &lt;- c(&quot;block1_conv1&quot;,
+                 &quot;block2_conv1&quot;,
+                 &quot;block3_conv1&quot;,
+                 &quot;block4_conv1&quot;,
+                 &quot;block5_conv1&quot;)
+
+num_content_layers &lt;- length(content_layers)
+num_style_layers &lt;- length(style_layers)
+
+get_model &lt;- function() {
+  vgg &lt;- application_vgg19(include_top = FALSE, weights = &quot;imagenet&quot;)
+  vgg$trainable &lt;- FALSE
+  style_outputs &lt;- map(style_layers, function(layer) vgg$get_layer(layer)$output)
+  content_outputs &lt;- map(content_layers, function(layer) vgg$get_layer(layer)$output)
+  model_outputs &lt;- c(style_outputs, content_outputs)
+  keras_model(vgg$input, model_outputs)
+}</code></pre>
+</div>
+<h2 id="losses">Losses</h2>
+<p>When optimizing the input image, we will consider three types of losses. Firstly, the <em>content loss</em>: How different is the combination image from the source? Here, we’re using the sum of the squared errors for comparison.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+content_loss &lt;- function(content_image, target) {
+  k_sum(k_square(target - content_image))
+}</code></pre>
+</div>
+<p>Our second concern is having the styles match as closely as possible. Style is commonly operationalized as the <a href="http://mathworld.wolfram.com/GramMatrix.html"><em>Gram matrix</em></a> of flattened feature maps in a layer. We thus assume that style is related to how maps in a layer correlate with other.</p>
+<p>We therefore compute the Gram matrices of the layers we’re interested in (defined above), for the source image as well as the optimization candidate, and compare them, again using the sum of squared errors.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+gram_matrix &lt;- function(x) {
+  features &lt;- k_batch_flatten(k_permute_dimensions(x, c(3, 1, 2)))
+  gram &lt;- k_dot(features, k_transpose(features))
+  gram
+}
+
+style_loss &lt;- function(gram_target, combination) {
+  gram_comb &lt;- gram_matrix(combination)
+  k_sum(k_square(gram_target - gram_comb)) /
+    (4 * (img_shape[3] ^ 2) * (img_shape[1] * img_shape[2]) ^ 2)
+}</code></pre>
+</div>
+<p>Thirdly, we don’t want the combination image to look overly pixelated, thus we’re adding in a regularization component, the total variation in the image:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+total_variation_loss &lt;- function(image) {
+  y_ij  &lt;- image[1:(img_shape[1] - 1L), 1:(img_shape[2] - 1L),]
+  y_i1j &lt;- image[2:(img_shape[1]), 1:(img_shape[2] - 1L),]
+  y_ij1 &lt;- image[1:(img_shape[1] - 1L), 2:(img_shape[2]),]
+  a &lt;- k_square(y_ij - y_i1j)
+  b &lt;- k_square(y_ij - y_ij1)
+  k_sum(k_pow(a + b, 1.25))
+}</code></pre>
+</div>
+<p>The tricky thing is how to combine these losses. We’ve reached acceptable results with the following weightings, but feel free to play around as you see fit:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+content_weight &lt;- 100
+style_weight &lt;- 0.8
+total_variation_weight &lt;- 0.01</code></pre>
+</div>
+<h2 id="get-model-outputs-for-the-content-and-style-images">Get model outputs for the content and style images</h2>
+<p>We need the model’s output for the content and style images, but here it suffices to do this just once. We concatenate both images along the batch dimension, pass that input to the model, and get back a list of outputs, where every element of the list is a 4-d tensor. For the style image, we’re interested in the style outputs at batch position 1, whereas for the content image, we need the content output at batch position 2.</p>
+<p>In the below comments, please note that the sizes of dimensions 2 and 3 will differ if you’re loading images at a different size.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+get_feature_representations &lt;-
+  function(model, content_path, style_path) {
+    
+    # dim == (1, 128, 128, 3)
+    style_image &lt;-
+      load_and_process_image(style_path) %&gt;% k_cast(&quot;float32&quot;)
+    # dim == (1, 128, 128, 3)
+    content_image &lt;-
+      load_and_process_image(content_path) %&gt;% k_cast(&quot;float32&quot;)
+    # dim == (2, 128, 128, 3)
+    stack_images &lt;- k_concatenate(list(style_image, content_image), axis = 1)
+    
+    # length(model_outputs) == 6
+    # dim(model_outputs[[1]]) = (2, 128, 128, 64)
+    # dim(model_outputs[[6]]) = (2, 8, 8, 512)
+    model_outputs &lt;- model(stack_images)
+    
+    style_features &lt;- 
+      model_outputs[1:num_style_layers] %&gt;%
+      map(function(batch) batch[1, , , ])
+    content_features &lt;- 
+      model_outputs[(num_style_layers + 1):(num_style_layers + num_content_layers)] %&gt;%
+      map(function(batch) batch[2, , , ])
+    
+    list(style_features, content_features)
+  }</code></pre>
+</div>
+<h2 id="computing-the-losses">Computing the losses</h2>
+<p>On every iteration, we need to pass the combination image through the model, obtain the style and content outputs, and compute the losses. Again, the code is extensively commented with tensor sizes for easy verification, but please keep in mind that the exact numbers presuppose you’re working with 128x128 images.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+compute_loss &lt;-
+  function(model, loss_weights, init_image, gram_style_features, content_features) {
+    
+    c(style_weight, content_weight) %&lt;-% loss_weights
+    model_outputs &lt;- model(init_image)
+    style_output_features &lt;- model_outputs[1:num_style_layers]
+    content_output_features &lt;-
+      model_outputs[(num_style_layers + 1):(num_style_layers + num_content_layers)]
+    
+    # style loss
+    weight_per_style_layer &lt;- 1 / num_style_layers
+    style_score &lt;- 0
+    # dim(style_zip[[5]][[1]]) == (512, 512)
+    style_zip &lt;- transpose(list(gram_style_features, style_output_features))
+    for (l in 1:length(style_zip)) {
+      # for l == 1:
+      # dim(target_style) == (64, 64)
+      # dim(comb_style) == (1, 128, 128, 64)
+      c(target_style, comb_style) %&lt;-% style_zip[[l]]
+      style_score &lt;- style_score + weight_per_style_layer * 
+        style_loss(target_style, comb_style[1, , , ])
+    }
+    
+    # content loss
+    weight_per_content_layer &lt;- 1 / num_content_layers
+    content_score &lt;- 0
+    content_zip &lt;- transpose(list(content_features, content_output_features))
+    for (l in 1:length(content_zip)) {
+      # dim(comb_content) ==  (1, 8, 8, 512)
+      # dim(target_content) == (8, 8, 512)
+      c(target_content, comb_content) %&lt;-% content_zip[[l]]
+      content_score &lt;- content_score + weight_per_content_layer *
+        content_loss(comb_content[1, , , ], target_content)
+    }
+    
+    # total variation loss
+    variation_loss &lt;- total_variation_loss(init_image[1, , ,])
+    
+    style_score &lt;- style_score * style_weight
+    content_score &lt;- content_score * content_weight
+    variation_score &lt;- variation_loss * total_variation_weight
+    
+    loss &lt;- style_score + content_score + variation_score
+    list(loss, style_score, content_score, variation_score)
+  }</code></pre>
+</div>
+<h2 id="computing-the-gradients">Computing the gradients</h2>
+<p>As soon as we have the losses, obtaining the gradients of the overall loss with respect to the input image is just a matter of calling <code>tape$gradient</code> on the <code>GradientTape</code>. Note that the nested call to <code>compute_loss</code>, and thus the call of the model on our combination image, happens inside the <code>GradientTape</code> context.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+compute_grads &lt;- 
+  function(model, loss_weights, init_image, gram_style_features, content_features) {
+    with(tf$GradientTape() %as% tape, {
+      scores &lt;-
+        compute_loss(model,
+                     loss_weights,
+                     init_image,
+                     gram_style_features,
+                     content_features)
+    })
+    total_loss &lt;- scores[[1]]
+    list(tape$gradient(total_loss, init_image), scores)
+  }</code></pre>
+</div>
+<h2 id="training-phase">Training phase</h2>
+<p>Now it’s time to train! While the natural continuation of this sentence would have been “… the model”, the model we’re training here is not VGG19 (that one we’re just using as a tool), but a minimal setup of just:</p>
+<ul>
+<li>a <code>Variable</code> that holds our to-be-optimized image</li>
+<li>the loss functions we defined above</li>
+<li>an optimizer that will apply the calculated gradients to the image variable (<code>tf$train$AdamOptimizer</code>)</li>
+</ul>
+<p>Below, we get the style features (of the style image) and the content feature (of the content image) just once, then iterate over the optimization process, saving the output every 100 iterations.</p>
+<p>In contrast to the original article and the <em>Deep Learning with R</em> book, but following the Google notebook instead, we’re not using L-BFGS for optimization, but Adam, as our goal here is to provide a concise introduction to eager execution. However, you could plug in another optimization method if you wanted, replacing <code>optimizer$apply_gradients(list(tuple(grads, init_image)))</code> by an algorithm of your choice (and of course, assigning the result of the optimization to the <code>Variable</code> holding the image).</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+run_style_transfer &lt;- function(content_path, style_path) {
+  model &lt;- get_model()
+  walk(model$layers, function(layer) layer$trainable = FALSE)
+  
+  c(style_features, content_features) %&lt;-% 
+    get_feature_representations(model, content_path, style_path)
+  # dim(gram_style_features[[1]]) == (64, 64)
+  gram_style_features &lt;- map(style_features, function(feature) gram_matrix(feature))
+  
+  init_image &lt;- load_and_process_image(content_path)
+  init_image &lt;- tf$contrib$eager$Variable(init_image, dtype = &quot;float32&quot;)
+  
+  optimizer &lt;- tf$train$AdamOptimizer(learning_rate = 1,
+                                      beta1 = 0.99,
+                                      epsilon = 1e-1)
+  
+  c(best_loss, best_image) %&lt;-% list(Inf, NULL)
+  loss_weights &lt;- list(style_weight, content_weight)
+  
+  start_time &lt;- Sys.time()
+  global_start &lt;- Sys.time()
+  
+  norm_means &lt;- c(103.939, 116.779, 123.68)
+  min_vals &lt;- -norm_means
+  max_vals &lt;- 255 - norm_means
+  
+  for (i in seq_len(num_iterations)) {
+    # dim(grads) == (1, 128, 128, 3)
+    c(grads, all_losses) %&lt;-% compute_grads(model,
+                                            loss_weights,
+                                            init_image,
+                                            gram_style_features,
+                                            content_features)
+    c(loss, style_score, content_score, variation_score) %&lt;-% all_losses
+    optimizer$apply_gradients(list(tuple(grads, init_image)))
+    clipped &lt;- tf$clip_by_value(init_image, min_vals, max_vals)
+    init_image$assign(clipped)
+    
+    end_time &lt;- Sys.time()
+    
+    if (k_cast_to_floatx(loss) &lt; best_loss) {
+      best_loss &lt;- k_cast_to_floatx(loss)
+      best_image &lt;- init_image
+    }
+    
+    if (i %% 50 == 0) {
+      glue(&quot;Iteration: {i}&quot;) %&gt;% print()
+      glue(
+        &quot;Total loss: {k_cast_to_floatx(loss)},
+        style loss: {k_cast_to_floatx(style_score)},
+        content loss: {k_cast_to_floatx(content_score)},
+        total variation loss: {k_cast_to_floatx(variation_score)},
+        time for 1 iteration: {(Sys.time() - start_time) %&gt;% round(2)}&quot;
+      ) %&gt;% print()
+      
+      if (i %% 100 == 0) {
+        png(paste0(&quot;style_epoch_&quot;, i, &quot;.png&quot;))
+        plot_image &lt;- best_image$numpy()
+        plot_image &lt;- deprocess_image(plot_image)
+        plot(as.raster(plot_image), main = glue(&quot;Iteration {i}&quot;))
+        dev.off()
+      }
+    }
+  }
+  
+  glue(&quot;Total time: {Sys.time() - global_start} seconds&quot;) %&gt;% print()
+  list(best_image, best_loss)
+}</code></pre>
+</div>
+<h2 id="ready-to-run">Ready to run</h2>
+<p>Now, we’re ready to start the process:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+c(best_image, best_loss) %&lt;-% run_style_transfer(content_path, style_path)</code></pre>
+</div>
+<p>In our case, results didn’t change much after ~ iteration 1000, and this is how our river landscape was looking:</p>
+<div class="layout-chunk" data-layout="l-body">
+<p><img src="images/style_epoch_1000.png" width="240" /></p>
+</div>
+<p>… definitely more inviting than had it been painted by Edvard Munch!</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>With neural style transfer, some fiddling around may be needed until you get the result you want. But as our example shows, this doesn’t mean the code has to be complicated. Additionally to being easy to grasp, eager execution also lets you add debugging output, and step through the code line-by-line to check on tensor shapes. Until next time in our eager execution series!</p>
+<div id="refs" class="references">
+<div id="ref-GatysEB15a">
+<p>Gatys, Leon A., Alexander S. Ecker, and Matthias Bethge. 2015. “A Neural Algorithm of Artistic Style.” <em>CoRR</em> abs/1508.06576. <a href="http://arxiv.org/abs/1508.06576" class="uri">http://arxiv.org/abs/1508.06576</a>.</p>
+</div>
+</div>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<script id="distill-bibliography" type="text/bibtex">
+@article{GatysEB15a,
+  author    = {Leon A. Gatys and
+               Alexander S. Ecker and
+               Matthias Bethge},
+  title     = {A Neural Algorithm of Artistic Style},
+  journal   = {CoRR},
+  volume    = {abs/1508.06576},
+  year      = {2015},
+  url       = {http://arxiv.org/abs/1508.06576},
+  archivePrefix = {arXiv},
+  eprint    = {1508.06576},
+  timestamp = {Mon, 13 Aug 2018 16:48:03 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/GatysEB15a},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

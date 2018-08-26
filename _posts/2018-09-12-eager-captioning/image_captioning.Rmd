@@ -1,0 +1,278 @@
+---
+title: "Attention-based Image Captioning with Keras"
+description: |
+  tbd
+author:
+  - name: Sigrid Keydana
+    affiliation: RStudio
+    affiliation_url: http://www.rstudio.com/
+bibliography: bibliography.bib
+date: 07-30-2018
+categories:
+  - Attention 
+  - Image Captioning
+  - Keras
+  - Eager
+output:
+  radix::radix_article:
+    self_contained: false
+preview: images/showattendtell.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+Image captioning is a challenging task at the vision-language interface. Given an image, an algorithm should produce a sensible caption. Recent deep learning approaches mostly include one or the other attention mechanism (sometimes even more than one) to help focusing on relevant image features. 
+In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea goes back to [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/). We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv), and as always in this mini-series we use Keras with TensorFlow eager execution to simplify our lives.
+
+
+## Prerequisites
+
+The code shown here will work with the current CRAN versions of `tensorflow`, `keras`, `reticulate`, and `tfdatasets`.
+Check that you're using at least version 1.9 of TensorFlow. If that isn't the case, as of this writing, this 
+
+```{r}
+library(tensorflow)
+install_tensorflow()
+```
+
+will get you version 1.10.
+
+When loading libraries, please make sure you're executing the first 4 lines in this exact order.
+We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using Tensorflow in any way.
+
+No need to copy paste code snippets - you'll find the complete code (in the order neccessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
+
+
+```{r}
+library(keras)
+use_implementation("tensorflow")
+
+library(tensorflow)
+tfe_enable_eager_execution(device_policy = "silent")
+
+library(tfdatasets)
+library(purrr)
+library(stringr)
+library(glue)
+library(rjson)
+library(rlang)
+library(dplyr)
+library(magick)
+```
+
+
+
+## The dataset
+
+[MS-COCO](http://cocodataset.org) ("Common Objects in Context") is one of, perhaps _the_, reference datasets in image captioning (object detection and segmentation, too). 
+We'll be using the [training images](http://images.cocodataset.org/zips/train2014.zip) and [annotations](http://images.cocodataset.org/annotations/annotations_trainval2014.zip) from 2014 - be warned, depending on your location, the download can take a _long_ time.
+
+After unpacking, let's define where the images and captions are.
+
+```{r}
+annotation_file <- "train2014/annotations/captions_train2014.json"
+image_path <- "train2014/train2014"
+```
+
+
+The annotations are in JSON format, and there are 414113 of them! Luckily for us we didn't have to download that many images - every image comes with 5 different captions, for better generalization.
+
+
+```{r}
+annotations <- fromJSON(file = annotation_file)
+annot_captions <- annotations[[4]]
+
+num_captions <- length(annot_captions)
+```
+
+
+We store annotations and image paths in lists, for later loading.
+
+```{r}
+all_captions <- vector(mode = "list", length = num_captions)
+all_img_names <- vector(mode = "list", length = num_captions)
+
+for (i in seq_len(num_captions)) {
+  caption <-
+    paste0("<start> ", annot_captions[[i]][["caption"]], " <end>")
+  image_id <- annot_captions[[i]][["image_id"]]
+  full_coco_image_path <-
+    sprintf("%s/COCO_train2014_%012d.jpg", image_path, image_id)
+  all_img_names[[i]] <- full_coco_image_path
+  all_captions[[i]] <- caption
+}
+```
+
+
+Depending on your computing environment, you will for sure want to restrict the number of examples used.
+This post will use 30000 captioned images, chosen randomly, and set aside 20% for validation.
+
+
+```{r}
+num_examples <- 30000
+
+random_sample <- sample(1:num_captions, size = num_examples)
+train_indices <-
+    sample(random_sample, size = length(random_sample) * 0.8)
+validation_indices <-
+    setdiff(random_sample, train_indices)
+
+sample_captions <- all_captions[random_sample]
+sample_images <- all_img_names[random_sample]
+train_captions <- all_captions[train_indices]
+train_images <- all_img_names[train_indices]
+validation_captions <- all_captions[validation_indices]
+validation_images <- all_img_names[validation_indices]
+```
+
+
+## Extract image features
+
+For the encoding part, we will make use of _InceptionV3_ to extract image features. In principle, which features to extract is open to experimentation, - here we just use the last layer before the fully connected top:
+
+```{r}
+image_model <- application_inception_v3(include_top = FALSE,
+                                        weights = "imagenet")
+image_model$output
+```
+
+
+For an image size of 299x299, the output will be of size (batch_size, 8, 8, 2048), that is, we are making use of 2048 features.
+
+_InceptionV3_ being a "big model", and wanting to save on training time, we will precompute features in advance and store them on disk as numpy arrays. 
+We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions, which is why we're not using the more familiar `image_load` from keras below.
+
+Our custom `load_image` will read in, resize and preprocess the images as required for use with _InceptionV3_:
+
+```{r}
+load_image <- function(image_path) {
+  img <- tf$read_file(image_path) %>%
+    tf$image$decode_jpeg(channels = 3) %>%
+    tf$image$resize_images(c(299L, 299L)) %>%
+    tf$keras$applications$inception_v3$preprocess_input()
+  list(img, image_path)
+}
+```
+
+
+Now we're ready to save the extracted features to disk. The (batch_size, 8, 8, 2048)-sized features will be flattened to (batch_size, 64, 2048). The latter shape is what our encoder, soon to be discussed, will receive as input.
+
+```{r}
+preencode <- unique(sample_images) %>% unlist() %>% sort()
+num_unique <- length(preencode)
+
+# adapt this according to your system's capacities  
+batch_size_4save <- 1
+image_dataset <- tensor_slices_dataset(preencode) %>%
+  dataset_map(load_image) %>%
+  dataset_batch(batch_size_4save)
+  
+save_iter <- make_iterator_one_shot(image_dataset)
+save_count <- 0
+  
+until_out_of_range({
+  if (save_count %% 100 == 0) {
+    cat("Saving feature:", save_count, "of", num_unique, "\n")
+  }
+  save_count <- save_count + batch_size_4save
+  batch_4save <- save_iter$get_next()
+  img <- batch_4save[[1]]
+  path <- batch_4save[[2]]
+  batch_features <- image_model(img)
+  batch_features <- tf$reshape(batch_features,
+                               list(dim(batch_features)[1], -1L, dim(batch_features)[4]))
+  for (i in 1:dim(batch_features)[1]) {
+    np$save(path[i]$numpy()$decode("utf-8"),
+            batch_features[i, , ]$numpy())
+  }
+    
+})
+```
+
+
+Before we get to the encoder and decoder models though, we need to take care of the captions.
+
+## Processing the captions
+
+We're using keras `text_tokenizer` and the text processing functions `texts_to_sequences` and `pad_sequences` to transform ascii text into a matrix.
+
+```{r}
+top_k <- 5000
+#top_k <- 500
+tokenizer <- text_tokenizer(num_words = top_k,
+                            oov_token = "<unk>",
+                            filters = '!"#$%&()*+.,-/:;=?@[\\]^_`{|}~ ')
+tokenizer$fit_on_texts(sample_captions)
+train_captions_tokenized <-
+  tokenizer %>% texts_to_sequences(train_captions)
+validation_captions_tokenized <-
+  tokenizer %>% texts_to_sequences(validation_captions)
+tokenizer$word_index
+
+tokenizer$word_index["<unk>"]
+
+tokenizer$word_index["<pad>"] <- 0
+tokenizer$word_index["<pad>"]
+
+#py_run_string("index_word = {value:key for key, value in r.tokenizer.word_index.items()}")
+#index2word <- py$index_word
+
+word_index_df <- data.frame(
+  word = tokenizer$word_index %>% names(),
+  index = tokenizer$word_index %>% unlist(use.names = FALSE),
+  stringsAsFactors = FALSE
+)
+
+word_index_df <- word_index_df %>% arrange(index)
+
+decode_caption <- function(text) {
+  paste(map(text, function(number)
+    word_index_df %>%
+      filter(index == number) %>%
+      select(word) %>%
+      pull()),
+    collapse = " ")
+}
+
+
+caption_lengths <- map(all_captions[1:num_examples], function(c) str_split(c," ")[[1]] %>% length()) %>% unlist()
+fivenum(caption_lengths)
+max_length <- fivenum(caption_lengths)[5]
+
+train_captions_padded <-
+  pad_sequences(train_captions_tokenized,
+                maxlen = max_length,
+                padding = "post",
+                truncating = "post")
+validation_captions_padded <-
+  pad_sequences(validation_captions_tokenized,
+                maxlen = max_length,
+                padding = "post",
+                truncating = "post")
+
+length(train_images)
+dim(train_captions_padded)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+## Conclusion
+
+# discuss the results
+
+Apart from training longer, on more data, or with different hyperparameters there are other options, though. The concept implemented here uses _spatial_ attention over a uniform grid, that is, the attention mechanism guides the decoder _where_ on the grid to look next when generating a caption.
+However, this is not the only way, and this is not how it works with humans. A much more plausible approach is a mix of top-down and bottom-up attention. E.g.[@AndersonHBTJGZ17] use object detection techniques to bottom-up isolate interesting objects, and an LSTM stack wherein the first computes top-down attention guided by the output word generated by the second one.
+Another interesting approach involving attention is [@LiuSWWY17], where the image features are encoded and presented in a sequence, such that we end up with sequence models both on the encoding and the decoding sides. To name one further alternative, [@Zhu2018] add a learned _topic_ to the information input, which again is a top-down feature found in human cognition.
+If you find one of these, or yet another, approach more convincing, an eager execution implementation in the style of the above should be a good way to go.
+

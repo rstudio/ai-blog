@@ -1,13 +1,13 @@
 ---
 title: "Attention-based Image Captioning with Keras"
 description: |
-  tbd
+  Image captioning is a challenging task at the vision-language interface. Continuing our mini-series on combining Keras with TensorFlow eager execution, we show a way to incorporate an attention mechanism that allows the network to concentrate on image features relevant to the current state of text generation.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
     affiliation_url: http://www.rstudio.com/
 bibliography: bibliography.bib
-date: 07-30-2018
+date: 09-17-2018
 categories:
   - Attention 
   - Image Captioning
@@ -23,7 +23,7 @@ preview: images/showattendtell.png
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-Image captioning is a challenging task at the vision-language interface. Given an image, an algorithm should produce a sensible caption. Recent deep learning approaches mostly include one or the other attention mechanism (sometimes even more than one) to help focusing on relevant image features. 
+In image captioning, an algorithm is given an image and tasked to produce a sensible caption. It is a challenging task for several reasons, not the least being that it involves a notion of _saliency_ or _relevance_. This is why recent deep learning approaches mostly include one or the other attention mechanism (sometimes even more than one) to help focusing on relevant image features. 
 In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea goes back to [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/). We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv), and as always in this mini-series we use Keras with TensorFlow eager execution to simplify our lives.
 
 
@@ -42,7 +42,7 @@ will get you version 1.10.
 When loading libraries, please make sure you're executing the first 4 lines in this exact order.
 We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using Tensorflow in any way.
 
-No need to copy paste code snippets - you'll find the complete code (in the order neccessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
+No need to copy-paste any code snippets - you'll find the complete code (in the order neccessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
 
 
 ```{r}
@@ -77,7 +77,7 @@ image_path <- "train2014/train2014"
 ```
 
 
-The annotations are in JSON format, and there are 414113 of them! Luckily for us we didn't have to download that many images - every image comes with 5 different captions, for better generalization.
+The annotations are in JSON format, and there are 414113 of them! Luckily for us we didn't have to download that many images - every image comes with 5 different captions, for better generalizability.
 
 
 ```{r}
@@ -139,7 +139,7 @@ image_model$output
 ```
 
 
-For an image size of 299x299, the output will be of size (batch_size, 8, 8, 2048), that is, we are making use of 2048 features.
+For an image size of 299x299, the output will be of size `(batch_size, 8, 8, 2048)`, that is, we are making use of 2048 features.
 
 _InceptionV3_ being a "big model", and wanting to save on training time, we will precompute features in advance and store them on disk as numpy arrays. 
 We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions, which is why we're not using the more familiar `image_load` from keras below.
@@ -157,7 +157,7 @@ load_image <- function(image_path) {
 ```
 
 
-Now we're ready to save the extracted features to disk. The (batch_size, 8, 8, 2048)-sized features will be flattened to (batch_size, 64, 2048). The latter shape is what our encoder, soon to be discussed, will receive as input.
+Now we're ready to save the extracted features to disk. The `(batch_size, 8, 8, 2048)`-sized features will be flattened to `(batch_size, 64, 2048)`. The latter shape is what our encoder, soon to be discussed, will receive as input.
 
 ```{r}
 preencode <- unique(sample_images) %>% unlist() %>% sort()
@@ -182,7 +182,9 @@ until_out_of_range({
   path <- batch_4save[[2]]
   batch_features <- image_model(img)
   batch_features <- tf$reshape(batch_features,
-                               list(dim(batch_features)[1], -1L, dim(batch_features)[4]))
+                               list(
+                                 dim(batch_features)[1], -1L, dim(batch_features)[4])
+                               )
   for (i in 1:dim(batch_features)[1]) {
     np$save(path[i]$numpy()$decode("utf-8"),
             batch_features[i, , ]$numpy())
@@ -199,32 +201,27 @@ Before we get to the encoder and decoder models though, we need to take care of 
 We're using keras `text_tokenizer` and the text processing functions `texts_to_sequences` and `pad_sequences` to transform ascii text into a matrix.
 
 ```{r}
+# we will use the 5000 most frequent words only
 top_k <- 5000
-#top_k <- 500
 tokenizer <- text_tokenizer(num_words = top_k,
                             oov_token = "<unk>",
                             filters = '!"#$%&()*+.,-/:;=?@[\\]^_`{|}~ ')
 tokenizer$fit_on_texts(sample_captions)
+
 train_captions_tokenized <-
   tokenizer %>% texts_to_sequences(train_captions)
 validation_captions_tokenized <-
   tokenizer %>% texts_to_sequences(validation_captions)
-tokenizer$word_index
 
-tokenizer$word_index["<unk>"]
-
+# pad_sequences will use 0 to pad all captions to the same length
 tokenizer$word_index["<pad>"] <- 0
-tokenizer$word_index["<pad>"]
 
-#py_run_string("index_word = {value:key for key, value in r.tokenizer.word_index.items()}")
-#index2word <- py$index_word
-
+# create a lookup dataframe that allows us to go in both directions
 word_index_df <- data.frame(
   word = tokenizer$word_index %>% names(),
   index = tokenizer$word_index %>% unlist(use.names = FALSE),
   stringsAsFactors = FALSE
 )
-
 word_index_df <- word_index_df %>% arrange(index)
 
 decode_caption <- function(text) {
@@ -236,9 +233,9 @@ decode_caption <- function(text) {
     collapse = " ")
 }
 
-
+# pad all sequences to the same length (the maximum length, in our case)
+# could experiment with shorter padding (truncating the very longest captions)
 caption_lengths <- map(all_captions[1:num_examples], function(c) str_split(c," ")[[1]] %>% length()) %>% unlist()
-fivenum(caption_lengths)
 max_length <- fivenum(caption_lengths)[5]
 
 train_captions_padded <-
@@ -252,14 +249,13 @@ validation_captions_padded <-
                 padding = "post",
                 truncating = "post")
 
-length(train_images)
-dim(train_captions_padded)
-
 ```
 
 
 
+## Loading the data for training
 
+Now that
 
 
 

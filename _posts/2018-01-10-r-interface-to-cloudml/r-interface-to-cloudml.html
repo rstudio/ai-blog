@@ -21,7 +21,7 @@
   <!--radix_placeholder_meta_tags-->
   <title>R Interface to Google CloudML</title>
   
-  <meta property="description" itemprop="description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures.&#10;"/>
+  <meta property="description" itemprop="description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures."/>
   
   
   <!--  https://schema.org/Article -->
@@ -32,13 +32,13 @@
   <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
   <meta property="og:title" content="R Interface to Google CloudML"/>
   <meta property="og:type" content="article"/>
-  <meta property="og:description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures.&#10;"/>
+  <meta property="og:description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures."/>
   <meta property="og:locale" content="en_US"/>
   
   <!--  https://dev.twitter.com/cards/types/summary -->
   <meta property="twitter:card" content="summary"/>
   <meta property="twitter:title" content="R Interface to Google CloudML"/>
-  <meta property="twitter:description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures.&#10;"/>
+  <meta property="twitter:description" content="We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures."/>
   
   <!--/radix_placeholder_meta_tags-->
   <!--radix_placeholder_rmarkdown_metadata-->
@@ -79,6 +79,23 @@
   
   .l-screen-inset {
     padding-right: 16px;
+  }
+  
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .shaded-content {
+    background: white;
   }
   
   .text-output {
@@ -210,6 +227,44 @@
   }
   }
   
+  /* Figure */
+  
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+  
+  .figure img {
+    width: 100%;
+  }
+  
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+  
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+  
+  
+  
   /* Tweak 1000px media break to show more text */
   
   @media(min-width: 1000px) {
@@ -236,7 +291,7 @@
       font-size: 1.06rem;
       line-height: 1.7em;
     }
-    figure .caption {
+    figure .caption, .figure .caption, figure figcaption {
       font-size: 13px;
     }
   }
@@ -477,6 +532,19 @@
     // set body to visible
     document.body.style.visibility = 'visible';
   
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+  
     // trigger 'shown' so htmlwidgets resize
     $('d-article').trigger('shown');
   }
@@ -530,7 +598,7 @@
       var href = $(this).attr('href');
       var id = href.replace('#', '');
       var fn = $('#' + id);
-      var fn_p = $('#fn1>p');
+      var fn_p = $('#' + id + '>p');
       fn_p.find('.footnote-back').remove();
       var text = fn_p.text();
       var dtfn = $('<d-footnote></d-footnote>');
@@ -578,8 +646,18 @@
       var layout = $(this).attr('data-layout');
   
       // apply layout to markdown level block elements
-      $(this).children().not('d-code, pre.text-output')
-        .wrap($('<div class="' + layout + '"></div>'));
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+  
   
       // unwrap the layout-chunk div
       $(this).children().unwrap();
@@ -777,6 +855,13 @@
         $(this).attr('href', $(this).attr('href') + "index.html");
     });
   
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.radix-site-header a').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+  
     // add class to pandoc style tables
     $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
     $('.kable-table').children('table').addClass('pandoc-table');
@@ -824,7 +909,7 @@
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"R Interface to Google CloudML","description":"We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures.\n","authors":[{"author":"J.J. Allaire","authorURL":"https://github.com/jjallaire","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2018-01-10T00:00:00.000-05:00","citationText":"Allaire, 2018"}
+{"title":"R Interface to Google CloudML","description":"We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optmize key attributes of model architectures.","authors":[{"author":"J.J. Allaire","authorURL":"https://github.com/jjallaire","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2018-01-10T00:00:00.000-05:00","citationText":"Allaire, 2018"}
 </script>
 
 <!--/radix_placeholder_front_matter-->

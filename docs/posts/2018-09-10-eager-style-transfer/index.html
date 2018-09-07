@@ -1306,22 +1306,18 @@ gtag('config', 'UA-102325748-2');
 
 <div class="d-article">
 <p>How would your summer holiday’s photos look had Edvard Munch painted them? (Perhaps it’s better not to know). Let’s take a more comforting example: How would a nice, summarly river landscape look if painted by Katsushika Hokusai?</p>
-<p>Style transfer on images is not new, but got a boost when <span class="citation" data-cites="GatysEB15a">(Gatys, Ecker, and Bethge <a href="#ref-GatysEB15a">2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
-<p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow. However, there is an important difference: This post uses TensorFlow eager execution, allowing for an imperative way of coding that makes it easy to map concepts to code. Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
+<p>Style transfer on images is not new, but got a boost when Gatys, Ecker, and Bethge<span class="citation" data-cites="GatysEB15a">(Gatys, Ecker, and Bethge <a href="#ref-GatysEB15a">2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
+<p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow. However, there is an important difference: This post uses TensorFlow <a href="https://www.tensorflow.org/guide/eager">Eager Execution</a>, allowing for an imperative way of coding that makes it easy to map concepts to code. Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
 <p>As usual, please make sure you have the required package versions installed. And no need to copy the snippets - you’ll find the complete code among the <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/eager-styletransfer.R">Keras examples</a>.</p>
 <h2 id="prerequisites">Prerequisites</h2>
-<p>The code in this post depends on the development versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
+<p>The code in this post depends on the most recent versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
 <pre class="r"><code>
-install.packages(c(
-  &quot;tensorflow&quot;,
-  &quot;keras&quot;,
-  &quot;tfdatasets&quot;
-))</code></pre>
+install.packages(c(&quot;tensorflow&quot;, &quot;keras&quot;, &quot;tfdatasets&quot;))</code></pre>
 <p>You should also be sure that you are running the very latest version of TensorFlow (v1.10), which you can install like so:</p>
 <pre class="r"><code>
 library(tensorflow)
 install_tensorflow()</code></pre>
-<p>Let’s get started!</p>
+<p>There are additional requirements for using TensorFlow eager execution. First, we need to call <code>tfe_enable_eager_execution()</code> right at the beginning of the program. Second, we need to use the implementation of Keras included in TensorFlow, rather than the base Keras implementation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 library(keras)
@@ -1333,6 +1329,7 @@ tfe_enable_eager_execution(device_policy = &quot;silent&quot;)
 library(purrr)
 library(glue)</code></pre>
 </div>
+<p>Prerequisites behind us, let’s get started!</p>
 <h2 id="input-images">Input images</h2>
 <p>Here is our content image - replace by an image of your own:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1351,9 +1348,7 @@ content_image %&gt;%
   as.raster() %&gt;%
   plot()</code></pre>
 </div>
-<div class="layout-chunk" data-layout="l-body">
-<p><img src="images/isar.jpg" /><!-- --></p>
-</div>
+<p><img src="images/isar.jpg" style="width:60.0%" /></p>
 <p>And here’s the style model, Hokusai’s <em>The Great Wave off Kanagawa</em>, which you can download from <a href="https://upload.wikimedia.org/wikipedia/commons/0/0a/The_Great_Wave_off_Kanagawa.jpg">Wikimedia Commons</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1366,9 +1361,7 @@ style_image %&gt;%
   as.raster() %&gt;%
   plot()</code></pre>
 </div>
-<div class="layout-chunk" data-layout="l-body">
-<p><img src="images/The_Great_Wave_off_Kanagawa.jpg" /><!-- --></p>
-</div>
+<p><img src="images/The_Great_Wave_off_Kanagawa.jpg" style="width:60.0%" /></p>
 <p>We create a wrapper that loads and preprocesses the input images for us. As we will be working with VGG19, a network that has been trained on ImageNet, we need to transform our input images in the same way that was used training it. Later, we’ll apply the inverse transformation to our combination image before displaying it.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>

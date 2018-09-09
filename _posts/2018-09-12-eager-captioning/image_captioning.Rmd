@@ -10,7 +10,8 @@ bibliography: bibliography.bib
 date: 09-17-2018
 categories:
   - Attention 
-  - Image Captioning
+  - Images
+  - Text
   - Keras
   - Eager
 output:
@@ -139,7 +140,7 @@ image_model$output
 ```
 
 
-For an image size of 299x299, the output will be of size `(batch_size, 8, 8, 2048)`, that is, we are making use of 2048 features.
+For an image size of 299x299, the output will be of size `(batch_size, 8, 8, 2048)`, that is, we are making use of 2048 feature maps.
 
 _InceptionV3_ being a "big model", and wanting to save on training time, we will precompute features in advance and store them on disk as numpy arrays. 
 We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions, which is why we're not using the more familiar `image_load` from keras below.
@@ -255,12 +256,374 @@ validation_captions_padded <-
 
 ## Loading the data for training
 
-Now that
+Now that we've taken care of pre-extracting the features and preprocessing the captions, we need a way to stream them to our captioning model. For that, we're using `tensor_slices_dataset` from [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html), passing in the list of paths to the images and the preprocessed captions. Loading the images is then performed as a TensorFlow graph operation (using [tf$pyfunc](https://www.tensorflow.org/api_docs/python/tf/py_func)).
+
+The original Colab code also shuffles the data on every iteration. Depending on your hardware, this may take a long time, and given the size of the dataset it is not strictly necessary to get reasonable results. (The results reported below were obtained without shuffling.)
+
+```{r}
+batch_size <- 10
+buffer_size <- num_examples
+
+map_func <- function(img_name, cap) {
+  p <- paste0(img_name$decode("utf-8"), ".npy")
+  img_tensor <- np$load(p)
+  img_tensor <- tf$cast(img_tensor, tf$float32)
+  list(img_tensor, cap)
+}
+
+train_dataset <-
+  tensor_slices_dataset(list(train_images, train_captions_padded)) %>%
+  dataset_map(function(item1, item2)
+    tf$py_func(map_func, list(item1, item2), list(tf$float32, tf$int32))) %>%
+  # optionally shuffle the dataset
+  #dataset_shuffle(buffer_size) %>%
+  dataset_batch(batch_size)
+```
 
 
 
+## Captioning model
 
 
+The model is basically the same as that discussed in the [machine translation post](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/). Please refer to that article for an explanation of the concepts, as well as a detailed walk-through of the tensor shapes involved at every step. Here, we provide the tensor shapes as comments in the code snippets, for quick overview/comparison.
+
+However, if you develop your own models, with eager execution you can simply insert debugging/logging statements at arbitrary places in the code - even in model definitions. So you can have a function
+
+```{r}
+maybecat <- function(context, x) {
+  if (debugshapes) {
+    name <- enexpr(x)
+    dims <- paste0(dim(x), collapse = " ")
+    cat(context, ": shape of ", name, ": ", dims, "\n", sep = "")
+  }
+}
+
+```
+
+And if we now set
+
+```{r}
+debugshapes <- FALSE
+```
+
+
+we can trace - not only tensor shapes, but actual tensor values through our models, as shown below for the encoder (we don't display any debugging statements after that, but the [sample code](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R) has many more.)
+
+### Encoder
+
+Now it's time to define some some sizing-related hyperparameters and housekeeping variables:
+
+```{r}
+# for encoder output
+embedding_dim <- 256
+# decoder (LSTM) capacity
+gru_units <- 512
+# for decoder output
+vocab_size <- top_k
+# number of feature maps gotten from Inception V3
+features_shape <- 2048
+# shape of attention fatures (flattened from 8x8)
+attention_features_shape <- 64
+```
+
+The encoder in this case is just a fully connected layer, taking in the features extracted from Inception V3 (in flattened form, as they were written to disk), and embedding them in 256-dimensional space.
+
+```{r}
+cnn_encoder <-
+  function(embedding_dim,
+           name = NULL) {
+    keras_model_custom(name = name, function(self) {
+      self$fc <- layer_dense(units = embedding_dim, activation = "relu")
+      
+      function(x, mask = NULL) {
+        # input shape: (batch_size, 64, features_shape)
+        maybecat("encoder input", x)
+         # shape after fc: (batch_size, 64, embedding_dim)
+        x <- self$fc(x)
+        maybecat("encoder output", x)
+        x
+      }
+    })
+  }
+```
+
+
+### Attention module
+
+Unlike in the machine translation post, here the attention module is separated out into its own custom model.
+The logic is the same though:
+
+```{r}
+attention_module <-
+  function(gru_units,
+           name = NULL) {
+    keras_model_custom(name = name, function(self) {
+      self$W1 = layer_dense(units = gru_units)
+      self$W2 = layer_dense(units = gru_units)
+      self$V = layer_dense(units = 1)
+      
+      function(inputs, mask = NULL) {
+        features <- inputs[[1]]
+        hidden <- inputs[[2]]
+        # features(CNN_encoder output) shape == (batch_size, 64, embedding_dim)
+        # hidden shape == (batch_size, gru_units)
+        # hidden_with_time_axis shape == (batch_size, 1, gru_units)
+        hidden_with_time_axis <- k_expand_dims(hidden, axis = 2)
+        
+        # score shape == (batch_size, 64, 1)
+        score <- self$V(k_tanh(self$W1(features) + self$W2(hidden_with_time_axis)))
+        # attention_weights shape == (batch_size, 64, 1)
+        attention_weights <- k_softmax(score, axis = 2)
+        # context_vector shape after sum == (batch_size, embedding_dim)
+        context_vector <- k_sum(attention_weights * features, axis = 2)
+        
+        list(context_vector, attention_weights)
+      }
+    })
+  }
+
+```
+
+### Decoder
+
+The decoder at each time step calls the attention module with the features it got from the encoder and its last hidden state, and receives back an attention vector. The attention vector gets concatenated with the current input and further processed by a GRU and two fully connected layers, the last of which gives us the (unnormalized) probabilities for the next word in the caption.
+
+The _current input_ at each time step here is the previous word: the correct one during training (_teacher forcing_), the last generated one during inference.
+
+```{r}
+rnn_decoder <-
+  function(embedding_dim,
+           gru_units,
+           vocab_size,
+           name = NULL) {
+    
+    keras_model_custom(name = name, function(self) {
+      self$gru_units <- gru_units
+      self$embedding <-
+        layer_embedding(input_dim = vocab_size, output_dim = embedding_dim)
+      self$gru <- if (tf$test$is_gpu_available()) {
+        layer_cudnn_gru(
+          units = gru_units,
+          return_sequences = TRUE,
+          return_state = TRUE,
+          recurrent_initializer = 'glorot_uniform'
+        )
+      } else {
+        layer_gru(
+          units = gru_units,
+          return_sequences = TRUE,
+          return_state = TRUE,
+          recurrent_initializer = 'glorot_uniform'
+        )
+      }
+      
+      self$fc1 <- layer_dense(units = self$gru_units)
+      self$fc2 <- layer_dense(units = vocab_size)
+      
+      self$attention <- attention_module(self$gru_units)
+      
+      function(inputs, mask = NULL) {
+        x <- inputs[[1]]
+        features <- inputs[[2]]
+        hidden <- inputs[[3]]
+        
+        c(context_vector, attention_weights) %<-% self$attention(list(features, hidden))
+        
+        # x shape after passing through embedding == (batch_size, 1, embedding_dim)
+        x <- self$embedding(x)
+        
+        # x shape after concatenation == (batch_size, 1, 2 * embedding_dim)
+        x <- k_concatenate(list(k_expand_dims(context_vector, 2), x))
+        
+        # passing the concatenated vector to the GRU
+        c(output, state) %<-% self$gru(x)
+        
+        # shape == (batch_size, 1, gru_units)
+        x <- self$fc1(output)
+        
+        # x shape == (batch_size, gru_units)
+        x <- k_reshape(x, c(-1, dim(x)[[3]]))
+        
+        # output shape == (batch_size, vocab_size)
+        x <- self$fc2(x)
+        
+        list(x, state, attention_weights)
+        
+      }
+    })
+  }
+```
+
+### Loss function, and instantiating it all
+
+Now that we've defined our model (built of three custom models), we still need to actually instantiate it (being precise: the two classes we will access from outside, that is, the encoder and the decoder). 
+We also need to instantiate an optimizer (Adam will do), and define our loss function (categorical crossentropy).
+Note that `tf$nn$sparse_softmax_cross_entropy_with_logits` expects raw logits instead of softmax activations, and that we're using the _sparse_ variant because our labels are not one-hot-encoded.
+
+
+
+```{r}
+encoder <- cnn_encoder(embedding_dim)
+decoder <- rnn_decoder(embedding_dim, gru_units, vocab_size)
+
+optimizer = tf$train$AdamOptimizer()
+
+cx_loss <- function(y_true, y_pred) {
+  mask <- 1 - k_cast(y_true == 0L, dtype = "float32")
+  loss <- tf$nn$sparse_softmax_cross_entropy_with_logits(
+    labels = y_true,
+    logits = y_pred) * mask
+  tf$reduce_mean(loss)
+}
+```
+
+
+## Training
+
+
+Training the captioning model is a time-consuming process, and you will for sure want to save the model's weights!
+How does this work with eager execution?
+
+We create a `tf$train$Checkpoint` object, passing it the objects to be saved: In our case, the encoder, the decoder, and the optimizer. Later, at the end of each epoch, we will ask it to write the respective weights to disk.
+
+```{r}
+restore_checkpoint <- FALSE
+
+checkpoint_dir <- "./checkpoints_captions"
+checkpoint_prefix <- file.path(checkpoint_dir, "ckpt")
+checkpoint <- tf$train$Checkpoint(
+  optimizer = optimizer,
+  encoder = encoder,
+  decoder = decoder)
+
+```
+
+As we're just starting to train the model, `restore_checkpoint` is set to false. Later, restoring the weights will be as easy as
+
+```{r}
+
+if (restore_checkpoint) {
+  checkpoint$restore(tf$train$latest_checkpoint(checkpoint_dir))
+}
+```
+
+The training loop is structured just like in the machine translation case: We loop over epochs, batches, and the training targets, feeding in the correct previous word at every timestep.
+Again, `tf$GradientTape` takes care of recording the forward pass and calculating the gradients, and the optimizer applies the gradients to the model's weights.
+As each epoch ends, we also save the weights.
+
+
+```{r}
+num_epochs <- 20
+
+if (!restore_checkpoint) {
+  for (epoch in seq_len(num_epochs)) {
+    
+    cat("Starting epoch:", epoch, "\n")
+    total_loss <- 0
+    progress <- 0
+    train_iter <- make_iterator_one_shot(train_dataset)
+    
+    until_out_of_range({
+      progress <- progress + 1
+      if (progress %% 10 == 0)
+        cat("-")
+      
+      batch <- iterator_get_next(train_iter)
+      loss <- 0
+      img_tensor <- batch[[1]]
+      target_caption <- batch[[2]]
+      
+      dec_hidden <- k_zeros(c(batch_size, gru_units))
+      
+      dec_input <-
+        k_expand_dims(rep(list(word_index_df[word_index_df$word == "<start>", "index"]), batch_size))
+      
+      with(tf$GradientTape() %as% tape, {
+        
+        features <- encoder(img_tensor)
+        
+        for (t in seq_len(dim(target_caption)[2] - 1)) {
+          c(preds, dec_hidden, weights) %<-%
+            decoder(list(dec_input, features, dec_hidden))
+          loss <- loss + cx_loss(target_caption[, t], preds)
+          dec_input <- k_expand_dims(target_caption[, t])
+        }
+        
+      })
+      
+      total_loss <-
+        total_loss + loss / k_cast_to_floatx(dim(target_caption)[2])
+      
+      variables <- c(encoder$variables, decoder$variables)
+      gradients <- tape$gradient(loss, variables)
+      
+      optimizer$apply_gradients(purrr::transpose(list(gradients, variables)),
+                                global_step = tf$train$get_or_create_global_step())
+    })
+    cat(paste0(
+      "\n\nTotal loss (epoch): ",
+      epoch,
+      ": ",
+      (total_loss / k_cast_to_floatx(buffer_size)) %>% as.double() %>% round(4),
+      "\n"
+    ))
+    
+    checkpoint$save(file_prefix = checkpoint_prefix)
+  }
+}
+```
+
+## Peeking at results
+
+Just like in the translation case, it's interesting to look at model performance already during training. The accompanying example code has that functionality integrated (and required functions defined in the correct order), so you can watch model progress for yourself. 
+
+The basic function here is `get_caption`:
+
+
+```{r}
+get_caption <-
+  function(image) {
+    attention_matrix <-
+      matrix(0, nrow = max_length, ncol = attention_features_shape)
+    temp_input <- k_expand_dims(load_image(image)[[1]], 1)
+    img_tensor_val <- image_model(temp_input)
+    img_tensor_val <- k_reshape(img_tensor_val,
+                                list(dim(img_tensor_val)[1], -1, dim(img_tensor_val)[4]))
+    features <- encoder(img_tensor_val)
+    
+    dec_hidden <- k_zeros(c(1, gru_units))
+    dec_input <-
+      k_expand_dims(list(word_index_df[word_index_df$word == "<start>", "index"]))
+    
+    result <- ""
+    
+    for (t in seq_len(max_length - 1)) {
+      
+      c(preds, dec_hidden, attention_weights) %<-%
+        decoder(list(dec_input, features, dec_hidden))
+      attention_weights <- k_reshape(attention_weights, c(-1))
+      attention_matrix[t,] <- attention_weights %>% as.double()
+      
+      pred_idx <- tf$multinomial(exp(preds), num_samples = 1)[1, 1] %>% as.double()
+      pred_word <-
+        word_index_df[word_index_df$index == pred_idx, "word"]
+      
+      if (pred_word == "<end>") {
+        result <-
+          paste(result, pred_word)
+        attention_matrix <-
+          attention_matrix[1:length(str_split(result, " ")[[1]]), , drop = FALSE]
+        return (list(result, attention_matrix))
+      } else {
+        result <-
+          paste(result, pred_word)
+        dec_input <- k_expand_dims(list(pred_idx))
+      }
+    }
+    
+    list(str_trim(result), attention_matrix)
+  }
+```
 
 
 ## Conclusion

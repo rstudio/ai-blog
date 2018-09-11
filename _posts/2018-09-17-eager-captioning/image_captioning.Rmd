@@ -25,7 +25,9 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
 In image captioning, an algorithm is given an image and tasked to produce a sensible caption. It is a challenging task for several reasons, not the least being that it involves a notion of _saliency_ or _relevance_. This is why recent deep learning approaches mostly include one or the other attention mechanism (sometimes even more than one) to help focusing on relevant image features. 
-In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea goes back to [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/). We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv), and as always in this mini-series we use Keras with TensorFlow eager execution to simplify our lives.
+In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea goes back to [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/).
+
+We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv), and as always in this mini-series we use Keras with TensorFlow eager execution to simplify our lives.
 
 
 ## Prerequisites
@@ -43,7 +45,7 @@ will get you version 1.10.
 When loading libraries, please make sure you're executing the first 4 lines in this exact order.
 We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using Tensorflow in any way.
 
-No need to copy-paste any code snippets - you'll find the complete code (in the order neccessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
+No need to copy-paste any code snippets - you'll find the complete code (in order necessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
 
 
 ```{r}
@@ -52,6 +54,8 @@ use_implementation("tensorflow")
 
 library(tensorflow)
 tfe_enable_eager_execution(device_policy = "silent")
+
+np <- import("numpy")
 
 library(tfdatasets)
 library(purrr)
@@ -67,7 +71,7 @@ library(magick)
 
 ## The dataset
 
-[MS-COCO](http://cocodataset.org) ("Common Objects in Context") is one of, perhaps _the_, reference datasets in image captioning (object detection and segmentation, too). 
+[MS-COCO](http://cocodataset.org) ("Common Objects in Context") is one of, perhaps _the_, reference dataset in image captioning (object detection and segmentation, too). 
 We'll be using the [training images](http://images.cocodataset.org/zips/train2014.zip) and [annotations](http://images.cocodataset.org/annotations/annotations_trainval2014.zip) from 2014 - be warned, depending on your location, the download can take a _long_ time.
 
 After unpacking, let's define where the images and captions are.
@@ -89,18 +93,23 @@ num_captions <- length(annot_captions)
 ```
 
 
-We store annotations and image paths in lists, for later loading.
+We store both annotations and image paths in lists, for later loading.
 
 ```{r}
 all_captions <- vector(mode = "list", length = num_captions)
 all_img_names <- vector(mode = "list", length = num_captions)
 
 for (i in seq_len(num_captions)) {
-  caption <-
-    paste0("<start> ", annot_captions[[i]][["caption"]], " <end>")
+  caption <- paste0("<start> ",
+                    annot_captions[[i]][["caption"]],
+                    " <end>"
+                    )
   image_id <- annot_captions[[i]][["image_id"]]
-  full_coco_image_path <-
-    sprintf("%s/COCO_train2014_%012d.jpg", image_path, image_id)
+  full_coco_image_path <- sprintf(
+    "%s/COCO_train2014_%012d.jpg",
+    image_path,
+    image_id
+  )
   all_img_names[[i]] <- full_coco_image_path
   all_captions[[i]] <- caption
 }
@@ -110,15 +119,15 @@ for (i in seq_len(num_captions)) {
 Depending on your computing environment, you will for sure want to restrict the number of examples used.
 This post will use 30000 captioned images, chosen randomly, and set aside 20% for validation.
 
+Below, we take random samples, split into training and validation parts. The companion code will also store the indices on disk, so you can pick up on verification and analysis later.
+
 
 ```{r}
 num_examples <- 30000
 
 random_sample <- sample(1:num_captions, size = num_examples)
-train_indices <-
-    sample(random_sample, size = length(random_sample) * 0.8)
-validation_indices <-
-    setdiff(random_sample, train_indices)
+train_indices <- sample(random_sample, size = length(random_sample) * 0.8)
+validation_indices <- setdiff(random_sample, train_indices)
 
 sample_captions <- all_captions[random_sample]
 sample_images <- all_img_names[random_sample]
@@ -129,27 +138,64 @@ validation_images <- all_img_names[validation_indices]
 ```
 
 
+
+## Interlude
+
+Before really diving into the technical stuff, let's take a moment to reflect on this task.
+In typical image-related deep learning walk-throughs, we're used to seeing well-defined problems - even if in some cases, the solution may be hard. Take, for example, the stereotypical _dog vs. cat_ problem. Some dogs may look like cats and some cats may look like dogs, but that's about it: All in all, in the usual world we live in, it should be a more or less binary question.
+
+If, on the other hand, we ask people to describe what they see in a scene, it's to be expected from the outset that we'll get different answers. Still, how much consensus there is will very much depend on the concrete dataset we're using.
+
+Let's take a look at some picks from the very first 20 training items sampled randomly above. 
+
+
+![From MS-COCO 2014](images/COCO_train2014_000000510592.jpg){.external width=50%}
+
+
+Now this image does not leave much room for decision what to focus on, and received a very factual caption indeed: "There is a plate with one slice of bacon a half of orange and bread". If the dataset were all like this, we'd think a machine learning algorithm should do pretty well here.
+
+Picking another one from the first 20:
+
+![From MS-COCO 2014](images/COCO_train2014_000000118167.jpg){.external width=50%}
+
+What would be salient information to you here? The caption provided goes "A smiling little boy has a checkered shirt".
+Is the look of the shirt as important as that? You might as well focus on the scenery, - or even something on a completely different level: The age of the photo, or it being an analog one.
+
+
+Let's take a final example.
+
+![From MS-COCO 2014](images/COCO_train2014_000000089158.jpg){.external width=70%}
+
+What would you say about this scene? The official label we sampled here is "A group of people posing in a funny way for the camera". Well ...
+
+Pleaes don't forget that for each image, the dataset includes five different captions (although our n = 30000 samples probably won't).
+So this is not saying the dataset is biased - not at all. Instead, we want to point out the ambiguities and difficulties inherent in the task. Actually, given those difficulties, it's all the more amazing that the task we're tackling here - having a network automatically generate image captions - should at all be possible!
+
+Now let's see how we can do this. 
+
 ## Extract image features
 
-For the encoding part, we will make use of _InceptionV3_ to extract image features. In principle, which features to extract is open to experimentation, - here we just use the last layer before the fully connected top:
+For the encoding part of our encoder-decoder network, we will make use of _InceptionV3_ to extract image features. In principle, which features to extract is up to experimentation, - here we just use the last layer before the fully connected top:
 
 ```{r}
-image_model <- application_inception_v3(include_top = FALSE,
-                                        weights = "imagenet")
+image_model <- application_inception_v3(
+  include_top = FALSE,
+  weights = "imagenet")
 image_model$output
 ```
 
 
 For an image size of 299x299, the output will be of size `(batch_size, 8, 8, 2048)`, that is, we are making use of 2048 feature maps.
 
-_InceptionV3_ being a "big model", and wanting to save on training time, we will precompute features in advance and store them on disk as numpy arrays. 
-We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions, which is why we're not using the more familiar `image_load` from keras below.
+_InceptionV3_ being a "big model", where every pass through the model takes its time, we want to precompute features in advance and store them on disk. 
+We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions: That's why we're not using the more familiar `image_load` from keras below.
 
 Our custom `load_image` will read in, resize and preprocess the images as required for use with _InceptionV3_:
 
 ```{r}
 load_image <- function(image_path) {
-  img <- tf$read_file(image_path) %>%
+  img <-
+    tf$read_file(image_path) %>%
     tf$image$decode_jpeg(channels = 3) %>%
     tf$image$resize_images(c(299L, 299L)) %>%
     tf$keras$applications$inception_v3$preprocess_input()
@@ -166,25 +212,24 @@ num_unique <- length(preencode)
 
 # adapt this according to your system's capacities  
 batch_size_4save <- 1
-image_dataset <- tensor_slices_dataset(preencode) %>%
+image_dataset <-
+  tensor_slices_dataset(preencode) %>%
   dataset_map(load_image) %>%
   dataset_batch(batch_size_4save)
   
 save_iter <- make_iterator_one_shot(image_dataset)
-save_count <- 0
   
 until_out_of_range({
-  if (save_count %% 100 == 0) {
-    cat("Saving feature:", save_count, "of", num_unique, "\n")
-  }
+  
   save_count <- save_count + batch_size_4save
   batch_4save <- save_iter$get_next()
   img <- batch_4save[[1]]
   path <- batch_4save[[2]]
   batch_features <- image_model(img)
-  batch_features <- tf$reshape(batch_features,
-                               list(
-                                 dim(batch_features)[1], -1L, dim(batch_features)[4])
+  batch_features <- tf$reshape(
+    batch_features,
+    list(dim(batch_features)[1], -1L, dim(batch_features)[4]
+  )
                                )
   for (i in 1:dim(batch_features)[1]) {
     np$save(path[i]$numpy()$decode("utf-8"),
@@ -204,9 +249,10 @@ We're using keras `text_tokenizer` and the text processing functions `texts_to_s
 ```{r}
 # we will use the 5000 most frequent words only
 top_k <- 5000
-tokenizer <- text_tokenizer(num_words = top_k,
-                            oov_token = "<unk>",
-                            filters = '!"#$%&()*+.,-/:;=?@[\\]^_`{|}~ ')
+tokenizer <- text_tokenizer(
+  num_words = top_k,
+  oov_token = "<unk>",
+  filters = '!"#$%&()*+.,-/:;=?@[\\]^_`{|}~ ')
 tokenizer$fit_on_texts(sample_captions)
 
 train_captions_tokenized <-
@@ -236,20 +282,25 @@ decode_caption <- function(text) {
 
 # pad all sequences to the same length (the maximum length, in our case)
 # could experiment with shorter padding (truncating the very longest captions)
-caption_lengths <- map(all_captions[1:num_examples], function(c) str_split(c," ")[[1]] %>% length()) %>% unlist()
+caption_lengths <- map(
+  all_captions[1:num_examples],
+  function(c) str_split(c," ")[[1]] %>% length()
+  ) %>% unlist()
 max_length <- fivenum(caption_lengths)[5]
 
-train_captions_padded <-
-  pad_sequences(train_captions_tokenized,
-                maxlen = max_length,
-                padding = "post",
-                truncating = "post")
-validation_captions_padded <-
-  pad_sequences(validation_captions_tokenized,
-                maxlen = max_length,
-                padding = "post",
-                truncating = "post")
+train_captions_padded <-  pad_sequences(
+  train_captions_tokenized,
+  maxlen = max_length,
+  padding = "post",
+  truncating = "post"
+)
 
+validation_captions_padded <- pad_sequences(
+  validation_captions_tokenized,
+  maxlen = max_length,
+  padding = "post",
+  truncating = "post"
+)
 ```
 
 
@@ -273,10 +324,11 @@ map_func <- function(img_name, cap) {
 
 train_dataset <-
   tensor_slices_dataset(list(train_images, train_captions_padded)) %>%
-  dataset_map(function(item1, item2)
-    tf$py_func(map_func, list(item1, item2), list(tf$float32, tf$int32))) %>%
+  dataset_map(
+    function(item1, item2) tf$py_func(map_func, list(item1, item2), list(tf$float32, tf$int32))
+  ) %>%
   # optionally shuffle the dataset
-  #dataset_shuffle(buffer_size) %>%
+  # dataset_shuffle(buffer_size) %>%
   dataset_batch(batch_size)
 ```
 
@@ -300,14 +352,14 @@ maybecat <- function(context, x) {
 
 ```
 
-And if we now set
+And if you now set
 
 ```{r}
 debugshapes <- FALSE
 ```
 
 
-we can trace - not only tensor shapes, but actual tensor values through our models, as shown below for the encoder (we don't display any debugging statements after that, but the [sample code](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R) has many more.)
+you can trace - not only tensor shapes, but actual tensor values through your models, as shown below for the encoder. (We don't display any debugging statements after that, but the [sample code](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R) has many more.)
 
 ### Encoder
 
@@ -322,29 +374,29 @@ gru_units <- 512
 vocab_size <- top_k
 # number of feature maps gotten from Inception V3
 features_shape <- 2048
-# shape of attention fatures (flattened from 8x8)
+# shape of attention features (flattened from 8x8)
 attention_features_shape <- 64
 ```
 
 The encoder in this case is just a fully connected layer, taking in the features extracted from Inception V3 (in flattened form, as they were written to disk), and embedding them in 256-dimensional space.
 
 ```{r}
-cnn_encoder <-
-  function(embedding_dim,
-           name = NULL) {
-    keras_model_custom(name = name, function(self) {
-      self$fc <- layer_dense(units = embedding_dim, activation = "relu")
+cnn_encoder <- function(embedding_dim, name = NULL) {
+    
+  keras_model_custom(name = name, function(self) {
       
-      function(x, mask = NULL) {
-        # input shape: (batch_size, 64, features_shape)
-        maybecat("encoder input", x)
-         # shape after fc: (batch_size, 64, embedding_dim)
-        x <- self$fc(x)
-        maybecat("encoder output", x)
-        x
-      }
-    })
-  }
+    self$fc <- layer_dense(units = embedding_dim, activation = "relu")
+      
+    function(x, mask = NULL) {
+      # input shape: (batch_size, 64, features_shape)
+      maybecat("encoder input", x)
+      # shape after fc: (batch_size, 64, embedding_dim)
+      x <- self$fc(x)
+      maybecat("encoder output", x)
+      x
+    }
+  })
+}
 ```
 
 
@@ -354,33 +406,33 @@ Unlike in the machine translation post, here the attention module is separated o
 The logic is the same though:
 
 ```{r}
-attention_module <-
-  function(gru_units,
-           name = NULL) {
-    keras_model_custom(name = name, function(self) {
-      self$W1 = layer_dense(units = gru_units)
-      self$W2 = layer_dense(units = gru_units)
-      self$V = layer_dense(units = 1)
+attention_module <- function(gru_units, name = NULL) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$W1 = layer_dense(units = gru_units)
+    self$W2 = layer_dense(units = gru_units)
+    self$V = layer_dense(units = 1)
       
-      function(inputs, mask = NULL) {
-        features <- inputs[[1]]
-        hidden <- inputs[[2]]
-        # features(CNN_encoder output) shape == (batch_size, 64, embedding_dim)
-        # hidden shape == (batch_size, gru_units)
-        # hidden_with_time_axis shape == (batch_size, 1, gru_units)
-        hidden_with_time_axis <- k_expand_dims(hidden, axis = 2)
+    function(inputs, mask = NULL) {
+      features <- inputs[[1]]
+      hidden <- inputs[[2]]
+      # features(CNN_encoder output) shape == (batch_size, 64, embedding_dim)
+      # hidden shape == (batch_size, gru_units)
+      # hidden_with_time_axis shape == (batch_size, 1, gru_units)
+      hidden_with_time_axis <- k_expand_dims(hidden, axis = 2)
         
-        # score shape == (batch_size, 64, 1)
-        score <- self$V(k_tanh(self$W1(features) + self$W2(hidden_with_time_axis)))
-        # attention_weights shape == (batch_size, 64, 1)
-        attention_weights <- k_softmax(score, axis = 2)
-        # context_vector shape after sum == (batch_size, embedding_dim)
-        context_vector <- k_sum(attention_weights * features, axis = 2)
+      # score shape == (batch_size, 64, 1)
+      score <- self$V(k_tanh(self$W1(features) + self$W2(hidden_with_time_axis)))
+      # attention_weights shape == (batch_size, 64, 1)
+      attention_weights <- k_softmax(score, axis = 2)
+      # context_vector shape after sum == (batch_size, embedding_dim)
+      context_vector <- k_sum(attention_weights * features, axis = 2)
         
-        list(context_vector, attention_weights)
-      }
-    })
-  }
+      list(context_vector, attention_weights)
+    }
+  })
+}
 
 ```
 
@@ -391,72 +443,69 @@ The decoder at each time step calls the attention module with the features it go
 The _current input_ at each time step here is the previous word: the correct one during training (_teacher forcing_), the last generated one during inference.
 
 ```{r}
-rnn_decoder <-
-  function(embedding_dim,
-           gru_units,
-           vocab_size,
-           name = NULL) {
+rnn_decoder <- function(embedding_dim, gru_units, vocab_size, name = NULL) {
     
-    keras_model_custom(name = name, function(self) {
-      self$gru_units <- gru_units
-      self$embedding <-
-        layer_embedding(input_dim = vocab_size, output_dim = embedding_dim)
-      self$gru <- if (tf$test$is_gpu_available()) {
-        layer_cudnn_gru(
-          units = gru_units,
-          return_sequences = TRUE,
-          return_state = TRUE,
-          recurrent_initializer = 'glorot_uniform'
-        )
-      } else {
-        layer_gru(
-          units = gru_units,
-          return_sequences = TRUE,
-          return_state = TRUE,
-          recurrent_initializer = 'glorot_uniform'
-        )
-      }
+  keras_model_custom(name = name, function(self) {
       
-      self$fc1 <- layer_dense(units = self$gru_units)
-      self$fc2 <- layer_dense(units = vocab_size)
+    self$gru_units <- gru_units
+    self$embedding <- layer_embedding(input_dim = vocab_size, output_dim = embedding_dim)
+    self$gru <- if (tf$test$is_gpu_available()) {
+      layer_cudnn_gru(
+        units = gru_units,
+        return_sequences = TRUE,
+        return_state = TRUE,
+        recurrent_initializer = 'glorot_uniform'
+      )
+    } else {
+      layer_gru(
+        units = gru_units,
+        return_sequences = TRUE,
+        return_state = TRUE,
+        recurrent_initializer = 'glorot_uniform'
+      )
+    }
       
-      self$attention <- attention_module(self$gru_units)
+    self$fc1 <- layer_dense(units = self$gru_units)
+    self$fc2 <- layer_dense(units = vocab_size)
       
-      function(inputs, mask = NULL) {
-        x <- inputs[[1]]
-        features <- inputs[[2]]
-        hidden <- inputs[[3]]
+    self$attention <- attention_module(self$gru_units)
+      
+    function(inputs, mask = NULL) {
+      x <- inputs[[1]]
+      features <- inputs[[2]]
+      hidden <- inputs[[3]]
         
-        c(context_vector, attention_weights) %<-% self$attention(list(features, hidden))
+      c(context_vector, attention_weights) %<-% self$attention(list(features, hidden))
         
-        # x shape after passing through embedding == (batch_size, 1, embedding_dim)
-        x <- self$embedding(x)
+      # x shape after passing through embedding == (batch_size, 1, embedding_dim)
+      x <- self$embedding(x)
         
-        # x shape after concatenation == (batch_size, 1, 2 * embedding_dim)
-        x <- k_concatenate(list(k_expand_dims(context_vector, 2), x))
+      # x shape after concatenation == (batch_size, 1, 2 * embedding_dim)
+      x <- k_concatenate(list(k_expand_dims(context_vector, 2), x))
         
-        # passing the concatenated vector to the GRU
-        c(output, state) %<-% self$gru(x)
+      # passing the concatenated vector to the GRU
+      c(output, state) %<-% self$gru(x)
         
-        # shape == (batch_size, 1, gru_units)
-        x <- self$fc1(output)
+      # shape == (batch_size, 1, gru_units)
+      x <- self$fc1(output)
         
-        # x shape == (batch_size, gru_units)
-        x <- k_reshape(x, c(-1, dim(x)[[3]]))
+      # x shape == (batch_size, gru_units)
+      x <- k_reshape(x, c(-1, dim(x)[[3]]))
         
-        # output shape == (batch_size, vocab_size)
-        x <- self$fc2(x)
+      # output shape == (batch_size, vocab_size)
+      x <- self$fc2(x)
         
-        list(x, state, attention_weights)
+      list(x, state, attention_weights)
         
-      }
-    })
-  }
+    }
+  })
+}
 ```
 
 ### Loss function, and instantiating it all
 
 Now that we've defined our model (built of three custom models), we still need to actually instantiate it (being precise: the two classes we will access from outside, that is, the encoder and the decoder). 
+
 We also need to instantiate an optimizer (Adam will do), and define our loss function (categorical crossentropy).
 Note that `tf$nn$sparse_softmax_cross_entropy_with_logits` expects raw logits instead of softmax activations, and that we're using the _sparse_ variant because our labels are not one-hot-encoded.
 
@@ -472,7 +521,8 @@ cx_loss <- function(y_true, y_pred) {
   mask <- 1 - k_cast(y_true == 0L, dtype = "float32")
   loss <- tf$nn$sparse_softmax_cross_entropy_with_logits(
     labels = y_true,
-    logits = y_pred) * mask
+    logits = y_pred
+  ) * mask
   tf$reduce_mean(loss)
 }
 ```
@@ -494,8 +544,8 @@ checkpoint_prefix <- file.path(checkpoint_dir, "ckpt")
 checkpoint <- tf$train$Checkpoint(
   optimizer = optimizer,
   encoder = encoder,
-  decoder = decoder)
-
+  decoder = decoder
+)
 ```
 
 As we're just starting to train the model, `restore_checkpoint` is set to false. Later, restoring the weights will be as easy as
@@ -518,15 +568,11 @@ num_epochs <- 20
 if (!restore_checkpoint) {
   for (epoch in seq_len(num_epochs)) {
     
-    cat("Starting epoch:", epoch, "\n")
     total_loss <- 0
     progress <- 0
     train_iter <- make_iterator_one_shot(train_dataset)
     
     until_out_of_range({
-      progress <- progress + 1
-      if (progress %% 10 == 0)
-        cat("-")
       
       batch <- iterator_get_next(train_iter)
       loss <- 0
@@ -535,8 +581,9 @@ if (!restore_checkpoint) {
       
       dec_hidden <- k_zeros(c(batch_size, gru_units))
       
-      dec_input <-
-        k_expand_dims(rep(list(word_index_df[word_index_df$word == "<start>", "index"]), batch_size))
+      dec_input <- k_expand_dims(
+        rep(list(word_index_df[word_index_df$word == "<start>", "index"]), batch_size)
+      )
       
       with(tf$GradientTape() %as% tape, {
         
@@ -558,7 +605,8 @@ if (!restore_checkpoint) {
       gradients <- tape$gradient(loss, variables)
       
       optimizer$apply_gradients(purrr::transpose(list(gradients, variables)),
-                                global_step = tf$train$get_or_create_global_step())
+                                global_step = tf$train$get_or_create_global_step()
+      )
     })
     cat(paste0(
       "\n\nTotal loss (epoch): ",
@@ -575,9 +623,9 @@ if (!restore_checkpoint) {
 
 ## Peeking at results
 
-Just like in the translation case, it's interesting to look at model performance already during training. The accompanying example code has that functionality integrated (and required functions defined in the correct order), so you can watch model progress for yourself. 
+Just like in the translation case, it's interesting to look at model performance already during training. The companion code has that functionality integrated (and required functions defined in the correct order), so you can watch model progress for yourself. 
 
-The basic function here is `get_caption`:
+The basic function here is `get_caption`: It gets passed the path to an image, loads it, obtains its features from Inception V3, and then asks the encoder-decoder model to generate a caption. If at any point the model produces the `end` symbol, we stop early. Otherwise, we may generate a sentence extending up till our predefined maximum length.
 
 
 ```{r}
@@ -587,8 +635,10 @@ get_caption <-
       matrix(0, nrow = max_length, ncol = attention_features_shape)
     temp_input <- k_expand_dims(load_image(image)[[1]], 1)
     img_tensor_val <- image_model(temp_input)
-    img_tensor_val <- k_reshape(img_tensor_val,
-                                list(dim(img_tensor_val)[1], -1, dim(img_tensor_val)[4]))
+    img_tensor_val <- k_reshape(
+      img_tensor_val,
+      list(dim(img_tensor_val)[1], -1, dim(img_tensor_val)[4])
+    )
     features <- encoder(img_tensor_val)
     
     dec_hidden <- k_zeros(c(1, gru_units))
@@ -624,6 +674,81 @@ get_caption <-
     list(str_trim(result), attention_matrix)
   }
 ```
+
+
+With that functionality, now let's actually do that: peek at results while the network is learning!
+
+We've picked 3 examples each from the training and validation sets. Here they are.
+
+First, our picks from the training set:
+
+::: l-body-outset
+![Three picks from the training set](images/training_examples.png){width=100%}  
+:::
+
+
+Let's see the target captions:
+
+- _a herd of giraffe standing on top of a grass covered field_
+- _a view of cards driving down a street_
+- _the skateboarding flips his board off of the sidewalk_
+
+Interestingly, here we also have a demonstration of how labeled datasets (like anything human) may contain errors. (The samples were not picked for that; instead, they were chosen - without too much screening - for being rather unequivocal in their visual content.)
+
+Now for the validation candidates.
+
+::: l-body-outset
+![Three picks from the validation set](images/validation_examples.png){width=100%}  
+:::
+
+and their official captions:
+
+- _a left handed pitcher throwing the base ball_
+- _a woman taking a bite of a slice of pizza in a restaraunt_
+- _a woman hitting swinging a tennis racket at a tennis ball on a tennis court_
+
+(Again, any spelling peculiarities have not been introduced by us.)
+
+
+#### Epoch 1
+
+Now, what does our network produce after the first epoch? Remember that this means, having seen each one of the 24000 training images once.
+
+First then, here are the captions for the train images:
+
+> a group of sheep standing in the grass
+
+> a group of cars driving down a street
+
+> a man is standing on a street
+
+Not only is the syntax correct in every case, the content isn't that bad either!
+
+How about the validation set?
+
+> a baseball player is playing baseball uniform is holding a baseball bat
+
+> a man is holding a table with a table with a table with a table with a table with a table with a table with a table with a table with a table with a table with a table with a table with a table
+
+> a tennis player is holding a tennis court
+
+This certainly tells that the network has been able to generalize over - let's not call them concepts, but mappings between visual and textual entities, perhaps. It's true that it will have seen some of these images before, because images come with several captions. You could be more strict setting up your training and validation sets - but here, we don't really care about objective performance scores and so, it does not really matter.
+
+Let' skip directly to epoch 20, our last training epoch, and check for further improvements.
+
+#### Epoch 20
+
+
+Training images:
+
+>
+
+>
+
+>
+
+
+
 
 
 ## Conclusion

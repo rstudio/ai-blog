@@ -17,7 +17,7 @@ categories:
 output:
   radix::radix_article:
     self_contained: false
-preview: images/showattendtell.png
+preview: images/showattendandtell.png
 ---
 
 ```{r setup, include=FALSE}
@@ -43,7 +43,7 @@ install_tensorflow()
 will get you version 1.10.
 
 When loading libraries, please make sure you're executing the first 4 lines in this exact order.
-We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using Tensorflow in any way.
+We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using TensorFlow in any way.
 
 No need to copy-paste any code snippets - you'll find the complete code (in order necessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
 
@@ -180,8 +180,8 @@ For the encoding part of our encoder-decoder network, we will make use of _Incep
 ```{r}
 image_model <- application_inception_v3(
   include_top = FALSE,
-  weights = "imagenet")
-image_model$output
+  weights = "imagenet"
+)
 ```
 
 
@@ -623,9 +623,9 @@ if (!restore_checkpoint) {
 
 ## Peeking at results
 
-Just like in the translation case, it's interesting to look at model performance already during training. The companion code has that functionality integrated (and required functions defined in the correct order), so you can watch model progress for yourself. 
+Just like in the translation case, it's interesting to look at model performance already during training. The companion code has that functionality integrated, so you can watch model progress for yourself. 
 
-The basic function here is `get_caption`: It gets passed the path to an image, loads it, obtains its features from Inception V3, and then asks the encoder-decoder model to generate a caption. If at any point the model produces the `end` symbol, we stop early. Otherwise, we may generate a sentence extending up till our predefined maximum length.
+The basic function here is `get_caption`: It gets passed the path to an image, loads it, obtains its features from Inception V3, and then asks the encoder-decoder model to generate a caption. If at any point the model produces the `end` symbol, we stop early. Otherwise, we continue until we hit the predefined maximum length.
 
 
 ```{r}
@@ -732,31 +732,58 @@ How about the validation set?
 
 > a tennis player is holding a tennis court
 
-This certainly tells that the network has been able to generalize over - let's not call them concepts, but mappings between visual and textual entities, perhaps. It's true that it will have seen some of these images before, because images come with several captions. You could be more strict setting up your training and validation sets - but here, we don't really care about objective performance scores and so, it does not really matter.
+This certainly tells that the network has been able to generalize over - let's not call them concepts, but mappings between visual and textual entities, say It's true that it will have seen some of these images before, because images come with several captions. You could be more strict setting up your training and validation sets - but here, we don't really care about objective performance scores and so, it does not really matter.
 
 Let' skip directly to epoch 20, our last training epoch, and check for further improvements.
 
 #### Epoch 20
 
 
-Training images:
+This is what we get for the training images:
 
->
+> a group of many tall giraffe standing next to a sheep
 
->
+> a view of cards and white gloves on a street
 
->
+> a skateboarding flips his board
+
+And this, for the validation images.
+
+> a baseball catcher and umpire hit a baseball game
+
+> a man is eating a sandwich
+
+> a female tennis player is in the court
+
+I think we might agree that this still leaves room for improvement - but then, we only trained for 20 epochs and on a very small portion of the dataset.
+
+In the above code snippets, you may have noticed the decoder returning an `attention_matrix` - but we weren't commenting on it.
+Now finally, just as in the translation example, have a look what we can make of that.
 
 
+## Where does the network look?
+
+We can visualize where the network is "looking" as it generates each word by overlaying the original image and the attention matrix. This example is taken from the 4th epoch.
+
+Here white-ish squares indicate areas receiving stronger focus. Compared to text-to-text translation though, the mapping is inherently less straightforward - where does one "look" when producing words like "and", "the", or "in"?
+
+::: l-body-outset
+![Attention over image areas](images/attention.png){width=100%}
+:::
 
 
 
 ## Conclusion
 
-# discuss the results
+It probably goes without saying that much better results are to be expected when training on (much!) more data and for much more time. 
 
-Apart from training longer, on more data, or with different hyperparameters there are other options, though. The concept implemented here uses _spatial_ attention over a uniform grid, that is, the attention mechanism guides the decoder _where_ on the grid to look next when generating a caption.
-However, this is not the only way, and this is not how it works with humans. A much more plausible approach is a mix of top-down and bottom-up attention. E.g.[@AndersonHBTJGZ17] use object detection techniques to bottom-up isolate interesting objects, and an LSTM stack wherein the first computes top-down attention guided by the output word generated by the second one.
-Another interesting approach involving attention is [@LiuSWWY17], where the image features are encoded and presented in a sequence, such that we end up with sequence models both on the encoding and the decoding sides. To name one further alternative, [@Zhu2018] add a learned _topic_ to the information input, which again is a top-down feature found in human cognition.
-If you find one of these, or yet another, approach more convincing, an eager execution implementation in the style of the above should be a good way to go.
+Apart from that, there are other options, though. The concept implemented here uses _spatial_ attention over a uniform grid, that is, the attention mechanism guides the decoder _where_ on the grid to look next when generating a caption.
+
+However, this is not the only way, and this is not how it works with humans. A much more plausible approach is a mix of top-down and bottom-up attention. E.g., [@AndersonHBTJGZ17] use object detection techniques to bottom-up isolate interesting objects, and an LSTM stack wherein the first LSTM computes top-down attention guided by the output word generated by the second one.
+
+Another interesting approach involving attention is [@LiuSWWY17], where the image features are encoded and presented in a sequence, such that we end up with sequence models both on the encoding and the decoding sides. 
+
+To name one further alternative, [@Zhu2018] add a learned _topic_ to the information input, which again is a top-down feature found in human cognition.
+
+If you find one of these, or yet another, approach more convincing, an eager execution implementation, in the style of the above, should be a good way to go.
 

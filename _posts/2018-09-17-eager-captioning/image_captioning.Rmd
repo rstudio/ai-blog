@@ -1,7 +1,7 @@
 ---
 title: "Attention-based Image Captioning with Keras"
 description: |
-  Image captioning is a challenging task at the vision-language interface. Continuing our mini-series on combining Keras with TensorFlow eager execution, we show a way to incorporate an attention mechanism that allows the network to concentrate on image features relevant to the current state of text generation.
+  Image captioning is a challenging task at intersection of vision and language. Here, we demonstrate using Keras and eager execution to incorporate an attention mechanism that allows the network to concentrate on image features relevant to the current state of text generation.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -24,15 +24,16 @@ preview: images/showattendandtell.png
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-In image captioning, an algorithm is given an image and tasked to produce a sensible caption. It is a challenging task for several reasons, not the least being that it involves a notion of _saliency_ or _relevance_. This is why recent deep learning approaches mostly include one or the other attention mechanism (sometimes even more than one) to help focusing on relevant image features. 
-In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea goes back to [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/).
+In image captioning, an algorithm is given an image and tasked with producing a sensible caption. It is a challenging task for several reasons, not the least being that it involves a notion of _saliency_ or _relevance_. This is why recent deep learning approaches mostly include some "attention" mechanism (sometimes even more than one) to help focusing on relevant image features. 
 
-We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv), and as always in this mini-series we use Keras with TensorFlow eager execution to simplify our lives.
+In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea comes from a recent paper on *Neural Image Caption Generation with Visual Attention* [@XuBKCCSZB15], and employs the same kind of attention algorithm as detailed in our post on [machine translation](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/).
+
+We're porting Python code from a recent [Google Colaboratory notebook ](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&pli=1#scrollTo=io7ws3ReRPGv),  using Keras with TensorFlow eager execution to simplify our lives.
 
 
 ## Prerequisites
 
-The code shown here will work with the current CRAN versions of `tensorflow`, `keras`, `reticulate`, and `tfdatasets`.
+The code shown here will work with the current CRAN versions of `tensorflow`, `keras`, and `tfdatasets`.
 Check that you're using at least version 1.9 of TensorFlow. If that isn't the case, as of this writing, this 
 
 ```{r}
@@ -45,7 +46,7 @@ will get you version 1.10.
 When loading libraries, please make sure you're executing the first 4 lines in this exact order.
 We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using TensorFlow in any way.
 
-No need to copy-paste any code snippets - you'll find the complete code (in order necessary for execution) [here](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
+No need to copy-paste any code snippets - you'll find the complete code (in order necessary for execution) here:  [eager-image-captioning.R](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R).
 
 
 ```{r}
@@ -149,14 +150,14 @@ If, on the other hand, we ask people to describe what they see in a scene, it's 
 Let's take a look at some picks from the very first 20 training items sampled randomly above. 
 
 
-![From MS-COCO 2014](images/COCO_train2014_000000510592.jpg){.external width=50%}
+![Figure from MS-COCO 2014](images/COCO_train2014_000000510592.jpg){.external width=50%}
 
 
 Now this image does not leave much room for decision what to focus on, and received a very factual caption indeed: "There is a plate with one slice of bacon a half of orange and bread". If the dataset were all like this, we'd think a machine learning algorithm should do pretty well here.
 
 Picking another one from the first 20:
 
-![From MS-COCO 2014](images/COCO_train2014_000000118167.jpg){.external width=50%}
+![Figure from MS-COCO 2014](images/COCO_train2014_000000118167.jpg){.external width=50%}
 
 What would be salient information to you here? The caption provided goes "A smiling little boy has a checkered shirt".
 Is the look of the shirt as important as that? You might as well focus on the scenery, - or even something on a completely different level: The age of the photo, or it being an analog one.
@@ -168,8 +169,8 @@ Let's take a final example.
 
 What would you say about this scene? The official label we sampled here is "A group of people posing in a funny way for the camera". Well ...
 
-Pleaes don't forget that for each image, the dataset includes five different captions (although our n = 30000 samples probably won't).
-So this is not saying the dataset is biased - not at all. Instead, we want to point out the ambiguities and difficulties inherent in the task. Actually, given those difficulties, it's all the more amazing that the task we're tackling here - having a network automatically generate image captions - should at all be possible!
+Please don't forget that for each image, the dataset includes five different captions (although our n = 30000 samples probably won't).
+So this is not saying the dataset is biased - not at all. Instead, we want to point out the ambiguities and difficulties inherent in the task. Actually, given those difficulties, it's all the more amazing that the task we're tackling here - having a network automatically generate image captions - should be possible at all!
 
 Now let's see how we can do this. 
 
@@ -187,7 +188,7 @@ image_model <- application_inception_v3(
 
 For an image size of 299x299, the output will be of size `(batch_size, 8, 8, 2048)`, that is, we are making use of 2048 feature maps.
 
-_InceptionV3_ being a "big model", where every pass through the model takes its time, we want to precompute features in advance and store them on disk. 
+_InceptionV3_ being a "big model", where every pass through the model takes time, we want to precompute features in advance and store them on disk. 
 We'll use [tfdatasets](https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html) to stream images to the model. This means all our preprocessing has to employ tensorflow functions: That's why we're not using the more familiar `image_load` from keras below.
 
 Our custom `load_image` will read in, resize and preprocess the images as required for use with _InceptionV3_:
@@ -448,7 +449,8 @@ rnn_decoder <- function(embedding_dim, gru_units, vocab_size, name = NULL) {
   keras_model_custom(name = name, function(self) {
       
     self$gru_units <- gru_units
-    self$embedding <- layer_embedding(input_dim = vocab_size, output_dim = embedding_dim)
+    self$embedding <- layer_embedding(input_dim = vocab_size, 
+                                      output_dim = embedding_dim)
     self$gru <- if (tf$test$is_gpu_available()) {
       layer_cudnn_gru(
         units = gru_units,
@@ -475,7 +477,8 @@ rnn_decoder <- function(embedding_dim, gru_units, vocab_size, name = NULL) {
       features <- inputs[[2]]
       hidden <- inputs[[3]]
         
-      c(context_vector, attention_weights) %<-% self$attention(list(features, hidden))
+      c(context_vector, attention_weights) %<-% 
+        self$attention(list(features, hidden))
         
       # x shape after passing through embedding == (batch_size, 1, embedding_dim)
       x <- self$embedding(x)
@@ -582,7 +585,8 @@ if (!restore_checkpoint) {
       dec_hidden <- k_zeros(c(batch_size, gru_units))
       
       dec_input <- k_expand_dims(
-        rep(list(word_index_df[word_index_df$word == "<start>", "index"]), batch_size)
+        rep(list(word_index_df[word_index_df$word == "<start>", "index"]), 
+            batch_size)
       )
       
       with(tf$GradientTape() %as% tape, {
@@ -623,7 +627,7 @@ if (!restore_checkpoint) {
 
 ## Peeking at results
 
-Just like in the translation case, it's interesting to look at model performance already during training. The companion code has that functionality integrated, so you can watch model progress for yourself. 
+Just like in the translation case, it's interesting to look at model performance during training. The companion code has that functionality integrated, so you can watch model progress for yourself. 
 
 The basic function here is `get_caption`: It gets passed the path to an image, loads it, obtains its features from Inception V3, and then asks the encoder-decoder model to generate a caption. If at any point the model produces the `end` symbol, we stop early. Otherwise, we continue until we hit the predefined maximum length.
 
@@ -643,7 +647,9 @@ get_caption <-
     
     dec_hidden <- k_zeros(c(1, gru_units))
     dec_input <-
-      k_expand_dims(list(word_index_df[word_index_df$word == "<start>", "index"]))
+      k_expand_dims(
+        list(word_index_df[word_index_df$word == "<start>", "index"])
+      )
     
     result <- ""
     
@@ -654,7 +660,8 @@ get_caption <-
       attention_weights <- k_reshape(attention_weights, c(-1))
       attention_matrix[t,] <- attention_weights %>% as.double()
       
-      pred_idx <- tf$multinomial(exp(preds), num_samples = 1)[1, 1] %>% as.double()
+      pred_idx <- tf$multinomial(exp(preds), num_samples = 1)[1, 1] 
+                    %>% as.double()
       pred_word <-
         word_index_df[word_index_df$index == pred_idx, "word"]
       
@@ -662,7 +669,8 @@ get_caption <-
         result <-
           paste(result, pred_word)
         attention_matrix <-
-          attention_matrix[1:length(str_split(result, " ")[[1]]), , drop = FALSE]
+          attention_matrix[1:length(str_split(result, " ")[[1]]), , 
+                           drop = FALSE]
         return (list(result, attention_matrix))
       } else {
         result <-
@@ -781,9 +789,10 @@ Apart from that, there are other options, though. The concept implemented here u
 
 However, this is not the only way, and this is not how it works with humans. A much more plausible approach is a mix of top-down and bottom-up attention. E.g., [@AndersonHBTJGZ17] use object detection techniques to bottom-up isolate interesting objects, and an LSTM stack wherein the first LSTM computes top-down attention guided by the output word generated by the second one.
 
-Another interesting approach involving attention is [@LiuSWWY17], where the image features are encoded and presented in a sequence, such that we end up with sequence models both on the encoding and the decoding sides. 
+Another interesting approach involving attention is using a multimodal attentive translator [@LiuSWWY17], where the image features are encoded and presented in a sequence, such that we end up with sequence models both on the encoding and the decoding sides. 
 
-To name one further alternative, [@Zhu2018] add a learned _topic_ to the information input, which again is a top-down feature found in human cognition.
+Another alternative is to add a learned _topic_ to the information input [@Zhu2018], which again is a top-down feature found in human cognition.
 
-If you find one of these, or yet another, approach more convincing, an eager execution implementation, in the style of the above, should be a good way to go.
+If you find one of these, or yet another, approach more convincing, an eager execution implementation, in the style of the above, will likely be a sound way of implementing it.
+
 

@@ -1,6 +1,6 @@
 ---
-title: "Image-to-image translation with pix2pix: An implementation using Keras and eager execution"
-description: |
+title: "Image-to-image translation with pix2pix"
+description: >
   Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.
 author:
   - name: Sigrid Keydana
@@ -17,7 +17,7 @@ categories:
 output:
   radix::radix_article:
     self_contained: false
-preview: images/pix2pix.png
+preview: images/pix2pixlosses.png
 ---
 
 ```{r setup, include=FALSE}
@@ -25,29 +25,28 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
 
-What do we need to train a neural network? A common answer is: a model, an cost function, and an optimization algorithm.
+What do we need to train a neural network? A common answer is: a model, a cost function, and an optimization algorithm.
 (I know: I'm leaving out the most important thing here - the data.) 
 
-As computer programs work with numbers, the cost function has to be pretty specific: We can't just say _predict next month's demand for lawn mowers please, and do your best_, we have to say something like this: Minimize the squared deviation of your estimate from the target value. 
+As computer programs work with numbers, the cost function has to be pretty specific: We can't just say _predict next month's demand for lawn mowers please, and do your best_, we have to say something like this: Minimize the squared deviation of the estimate from the target value. 
 
 In some cases it may be straightforward to map a task to a measure of error, in others, it may not. Consider the task of generating non-existing objects of a certain type (like a face, a scene, or a video clip). How do we quantify success?
 The trick with _generative adversarial networks_ (GANs) is to let the network learn the cost function.
 
-As shown in [Generating images with Keras and TensorFlow eager execution](https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/), in a simple GAN the setup is this: One agent, the _generator_, keeps on producing fake objects. The other, the _discriminator_, is tasked to tell apart the real objects from the fake ones. For the generator, loss is augmented when its fraud gets discovered - meaning: The generator's cost function depends on what the discriminator does.
-For the discriminator, loss grows when it fails to correctly tell apart generated objects from authentic ones.
+As shown in [Generating images with Keras and TensorFlow eager execution](https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/), in a simple GAN the setup is this: One agent, the _generator_, keeps on producing fake objects. The other, the _discriminator_, is tasked to tell apart the real objects from the fake ones. For the generator, loss is augmented when its fraud gets discovered, meaning that the generator's cost function depends on what the discriminator does. For the discriminator, loss grows when it fails to correctly tell apart generated objects from authentic ones.
 
 In a GAN of the type just described, creation starts from white noise. However in the real world, what is required may be a form of transformation, not creation. Take, for example, colorization of black-and-white images, or conversion of aerials to maps. For applications like those, we _condition_ on additional input: Hence the name, _conditional adversarial networks_.
 
 In this post, we port to R a [Google Colaboratory Notebook](https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/pix2pix/pix2pix_eager.ipynb) using Keras with eager execution. We're implementing the basic architecture from _pix2pix_, as described by Isola et al. in their 2016 paper[@IsolaZZE16]. It's an interesting paper to read as it validates the approach on a bunch of different datasets, and shares outcomes of using different loss families, too:
 
-![Figure from @IsolaZZE16](images/pix2pixlosses.png){.external width=100%}
+![Figure from Image-to-Image Translation with Conditional Adversarial Networks @IsolaZZE16](images/pix2pixlosses.png){.external width=100%}
 
 
 
 
 ## Prerequisites
 
-The code shown here will work with the current CRAN versions of `tensorflow`, `keras`, and `tfdatasets`. Check that you're using at least version 1.9 of TensorFlow. If that isn't the case, as of this writing, this
+The code shown here will work with the current CRAN versions of `tensorflow`, `keras`, and `tfdatasets`. Also, be sure to check that you're using at least version 1.9 of TensorFlow. If that isn't the case, as of this writing, this
 
 ```{r}
 library(tensorflow)
@@ -57,7 +56,7 @@ install_tensorflow()
 
 will get you version 1.10.
 
-When loading libraries, please make sure you're executing the first 4 lines in this exact order. We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using TensorFlow in any way.
+When loading libraries, please make sure you're executing the first 4 lines in the exact order shown. We need to make sure we're using the TensorFlow implementation of Keras (`tf.keras` in Python land), and we have to enable eager execution before using TensorFlow in any way.
 
 No need to copy-paste any code snippets - you'll find the complete code (in order necessary for execution) here: [eager-pix2pix.R](https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-pix2pix.R).
 
@@ -83,7 +82,7 @@ Images contain the ground truth - that we'd wish for the generator to generate, 
 
 ## Preprocessing
 
-Obviously, our preprocessing will have to split the input images into parts. That's the first thing that happens in the below function.
+Obviously, our preprocessing will have to split the input images into parts. That's the first thing that happens in the function below.
 
 After that, action depends on whether we're in the training or testing phases. If we're training, we perform random jittering, via upsizing the image to `286x286` and then cropping to the original size of `256x256`. In about 50% of the cases, we also flipping the image left-to-right.
 
@@ -176,14 +175,16 @@ batches_per_epoch <- buffer_size / batch_size
 train_dataset <-
   tf$data$Dataset$list_files(file.path(data_dir, "train/*.jpg")) %>%
   dataset_shuffle(buffer_size) %>%
-  dataset_map(function(image)
-    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))) %>%
+  dataset_map(function(image) {
+    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))
+  }) %>%
   dataset_batch(batch_size)
 
 test_dataset <-
   tf$data$Dataset$list_files(file.path(data_dir, "test/*.jpg")) %>%
-  dataset_map(function(image)
-    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))) %>%
+  dataset_map(function(image) {
+    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))
+  }) %>%
   dataset_batch(batch_size)
 ```
 

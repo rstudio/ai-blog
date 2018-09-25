@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="radix" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+<title>TensorFlow for R: Collaborative filtering with embeddings</title>
+
+<meta property="description" itemprop="description" content="Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2018-09-26"/>
+<meta property="article:created" itemprop="dateCreated" content="2018-09-26"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="TensorFlow for R: Collaborative filtering with embeddings"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/images/m.png"/>
+<meta property="og:image:width" content="700"/>
+<meta property="og:image:height" content="402"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="TensorFlow for R"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="TensorFlow for R: Collaborative filtering with embeddings"/>
+<meta property="twitter:description" content="Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/images/m.png"/>
+<meta property="twitter:image:width" content="700"/>
+<meta property="twitter:image:height" content="402"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="TensorFlow for R: Collaborative filtering with embeddings"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2018/09/26"/>
+<meta name="citation_publication_date" content="2018/09/26"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Equation embeddings;citation_publication_date=2018;citation_author=K. Krstovski;citation_author=D.M. Blei"/>
+  <meta name="citation_reference" content="citation_title=Onto2Vec: Joint vector-based representation of biological entities and their ontology-based annotations;citation_publication_date=2018;citation_author=F. Zohra Smaili;citation_author=X. Gao;citation_author=R. Hoehndorf"/>
+  <meta name="citation_reference" content="citation_title=Drive2Vec: Multiscale state-space embedding of vehicular sensor data;citation_publication_date=2018;citation_author=D. Hallac;citation_author=S. Bhooshan;citation_author=M. Chen;citation_author=K. Abida;citation_author=R. Sosic;citation_author=J. Leskovec"/>
+  <meta name="citation_reference" content="citation_title=Learning role-based graph embeddings;citation_publication_date=2018;citation_author=N.K. Ahmed;citation_author=R. Rossi;citation_author=J. Boaz Lee;citation_author=T.L. Willke;citation_author=R. Zhou;citation_author=X. Kong;citation_author=H. Eldardiry"/>
+  <meta name="citation_reference" content="citation_title=Tile2Vec: Unsupervised representation learning for spatially distributed data;citation_publication_date=2018;citation_volume=abs/1805.02855;citation_author=Neal Jean;citation_author=Sherrie Wang;citation_author=Anshul Samar;citation_author=George Azzari;citation_author=David B. Lobell;citation_author=Stefano Ermon"/>
+  <meta name="citation_reference" content="citation_title=Code2vec: Learning distributed representations of code;citation_publication_date=2018;citation_volume=abs/1803.09473;citation_author=Uri Alon;citation_author=Meital Zilberstein;citation_author=Omer Levy;citation_author=Eran Yahav"/>
+  <meta name="citation_reference" content="citation_title=Parallel distributed processing: Explorations in the microstructure of cognition, vol. 2: Psychological and biological models;citation_publication_date=1986;citation_publisher=MIT Press"/>
+  <meta name="citation_reference" content="citation_title=DeViSE: A deep visual-semantic embedding model;citation_publication_date=2013;citation_author=Andrea Frome;citation_author=Gregory S. Corrado;citation_author=Jonathon Shlens;citation_author=Samy Bengio;citation_author=Jeffrey Dean;citation_author=Marc’Aurelio Ranzato;citation_author=Tomas Mikolov"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","bibliography","slug","date","categories","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["Collaborative filtering with embeddings"]},{"type":"character","attributes":{},"value":["Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["keydana2018embeddings-recommender"]},{"type":"character","attributes":{},"value":["09-26-2018"]},{"type":"character","attributes":{},"value":["Keras","Embeddings"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/m.png"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","embeddings_recommender_files/bowser-1.9.3/bowser.min.js","embeddings_recommender_files/distill-2.2.21/template.v2.js","embeddings_recommender_files/jquery-1.11.3/jquery.min.js","embeddings_recommender_files/webcomponents-2.0.0/webcomponents.js","images/bias_embedding.png","images/levelplot.png","images/m.png","images/pca.png","images/simple_embedding.png","images/svd.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.radix-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.radix-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #455a64;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.radix-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.radix-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .radix-site-nav {
+    display: none;
+  }
+}
+
+.radix-site-header {
+
+}
+
+.radix-site-footer {
+
+}
+
+
+/* Site Header */
+
+.radix-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.radix-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .radix-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.radix-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.radix-site-header a,
+.radix-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.radix-site-header .title {
+  font-size: 18px;
+}
+
+.radix-site-header .logo {
+  padding: 0;
+}
+
+.radix-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.radix-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .radix-site-header .logo img {
+    display: inline-block;
+  }
+  .radix-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .radix-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .radix-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.radix-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .radix-site-header a, .radix-site-header .nav-dropdown  {display: none;}
+  .radix-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .radix-site-header .title {
+    margin-left: 0;
+  }
+  .radix-site-header .nav-right {
+    margin-right: 0;
+  }
+  .radix-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .radix-site-header.responsive {position: relative;}
+  .radix-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .radix-site-header.responsive a,
+  .radix-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .radix-site-header.responsive .nav-left,
+  .radix-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .radix-site-header.responsive .nav-dropdown {float: none;}
+  .radix-site-header.responsive .nav-dropdown-content {position: relative;}
+  .radix-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.radix-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.0.13/css/fa-svg-with-js.css" rel="stylesheet"/>
+<script src="../../site_libs/font-awesome-5.0.13/js/fontawesome-all.min.js"></script>
+<script src="../../site_libs/font-awesome-5.0.13/js/fa-v4-shims.min.js"></script>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for table of contents */
+
+.d-toc {
+  color: rgba(0,0,0,0.8);
+  font-size: 0.8em;
+  line-height: 1em;
+}
+
+.d-toc-header {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  margin-top: 0;
+  margin-bottom: 1.3em;
+}
+
+.d-toc a {
+  border-bottom: none;
+}
+
+.d-toc ul {
+  padding-left: 0;
+}
+
+.d-toc li>ul {
+  padding-top: 0.8em;
+  padding-left: 16px;
+  margin-bottom: 0.6em;
+}
+
+.d-toc ul,
+.d-toc li {
+  list-style-type: none;
+}
+
+.d-toc li {
+  margin-bottom: 0.9em;
+}
+
+.d-toc-separator {
+  margin-top: 20px;
+  margin-bottom: 2em;
+}
+
+.d-article-with-toc {
+  border-top: none;
+  padding-top: 0;
+}
+
+
+
+/* Tweak code blocks (note that this CSS is repeated above in an injection
+   into the d-code shadow dom) */
+
+pre.d-code code.d-code {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+pre.text-output {
+
+  font-size: 12px;
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+@media(min-width: 768px) {
+pre.d-code code.d-code  {
+    padding-left: 18px;
+    font-size: 14px;
+}
+pre.text-output {
+  font-size: 14px;
+}
+}
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure img {
+  width: 100%;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // create d-bibliography
+  var bibliography = $('<d-bibliography></d-bibliography>');
+  $('#distill-bibliography').wrap(bibliography);
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace citations with <d-cite>
+  $('.citation').each(function(i, val) {
+    appendix = true;
+    var cites = $(this).attr('data-cites').split(" ");
+    var dt_cite = $('<d-cite></d-cite>');
+    dt_cite.attr('key', cites.join());
+    $(this).replaceWith(dt_cite);
+  });
+  // remove refs
+  $('#refs').remove();
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.text();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.text(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-toc a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // replace code blocks with d-code
+  $('pre>code').each(function(i, val) {
+    var code = $(this);
+    var pre = code.parent();
+    var clz = "";
+    var language = pre.attr('class');
+    if (language) {
+      if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+        language = "clike";
+      language = ' language="' + language + '"';
+      var dt_code = $('<d-code block' + language + clz + '></d-code>');
+      dt_code.text(code.text());
+      pre.replaceWith(dt_code);
+    } else {
+      code.addClass('text-output').unwrap().changeElementType('pre');
+    }
+  });
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('d-code, pre.text-output, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // table of contents
+    if (have_authors) // adjust border if we are in authors
+      $('.d-toc').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+    $('d-code').each(function(i, val) {
+      var style = document.createElement('style');
+      style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                        '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+      if (this.shadowRoot)
+        this.shadowRoot.appendChild(style);
+    });
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-toc-header').remove();
+  $('.d-toc').remove();
+  $('.d-toc-separator').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    $(this).find('img, .html-widget').css('width', '100%');
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.radix-site-header a').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-102325748-2"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-102325748-2');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Collaborative filtering with embeddings","description":"Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2018-09-26T00:00:00.000+02:00","citationText":"Keydana, 2018"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="radix-site-nav radix-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">TensorFlow for R Blog</a>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Collaborative filtering with embeddings</h1>
+<p>Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does.</p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>09-26-2018
+</div>
+
+<div class="d-article">
+<p>What’s your first association when you read the word <em>embeddings</em>? For most of us, the answer will probably be <em>word embeddings</em>, or <em>word vectors</em>. A quick search for recent papers on <a href="www.arxiv.org">arxiv</a> shows what else can be embedded: equations<span class="citation" data-cites="2018arXiv180309123K">(Krstovski and Blei <a href="#ref-2018arXiv180309123K">2018</a>)</span>, vehicle sensor data<span class="citation" data-cites="2018arXiv180604795H">(Hallac et al. <a href="#ref-2018arXiv180604795H">2018</a>)</span>, graphs<span class="citation" data-cites="2018arXiv180202896A">(Ahmed et al. <a href="#ref-2018arXiv180202896A">2018</a>)</span>, code<span class="citation" data-cites="abs-1803-09473">(Alon et al. <a href="#ref-abs-1803-09473">2018</a>)</span>, spatial data<span class="citation" data-cites="abs-1805-02855">(Jean et al. <a href="#ref-abs-1805-02855">2018</a>)</span>, biological entities<span class="citation" data-cites="2018arXiv180200864Z">(Zohra Smaili, Gao, and Hoehndorf <a href="#ref-2018arXiv180200864Z">2018</a>)</span> … - and what not.</p>
+<p>What is so attractive about this concept? Embeddings incorporate the concept of <em>distributed representations</em>, an encoding of information not at specialized locations (dedicated neurons, say), but as a pattern of activations spread out over a network. No better source to cite than Geoffrey Hinton, who played an important role in the development of the concept<span class="citation" data-cites="Rumelhart">(Rumelhart, McClelland, and PDP Research Group <a href="#ref-Rumelhart">1986</a>)</span>:</p>
+<blockquote>
+<p><em>Distributed representation</em> means a many to many relationship between two types of representation (such as concepts and neurons). Each concept is represented by many neurons. Each neuron participates in the representation of many concepts.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+</blockquote>
+<p>The advantages are manifold. Perhaps the most famous effect of using embeddings is that we can learn and make use of semantic similarity.</p>
+<p>Let’s take a task like sentiment analysis. Initially, what we feed the network are sequences of words, essentially encoded as factors. In this setup, all words are equidistant: <em>Orange</em> is as different from <em>kiwi</em> as it is from <em>thunderstorm</em>. An ensuing embedding layer then maps these representations to dense vectors of floating point numbers, which can be checked for mutual similarity via various similarity measures such as <em>cosine distance</em>.</p>
+<p>We hope that when we feed these “meaningful” vectors to the next layer(s), better classification will result. In addition, we may be interested in exploring that semantic space for its own sake, or use it in multi-modal transfer learning <span class="citation" data-cites="FromeCSBDRM13">(Frome et al. <a href="#ref-FromeCSBDRM13">2013</a>)</span>.</p>
+<p>In this post, we’d like to do two things: First, we’d like to take a look “under the hood” at how an embedding layer can be implemented in a neural network. Second, we want to demonstrate an application of embeddings in the context of product recommendation, following the example of <a href="https://github.com/fastai/fastai/blob/master/courses/dl1/lesson5-movielens.ipynb">lesson5-movielens.ipynb</a> which is part of fast.ai’s <a href="http://course.fast.ai/">Deep Learning for Coders</a> class.</p>
+<p>Just like the notebook that inspired us, we’ll predict movie ratings. We will use the 2016 <a href="http://files.grouplens.org/datasets/movielens/ml-latest-small.zip">ml-latest-small</a> dataset from <a href="https://grouplens.org/datasets/movielens/">MovieLens</a> that contains ~100000 ratings of ~9900 movies, rated by ~700 users.</p>
+<h2 id="do-it-yourself-embeddings">Do-it-yourself embeddings</h2>
+<p>You may have heard people say all an embedding layer did was just a lookup. Imagine you had a dataset that, in addition to continuous variables like temperature or barometric pressure, contained a categorical column <em>characterization</em> consisting of tags like “foggy” or “cloudy”. Say <em>characterization</em> had 7 possible values, encoded as a factor with levels 1-7.</p>
+<p>Were we going to feed this variable to a non-embedding layer, <code>layer_dense</code> say, we’d have to take care that those numbers do not get taken for integers, thus falsely implying an interval (or at least ordered) scale. But when we use an embedding as the first layer in a Keras model, we feed in integers all the time! For example, in text classification, a sentence might get encoded as a vector padded with zeroes, like this:</p>
+<pre><code>
+2  77   4   5 122   55  1  3   0   0  </code></pre>
+<p>The thing that makes this work is that the embedding layer actually <em>does</em> perform a lookup. Below, you’ll find a very simple<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> <a href="https://tensorflow.rstudio.com/keras/articles/custom_layers.html">custom layer</a> that does essentially the same thing as Keras’ <code>layer_embedding</code>:</p>
+<ul>
+<li>It has a weight matrix <code>self$embeddings</code> that maps from an input space (movies, say) to the output space of latent factors (embeddings).</li>
+<li>When we call the layer, as in</li>
+</ul>
+<p><code>x &lt;- k_gather(self$embeddings, x)</code></p>
+<p>it looks up the passed-in row number in the weight matrix, thus retrieving an item’s distributed representation from the matrix.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+SimpleEmbedding &lt;- R6::R6Class(
+  &quot;SimpleEmbedding&quot;,
+  
+  inherit = KerasLayer,
+  
+  public = list(
+    output_dim = NULL,
+    emb_input_dim = NULL,
+    embeddings = NULL,
+    
+    initialize = function(emb_input_dim, output_dim) {
+      self$emb_input_dim &lt;- emb_input_dim
+      self$output_dim &lt;- output_dim
+    },
+    
+    build = function(input_shape) {
+      self$embeddings &lt;- self$add_weight(
+        name = &#39;embeddings&#39;,
+        shape = list(self$emb_input_dim, self$output_dim),
+        initializer = initializer_random_uniform(),
+        trainable = TRUE
+      )
+    },
+    
+    call = function(x, mask = NULL) {
+      x &lt;- k_cast(x, &quot;int32&quot;)
+      k_gather(self$embeddings, x)
+    },
+    
+    compute_output_shape = function(input_shape) {
+      list(self$output_dim)
+    }
+  )
+)</code></pre>
+</div>
+<p>As usual with custom layers, we still need a wrapper that takes care of instantiation.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+layer_simple_embedding &lt;-
+  function(object,
+           emb_input_dim,
+           output_dim,
+           name = NULL,
+           trainable = TRUE) {
+    create_layer(
+      SimpleEmbedding,
+      object,
+      list(
+        emb_input_dim = as.integer(emb_input_dim),
+        output_dim = as.integer(output_dim),
+        name = name,
+        trainable = trainable
+      )
+    )
+  }</code></pre>
+</div>
+<p>Does this work? We would hope it works about as well as Keras’ <code>layer_embedding</code> when used for a simple task. We thus need a test case. So now, let’s first address our second topic for this post: Using embeddings for collaborative filtering.</p>
+<p>We’ll first approach this using <code>layer_embedding</code>, exploring different models, and finally come back to see if we can substitute our custom layer.</p>
+<h2 id="embeddings-for-collaborative-filtering">Embeddings for collaborative filtering</h2>
+<p>In collaborative filtering, we try to generate recommendations based not on elaborate knowledge about our users and not on detailed profiles of our products, but on how users and products go together. Is product <span class="math inline">\(\mathbf{p}\)</span> a fit for user <span class="math inline">\(\mathbf{u}\)</span>? If so, we’ll recommend it.</p>
+<p>Often, this is done via matrix factorization. See, for example, <a href="https://datajobs.com/data-science-repo/Recommender-Systems-%5BNetflix%5D.pdf">this nice article</a> by the winners of the <a href="https://www.netflixprize.com/">2009 Netflix prize</a>, introducing the why and how of matrix factorization techniques as used in collaborative filtering.</p>
+<p>Here’s the general principle. While other techniques like <a href="https://en.wikipedia.org/wiki/Non-negative_matrix_factorization">non-negative matrix factorization</a> may be more popular, this diagram of <strong>singular value decomposition</strong> (SVD) found on <a href="https://research.fb.com/fast-randomized-svd/">Facebook Research</a> is particularly instructive.</p>
+<figure>
+<img src="images/svd.png" alt="Figure from https://research.fb.com/fast-randomized-svd/" class="external" style="width:100.0%" /><figcaption>Figure from <a href="https://research.fb.com/fast-randomized-svd/" class="uri">https://research.fb.com/fast-randomized-svd/</a></figcaption>
+</figure>
+<p>The diagram takes its example from the context of text analysis, assuming a co-occurrence matrix of hashtags and users (<span class="math inline">\(\mathbf{A}\)</span>). As stated above, we’ll instead work with a dataset of movie ratings.</p>
+<p>Were we doing matrix factorization, we would need to somehow address the fact that not every user has rated every movie. As we’ll be using embeddings instead, we won’t have that problem. For the sake of argumentation, though, let’s assume for a moment the ratings were a matrix, not a dataframe in tidy format.</p>
+<p>In that case, <span class="math inline">\(\mathbf{A}\)</span> would store the ratings, with each row containing the ratings one user gave to all movies.</p>
+<p>This matrix then gets decomposed into three matrices:</p>
+<ul>
+<li><span class="math inline">\(\mathbf{\Sigma}\)</span> stores the importance of the latent factors governing the relationship between users and movies.</li>
+<li><span class="math inline">\(\mathbf{U}\)</span> contains information on how users score on these latent factors. It’s a representation (<em>embedding</em>) of users by the ratings they gave to the movies.</li>
+<li><span class="math inline">\(\mathbf{V}\)</span> stores how movies score on these same latent factors. It’s a representation (<em>embedding</em>) of movies by how they got rated by said users.</li>
+</ul>
+<p>As soon as we have a representation of movies  as well as users  in the same latent space, we can determine their mutual fit by a simple dot product <span class="math inline">\(\mathbf{m^ t}\mathbf{u}\)</span>. Assuming the user and movie vectors have been normalized to length 1, this is equivalent to calculating the <em>cosine similarity</em></p>
+<p><span class="math display">\[cos(\theta) = \frac{\mathbf{x^ t}\mathbf{y}}{\mathbf{||x||}\space\mathbf{||y||}}\]</span></p>
+<h3 id="what-does-all-this-have-to-do-with-embeddings">What does all this have to do with embeddings?</h3>
+<p>Well, the same overall principles apply when we work with user resp. movie embeddings, instead of vectors obtained from matrix factorization. We’ll have one <code>layer_embedding</code> for users, one <code>layer_embedding</code> for movies, and a <code>layer_lambda</code> that calculates the dot product.</p>
+<p>Here’s a minimal <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom model</a> that does exactly this:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+simple_dot &lt;- function(embedding_dim,
+                       n_users,
+                       n_movies,
+                       name = &quot;simple_dot&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    self$user_embedding &lt;-
+      layer_embedding(
+        input_dim = n_users + 1,
+        output_dim = embedding_dim,
+        embeddings_initializer = initializer_random_uniform(minval = 0, maxval = 0.05),
+        name = &quot;user_embedding&quot;
+      )
+    self$movie_embedding &lt;-
+      layer_embedding(
+        input_dim = n_movies + 1,
+        output_dim = embedding_dim,
+        embeddings_initializer = initializer_random_uniform(minval = 0, maxval = 0.05),
+        name = &quot;movie_embedding&quot;
+      )
+    self$dot &lt;-
+      layer_lambda(
+        f = function(x) {
+          k_batch_dot(x[[1]], x[[2]], axes = 2)
+        }
+      )
+    
+    function(x, mask = NULL) {
+      users &lt;- x[, 1]
+      movies &lt;- x[, 2]
+      user_embedding &lt;- self$user_embedding(users)
+      movie_embedding &lt;- self$movie_embedding(movies)
+      self$dot(list(user_embedding, movie_embedding))
+    }
+  })
+}</code></pre>
+</div>
+<p>We’re still missing the data though! Let’s load it. Besides the ratings themselves, we’ll also get the titles from <em>movies.csv</em>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data_dir &lt;- &quot;ml-latest-small&quot;
+movies &lt;- read_csv(file.path(data_dir, &quot;movies.csv&quot;))
+ratings &lt;- read_csv(file.path(data_dir, &quot;ratings.csv&quot;))</code></pre>
+</div>
+<p>While user ids have no gaps in this sample, that’s different for movie ids. We therefore convert them to consecutive numbers, so we can later specify an adequate size for the lookup matrix.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+dense_movies &lt;- ratings %&gt;% select(movieId) %&gt;% distinct() %&gt;% rowid_to_column()
+ratings &lt;- ratings %&gt;% inner_join(dense_movies) %&gt;% rename(movieIdDense = rowid)
+ratings &lt;- ratings %&gt;% inner_join(movies) %&gt;% select(userId, movieIdDense, rating, title, genres)</code></pre>
+</div>
+<p>Let’s take a note, then, of how many users resp. movies we have.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+n_movies &lt;- ratings %&gt;% select(movieIdDense) %&gt;% distinct() %&gt;% nrow()
+n_users &lt;- ratings %&gt;% select(userId) %&gt;% distinct() %&gt;% nrow()</code></pre>
+</div>
+<p>We’ll split off 20% of the data for validation. After training, probably all users will have been seen by the network, while very likely, not all movies will have occurred in the training sample.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_indices &lt;- sample(1:nrow(ratings), 0.8 * nrow(ratings))
+train_ratings &lt;- ratings[train_indices,]
+valid_ratings &lt;- ratings[-train_indices,]
+
+x_train &lt;- train_ratings %&gt;% select(c(userId, movieIdDense)) %&gt;% as.matrix()
+y_train &lt;- train_ratings %&gt;% select(rating) %&gt;% as.matrix()
+x_valid &lt;- valid_ratings %&gt;% select(c(userId, movieIdDense)) %&gt;% as.matrix()
+y_valid &lt;- valid_ratings %&gt;% select(rating) %&gt;% as.matrix()</code></pre>
+</div>
+<h3 id="training-a-simple-dot-product-model">Training a simple dot product model</h3>
+<p>We’re ready to start the training process. Feel free to experiment with different embedding dimensionalities.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+embedding_dim &lt;- 64
+
+model &lt;- simple_dot(embedding_dim, n_users, n_movies)
+
+model %&gt;% compile(
+  loss = &quot;mse&quot;,
+  optimizer = &quot;adam&quot;
+)
+
+history &lt;- model %&gt;% fit(
+  x_train,
+  y_train,
+  epochs = 10,
+  batch_size = 32,
+  validation_data = list(x_valid, y_valid),
+  callbacks = list(callback_early_stopping(patience = 2))
+)</code></pre>
+</div>
+<p>How well does this work? Final RMSE (the square root of the MSE loss we were using) on the validation set is around 1.08 , while popular benchmarks (e.g., of the <a href="https://www.librec.net/release/v1.3/example.html">LibRec recommender system</a>) lie around 0.91. Also, we’re overfitting early. It looks like we need a slightly more sophisticated system.</p>
+<figure>
+<img src="images/simple_embedding.png" alt="Training curve for simple dot product model" style="width:100.0%" /><figcaption>Training curve for simple dot product model</figcaption>
+</figure>
+<h3 id="accounting-for-user-and-movie-biases">Accounting for user and movie biases</h3>
+<p>A problem with our method is that we attribute the rating as a whole to use-movie interaction. However, some users are more critical intrinsically, while others tend to be more lenient. Analogously, films differ by average rating. We hope to get better predictions when factoring in these biases.</p>
+<p>Conceptually, we then calculate a prediction like this:</p>
+<p><span class="math display">\[pred =  avg + bias_m + bias_u + \mathbf{m^ t}\mathbf{u}\]</span></p>
+<p>The corresponding Keras model gets just slightly more complex. In addition to the user and movie embeddings we’ve already been working with, the below model embeds the <em>average</em> user and the <em>average</em> movie in 1-d space. We then add both biases to the dot product encoding user-movie interaction. A sigmoid activation normalizes to a value between 0 and 1, which then gets mapped back to the original space.</p>
+<p>Note how in this model, we also use dropout on the user and movie embeddings (again, the best dropout rate is open to experimentation).</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+max_rating &lt;- ratings %&gt;% summarise(max_rating = max(rating)) %&gt;% pull()
+min_rating &lt;- ratings %&gt;% summarise(min_rating = min(rating)) %&gt;% pull()
+
+dot_with_bias &lt;- function(embedding_dim,
+                          n_users,
+                          n_movies,
+                          max_rating,
+                          min_rating,
+                          name = &quot;dot_with_bias&quot;
+                          ) {
+  keras_model_custom(name = name, function(self) {
+    
+    self$user_embedding &lt;-
+      layer_embedding(input_dim = n_users + 1,
+                      output_dim = embedding_dim,
+                      name = &quot;user_embedding&quot;)
+    self$movie_embedding &lt;-
+      layer_embedding(input_dim = n_movies + 1,
+                      output_dim = embedding_dim,
+                      name = &quot;movie_embedding&quot;)
+    self$user_bias &lt;-
+      layer_embedding(input_dim = n_users + 1,
+                      output_dim = 1,
+                      name = &quot;user_bias&quot;)
+    self$movie_bias &lt;-
+      layer_embedding(input_dim = n_movies + 1,
+                      output_dim = 1,
+                      name = &quot;movie_bias&quot;)
+    self$user_dropout &lt;- layer_dropout(rate = 0.3)
+    self$movie_dropout &lt;- layer_dropout(rate = 0.6)
+    self$dot &lt;-
+      layer_lambda(
+        f = function(x)
+          k_batch_dot(x[[1]], x[[2]], axes = 2),
+        name = &quot;dot&quot;
+      )
+    self$dot_bias &lt;-
+      layer_lambda(
+        f = function(x)
+          k_sigmoid(x[[1]] + x[[2]] + x[[3]]),
+        name = &quot;dot_bias&quot;
+      )
+    self$pred &lt;- layer_lambda(
+      f = function(x)
+        x * (self$max_rating - self$min_rating) + self$min_rating,
+      name = &quot;pred&quot;
+    )
+    self$max_rating &lt;- max_rating
+    self$min_rating &lt;- min_rating
+    
+    function(x, mask = NULL) {
+      
+      users &lt;- x[, 1]
+      movies &lt;- x[, 2]
+      user_embedding &lt;-
+        self$user_embedding(users) %&gt;% self$user_dropout()
+      movie_embedding &lt;-
+        self$movie_embedding(movies) %&gt;% self$movie_dropout()
+      dot &lt;- self$dot(list(user_embedding, movie_embedding))
+      dot_bias &lt;-
+        self$dot_bias(list(dot, self$user_bias(users), self$movie_bias(movies)))
+      self$pred(dot_bias)
+    }
+  })
+}</code></pre>
+</div>
+<p>How well does this model perform?</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- dot_with_bias(embedding_dim,
+                       n_users,
+                       n_movies,
+                       max_rating,
+                       min_rating)
+
+model %&gt;% compile(
+  loss = &quot;mse&quot;,
+  optimizer = &quot;adam&quot;
+)
+
+history &lt;- model %&gt;% fit(
+  x_train,
+  y_train,
+  epochs = 10,
+  batch_size = 32,
+  validation_data = list(x_valid, y_valid),
+  callbacks = list(callback_early_stopping(patience = 2))
+)</code></pre>
+</div>
+<p>Not only does it overfit later, it actually reaches a way better RMSE of 0.88 on the validation set!</p>
+<figure>
+<img src="images/bias_embedding.png" alt="Training curve for dot product model with biases" style="width:100.0%" /><figcaption>Training curve for dot product model with biases</figcaption>
+</figure>
+<p>Spending some time on hyperparameter optimization could very well lead to even better results. As this post focuses on the conceptual side though, we want to see what else we can do with those embeddings.</p>
+<h3 id="embeddings-a-closer-look">Embeddings: a closer look</h3>
+<p>We can easily extract the embedding matrices from the respective layers. Let’s do this for movies now.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+movie_embeddings &lt;- (model %&gt;% get_layer(&quot;movie_embedding&quot;) %&gt;% get_weights())[[1]]</code></pre>
+</div>
+<p>How are they distributed? Here’s a heatmap of the first 20 movies. (Note how we increment the row indices by 1, because the very first row in the embedding matrix belongs to a movie id <em>0</em> which does not exist in our dataset.) We see that the embeddings look rather uniformly distributed between -0.5 and 0.5.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+levelplot(
+  t(movie_embeddings[2:21, 1:64]),
+  xlab = &quot;&quot;,
+  ylab = &quot;&quot;,
+  scale = (list(draw = FALSE)))</code></pre>
+</div>
+<figure>
+<img src="images/levelplot.png" alt="Embeddings for first 20 movies" style="width:100.0%" /><figcaption>Embeddings for first 20 movies</figcaption>
+</figure>
+<p>Naturally, we might be interested in dimensionality reduction, and see how specific movies score on the dominant factors. A possible way to achieve this is PCA:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+movie_pca &lt;- movie_embeddings %&gt;% prcomp(center = FALSE)
+components &lt;- movie_pca$x %&gt;% as.data.frame() %&gt;% rowid_to_column()
+
+plot(movie_pca)</code></pre>
+</div>
+<figure>
+<img src="images/pca.png" alt="PCA: Variance explained by component" style="width:100.0%" /><figcaption>PCA: Variance explained by component</figcaption>
+</figure>
+<p>Let’s just look at the first principal component as the second one already explains much less variance.</p>
+<p>Here are the 10 movies (out of all that were rated at least 20 times) that scored lowest on the first factor:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ratings_with_pc12 &lt;-
+  ratings %&gt;% inner_join(components %&gt;% select(rowid, PC1, PC2),
+                         by = c(&quot;movieIdDense&quot; = &quot;rowid&quot;))
+
+ratings_grouped &lt;-
+  ratings_with_pc12 %&gt;%
+  group_by(title) %&gt;%
+  summarize(
+    PC1 = max(PC1),
+    PC2 = max(PC2),
+    rating = mean(rating),
+    genres = max(genres),
+    num_ratings = n()
+  )
+
+ratings_grouped %&gt;% filter(num_ratings &gt; 20) %&gt;% arrange(PC1) %&gt;% print(n = 10)</code></pre>
+</div>
+<pre><code>
+# A tibble: 1,247 x 6
+   title                                   PC1      PC2 rating genres                   num_ratings
+   &lt;chr&gt;                                 &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;                          &lt;int&gt;
+ 1 Starman (1984)                       -1.15  -0.400     3.45 Adventure|Drama|Romance…          22
+ 2 Bulworth (1998)                      -0.820  0.218     3.29 Comedy|Drama|Romance              31
+ 3 Cable Guy, The (1996)                -0.801 -0.00333   2.55 Comedy|Thriller                   59
+ 4 Species (1995)                       -0.772 -0.126     2.81 Horror|Sci-Fi                     55
+ 5 Save the Last Dance (2001)           -0.765  0.0302    3.36 Drama|Romance                     21
+ 6 Spanish Prisoner, The (1997)         -0.760  0.435     3.91 Crime|Drama|Mystery|Thr…          23
+ 7 Sgt. Bilko (1996)                    -0.757  0.249     2.76 Comedy                            29
+ 8 Naked Gun 2 1/2: The Smell of Fear,… -0.749  0.140     3.44 Comedy                            27
+ 9 Swordfish (2001)                     -0.694  0.328     2.92 Action|Crime|Drama                33
+10 Addams Family Values (1993)          -0.693  0.251     3.15 Children|Comedy|Fantasy           73
+# ... with 1,237 more rows</code></pre>
+<p>And here, inversely, are those that scored highest:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ratings_grouped %&gt;% filter(num_ratings &gt; 20) %&gt;% arrange(desc(PC1)) %&gt;% print(n = 10)</code></pre>
+</div>
+<pre><code>
+ A tibble: 1,247 x 6
+   title                                PC1        PC2 rating genres                    num_ratings
+   &lt;chr&gt;                              &lt;dbl&gt;      &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;                           &lt;int&gt;
+ 1 Graduate, The (1967)                1.41  0.0432      4.12 Comedy|Drama|Romance               89
+ 2 Vertigo (1958)                      1.38 -0.0000246   4.22 Drama|Mystery|Romance|Th…          69
+ 3 Breakfast at Tiffany&#39;s (1961)       1.28  0.278       3.59 Drama|Romance                      44
+ 4 Treasure of the Sierra Madre, The…  1.28 -0.496       4.3  Action|Adventure|Drama|W…          30
+ 5 Boot, Das (Boat, The) (1981)        1.26  0.238       4.17 Action|Drama|War                   51
+ 6 Flintstones, The (1994)             1.18  0.762       2.21 Children|Comedy|Fantasy            39
+ 7 Rock, The (1996)                    1.17 -0.269       3.74 Action|Adventure|Thriller         135
+ 8 In the Heat of the Night (1967)     1.15 -0.110       3.91 Drama|Mystery                      22
+ 9 Quiz Show (1994)                    1.14 -0.166       3.75 Drama                              90
+10 Striptease (1996)                   1.14 -0.681       2.46 Comedy|Crime                       39
+# ... with 1,237 more rows</code></pre>
+<p>We’ll leave it to the knowledgeable reader to name these factors, as we still have one thing left to do: test our custom embedding layer on the same data, with one of the recommender models we developed. We’ll choose the first, simple dot product model for this.</p>
+<h2 id="putting-the-custom-embedding-layer-to-test">Putting the custom embedding layer to test</h2>
+<p>Here’s the simple dot product model again, this time using our custom embedding layer.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+simple_dot2 &lt;- function(embedding_dim,
+                       n_users,
+                       n_movies,
+                       name = &quot;simple_dot2&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    self$embedding_dim &lt;- embedding_dim
+    
+    self$user_embedding &lt;-
+      layer_simple_embedding(
+        emb_input_dim = list(n_users + 1),
+        output_dim = embedding_dim,
+        name = &quot;user_embedding&quot;
+      )
+    self$movie_embedding &lt;-
+      layer_simple_embedding(
+        emb_input_dim = list(n_movies + 1),
+        output_dim = embedding_dim,
+        name = &quot;movie_embedding&quot;
+      )
+    self$dot &lt;-
+      layer_lambda(
+        output_shape = self$embedding_dim,
+        f = function(x) {
+          k_batch_dot(x[[1]], x[[2]], axes = 2)
+        }
+      )
+    
+    function(x, mask = NULL) {
+      users &lt;- x[, 1]
+      movies &lt;- x[, 2]
+      user_embedding &lt;- self$user_embedding(users)
+      movie_embedding &lt;- self$movie_embedding(movies)
+      self$dot(list(user_embedding, movie_embedding))
+    }
+  })
+}
+
+model &lt;- simple_dot2(embedding_dim, n_users, n_movies)
+
+model %&gt;% compile(
+  loss = &quot;mse&quot;,
+  optimizer = &quot;adam&quot;
+)
+
+history &lt;- model %&gt;% fit(
+  x_train,
+  y_train,
+  epochs = 10,
+  batch_size = 32,
+  validation_data = list(x_valid, y_valid),
+  callbacks = list(callback_early_stopping(patience = 2))
+)</code></pre>
+</div>
+<p>We end up with a RMSE of 1.13 on the validation set, which is not far from the 1.08 we obtained when using <code>layer_embedding</code>. At least, this should tell us that we successfully reproduced the approach.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Our goals in this post were twofold: Shed some light on how an embedding layer can be implemented, and show how embeddings calculated by a neural network can be used as a substitute for component matrices obtained from matrix decomposition. Of course, this is not the only thing that’s fascinating about embeddings!</p>
+<p>For example, a very practical question is how much actual predictions can be improved by using embeddings instead of one-hot vectors; another is how learned embeddings might differ depending on what task they were trained on. Last not least - how do latent factors learned via embeddings differ from those learned by an autoencoder?</p>
+<p>In that spirit, there is no lack of topics for exploration and poking around …</p>
+<div id="refs" class="references">
+<div id="ref-2018arXiv180202896A">
+<p>Ahmed, N.K., R. Rossi, J. Boaz Lee, T.L. Willke, R. Zhou, X. Kong, and H. Eldardiry. 2018. “Learning Role-Based Graph Embeddings.” <em>ArXiv E-Prints</em>, February.</p>
+</div>
+<div id="ref-abs-1803-09473">
+<p>Alon, Uri, Meital Zilberstein, Omer Levy, and Eran Yahav. 2018. “Code2vec: Learning Distributed Representations of Code.” <em>CoRR</em> abs/1803.09473. <a href="http://arxiv.org/abs/1803.09473" class="uri">http://arxiv.org/abs/1803.09473</a>.</p>
+</div>
+<div id="ref-FromeCSBDRM13">
+<p>Frome, Andrea, Gregory S. Corrado, Jonathon Shlens, Samy Bengio, Jeffrey Dean, Marc’Aurelio Ranzato, and Tomas Mikolov. 2013. “DeViSE: A Deep Visual-Semantic Embedding Model.” In <em>NIPS</em>, 2121–9.</p>
+</div>
+<div id="ref-2018arXiv180604795H">
+<p>Hallac, D., S. Bhooshan, M. Chen, K. Abida, R. Sosic, and J. Leskovec. 2018. “Drive2Vec: Multiscale State-Space Embedding of Vehicular Sensor Data.” <em>ArXiv E-Prints</em>, June.</p>
+</div>
+<div id="ref-abs-1805-02855">
+<p>Jean, Neal, Sherrie Wang, Anshul Samar, George Azzari, David B. Lobell, and Stefano Ermon. 2018. “Tile2Vec: Unsupervised Representation Learning for Spatially Distributed Data.” <em>CoRR</em> abs/1805.02855. <a href="http://arxiv.org/abs/1805.02855" class="uri">http://arxiv.org/abs/1805.02855</a>.</p>
+</div>
+<div id="ref-2018arXiv180309123K">
+<p>Krstovski, K., and D.M. Blei. 2018. “Equation Embeddings.” <em>ArXiv E-Prints</em>, March.</p>
+</div>
+<div id="ref-Rumelhart">
+<p>Rumelhart, David E., James L. McClelland, and CORPORATE PDP Research Group, eds. 1986. <em>Parallel Distributed Processing: Explorations in the Microstructure of Cognition, Vol. 2: Psychological and Biological Models</em>. Cambridge, MA, USA: MIT Press.</p>
+</div>
+<div id="ref-2018arXiv180200864Z">
+<p>Zohra Smaili, F., X. Gao, and R. Hoehndorf. 2018. “Onto2Vec: Joint Vector-Based Representation of Biological Entities and Their Ontology-Based Annotations.” <em>ArXiv E-Prints</em>, January.</p>
+</div>
+</div>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>From: <a href="http://www.cs.toronto.edu/~bonner/courses/2014s/csc321/lectures/lec5.pdf" class="uri">http://www.cs.toronto.edu/~bonner/courses/2014s/csc321/lectures/lec5.pdf</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>It really <em>is</em> simple; it only works with input length = 1.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2018-09-26-embeddings-recommender/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=Collaborative%20filtering%20with%20embeddings&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2018-09-26-embeddings-recommender%2F">
+        <i class="fab fa-twitter"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2018-09-26-embeddings-recommender%2F&amp;title=Collaborative%20filtering%20with%20embeddings">
+        <i class="fab fa-linkedin"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script>
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/';
+  this.page.identifier = 'posts/2018-09-26-embeddings-recommender/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+</div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2018, Sept. 26). TensorFlow for R: Collaborative filtering with embeddings. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydana2018embeddings-recommender,
+  author = {Keydana, Sigrid},
+  title = {TensorFlow for R: Collaborative filtering with embeddings},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/},
+  year = {2018}
+}</pre>
+</div>
+<script id="distill-bibliography" type="text/bibtex">
+@ARTICLE{2018arXiv180309123K,
+   author = {Krstovski, K. and Blei, D.M.},
+    title = {Equation Embeddings},
+  journal = {ArXiv e-prints},
+archivePrefix = "arXiv",
+   eprint = {1803.09123},
+ primaryClass = "stat.ML",
+ keywords = {Statistics - Machine Learning, Computer Science - Computation and Language, Computer Science - Machine Learning},
+     year = 2018,
+    month = mar,
+   adsurl = {http://adsabs.harvard.edu/abs/2018arXiv180309123K},
+  adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2018arXiv180200864Z,
+   author = {Zohra Smaili, F. and Gao, X. and Hoehndorf, R.},
+    title = {Onto2Vec: joint vector-based representation of biological entities and their ontology-based annotations},
+  journal = {ArXiv e-prints},
+archivePrefix = "arXiv",
+   eprint = {1802.00864},
+ primaryClass = "q-bio.QM",
+ keywords = {Quantitative Biology - Quantitative Methods, Computer Science - Artificial Intelligence},
+     year = 2018,
+    month = jan,
+   adsurl = {http://adsabs.harvard.edu/abs/2018arXiv180200864Z},
+  adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+
+@ARTICLE{2018arXiv180604795H,
+   author = {Hallac, D. and Bhooshan, S. and Chen, M. and Abida, K. and 
+	Sosic, R. and Leskovec, J.},
+    title = {Drive2Vec: Multiscale State-Space Embedding of Vehicular Sensor Data},
+  journal = {ArXiv e-prints},
+archivePrefix = "arXiv",
+   eprint = {1806.04795},
+ keywords = {Computer Science - Machine Learning, Computer Science - Artificial Intelligence, Statistics - Machine Learning},
+     year = 2018,
+    month = jun,
+   adsurl = {http://adsabs.harvard.edu/abs/2018arXiv180604795H},
+  adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{2018arXiv180202896A,
+   author = {Ahmed, N.K. and Rossi, R. and Boaz Lee, J. and Willke, T.L. and 
+	Zhou, R. and Kong, X. and Eldardiry, H.},
+    title = {Learning Role-based Graph Embeddings},
+  journal = {ArXiv e-prints},
+archivePrefix = "arXiv",
+   eprint = {1802.02896},
+ primaryClass = "stat.ML",
+ keywords = {Statistics - Machine Learning, Computer Science - Artificial Intelligence, Computer Science - Social and Information Networks, Statistics - Applications},
+     year = 2018,
+    month = feb,
+   adsurl = {http://adsabs.harvard.edu/abs/2018arXiv180202896A},
+  adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@article{abs-1805-02855,
+  author    = {Neal Jean and
+               Sherrie Wang and
+               Anshul Samar and
+               George Azzari and
+               David B. Lobell and
+               Stefano Ermon},
+  title     = {Tile2Vec: Unsupervised representation learning for spatially distributed
+               data},
+  journal   = {CoRR},
+  volume    = {abs/1805.02855},
+  year      = {2018},
+  url       = {http://arxiv.org/abs/1805.02855},
+  archivePrefix = {arXiv},
+  eprint    = {1805.02855},
+  timestamp = {Mon, 13 Aug 2018 16:48:47 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1805-02855},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{abs-1803-09473,
+  author    = {Uri Alon and
+               Meital Zilberstein and
+               Omer Levy and
+               Eran Yahav},
+  title     = {code2vec: Learning Distributed Representations of Code},
+  journal   = {CoRR},
+  volume    = {abs/1803.09473},
+  year      = {2018},
+  url       = {http://arxiv.org/abs/1803.09473},
+  archivePrefix = {arXiv},
+  eprint    = {1803.09473},
+  timestamp = {Mon, 13 Aug 2018 16:47:34 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1803-09473},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@book{Rumelhart,
+ editor = {Rumelhart, David E. and McClelland, James L. and PDP Research Group, CORPORATE},
+ title = {Parallel Distributed Processing: Explorations in the Microstructure of Cognition, Vol. 2: Psychological and Biological Models},
+ year = {1986},
+ isbn = {0-262-13218-4},
+ source = {softcover, \$21.95. Set: hardcover, \$75; softcover, \$39.95, ISBN 0-262-18123-1},
+ publisher = {MIT Press},
+ address = {Cambridge, MA, USA},
+} 
+
+@inproceedings{FromeCSBDRM13,
+  author    = {Andrea Frome and
+               Gregory S. Corrado and
+               Jonathon Shlens and
+               Samy Bengio and
+               Jeffrey Dean and
+               Marc'Aurelio Ranzato and
+               Tomas Mikolov},
+  title     = {DeViSE: A Deep Visual-Semantic Embedding Model},
+  booktitle = {{NIPS}},
+  pages     = {2121--2129},
+  year      = {2013}
+}
+
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

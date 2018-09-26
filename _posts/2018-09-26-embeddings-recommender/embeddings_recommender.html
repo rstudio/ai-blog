@@ -58,7 +58,7 @@
   <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["bibliography.bib","embeddings_recommender_files/bowser-1.9.3/bowser.min.js","embeddings_recommender_files/distill-2.2.21/template.v2.js","embeddings_recommender_files/jquery-1.11.3/jquery.min.js","embeddings_recommender_files/webcomponents-2.0.0/webcomponents.js","images/bias_embedding.png","images/levelplot.png","images/levelplot.xcf","images/m.png","images/pca.png","images/pca.xcf","images/simple_embedding.png","images/svd.png"]}
+  {"type":"character","attributes":{},"value":["bibliography.bib","embeddings_recommender_files/bowser-1.9.3/bowser.min.js","embeddings_recommender_files/distill-2.2.21/template.v2.js","embeddings_recommender_files/jquery-1.11.3/jquery.min.js","embeddings_recommender_files/webcomponents-2.0.0/webcomponents.js","images/bias_embedding.png","images/levelplot.png","images/m.png","images/pca.png","images/simple_embedding.png","images/svd.png"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
   <!--/radix_placeholder_navigation_in_header-->
@@ -947,80 +947,8 @@
 <p>The advantages are manifold. Perhaps the most famous effect of using embeddings is that we can learn and make use of semantic similarity.</p>
 <p>Let’s take a task like sentiment analysis. Initially, what we feed the network are sequences of words, essentially encoded as factors. In this setup, all words are equidistant: <em>Orange</em> is as different from <em>kiwi</em> as it is from <em>thunderstorm</em>. An ensuing embedding layer then maps these representations to dense vectors of floating point numbers, which can be checked for mutual similarity via various similarity measures such as <em>cosine distance</em>.</p>
 <p>We hope that when we feed these “meaningful” vectors to the next layer(s), better classification will result. In addition, we may be interested in exploring that semantic space for its own sake, or use it in multi-modal transfer learning <span class="citation" data-cites="FromeCSBDRM13">(Frome et al. <a href="#ref-FromeCSBDRM13">2013</a>)</span>.</p>
-<p>In this post, we’d like to do two things: First, we’d like to take a look “under the hood” at how an embedding layer can be implemented in a neural network. Second, we want to demonstrate an application of embeddings in the context of product recommendation, following the example of <a href="https://github.com/fastai/fastai/blob/master/courses/dl1/lesson5-movielens.ipynb">lesson5-movielens.ipynb</a> which is part of fast.ai’s <a href="http://course.fast.ai/">Deep Learning for Coders</a> class.</p>
-<p>Just like the notebook that inspired us, we’ll predict movie ratings. We will use the 2016 <a href="http://files.grouplens.org/datasets/movielens/ml-latest-small.zip">ml-latest-small</a> dataset from <a href="https://grouplens.org/datasets/movielens/">MovieLens</a> that contains ~100000 ratings of ~9900 movies, rated by ~700 users.</p>
-<h2 id="do-it-yourself-embeddings">Do-it-yourself embeddings</h2>
-<p>You may have heard people say all an embedding layer did was just a lookup. Imagine you had a dataset that, in addition to continuous variables like temperature or barometric pressure, contained a categorical column <em>characterization</em> consisting of tags like “foggy” or “cloudy”. Say <em>characterization</em> had 7 possible values, encoded as a factor with levels 1-7.</p>
-<p>Were we going to feed this variable to a non-embedding layer, <code>layer_dense</code> say, we’d have to take care that those numbers do not get taken for integers, thus falsely implying an interval (or at least ordered) scale. But when we use an embedding as the first layer in a Keras model, we feed in integers all the time! For example, in text classification, a sentence might get encoded as a vector padded with zeroes, like this:</p>
-<pre><code>
-2  77   4   5 122   55  1  3   0   0  </code></pre>
-<p>The thing that makes this work is that the embedding layer actually <em>does</em> perform a lookup. Below, you’ll find a very simple<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> <a href="https://tensorflow.rstudio.com/keras/articles/custom_layers.html">custom layer</a> that does essentially the same thing as Keras’ <code>layer_embedding</code>:</p>
-<ul>
-<li>It has a weight matrix <code>self$embeddings</code> that maps from an input space (movies, say) to the output space of latent factors (embeddings).</li>
-<li>When we call the layer, as in</li>
-</ul>
-<p><code>x &lt;- k_gather(self$embeddings, x)</code></p>
-<p>it looks up the passed-in row number in the weight matrix, thus retrieving an item’s distributed representation from the matrix.</p>
-<div class="layout-chunk" data-layout="l-body">
-<pre class="r"><code>
-SimpleEmbedding &lt;- R6::R6Class(
-  &quot;SimpleEmbedding&quot;,
-  
-  inherit = KerasLayer,
-  
-  public = list(
-    output_dim = NULL,
-    emb_input_dim = NULL,
-    embeddings = NULL,
-    
-    initialize = function(emb_input_dim, output_dim) {
-      self$emb_input_dim &lt;- emb_input_dim
-      self$output_dim &lt;- output_dim
-    },
-    
-    build = function(input_shape) {
-      self$embeddings &lt;- self$add_weight(
-        name = &#39;embeddings&#39;,
-        shape = list(self$emb_input_dim, self$output_dim),
-        initializer = initializer_random_uniform(),
-        trainable = TRUE
-      )
-    },
-    
-    call = function(x, mask = NULL) {
-      x &lt;- k_cast(x, &quot;int32&quot;)
-      k_gather(self$embeddings, x)
-    },
-    
-    compute_output_shape = function(input_shape) {
-      list(self$output_dim)
-    }
-  )
-)</code></pre>
-</div>
-<p>As usual with custom layers, we still need a wrapper that takes care of instantiation.</p>
-<div class="layout-chunk" data-layout="l-body">
-<pre class="r"><code>
-layer_simple_embedding &lt;-
-  function(object,
-           emb_input_dim,
-           output_dim,
-           name = NULL,
-           trainable = TRUE) {
-    create_layer(
-      SimpleEmbedding,
-      object,
-      list(
-        emb_input_dim = as.integer(emb_input_dim),
-        output_dim = as.integer(output_dim),
-        name = name,
-        trainable = trainable
-      )
-    )
-  }</code></pre>
-</div>
-<p>Does this work? We would hope it works about as well as Keras’ <code>layer_embedding</code> when used for a simple task. We thus need a test case. So now, let’s first address our second topic for this post: Using embeddings for collaborative filtering.</p>
-<p>We’ll first approach this using <code>layer_embedding</code>, exploring different models, and finally come back to see if we can substitute our custom layer.</p>
+<p>In this post, we’d like to do two things: First, we want to show an interesting use of embeddings beyond natural language processing, namely, their application to collaborative filtering. In this, we follow ideas developed in <a href="https://github.com/fastai/fastai/blob/master/courses/dl1/lesson5-movielens.ipynb">lesson5-movielens.ipynb</a> which is part of fast.ai’s <a href="http://course.fast.ai/">Deep Learning for Coders</a> class. Second, to gather more intuition, we’d like to take a look “under the hood” at how a simple embedding layer can be implemented.</p>
+<p>So first, let’s jump into collaborative filtering. Just like the notebook that inspired us, we’ll predict movie ratings. We will use the 2016 <a href="http://files.grouplens.org/datasets/movielens/ml-latest-small.zip">ml-latest-small</a> dataset from <a href="https://grouplens.org/datasets/movielens/">MovieLens</a> that contains ~100000 ratings of ~9900 movies, rated by ~700 users.</p>
 <h2 id="embeddings-for-collaborative-filtering">Embeddings for collaborative filtering</h2>
 <p>In collaborative filtering, we try to generate recommendations based not on elaborate knowledge about our users and not on detailed profiles of our products, but on how users and products go together. Is product <span class="math inline">\(\mathbf{p}\)</span> a fit for user <span class="math inline">\(\mathbf{u}\)</span>? If so, we’ll recommend it.</p>
 <p>Often, this is done via matrix factorization. See, for example, <a href="https://datajobs.com/data-science-repo/Recommender-Systems-%5BNetflix%5D.pdf">this nice article</a> by the winners of the <a href="https://www.netflixprize.com/">2009 Netflix prize</a>, introducing the why and how of matrix factorization techniques as used in collaborative filtering.</p>
@@ -1041,7 +969,7 @@ layer_simple_embedding &lt;-
 <p><span class="math display">\[cos(\theta) = \frac{\mathbf{x^ t}\mathbf{y}}{\mathbf{||x||}\space\mathbf{||y||}}\]</span></p>
 <h3 id="what-does-all-this-have-to-do-with-embeddings">What does all this have to do with embeddings?</h3>
 <p>Well, the same overall principles apply when we work with user resp. movie embeddings, instead of vectors obtained from matrix factorization. We’ll have one <code>layer_embedding</code> for users, one <code>layer_embedding</code> for movies, and a <code>layer_lambda</code> that calculates the dot product.</p>
-<p>Here’s a minimal <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom model</a> that does exactly this:</p>
+<p>Here’s a minimal <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom model</a> that does exactly this:<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 simple_dot &lt;- function(embedding_dim,
@@ -1140,7 +1068,7 @@ history &lt;- model %&gt;% fit(
 <img src="images/simple_embedding.png" alt="Training curve for simple dot product model" style="width:100.0%" /><figcaption>Training curve for simple dot product model</figcaption>
 </figure>
 <h3 id="accounting-for-user-and-movie-biases">Accounting for user and movie biases</h3>
-<p>A problem with our method is that we attribute the rating as a whole to use-movie interaction. However, some users are more critical intrinsically, while others tend to be more lenient. Analogously, films differ by average rating. We hope to get better predictions when factoring in these biases.</p>
+<p>A problem with our method is that we attribute the rating as a whole to user-movie interaction. However, some users are intrinsically more critical, while others tend to be more lenient. Analogously, films differ by average rating. We hope to get better predictions when factoring in these biases.</p>
 <p>Conceptually, we then calculate a prediction like this:</p>
 <p><span class="math display">\[pred =  avg + bias_m + bias_u + \mathbf{m^ t}\mathbf{u}\]</span></p>
 <p>The corresponding Keras model gets just slightly more complex. In addition to the user and movie embeddings we’ve already been working with, the below model embeds the <em>average</em> user and the <em>average</em> movie in 1-d space. We then add both biases to the dot product encoding user-movie interaction. A sigmoid activation normalizes to a value between 0 and 1, which then gets mapped back to the original space.</p>
@@ -1326,7 +1254,78 @@ ratings_grouped %&gt;% filter(num_ratings &gt; 20) %&gt;% arrange(desc(PC1)) %&g
  9 Quiz Show (1994)                    1.14 -0.166       3.75 Drama                              90
 10 Striptease (1996)                   1.14 -0.681       2.46 Comedy|Crime                       39
 # ... with 1,237 more rows</code></pre>
-<p>We’ll leave it to the knowledgeable reader to name these factors, as we still have one thing left to do: test our custom embedding layer on the same data, with one of the recommender models we developed. We’ll choose the first, simple dot product model for this.</p>
+<p>We’ll leave it to the knowledgeable reader to name these factors, and proceed to our second topic: How does an embedding layer do what it does?</p>
+<h2 id="do-it-yourself-embeddings">Do-it-yourself embeddings</h2>
+<p>You may have heard people say all an embedding layer did was just a lookup. Imagine you had a dataset that, in addition to continuous variables like temperature or barometric pressure, contained a categorical column <em>characterization</em> consisting of tags like “foggy” or “cloudy”. Say <em>characterization</em> had 7 possible values, encoded as a factor with levels 1-7.</p>
+<p>Were we going to feed this variable to a non-embedding layer, <code>layer_dense</code> say, we’d have to take care that those numbers do not get taken for integers, thus falsely implying an interval (or at least ordered) scale. But when we use an embedding as the first layer in a Keras model, we feed in integers all the time! For example, in text classification, a sentence might get encoded as a vector padded with zeroes, like this:</p>
+<pre><code>
+2  77   4   5 122   55  1  3   0   0  </code></pre>
+<p>The thing that makes this work is that the embedding layer actually <em>does</em> perform a lookup. Below, you’ll find a very simple<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> <a href="https://tensorflow.rstudio.com/keras/articles/custom_layers.html">custom layer</a> that does essentially the same thing as Keras’ <code>layer_embedding</code>:</p>
+<ul>
+<li>It has a weight matrix <code>self$embeddings</code> that maps from an input space (movies, say) to the output space of latent factors (embeddings).</li>
+<li>When we call the layer, as in</li>
+</ul>
+<p><code>x &lt;- k_gather(self$embeddings, x)</code></p>
+<p>it looks up the passed-in row number in the weight matrix, thus retrieving an item’s distributed representation from the matrix.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+SimpleEmbedding &lt;- R6::R6Class(
+  &quot;SimpleEmbedding&quot;,
+  
+  inherit = KerasLayer,
+  
+  public = list(
+    output_dim = NULL,
+    emb_input_dim = NULL,
+    embeddings = NULL,
+    
+    initialize = function(emb_input_dim, output_dim) {
+      self$emb_input_dim &lt;- emb_input_dim
+      self$output_dim &lt;- output_dim
+    },
+    
+    build = function(input_shape) {
+      self$embeddings &lt;- self$add_weight(
+        name = &#39;embeddings&#39;,
+        shape = list(self$emb_input_dim, self$output_dim),
+        initializer = initializer_random_uniform(),
+        trainable = TRUE
+      )
+    },
+    
+    call = function(x, mask = NULL) {
+      x &lt;- k_cast(x, &quot;int32&quot;)
+      k_gather(self$embeddings, x)
+    },
+    
+    compute_output_shape = function(input_shape) {
+      list(self$output_dim)
+    }
+  )
+)</code></pre>
+</div>
+<p>As usual with custom layers, we still need a wrapper that takes care of instantiation.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+layer_simple_embedding &lt;-
+  function(object,
+           emb_input_dim,
+           output_dim,
+           name = NULL,
+           trainable = TRUE) {
+    create_layer(
+      SimpleEmbedding,
+      object,
+      list(
+        emb_input_dim = as.integer(emb_input_dim),
+        output_dim = as.integer(output_dim),
+        name = name,
+        trainable = trainable
+      )
+    )
+  }</code></pre>
+</div>
+<p>Does this work? Let’s test it on the ratings prediction task! We’ll just substitute the custom layer in the simple dot product model we started out with, and check if we get out a similar RMSE.</p>
 <h2 id="putting-the-custom-embedding-layer-to-test">Putting the custom embedding layer to test</h2>
 <p>Here’s the simple dot product model again, this time using our custom embedding layer.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1420,7 +1419,8 @@ history &lt;- model %&gt;% fit(
 <hr />
 <ol>
 <li id="fn1"><p>From: <a href="http://www.cs.toronto.edu/~bonner/courses/2014s/csc321/lectures/lec5.pdf" class="uri">http://www.cs.toronto.edu/~bonner/courses/2014s/csc321/lectures/lec5.pdf</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
-<li id="fn2"><p>It really <em>is</em> simple; it only works with input length = 1.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>Custom models are a recent Keras feature that allow for a flexible definition of the forward pass. While the current use case does does not require using a custom model, it nicely illustrates how the network’s logic can quickly be grasped by looking at the <em>call</em> method.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>It really <em>is</em> simple; it only works with input length = 1.<a href="#fnref3" class="footnote-back">↩</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

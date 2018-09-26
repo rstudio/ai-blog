@@ -38,101 +38,11 @@ Let's take a task like sentiment analysis. Initially, what we feed the network a
 We hope that when we feed these "meaningful" vectors to the next layer(s), better classification will result.
 In addition, we may be interested in exploring that semantic space for its own sake, or use it in multi-modal transfer learning [@FromeCSBDRM13].
 
-In this post, we'd like to do two things: First, we'd like to take a look "under the hood" at how an embedding layer can be implemented in a neural network. Second, we want to demonstrate an application of embeddings in the context of product recommendation, following the example of [lesson5-movielens.ipynb](https://github.com/fastai/fastai/blob/master/courses/dl1/lesson5-movielens.ipynb) which is part of fast.ai's [Deep Learning for Coders](http://course.fast.ai/) class.
+In this post, we'd like to do two things: First, we want to show an interesting use of embeddings beyond natural language processing, namely, their application to collaborative filtering. In this, we follow ideas developed in [lesson5-movielens.ipynb](https://github.com/fastai/fastai/blob/master/courses/dl1/lesson5-movielens.ipynb) which is part of fast.ai's [Deep Learning for Coders](http://course.fast.ai/) class.
+Second, to gather more intuition, we'd like to take a look "under the hood" at how a simple embedding layer can be implemented.
 
-Just like the notebook that inspired us, we'll predict movie ratings. We will use the 2016 [ml-latest-small](http://files.grouplens.org/datasets/movielens/ml-latest-small.zip) dataset from [MovieLens](https://grouplens.org/datasets/movielens/) that contains  ~100000 ratings of ~9900 movies, rated by ~700 users.
+So first, let's jump into collaborative filtering. Just like the notebook that inspired us, we'll predict movie ratings. We will use the 2016 [ml-latest-small](http://files.grouplens.org/datasets/movielens/ml-latest-small.zip) dataset from [MovieLens](https://grouplens.org/datasets/movielens/) that contains  ~100000 ratings of ~9900 movies, rated by ~700 users.
 
-
-
-## Do-it-yourself embeddings
-
-
-You may have heard people say all an embedding layer did was just a lookup. Imagine you had a dataset that, in addition to continuous variables like temperature or barometric pressure, contained a categorical column _characterization_ consisting of tags like "foggy" or "cloudy". Say _characterization_ had 7 possible values, encoded as a factor with levels 1-7.
-
-Were we going to feed this variable to a non-embedding layer, `layer_dense` say, we'd have to take care that those numbers do not get taken for integers, thus falsely implying an interval (or at least ordered) scale. But when we use an embedding as the first layer in a Keras model, we feed in integers all the time! For example, in text classification, a sentence might get encoded as a vector padded with zeroes, like this:
-
-```
-2  77   4   5 122   55  1  3   0   0  
-```
-
-
-The thing that makes this work is that the embedding layer actually _does_ perform a lookup. Below, you'll find a very simple ^[It really _is_ simple; it only works with input length = 1.] [custom layer](https://tensorflow.rstudio.com/keras/articles/custom_layers.html) that does essentially the same thing as Keras' `layer_embedding`:
-
-
-- It has a weight matrix `self$embeddings` that maps from an input space (movies, say) to the output space of latent factors (embeddings).
-- When we call the layer, as in 
-
-` x <- k_gather(self$embeddings, x)`
-
-it looks up the passed-in row number in the weight matrix, thus retrieving an item's distributed representation from the matrix.
-
-
-```{r}
-SimpleEmbedding <- R6::R6Class(
-  "SimpleEmbedding",
-  
-  inherit = KerasLayer,
-  
-  public = list(
-    output_dim = NULL,
-    emb_input_dim = NULL,
-    embeddings = NULL,
-    
-    initialize = function(emb_input_dim, output_dim) {
-      self$emb_input_dim <- emb_input_dim
-      self$output_dim <- output_dim
-    },
-    
-    build = function(input_shape) {
-      self$embeddings <- self$add_weight(
-        name = 'embeddings',
-        shape = list(self$emb_input_dim, self$output_dim),
-        initializer = initializer_random_uniform(),
-        trainable = TRUE
-      )
-    },
-    
-    call = function(x, mask = NULL) {
-      x <- k_cast(x, "int32")
-      k_gather(self$embeddings, x)
-    },
-    
-    compute_output_shape = function(input_shape) {
-      list(self$output_dim)
-    }
-  )
-)
-
-```
-
-
-As usual with custom layers, we still need a wrapper that takes care of instantiation.
-
-```{r}
-layer_simple_embedding <-
-  function(object,
-           emb_input_dim,
-           output_dim,
-           name = NULL,
-           trainable = TRUE) {
-    create_layer(
-      SimpleEmbedding,
-      object,
-      list(
-        emb_input_dim = as.integer(emb_input_dim),
-        output_dim = as.integer(output_dim),
-        name = name,
-        trainable = trainable
-      )
-    )
-  }
-```
-
-
-Does this work? We would hope it works about as well as Keras' `layer_embedding` when used for a simple task.
-We thus need a test case. So now, let's first address our second topic for this post: Using embeddings for collaborative filtering.
-
-We'll first approach this using `layer_embedding`, exploring different models, and finally come back to see if we can substitute our custom layer.
 
 
 ## Embeddings for collaborative filtering
@@ -166,7 +76,7 @@ $$cos(\theta) = \frac{\mathbf{x^ t}\mathbf{y}}{\mathbf{||x||}\space\mathbf{||y||
 
 Well, the same overall principles apply when we work with user resp. movie embeddings, instead of vectors obtained from matrix factorization. We'll have one `layer_embedding` for users, one `layer_embedding` for movies, and a `layer_lambda` that calculates the dot product.
 
-Here's a minimal [custom model](https://tensorflow.rstudio.com/keras/articles/custom_models.html) that does exactly this:
+Here's a minimal [custom model](https://tensorflow.rstudio.com/keras/articles/custom_models.html) that does exactly this:^[Custom models are a recent Keras feature that allow for a flexible definition of the forward pass. While the current use case does does not require using a custom model, it nicely illustrates how the network's logic can quickly be grasped by looking at the _call_ method.]
 
 
 ```{r}
@@ -281,8 +191,8 @@ How well does this work? Final RMSE (the square root of the MSE loss we were usi
 
 ### Accounting for user and movie biases
 
-A problem with our method is that we attribute the rating as a whole to use-movie interaction.
-However, some users are more critical intrinsically, while others tend to be more lenient. Analogously, films differ by average rating.
+A problem with our method is that we attribute the rating as a whole to user-movie interaction.
+However, some users are intrinsically more critical, while others tend to be more lenient. Analogously, films differ by average rating.
 We hope to get better predictions when factoring in these biases.
 
 Conceptually, we then calculate a prediction like this:
@@ -496,7 +406,97 @@ ratings_grouped %>% filter(num_ratings > 20) %>% arrange(desc(PC1)) %>% print(n 
 # ... with 1,237 more rows
 ```
 
-We'll leave it to the knowledgeable reader to name these factors, as we still have one thing left to do: test our custom embedding layer on the same data, with one of the recommender models we developed. We'll choose the first, simple dot product model for this.
+We'll leave it to the knowledgeable reader to name these factors, and proceed to our second topic: How does an embedding layer do what it does?
+
+
+## Do-it-yourself embeddings
+
+
+You may have heard people say all an embedding layer did was just a lookup. Imagine you had a dataset that, in addition to continuous variables like temperature or barometric pressure, contained a categorical column _characterization_ consisting of tags like "foggy" or "cloudy". Say _characterization_ had 7 possible values, encoded as a factor with levels 1-7.
+
+Were we going to feed this variable to a non-embedding layer, `layer_dense` say, we'd have to take care that those numbers do not get taken for integers, thus falsely implying an interval (or at least ordered) scale. But when we use an embedding as the first layer in a Keras model, we feed in integers all the time! For example, in text classification, a sentence might get encoded as a vector padded with zeroes, like this:
+
+```
+2  77   4   5 122   55  1  3   0   0  
+```
+
+
+The thing that makes this work is that the embedding layer actually _does_ perform a lookup. Below, you'll find a very simple ^[It really _is_ simple; it only works with input length = 1.] [custom layer](https://tensorflow.rstudio.com/keras/articles/custom_layers.html) that does essentially the same thing as Keras' `layer_embedding`:
+
+
+- It has a weight matrix `self$embeddings` that maps from an input space (movies, say) to the output space of latent factors (embeddings).
+- When we call the layer, as in 
+
+` x <- k_gather(self$embeddings, x)`
+
+it looks up the passed-in row number in the weight matrix, thus retrieving an item's distributed representation from the matrix.
+
+
+```{r}
+SimpleEmbedding <- R6::R6Class(
+  "SimpleEmbedding",
+  
+  inherit = KerasLayer,
+  
+  public = list(
+    output_dim = NULL,
+    emb_input_dim = NULL,
+    embeddings = NULL,
+    
+    initialize = function(emb_input_dim, output_dim) {
+      self$emb_input_dim <- emb_input_dim
+      self$output_dim <- output_dim
+    },
+    
+    build = function(input_shape) {
+      self$embeddings <- self$add_weight(
+        name = 'embeddings',
+        shape = list(self$emb_input_dim, self$output_dim),
+        initializer = initializer_random_uniform(),
+        trainable = TRUE
+      )
+    },
+    
+    call = function(x, mask = NULL) {
+      x <- k_cast(x, "int32")
+      k_gather(self$embeddings, x)
+    },
+    
+    compute_output_shape = function(input_shape) {
+      list(self$output_dim)
+    }
+  )
+)
+
+```
+
+
+As usual with custom layers, we still need a wrapper that takes care of instantiation.
+
+```{r}
+layer_simple_embedding <-
+  function(object,
+           emb_input_dim,
+           output_dim,
+           name = NULL,
+           trainable = TRUE) {
+    create_layer(
+      SimpleEmbedding,
+      object,
+      list(
+        emb_input_dim = as.integer(emb_input_dim),
+        output_dim = as.integer(output_dim),
+        name = name,
+        trainable = trainable
+      )
+    )
+  }
+```
+
+
+Does this work? Let's test it on the ratings prediction task! We'll just substitute the custom layer in the simple dot product model we started out with, and check if we get out a similar RMSE.
+
+
 
 ## Putting the custom embedding layer to test
 

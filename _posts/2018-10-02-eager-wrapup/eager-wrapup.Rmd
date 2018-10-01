@@ -1,5 +1,5 @@
 ---
-title: "(Yet) more flexibility and usability with Keras eager execution "
+title: "More flexible models with TensorFlow eager execution and Keras"
 description: >
  
 author:
@@ -22,10 +22,9 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
 
-Just with the [Sequential API](https://tensorflow.rstudio.com/keras/articles/sequential_model.html), there's a whole lot of things you can do in Keras: for example, build deep convolutional architectures in the style of VGG16, or stack layers of recurrent units.
-The [Functional API](https://tensorflow.rstudio.com/keras/articles/functional_api.html) gives you additional options: Using separate input layers, you can combine text input with tabular data. Using multiple outputs, you can perform regression and classification at the same time. Furthermore, you can reuse layers within and between models.
+If you have used Keras to create neural networks you are no doubt already familiar with the [Sequential API](https://tensorflow.rstudio.com/keras/articles/sequential_model.html), which represents models as a linear stack of layers. The [Functional API](https://tensorflow.rstudio.com/keras/articles/functional_api.html) gives you additional options: Using separate input layers, you can combine text input with tabular data. Using multiple outputs, you can perform regression and classification at the same time. Furthermore, you can reuse layers within and between models.
 
-With eager execution, you gain even more flexibility. Using [custom models](https://tensorflow.rstudio.com/keras/articles/custom_models.html), you define the forward pass through the model completely _ad libitum_. Because you have direct access to values, not tensors, model development and debugging are greatly sped up.
+With TensorFlow eager execution, you gain even more flexibility. Using [custom models](https://tensorflow.rstudio.com/keras/articles/custom_models.html), you define the forward pass through the model completely _ad libitum_. In addition, Bbecause you have direct access to values, not tensors, model development and debugging are greatly sped up.
 
 ## How does it work?
 
@@ -53,25 +52,26 @@ How does backpropagation work in this setup? The forward pass is recorded by a `
 ```{r}
 with(tf$GradientTape() %as% tape, {
      
-      # run model on current batch
-      preds <- model(x)
-     
-      # compute the loss
-      loss <- mse_loss(y, preds, x)
-    })
+  # run model on current batch
+  preds <- model(x)
+ 
+  # compute the loss
+  loss <- mse_loss(y, preds, x)
+  
+})
     
-    # get gradients of loss w.r.t. model weights
-    gradients <- tape$gradient(loss, model$variables)
-    
-    # update model weights
-    optimizer$apply_gradients(
-      purrr::transpose(list(gradients, model$variables)),
-      global_step = tf$train$get_or_create_global_step()
-    )
+# get gradients of loss w.r.t. model weights
+gradients <- tape$gradient(loss, model$variables)
+
+# update model weights
+optimizer$apply_gradients(
+  purrr::transpose(list(gradients, model$variables)),
+  global_step = tf$train$get_or_create_global_step()
+)
 ```
 
 
-A complete workflow is demonstrated in the [eager execution guide](https://tensorflow.rstudio.com/articles/eager_guide.html). Here, we want to answer the question: Why are we so excited about it? At least three aspects come to mind: 
+A complete workflow is demonstrated in the [eager execution guide](https://tensorflow.rstudio.com/articles/eager_guide.html). Here, we want to answer the question: Why are we so excited about it? At least three things come to mind: 
 
 - Things that used to be complicated become much easier to accomplish.
 - Models are easier to develop, and easier to debug.
@@ -150,14 +150,18 @@ Now compare the example from the [generating digits with GANs](https://blogs.rst
 
 ```{r}
 generator <- function(name = NULL) {
-    keras_model_custom(name = name, function(self) {
+  keras_model_custom(name = name, function(self) {
     # ...
+  }
+}
 ```
 
 ```{r}
 discriminator <- function(name = NULL) {
-    keras_model_custom(name = name, function(self) {
+  keras_model_custom(name = name, function(self) {
     # ...
+  }
+}
 ```
 
 
@@ -169,25 +173,29 @@ Then, the duel starts. The training loop is just a succession of generator actio
 ```{r}
 with(tf$GradientTape() %as% gen_tape, { with(tf$GradientTape() %as% disc_tape, {
   
-   # generator action
-   generated_images <- generator(# ...
-   # discriminator assessments
-   disc_real_output <- discriminator(# ... 
-   disc_generated_output <- discriminator(# ...
-        
-   # generator loss
-   gen_loss <- generator_loss(# ...                        
-   # discriminator loss
-   disc_loss <- discriminator_loss(# ...
-}) })
+ # generator action
+ generated_images <- generator(# ...
+   
+ # discriminator assessments
+ disc_real_output <- discriminator(# ... 
+ disc_generated_output <- discriminator(# ...
+      
+ # generator loss
+ gen_loss <- generator_loss(# ...                        
+ # discriminator loss
+ disc_loss <- discriminator_loss(# ...
+   
+})})
    
 # calcucate generator gradients   
 gradients_of_generator <- gen_tape$gradient(#...
+  
 # calcucate discriminator gradients   
 gradients_of_discriminator <- disc_tape$gradient(# ...
  
 # apply generator gradients to model weights       
 generator_optimizer$apply_gradients(# ...
+
 # apply discriminator gradients to model weights 
 discriminator_optimizer$apply_gradients(# ...
 ```

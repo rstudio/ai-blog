@@ -1,5 +1,5 @@
 ---
-title: "Winner takes all: A glance at activations and cost functions"
+title: "Winner takes all: A look at activations and cost functions"
 description: >
  Why do we use the activations we use, and how do they relate to the cost functions they tend to co-appear with?
  In this post, we provide a conceptual, intuitive introduction.
@@ -25,7 +25,7 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 
 
 
-You're building a Keras model. If you haven't been doing deep learning for so long, getting the output activations and cost function right might involve some memorization (or lookup). You might be trying to recall the general proceedings like so:
+You're building a Keras model. If you haven't been doing deep learning for so long, getting the output activations and cost function right might involve some memorization (or lookup). You might be trying to recall the general guidelines like so:
 
 _So with my cats and dogs, I'm doing 2-class classification, so I have to use sigmoid activation in the output layer, right, and then, it's binary crossentropy for the cost function..._
 Or: _I'm doing classification on ImageNet, that's multi-class, so that was softmax for activation, and then, cost should be categorical crossentropy..._
@@ -35,11 +35,13 @@ It's fine to memorize stuff like this, but knowing a bit about the reasons behin
 
 ## In a nutshell 
 
-Put simply, we choose activations do make the network predict what we want it to predict.
+Put simply, we choose activations that make the network predict what we want it to predict.
 The cost function is then determined by the model. 
 
-This is because neural networks are normally optimized using _maximum likelihood_, and depending on the distribution we assume for the output units, maximum likelihood yields different optimization objectives.^[For a more mathematical development of this topic, see chapter 6.2 of Goodfellow et al., Deep Learning. This post is meant to be an intuitive introduction.] [@Goodfellow-et-al-2016]
-All of these objectives then minimize the cross entropy (pragmatically: mismatch) between the true distribution and the predicted distribution.^[See chapter 5.5 in Goodfellow et al. for details.]
+This is because neural networks are normally optimized using _maximum likelihood_, and depending on the distribution we assume for the output units, maximum likelihood yields different optimization objectives. All of these objectives then minimize the cross entropy (pragmatically: mismatch) between the true distribution and the predicted distribution.
+
+<aside>For a more mathematical development of these topics, see sections 5.5 and 6.2 of Goodfellow et al., Deep Learning.[@Goodfellow-et-al-2016]
+</aside>
 
 Let's start with the simplest, the linear case.
 
@@ -52,7 +54,10 @@ model <- keras_model_sequential() %>%
   layer_dense(units = 32) %>%
   layer_dense(units = 1)
 
-model %>% compile(optimizer = "adam", loss = "mean_squared_error")
+model %>% compile(
+  optimizer = "adam", 
+  loss = "mean_squared_error"
+)
 
 model %>% fit(
   x = iris$Sepal.Length %>% as.matrix(),
@@ -62,9 +67,11 @@ model %>% fit(
 
 ```
 
-Our model's assumption here is that sepal width is normally distributed, given sepal length. Most often, we're trying to predict the mean of a conditional Gaussian distribution:^[Assuming a single output unit in the formula here.]
+Our model's assumption here is that sepal width is normally distributed, given sepal length. Most often, we're trying to predict the mean of a conditional Gaussian distribution:
 
 $$p(y|\mathbf{x} = N(y; \mathbf{w}^t\mathbf{h} + b)$$
+
+<aside>This formula assumes a single output unit.</aside>
 
 In that case, the cost function that minimizes cross entropy (equivalently: optimizes maximum likelihood) is _mean squared error_.
 And that's exactly what we're using as a cost function above.
@@ -72,7 +79,10 @@ And that's exactly what we're using as a cost function above.
 Alternatively, we might wish to predict the median of that conditional distribution. In that case, we'd change the cost function to use mean absolute error:
 
 ```{r}
-model %>% compile(optimizer = "adam", loss = "mean_absolute_error")
+model %>% compile(
+  optimizer = "adam", 
+  loss = "mean_absolute_error"
+)
 ```
 
 
@@ -81,7 +91,9 @@ Now let's move on beyond linearity.
 ## Binary classification
 
 
-We're enthusiastic bird watchers and want an application to notify us when there's a bird in our garden - not when the neighbors landed their airplane, though. We'll thus train a network to distinguish between two classes: birds and airplanes.^[For a more detailed introduction to classification with Keras, see the tutorial at https://tensorflow.rstudio.com/keras/articles/tutorial_basic_classification.html.]
+We're enthusiastic bird watchers and want an application to notify us when there's a bird in our garden - not when the neighbors landed their airplane, though. We'll thus train a network to distinguish between two classes: birds and airplanes.
+
+<aside>For a more detailed introduction to classification with Keras, see the [tutorial](https://tensorflow.rstudio.com/keras/articles/tutorial_basic_classification.html) on the Keras website.</aside>
 
 
 ```{r}
@@ -122,7 +134,12 @@ layer_flatten() %>%
   layer_dense(units = 32, activation = "relu") %>%
   layer_dense(units = 1, activation = "sigmoid")
 
-model %>% compile(optimizer = "adam", loss = "binary_crossentropy", metrics = "accuracy")
+model %>% compile(
+  optimizer = "adam", 
+  loss = "binary_crossentropy", 
+  metrics = "accuracy"
+)
+
 model %>% fit(
   x = x,
   y = y,
@@ -154,7 +171,9 @@ However, if we follow the general principle of maximum likelihood/cross entropy,
 
 $$- log P (y|\mathbf{x})$$
 
-where the $log$ undoes the $exp$ in the sigmoid.^[If you need the details, see section 6.2.2.2 in Goodfellow et al.]
+<aside>If you need the details, see section 6.2.2.2 in Goodfellow et al.</aside>
+
+where the $log$ undoes the $exp$ in the sigmoid.
 
 
 In Keras, the corresponding loss function is `binary_crossentropy`. For a single item, the loss will be
@@ -218,7 +237,7 @@ So now we have _softmax_ combined with _categorical crossentropy_. What's their 
 
 Again, we want a valid probability distribution: Probabilities for all disjunct events should sum to 1.
 
-CIFAR-10 has one object per image; so events are disjunct. Then we have a single-draw multinomial distribution^[popularly known as "Multinoulli", mostly due to Muphy's _Machine learning_][@Murphy-2012] that can be modeled by the softmax activation:
+CIFAR-10 has one object per image; so events are disjunct. Then we have a single-draw multinomial distribution (popularly known as "Multinoulli", mostly due to Muphy's _Machine learning_[@Murphy-2012]) that can be modeled by the softmax activation:
 
 $$softmax(\mathbf{z})_i = \frac{e^{z_i}}{\sum_j{e^{z_j}}}$$
 
@@ -230,7 +249,7 @@ $$log\ softmax(\mathbf{z})_i = z_i - log\sum_j{e^{z_j}}$$
 
 Here $z_i$ is the class we're estimating the probability of - we see that its contribution to the loss is linear and thus, can never saturate.
 
-In Keras, the loss function that does this for us is called `categorical_crossentropy`.^[We use sparse_categorical_crossentropy in the code which is the same as `categorical_crossentropy` but does not need conversion of integer labels to one-hot vectors.]
+In Keras, the loss function that does this for us is called `categorical_crossentropy`. We use sparse_categorical_crossentropy in the code which is the same as `categorical_crossentropy` but does not need conversion of integer labels to one-hot vectors.
 
 Let's take a closer look at what softmax does. Assume these are the raw outputs of our 10 output units:
 

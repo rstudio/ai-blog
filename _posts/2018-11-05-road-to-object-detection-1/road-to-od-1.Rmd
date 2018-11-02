@@ -1,7 +1,7 @@
 ---
-title: "Road to object detection 1: Combining classification and localization"
+title: "Naming and locating objects in images"
 description: >
- Object detection - the act of classifying and localizing multiple objects in a scene - is one of the more difficult, but very relevant in practice deep learning tasks. We'll build up to it in several posts. Here we start with the simpler tasks of naming and locating a single object.
+ Object detection (the act of classifying and localizing multiple objects in a scene) is one of the more difficult, but very relevant in practice deep learning tasks. We'll build up to it in several posts. Here we start with the simpler tasks of naming and locating a single object.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -290,8 +290,8 @@ model %>% compile(
 ```
 
 
-How should we pass our data to Keras? We could simple use Keras' `image_data_generator`, but given we will need custom generators soon, we'll build a simple one ourselves here already.
-This one simply delivers images as well as the corresponding targets in a stream. Note how the targets are not one-hot-encoded, but integers - using `sparse_categorical_crossentropy` as a loss function enables this convenience.
+How should we pass our data to Keras? We could simple use Keras' `image_data_generator`, but given we will need custom generators soon, we'll build a simple one ourselves.
+This one delivers images as well as the corresponding targets in a stream. Note how the targets are not one-hot-encoded, but integers - using `sparse_categorical_crossentropy` as a loss function enables this convenience.
 
 <aside>
 See the [Deep learning with R](https://tensorflow.rstudio.com/learn/resources.html) book for an introduction to writing data generators like this one.
@@ -331,7 +331,8 @@ classification_generator <-
       
       for (j in 1:length(indices)) {
         x[j, , , ] <-
-          load_and_preprocess_image(data[[indices[j], "file_name"]], target_height, target_width)
+          load_and_preprocess_image(data[[indices[j], "file_name"]],
+                                    target_height, target_width)
         y[j, ] <-
           data[[indices[j], "category_id"]] - 1
       }
@@ -430,7 +431,8 @@ classification_generator <-
       
       for (j in 1:length(indices)) {
         x[j, , , ] <-
-          load_and_preprocess_image(data[[indices[j], "file_name"]], target_height, target_width)
+          load_and_preprocess_image(data[[indices[j], "file_name"]], 
+                                    target_height, target_width)
         y[j, ] <-
           data[indices[j], 2:21] %>% as.matrix()
       }
@@ -564,7 +566,8 @@ metric_iou <- function(y_true, y_pred) {
   intersection_xmax <- k_minimum(y_true[ ,3], y_pred[ ,3])
   intersection_ymax <- k_minimum(y_true[ ,4], y_pred[ ,4])
   
-  area_intersection <- (intersection_xmax - intersection_xmin) * (intersection_ymax - intersection_ymin)
+  area_intersection <- (intersection_xmax - intersection_xmin) * 
+                       (intersection_ymax - intersection_ymin)
   area_y <- (y_true[ ,3] - y_true[ ,1]) * (y_true[ ,4] - y_true[ ,2])
   area_yhat <- (y_pred[ ,3] - y_pred[ ,1]) * (y_pred[ ,4] - y_pred[ ,2])
   area_union <- area_y + area_yhat - area_intersection
@@ -611,7 +614,8 @@ localization_generator <-
       
       for (j in 1:length(indices)) {
         x[j, , , ] <-
-          load_and_preprocess_image(data[[indices[j], "file_name"]], target_height, target_width)
+          load_and_preprocess_image(data[[indices[j], "file_name"]], 
+                                    target_height, target_width)
         y[j, ] <-
           data[indices[j], c("x_left_scaled",
                              "y_top_scaled",
@@ -728,7 +732,8 @@ train_1_8 <- train_data[1:8, c("file_name",
 for (i in 1:8) {
   preds <-
     model %>% predict(
-      load_and_preprocess_image(train_1_8[i, "file_name"], target_height, target_width),
+      load_and_preprocess_image(train_1_8[i, "file_name"], 
+                                target_height, target_width),
       batch_size = 1
   )
   plot_image_with_boxes(train_1_8$file_name[i],
@@ -843,9 +848,11 @@ loc_class_generator <-
       
       for (j in 1:length(indices)) {
         x[j, , , ] <-
-          load_and_preprocess_image(data[[indices[j], "file_name"]], target_height, target_width)
+          load_and_preprocess_image(data[[indices[j], "file_name"]], 
+                                    target_height, target_width)
         y1[j, ] <-
-          data[indices[j], c("x_left", "y_top", "x_right", "y_bottom")] %>% as.matrix()
+          data[indices[j], c("x_left", "y_top", "x_right", "y_bottom")] 
+            %>% as.matrix()
         y2[j, ] <-
           data[[indices[j], "category_id"]] - 1
       }

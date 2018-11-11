@@ -69,9 +69,9 @@ This means we can calculate both types of uncertainty, epistemic and aleatoric, 
 Let's make this concrete and see how we can implement and test the intended behavior on simulated data.
 In the implementation, there are three things warranting our special attention:
 
-- the wrapper class used to add learnable-dropout behavior to a Keras layer,
-- the loss function designed to minimize aleatoric uncertainty,
-- and the ways we can obtain both uncertainties at test time.
+- The wrapper class used to add learnable-dropout behavior to a Keras layer;
+- The loss function designed to minimize aleatoric uncertainty; and
+- The ways we can obtain both uncertainties at test time.
 
 Let's start with the wrapper.
 
@@ -86,7 +86,7 @@ So first, here is the wrapper class - we'll see how to use it in just a second:
 ```{r}
 library(keras)
 
-# R6 wrapper class, a subclass of KerasWrapper, just like we can subclass KerasLayer
+# R6 wrapper class, a subclass of KerasWrapper
 ConcreteDropout <- R6::R6Class("ConcreteDropout",
   
   inherit = KerasWrapper,
@@ -129,11 +129,16 @@ ConcreteDropout <- R6::R6Class("ConcreteDropout",
 
       weight <- private$py_wrapper$layer$kernel
       
-      kernel_regularizer <- self$weight_regularizer * k_sum(k_square(weight)) / (1 - self$p)
+      kernel_regularizer <- self$weight_regularizer * 
+                            k_sum(k_square(weight)) / 
+                            (1 - self$p)
       
       dropout_regularizer <- self$p * k_log(self$p)
-      dropout_regularizer <- dropout_regularizer +  (1 - self$p) * k_log(1 - self$p)
-      dropout_regularizer <- dropout_regularizer * self$dropout_regularizer * k_cast(input_dim, k_floatx())
+      dropout_regularizer <- dropout_regularizer +  
+                             (1 - self$p) * k_log(1 - self$p)
+      dropout_regularizer <- dropout_regularizer * 
+                             self$dropout_regularizer * 
+                             k_cast(input_dim, k_floatx())
 
       regularizer <- k_sum(kernel_regularizer + dropout_regularizer)
       super$add_loss(regularizer)
@@ -145,7 +150,10 @@ ConcreteDropout <- R6::R6Class("ConcreteDropout",
       
       unif_noise <- k_random_uniform(shape = k_shape(x))
       
-      drop_prob <- k_log(self$p + eps) - k_log(1 - self$p + eps) + k_log(unif_noise + eps) - k_log(1 - unif_noise + eps)
+      drop_prob <- k_log(self$p + eps) - 
+                   k_log(1 - self$p + eps) + 
+                   k_log(unif_noise + eps) - 
+                   k_log(1 - unif_noise + eps)
       drop_prob <- k_sigmoid(drop_prob / temp)
       
       random_tensor <- 1 - drop_prob
@@ -171,7 +179,7 @@ ConcreteDropout <- R6::R6Class("ConcreteDropout",
   )
 )
 
-# and just like with custom layers, we have an accompanying instantiator function
+# function for instantiating custom wrapper
 layer_concrete_dropout <- function(object, 
                                    layer,
                                    weight_regularizer = 1e-6,
@@ -309,7 +317,8 @@ gen_data_1d <- function(n) {
 c(X, Y) %<-% gen_data_1d(n_train + n_val)
 
 c(X_train, Y_train) %<-% list(X[1:n_train], Y[1:n_train])
-c(X_val, Y_val) %<-% list(X[(n_train + 1):(n_train + n_val)], Y[(n_train + 1):(n_train + n_val)])
+c(X_val, Y_val) %<-% list(X[(n_train + 1):(n_train + n_val)], 
+                          Y[(n_train + 1):(n_train + n_val)])
 
 model %>% compile(
   optimizer = "adam",
@@ -383,15 +392,21 @@ df <- data.frame(
   e_u_upper = predictive_mean + sqrt(epistemic_uncertainty),
   a_u_lower = predictive_mean - sqrt(aleatoric_uncertainty),
   a_u_upper = predictive_mean + sqrt(aleatoric_uncertainty),
-  u_overall_lower = predictive_mean - sqrt(epistemic_uncertainty) - sqrt(aleatoric_uncertainty),
-  u_overall_upper = predictive_mean + sqrt(epistemic_uncertainty) + sqrt(aleatoric_uncertainty)
+  u_overall_lower = predictive_mean - 
+                    sqrt(epistemic_uncertainty) - 
+                    sqrt(aleatoric_uncertainty),
+  u_overall_upper = predictive_mean + 
+                    sqrt(epistemic_uncertainty) + 
+                    sqrt(aleatoric_uncertainty)
 )
 ```
 
 Here, first, is epistemic uncertainty, with shaded bands indicating one standard deviation above resp. below the predicted mean:
 
 ```{r}
-ggplot(df, aes(x, y_pred)) + geom_point() + geom_ribbon(aes(ymin = e_u_lower, ymax = e_u_upper), alpha = 0.3)
+ggplot(df, aes(x, y_pred)) + 
+  geom_point() + 
+  geom_ribbon(aes(ymin = e_u_lower, ymax = e_u_upper), alpha = 0.3)
 ```
 
 ![Epistemic uncertainty on the validation set, train size = 1000.](images/epistemic_1000.png){width=100%}
@@ -551,8 +566,12 @@ preds <- data.frame(
   e_u_upper = predictive_mean + sqrt(epistemic_uncertainty),
   a_u_lower = predictive_mean - sqrt(aleatoric_uncertainty),
   a_u_upper = predictive_mean + sqrt(aleatoric_uncertainty),
-  u_overall_lower = predictive_mean - sqrt(epistemic_uncertainty) - sqrt(aleatoric_uncertainty),
-  u_overall_upper = predictive_mean + sqrt(epistemic_uncertainty) + sqrt(aleatoric_uncertainty)
+  u_overall_lower = predictive_mean - 
+                    sqrt(epistemic_uncertainty) - 
+                    sqrt(aleatoric_uncertainty),
+  u_overall_upper = predictive_mean + 
+                    sqrt(epistemic_uncertainty) + 
+                    sqrt(aleatoric_uncertainty)
 )
 
 ```

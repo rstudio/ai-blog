@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="radix" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>Entity embeddings for fun and profit</title>
+  
+  <meta property="description" itemprop="description" content="Embedding layers are not just useful when working with language data. As &quot;entity embeddings&quot;, they&#39;ve recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect."/>
+  
+  
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2018-11-26"/>
+  <meta property="article:created" itemprop="dateCreated" content="2018-11-26"/>
+  <meta name="article:author" content="Sigrid Keydana"/>
+  
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="Entity embeddings for fun and profit"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="Embedding layers are not just useful when working with language data. As &quot;entity embeddings&quot;, they&#39;ve recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect."/>
+  <meta property="og:locale" content="en_US"/>
+  
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="Entity embeddings for fun and profit"/>
+  <meta property="twitter:description" content="Embedding layers are not just useful when working with language data. As &quot;entity embeddings&quot;, they&#39;ve recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect."/>
+  
+  <!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Distributed representations of words and phrases and their compositionality;citation_publication_date=2013;citation_volume=abs/1310.4546;citation_author=Tomas Mikolov;citation_author=Ilya Sutskever;citation_author=Kai Chen;citation_author=Greg Corrado;citation_author=Jeffrey Dean"/>
+  <meta name="citation_reference" content="citation_title=Entity embeddings of categorical variables;citation_publication_date=2016;citation_volume=abs/1604.06737;citation_author=Cheng Guo;citation_author=Felix Berkhahn"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","bibliography","slug","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Entity embeddings for fun and profit"]},{"type":"character","attributes":{},"value":["Embedding layers are not just useful when working with language data. As \"entity embeddings\", they've recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect.\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["keydana2018dembeddingsfunandprofit"]},{"type":"character","attributes":{},"value":["11-26-2018"]},{"type":"character","attributes":{},"value":["Keras","Embeddings"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/thumb.png"]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","embeddings-fun-profit_files/bowser-1.9.3/bowser.min.js","embeddings-fun-profit_files/distill-2.2.21/template.v2.js","embeddings-fun-profit_files/jquery-1.11.3/jquery.min.js","embeddings-fun-profit_files/webcomponents-2.0.0/webcomponents.js","images/ethicschoice.png","images/jobsatisfaction.png","images/mikolov.png","images/out.png","images/so_one_hot.png","images/thumb.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+  
+  <style type="text/css">
+  
+  body {
+    background-color: white;
+  }
+  
+  .pandoc-table {
+    width: 100%;
+  }
+  
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+  
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+  
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+  
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
+  }
+  
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .shaded-content {
+    background: white;
+  }
+  
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+  
+  d-article {
+    padding-bottom: 30px;
+  }
+  
+  d-appendix {
+    padding-top: 30px;
+  }
+  
+  d-article>p>img {
+    width: 100%;
+  }
+  
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+  
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  /* CSS for table of contents */
+  
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+  
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+  
+  .d-toc a {
+    border-bottom: none;
+  }
+  
+  .d-toc ul {
+    padding-left: 0;
+  }
+  
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+  
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+  
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+  
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+  
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  
+  
+  
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+  
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  pre.text-output {
+  
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  @media(min-width: 768px) {
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+  
+  /* Figure */
+  
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+  
+  .figure img {
+    width: 100%;
+  }
+  
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+  
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+  
+  
+  
+  /* Tweak 1000px media break to show more text */
+  
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+  
+    .grid {
+      grid-column-gap: 16px;
+    }
+  
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption, .figure .caption, figure figcaption {
+      font-size: 13px;
+    }
+  }
+  
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+  
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+  
+  
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+  
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  
+  /* Social footer */
+  
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+  
+  .disqus-comments {
+    margin-right: 30px;
+  }
+  
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+  
+  #disqus_thread {
+    margin-top: 30px;
+  }
+  
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+  
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+  
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+  
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+  
+  
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+  
+  
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+  
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+  
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+  
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+  
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+  
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+  
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+  
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+  
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+  
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+  
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  </style>
+  
+  <script type="application/javascript">
+  
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+  
+  // show body when load is complete
+  function on_load_complete() {
+  
+    // set body to visible
+    document.body.style.visibility = 'visible';
+  
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+  
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+  
+  function init_distill() {
+  
+    init_common();
+  
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+  
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+  
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+  
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+  
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+  
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+  
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+  
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+  
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+  
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#' + id + '>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.html();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.html(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+  
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+  
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+  
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+  
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+  
+      // capture layout
+      var layout = $(this).attr('data-layout');
+  
+      // apply layout to markdown level block elements
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+  
+  
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+  
+    // load distill framework
+    load_distill_framework();
+  
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+  
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+  
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+  
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+  
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+  
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+  
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+  
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+  
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+  
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+  
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+  
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+  
+      // clear polling timer
+      clearInterval(tid);
+  
+      // show body now that everything is ready
+      on_load_complete();
+    }
+  
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+  
+  }
+  
+  function init_downlevel() {
+  
+    init_common();
+  
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+  
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+  
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+  
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+  
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+  
+  
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+  
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+  
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+  
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+  
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+  
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+  
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+  
+    $('body').addClass('downlevel');
+  
+    on_load_complete();
+  }
+  
+  
+  function init_common() {
+  
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+  
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+  
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+  
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+  
+    // mark non-body figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
+    });
+  
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+  
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.radix-site-header a[href]').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+  
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+  
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
+  
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+  
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $(window).resize();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+  
+  </script>
+  
+  <!--/radix_placeholder_distill-->
+  <script src="embeddings-fun-profit_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="embeddings-fun-profit_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="embeddings-fun-profit_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="embeddings-fun-profit_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Entity embeddings for fun and profit","description":"Embedding layers are not just useful when working with language data. As \"entity embeddings\", they've recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2018-11-26T00:00:00.000+01:00","citationText":"Keydana, 2018"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Entity embeddings for fun and profit</h1>
+<p>Embedding layers are not just useful when working with language data. As “entity embeddings”, they’ve recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect.</p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>11-26-2018
+</div>
+
+<div class="d-article">
+<p>What’s useful about embeddings? Depending on who you ask, answers may vary. For many, the most immediate association may be word vectors and their use in natural language processing (translation, summarization, question answering etc.) There, they are famous for modeling semantic and syntactic relationships, as exemplified by this diagram found in one of the most influential papers on word vectors<span class="citation" data-cites="MikolovSCCD13">(Mikolov et al. <a href="#ref-MikolovSCCD13">2013</a>)</span>:</p>
+<figure>
+<img src="images/mikolov.png" alt="Countries and their capital cities. Figure from (Mikolov et al. 2013)" class="external" style="width:100.0%" /><figcaption>Countries and their capital cities. Figure from <span class="citation" data-cites="MikolovSCCD13">(Mikolov et al. <a href="#ref-MikolovSCCD13">2013</a>)</span></figcaption>
+</figure>
+<p>Others will probably bring up <em>entity embeddings</em>, the magic tool that helped win the Rossmann competition<span class="citation" data-cites="GuoB16">(Guo and Berkhahn <a href="#ref-GuoB16">2016</a>)</span> and was greatly popularized by <a href="https://course.fast.ai/">fast.ai’s deep learning course</a>. Here, the idea is to make use of data that is not normally helpful in prediction, like high-dimensional categorical variables.</p>
+<p>Another (related) idea, also widely spread by fast.ai and explained in <a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/">this blog</a>, is to apply embeddings to collaborative filtering. This basically builds up entity embeddings of users and items based on the criterion how well these “match” (as indicated by existing ratings).</p>
+<p>So what are embeddings good for? The way we see it, embeddings are what you make of them. The goal in this post is to provide examples of how to use embeddings to uncover relationships and improve prediction. The examples are just that - examples, chosen to demonstrate a method. The most interesting thing really will be what you make of these methods in <em>your</em> area of work or interest.</p>
+<h2 id="embeddings-for-fun-picturing-relationships">Embeddings for fun (picturing relationships)</h2>
+<p>Our first example will stress the “fun” part, but also show how to technically deal with categorical variables in a dataset.</p>
+<p>We’ll take this year’s <a href="https://insights.stackoverflow.com/survey/2018">StackOverflow developer survey</a> as a basis and pick a few categorical variables that seem interesting - stuff like “what do people value in a job” and of course, what languages and OSes do people use. Don’t take this too seriously, it’s meant to be fun and demonstrate a method, that’s all.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+<h3 id="preparing-the-data">Preparing the data</h3>
+<p>Equipped with the libraries we’ll need:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(keras)
+library(purrr)
+library(forcats)
+library(ggrepel)</code></pre>
+</div>
+<p>We load the data and zoom in on a few categorical variables. Two of them we intend to use as targets: <code>EthicsChoice</code> and <code>JobSatisfaction</code>. <code>EthicsChoice</code> is one of four ethics-related questions and goes</p>
+<blockquote>
+<p>“Imagine that you were asked to write code for a purpose or product that you consider extremely unethical. Do you write the code anyway?”</p>
+</blockquote>
+<p>With questions like this, it’s never clear what portion of a response should be attributed to social desirability - this question seemed like the least prone to that, which is why we chose it.<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- read_csv(&quot;survey_results_public.csv&quot;)
+
+data &lt;- data %&gt;% select(
+  FormalEducation,
+  UndergradMajor,
+  starts_with(&quot;AssessJob&quot;),
+  EthicsChoice,
+  LanguageWorkedWith,
+  OperatingSystem,
+  EthicsChoice,
+  JobSatisfaction
+)
+
+data &lt;- data %&gt;% mutate_if(is.character, factor)</code></pre>
+</div>
+<p>The variables we are interested in show a tendency to have been left unanswered by quite a few respondents, so the easiest way to handle missing data here is to exclude the respective participants completely.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- na.omit(data)</code></pre>
+</div>
+<p>That leaves us with ~48,000 completed (as far as we’re concerned) questionnaires. Looking at the variables’ contents, we see we’ll have to do something with them before we can start training.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data %&gt;% glimpse()</code></pre>
+</div>
+<pre><code>
+Observations: 48,610
+Variables: 16
+$ FormalEducation    &lt;fct&gt; Bachelor’s degree (BA, BS, B.Eng., etc.),...
+$ UndergradMajor     &lt;fct&gt; Mathematics or statistics, A natural scie...
+$ AssessJob1         &lt;int&gt; 10, 1, 8, 8, 5, 6, 6, 6, 9, 7, 3, 1, 6, 7...
+$ AssessJob2         &lt;int&gt; 7, 7, 5, 5, 3, 5, 3, 9, 4, 4, 9, 7, 7, 10...
+$ AssessJob3         &lt;int&gt; 8, 10, 7, 4, 9, 4, 7, 2, 10, 10, 10, 6, 1...
+$ AssessJob4         &lt;int&gt; 1, 8, 1, 9, 4, 2, 4, 4, 3, 2, 6, 10, 4, 1...
+$ AssessJob5         &lt;int&gt; 2, 2, 2, 1, 1, 7, 1, 3, 1, 1, 8, 9, 2, 4,...
+$ AssessJob6         &lt;int&gt; 5, 5, 6, 3, 8, 8, 5, 5, 6, 5, 7, 4, 5, 5,...
+$ AssessJob7         &lt;int&gt; 3, 4, 4, 6, 2, 10, 10, 8, 5, 3, 1, 2, 3, ...
+$ AssessJob8         &lt;int&gt; 4, 3, 3, 2, 7, 1, 8, 7, 2, 6, 2, 3, 1, 3,...
+$ AssessJob9         &lt;int&gt; 9, 6, 10, 10, 10, 9, 9, 10, 7, 9, 4, 8, 9...
+$ AssessJob10        &lt;int&gt; 6, 9, 9, 7, 6, 3, 2, 1, 8, 8, 5, 5, 8, 9,...
+$ EthicsChoice       &lt;fct&gt; No, Depends on what it is, No, Depends on...
+$ LanguageWorkedWith &lt;fct&gt; JavaScript;Python;HTML;CSS, JavaScript;Py...
+$ OperatingSystem    &lt;fct&gt; Linux-based, Linux-based, Windows, Linux-...
+$ JobSatisfaction    &lt;fct&gt; Extremely satisfied, Moderately dissatisf...
+</code></pre>
+<h4 id="target-variables">Target variables</h4>
+<p>We want to binarize both target variables. Let’s inspect them, starting with <code>EthicsChoice</code>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+jslevels &lt;- levels(data$JobSatisfaction)
+elevels &lt;- levels(data$EthicsChoice)
+
+data &lt;- data %&gt;% mutate(
+  JobSatisfaction = JobSatisfaction %&gt;% fct_relevel(
+    jslevels[1],
+    jslevels[3],
+    jslevels[6],
+    jslevels[5],
+    jslevels[7],
+    jslevels[4],
+    jslevels[2]
+  ),
+  EthicsChoice = EthicsChoice %&gt;% fct_relevel(
+    elevels[2],
+    elevels[1],
+    elevels[3]
+  ) 
+)
+
+ggplot(data, aes(EthicsChoice)) + geom_bar()</code></pre>
+</div>
+<figure>
+<img src="images/ethicschoice.png" alt="Distribution of answers to: “Imagine that you were asked to write code for a purpose or product that you consider extremely unethical. Do you write the code anyway?”" style="width:100.0%" /><figcaption>Distribution of answers to: “Imagine that you were asked to write code for a purpose or product that you consider extremely unethical. Do you write the code anyway?”</figcaption>
+</figure>
+<p>You might agree that with a question containing the phrase <em>a purpose or product that you consider extremely unethical</em>, the answer “depends on what it is” feels closer to “yes” than to “no”. If that seems like too skeptical a thought, it’s still the only binarization that achieves a sensible split.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- data %&gt;% mutate(
+  EthicsChoice = if_else(as.numeric(EthicsChoice) == 2, 1, 0)
+  )</code></pre>
+</div>
+<p>Looking at our second target variable, <code>JobSatisfaction</code>:</p>
+<figure>
+<img src="images/jobsatisfaction.png" alt="Distribution of answers to: &quot;“How satisfied are you with your current job? If you work more than one job, please answer regarding the one you spend the most hours on.”" style="width:100.0%" /><figcaption>Distribution of answers to: &quot;“How satisfied are you with your current job? If you work more than one job, please answer regarding the one you spend the most hours on.”</figcaption>
+</figure>
+<p>We think that given the mode at “moderately satisfied”, a sensible way to binarize is a split into “moderately satisfied” and “extremely satisfied” on one side, all remaining options on the other:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- data %&gt;% mutate(
+  JobSatisfaction = if_else(as.numeric(JobSatisfaction) &gt; 5, 1, 0)
+  )</code></pre>
+</div>
+<h4 id="predictors">Predictors</h4>
+<p>Among the predictors, <code>FormalEducation</code>, <code>UndergradMajor</code> and <code>OperatingSystem</code> look pretty harmless - we already turned them into factors so it should be straightforward to one-hot-encode them. For curiosity’s sake, let’s look at how they’re distributed:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data %&gt;% group_by(FormalEducation) %&gt;%
+  summarise(count = n()) %&gt;%
+  arrange(desc(count))</code></pre>
+</div>
+<pre><code>
+  FormalEducation                                        count
+  &lt;fct&gt;                                                  &lt;int&gt;
+1 Bachelor’s degree (BA, BS, B.Eng., etc.)               25558
+2 Master’s degree (MA, MS, M.Eng., MBA, etc.)            12865
+3 Some college/university study without earning a degree  6474
+4 Associate degree                                        1595
+5 Other doctoral degree (Ph.D, Ed.D., etc.)               1395
+6 Professional degree (JD, MD, etc.)                       723</code></pre>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data %&gt;% group_by(UndergradMajor) %&gt;%
+  summarise(count = n()) %&gt;%
+  arrange(desc(count))</code></pre>
+</div>
+<pre><code>
+  UndergradMajor                                                  count
+   &lt;fct&gt;                                                           &lt;int&gt;
+ 1 Computer science, computer engineering, or software engineering 30931
+ 2 Another engineering discipline (ex. civil, electrical, mechani…  4179
+ 3 Information systems, information technology, or system adminis…  3953
+ 4 A natural science (ex. biology, chemistry, physics)              2046
+ 5 Mathematics or statistics                                        1853
+ 6 Web development or web design                                    1171
+ 7 A business discipline (ex. accounting, finance, marketing)       1166
+ 8 A humanities discipline (ex. literature, history, philosophy)    1104
+ 9 A social science (ex. anthropology, psychology, political scie…   888
+10 Fine arts or performing arts (ex. graphic design, music, studi…   791
+11 I never declared a major                                          398
+12 A health science (ex. nursing, pharmacy, radiology)               130</code></pre>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data %&gt;% group_by(OperatingSystem) %&gt;%
+  summarise(count = n()) %&gt;%
+  arrange(desc(count))</code></pre>
+</div>
+<pre><code>
+  OperatingSystem count
+  &lt;fct&gt;           &lt;int&gt;
+1 Windows         23470
+2 MacOS           14216
+3 Linux-based     10837
+4 BSD/Unix           87</code></pre>
+<p><code>LanguageWorkedWith</code>, on the other hand, contains sequences of programming languages, concatenated by semicolon. One way to unpack these is using Keras’ <code>text_tokenizer</code>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+language_tokenizer &lt;- text_tokenizer(split = &quot;;&quot;, filters = &quot;&quot;)
+language_tokenizer %&gt;% fit_text_tokenizer(data$LanguageWorkedWith)</code></pre>
+</div>
+<p>We have 38 languages overall. Actual usage counts aren’t too surprising:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data.frame(
+  name = language_tokenizer$word_counts %&gt;% names(),
+  count = language_tokenizer$word_counts %&gt;% unlist() %&gt;% unname()
+) %&gt;%
+ arrange(desc(count))</code></pre>
+</div>
+<pre><code>
+                   name count
+1            javascript 35224
+2                  html 33287
+3                   css 31744
+4                   sql 29217
+5                  java 21503
+6            bash/shell 20997
+7                python 18623
+8                    c# 17604
+9                   php 13843
+10                  c++ 10846
+11           typescript  9551
+12                    c  9297
+13                 ruby  5352
+14                swift  4014
+15                   go  3784
+16          objective-c  3651
+17               vb.net  3217
+18                    r  3049
+19             assembly  2699
+20               groovy  2541
+21                scala  2475
+22               matlab  2465
+23               kotlin  2305
+24                  vba  2298
+25                 perl  2164
+26       visual basic 6  1729
+27         coffeescript  1711
+28                  lua  1556
+29 delphi/object pascal  1174
+30                 rust  1132
+31              haskell  1058
+32                   f#   764
+33              clojure   696
+34               erlang   560
+35                cobol   317
+36                ocaml   216
+37                julia   215
+38                 hack    94</code></pre>
+<p>Now <code>language_tokenizer</code> will nicely create a one-hot representation of the multiple-choice column.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+langs &lt;- language_tokenizer %&gt;%
+  texts_to_matrix(data$LanguageWorkedWith, mode = &quot;count&quot;)
+langs[1:3, ]</code></pre>
+</div>
+<pre><code>
+&gt; langs[1:3, ]
+     [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13] [,14] [,15] [,16] [,17] [,18] [,19] [,20] [,21]
+[1,]    0    1    1    1    0    0    0    1    0     0     0     0     0     0     0     0     0     0     0     0     0
+[2,]    0    1    0    0    0    0    1    1    0     0     0     0     0     0     0     0     0     0     0     0     0
+[3,]    0    0    0    0    1    1    1    0    0     0     1     0     1     0     0     0     0     0     1     0     0
+     [,22] [,23] [,24] [,25] [,26] [,27] [,28] [,29] [,30] [,31] [,32] [,33] [,34] [,35] [,36] [,37] [,38] [,39]
+[1,]     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0
+[2,]     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0
+[3,]     0     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0     0</code></pre>
+<p>We can simply append these columns to the dataframe (and do a little cleanup):</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- data %&gt;% cbind(langs[, 2:39]) # the very first column is not useful
+data &lt;- data %&gt;% rename_at(vars(`1`:`38`), funs(paste0(language_tokenizer$index_word[as.integer(.)])))
+data &lt;- data %&gt;% select(-LanguageWorkedWith)</code></pre>
+</div>
+<p>We still have the <code>AssessJob[n]</code> columns to deal with. Here, StackOverflow had people rank what’s important to them about a job. These are the features that were to be ranked:</p>
+<blockquote>
+<p>The industry that I’d be working in</p>
+</blockquote>
+<blockquote>
+<p>The financial performance or funding status of the company or organization</p>
+</blockquote>
+<blockquote>
+<p>The specific department or team I’d be working on</p>
+</blockquote>
+<blockquote>
+<p>The languages, frameworks, and other technologies I’d be working with</p>
+</blockquote>
+<blockquote>
+<p>The compensation and benefits offered</p>
+</blockquote>
+<blockquote>
+<p>The office environment or company culture</p>
+</blockquote>
+<blockquote>
+<p>The opportunity to work from home/remotely</p>
+</blockquote>
+<blockquote>
+<p>Opportunities for professional development</p>
+</blockquote>
+<blockquote>
+<p>The diversity of the company or organization</p>
+</blockquote>
+<blockquote>
+<p>How widely used or impactful the product or service I’d be working on is</p>
+</blockquote>
+<p>Columns <code>AssessJob1</code> to <code>AssessJob10</code> contain the respective ranks, that is, values between 1 and 10.</p>
+<p>Based on introspection about the cognitive effort to actually establish an order among 10 items, we decided to pull out the three top-ranked features per person and treat them as equal. Technically, a first step extracts and concatenate these, yielding an intermediary result of e.g.</p>
+<pre><code>
+$ job_vals&lt;fct&gt; languages_frameworks;compensation;remote, industry;compensation;development, languages_frameworks;compensation;development</code></pre>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data &lt;- data %&gt;% mutate(
+  val_1 = if_else(
+   AssessJob1 == 1, &quot;industry&quot;, if_else(
+    AssessJob2 == 1, &quot;company_financial_status&quot;, if_else(
+      AssessJob3 == 1, &quot;department&quot;, if_else(
+        AssessJob4 == 1, &quot;languages_frameworks&quot;, if_else(
+          AssessJob5 == 1, &quot;compensation&quot;, if_else(
+            AssessJob6 == 1, &quot;company_culture&quot;, if_else(
+              AssessJob7 == 1, &quot;remote&quot;, if_else(
+                AssessJob8 == 1, &quot;development&quot;, if_else(
+                  AssessJob10 == 1, &quot;diversity&quot;, &quot;impact&quot;))))))))),
+  val_2 = if_else(
+    AssessJob1 == 2, &quot;industry&quot;, if_else(
+      AssessJob2 == 2, &quot;company_financial_status&quot;, if_else(
+        AssessJob3 == 2, &quot;department&quot;, if_else(
+          AssessJob4 == 2, &quot;languages_frameworks&quot;, if_else(
+            AssessJob5 == 2, &quot;compensation&quot;, if_else(
+              AssessJob6 == 2, &quot;company_culture&quot;, if_else(
+                AssessJob7 == 1, &quot;remote&quot;, if_else(
+                  AssessJob8 == 1, &quot;development&quot;, if_else(
+                    AssessJob10 == 1, &quot;diversity&quot;, &quot;impact&quot;))))))))),
+  val_3 = if_else(
+    AssessJob1 == 3, &quot;industry&quot;, if_else(
+      AssessJob2 == 3, &quot;company_financial_status&quot;, if_else(
+        AssessJob3 == 3, &quot;department&quot;, if_else(
+          AssessJob4 == 3, &quot;languages_frameworks&quot;, if_else(
+            AssessJob5 == 3, &quot;compensation&quot;, if_else(
+              AssessJob6 == 3, &quot;company_culture&quot;, if_else(
+                AssessJob7 == 3, &quot;remote&quot;, if_else(
+                  AssessJob8 == 3, &quot;development&quot;, if_else(
+                    AssessJob10 == 3, &quot;diversity&quot;, &quot;impact&quot;)))))))))
+  )
+
+data &lt;- data %&gt;% mutate(
+  job_vals = paste(val_1, val_2, val_3, sep = &quot;;&quot;) %&gt;% factor()
+)
+
+data &lt;- data %&gt;% select(
+  -c(starts_with(&quot;AssessJob&quot;), starts_with(&quot;val_&quot;))
+)</code></pre>
+</div>
+<p>Now that column looks exactly like <code>LanguageWorkedWith</code> looked before, so we can use the same method as above to produce a one-hot-encoded version.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+values_tokenizer &lt;- text_tokenizer(split = &quot;;&quot;, filters = &quot;&quot;)
+values_tokenizer %&gt;% fit_text_tokenizer(data$job_vals)</code></pre>
+</div>
+<p>So what actually do respondents value most?</p>
+<pre><code>
+                      name count
+1              compensation 27020
+2      languages_frameworks 24216
+3           company_culture 20432
+4               development 15981
+5                    impact 14869
+6                department 10452
+7                    remote 10396
+8                  industry  8294
+9                 diversity  7594
+10 company_financial_status  6576</code></pre>
+<p>Using the same method as above</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+job_values &lt;- values_tokenizer %&gt;% texts_to_matrix(data$job_vals, mode = &quot;count&quot;)
+data &lt;- data %&gt;% cbind(job_values[, 2:11])
+data &lt;- data %&gt;% rename_at(vars(`1`:`10`), funs(paste0(values_tokenizer$index_word[as.integer(.)])))
+data &lt;- data %&gt;% select(-job_vals)
+data %&gt;% glimpse()</code></pre>
+</div>
+<p>we end up with a dataset that looks like this</p>
+<pre><code>
+&gt; data %&gt;% glimpse()
+Observations: 48,610
+Variables: 53
+$ FormalEducation          &lt;fct&gt; Bachelor’s degree (BA, BS, B.Eng., etc.), Bach...
+$ UndergradMajor           &lt;fct&gt; Mathematics or statistics, A natural science (...
+$ OperatingSystem          &lt;fct&gt; Linux-based, Linux-based, Windows, Linux-based...
+$ JS                       &lt;dbl&gt; 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0...
+$ EC                       &lt;dbl&gt; 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0...
+$ javascript               &lt;dbl&gt; 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1...
+$ html                     &lt;dbl&gt; 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1...
+$ css                      &lt;dbl&gt; 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1...
+$ sql                      &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1...
+$ java                     &lt;dbl&gt; 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1...
+$ `bash/shell`             &lt;dbl&gt; 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1...
+$ python                   &lt;dbl&gt; 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0...
+$ `c#`                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0...
+$ php                      &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1...
+$ `c++`                    &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0...
+$ typescript               &lt;dbl&gt; 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1...
+$ c                        &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0...
+$ ruby                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ swift                    &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1...
+$ go                       &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0...
+$ `objective-c`            &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ vb.net                   &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ r                        &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ assembly                 &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ groovy                   &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ scala                    &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ matlab                   &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ kotlin                   &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ vba                      &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ perl                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ `visual basic 6`         &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ coffeescript             &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ lua                      &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ `delphi/object pascal`   &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ rust                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ haskell                  &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ `f#`                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ clojure                  &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ erlang                   &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ cobol                    &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ ocaml                    &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ julia                    &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ hack                     &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ compensation             &lt;dbl&gt; 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0...
+$ languages_frameworks     &lt;dbl&gt; 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0...
+$ company_culture          &lt;dbl&gt; 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0...
+$ development              &lt;dbl&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0...
+$ impact                   &lt;dbl&gt; 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1...
+$ department               &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0...
+$ remote                   &lt;dbl&gt; 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0...
+$ industry                 &lt;dbl&gt; 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1...
+$ diversity                &lt;dbl&gt; 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0...
+$ company_financial_status &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1...</code></pre>
+<p>which we further reduce to a design matrix <code>X</code> removing the binarized target variables</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+X &lt;- data %&gt;% select(-c(JobSatisfaction, EthicsChoice))</code></pre>
+</div>
+<p>From here on, different actions will ensue depending on whether we choose the road of working with a one-hot model or an embeddings model of the predictors.</p>
+<p>There is one other thing though to be done before: We want to work with the same train-test split in both cases.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_indices &lt;- sample(1:nrow(X), 0.8 * nrow(X))</code></pre>
+</div>
+<h3 id="one-hot-model">One-hot model</h3>
+<p>Given this is a post about embeddings, why show a one-hot model? First, for instructional reasons - you don’t see many of examples of deep learning on categorical data in the wild. Second, … but we’ll turn to that after having shown both models.</p>
+<p>For the one-hot model, all that remains to be done is using Keras’ <code>to_categorical</code> on the three remaining variables that are not yet in one-hot form.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+X_one_hot &lt;- X %&gt;% map_if(is.factor, ~ as.integer(.x) - 1) %&gt;%
+  map_at(&quot;FormalEducation&quot;, ~ to_categorical(.x) %&gt;% 
+           array_reshape(c(length(.x), length(levels(data$FormalEducation))))) %&gt;%
+  map_at(&quot;UndergradMajor&quot;, ~ to_categorical(.x) %&gt;% 
+           array_reshape(c(length(.x), length(levels(data$UndergradMajor))))) %&gt;%
+  map_at(&quot;OperatingSystem&quot;, ~ to_categorical(.x) %&gt;%
+           array_reshape(c(length(.x), length(levels(data$OperatingSystem))))) %&gt;%
+  abind::abind(along = 2)</code></pre>
+</div>
+<p>We divide up our dataset into train and validation parts</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+x_train &lt;- X_one_hot[train_indices, ] %&gt;% as.matrix()
+x_valid &lt;- X_one_hot[-train_indices, ] %&gt;% as.matrix()
+y_train &lt;- data$EthicsChoice[train_indices] %&gt;% as.matrix()
+y_valid &lt;- data$EthicsChoice[-train_indices] %&gt;% as.matrix()</code></pre>
+</div>
+<p>and define a pretty straightforward MLP.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;selu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;selu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;selu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;selu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)
+
+model %&gt;% compile(
+  loss = &quot;binary_crossentropy&quot;,
+  optimizer = &quot;adam&quot;,
+  metrics = &quot;accuracy&quot;
+  )</code></pre>
+</div>
+<p>Training this model:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+history &lt;- model %&gt;% fit(
+  x_train,
+  y_train,
+  validation_data = list(x_valid, y_valid),
+  epochs = 20,
+  batch_size = 100
+)
+
+plot(history)</code></pre>
+</div>
+<p>…results in an accuracy on the validation set of 0.64 - not an impressive number per se, but interesting given the small amount of predictors and the choice of target variable.<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
+<p><img src="images/so_one_hot.png" style="width:100.0%" /></p>
+<h3 id="embeddings-model">Embeddings model</h3>
+<p>In the embeddings model, we don’t need to use <code>to_categorical</code> on the remaining factors, as embedding layers can work with integer input data. We thus just convert the factors to integers:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+X_embed &lt;- X %&gt;%
+  mutate_if(is.factor, compose(partial(`-`, 1, .first = FALSE), as.integer))</code></pre>
+</div>
+<p>Now for the model. Effectively we have five groups of entities here: formal education, undergrad major, operating system, languages worked with, and highest-counting values with respect to jobs. Each of these groups get embedded separately, so we need to use the Keras functional API and declare five different inputs.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+input_fe &lt;- layer_input(shape = 1)        # formal education, encoded as integer
+input_um &lt;- layer_input(shape = 1)        # undergrad major, encoded as integer
+input_os &lt;- layer_input(shape = 1)        # operating system, encoded as integer
+input_langs &lt;- layer_input(shape = 38)    # languages worked with, multi-hot-encoded
+input_vals &lt;- layer_input(shape = 10)     # values, multi-hot-encoded</code></pre>
+</div>
+<p>Having embedded them separately, we concatenate the outputs for further common processing.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+concat &lt;- layer_concatenate(
+  list(
+    input_fe %&gt;%
+      layer_embedding(
+        input_dim = length(levels(data$FormalEducation)),
+        output_dim = 64,
+        name = &quot;fe&quot;
+      ) %&gt;%
+      layer_flatten(),
+    input_um %&gt;%
+      layer_embedding(
+        input_dim = length(levels(data$UndergradMajor)),
+        output_dim = 64,
+        name = &quot;um&quot;
+      ) %&gt;%
+      layer_flatten(),
+    input_os %&gt;%
+      layer_embedding(
+        input_dim = length(levels(data$OperatingSystem)),
+        output_dim = 64,
+        name = &quot;os&quot;
+      ) %&gt;%
+      layer_flatten(),
+    input_langs %&gt;%
+       layer_embedding(input_dim = 38, output_dim = 256,
+                       name = &quot;langs&quot;)%&gt;%
+       layer_flatten(),
+    input_vals %&gt;%
+      layer_embedding(input_dim = 10, output_dim = 128,
+                      name = &quot;vals&quot;)%&gt;%
+      layer_flatten()
+  )
+)
+
+output &lt;- concat %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;relu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;relu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;relu&quot;
+  ) %&gt;%
+  layer_dense(
+    units = 128,
+    activation = &quot;relu&quot;
+  ) %&gt;%
+  layer_dropout(0.5) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+</div>
+<p>So there go model definition and compilation:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model(list(input_fe, input_um, input_os, input_langs, input_vals), output)
+
+model %&gt;% compile(
+  loss = &quot;binary_crossentropy&quot;,
+  optimizer = &quot;adam&quot;,
+  metrics = &quot;accuracy&quot;
+  )</code></pre>
+</div>
+<p>Now to pass the data to the model, we need to chop it up into ranges of columns matching the inputs.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+y_train &lt;- data$EthicsChoice[train_indices] %&gt;% as.matrix()
+y_valid &lt;- data$EthicsChoice[-train_indices] %&gt;% as.matrix()
+
+x_train &lt;-
+  list(
+    X_embed[train_indices, 1, drop = FALSE] %&gt;% as.matrix() ,
+    X_embed[train_indices , 2, drop = FALSE] %&gt;% as.matrix(),
+    X_embed[train_indices , 3, drop = FALSE] %&gt;% as.matrix(),
+    X_embed[train_indices , 4:41, drop = FALSE] %&gt;% as.matrix(),
+    X_embed[train_indices , 42:51, drop = FALSE] %&gt;% as.matrix()
+  )
+x_valid &lt;- list(
+  X_embed[-train_indices, 1, drop = FALSE] %&gt;% as.matrix() ,
+  X_embed[-train_indices , 2, drop = FALSE] %&gt;% as.matrix(),
+  X_embed[-train_indices , 3, drop = FALSE] %&gt;% as.matrix(),
+  X_embed[-train_indices , 4:41, drop = FALSE] %&gt;% as.matrix(),
+  X_embed[-train_indices , 42:51, drop = FALSE] %&gt;% as.matrix()
+)</code></pre>
+</div>
+<p>And we’re ready to train.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% fit(
+  x_train,
+  y_train,
+  validation_data = list(x_valid, y_valid),
+  epochs = 20,
+  batch_size = 100
+)</code></pre>
+</div>
+<p>Using the same train-test split as before, this results in an accuracy of … ~0.64 (just as before). Now we said from the start that using embeddings could serve different purposes, and that in this first use case, we wanted to demonstrate their use for extracting latent relationships. And in any case you could argue that the task is too hard - probably there just is not much of a relationship between the predictors we chose and the target.</p>
+<p>But this also warrants a more general comment. With all current enthusiasm about using embeddings on tabular data, we are not aware of any systematic comparisons with one-hot-encoded data as regards the actual effect on performance, nor do we know of systematic analyses under what circumstances embeddings will probably be of help. Our working hypothesis is that in the setup we chose, the dimensionality of the original data is so low that the information can simply be encoded “as is” by the network - as long as we create it with sufficient capacity. Our second use case will therefore use data where - hopefully - this won’t be the case.</p>
+<p>But before, let’s get to the main purpose of this use case: How can we extract those latent relationships from the network?</p>
+<h4 id="extracting-relationships-from-the-learned-embeddings">Extracting relationships from the learned embeddings</h4>
+<p>We’ll show the code here for the <em>job values</em> embeddings, - it is directly transferable to the other ones. <em>The embeddings</em>, that’s just the weight matrix of the respective layer, of dimension <code>number of different values</code> times <code>embedding size</code>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+emb_vals &lt;- (model$get_layer(&quot;vals&quot;) %&gt;% get_weights())[[1]]
+emb_vals %&gt;% dim() # 10x128</code></pre>
+</div>
+<p>We can then perform dimensionality reduction on the raw values, e.g., PCA</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+pca &lt;- prcomp(emb_vals, center = TRUE, scale. = TRUE, rank = 2)$x[, c(&quot;PC1&quot;, &quot;PC2&quot;)]</code></pre>
+</div>
+<p>and plot the results.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+pca %&gt;%
+  as.data.frame() %&gt;%
+  mutate(class = attr(values_tokenizer$word_index, &quot;names&quot;)) %&gt;%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_label_repel(aes(label = class))</code></pre>
+</div>
+<p>This is what we get (displaying four of the five variables we used embeddings on):</p>
+<figure>
+<img src="images/out.png" alt="Two first principal components of the embeddings for undergrad major (top left), operating system (top right), programming language used (bottom left), and primary values with respect to jobs (bottom right)" style="width:100.0%" /><figcaption>Two first principal components of the embeddings for undergrad major (top left), operating system (top right), programming language used (bottom left), and primary values with respect to jobs (bottom right)</figcaption>
+</figure>
+<p>Now we’ll definitely refrain from taking this too seriously, given the modest accuracy on the prediction task that lead to these embedding matrices.<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> Certainly when assessing the obtained factorization, performance on the main task has to be taken into account.</p>
+<p>But we’d like to point out something else too: In contrast to unsupervised and semi-supervised techniques like PCA or autoencoders, we made use of an extraneous variable (the ethical behavior to be predicted). So any learned relationships are never “absolute”, but always to be seen in relation to the way they were learned. This is why we chose an additional target variable, <code>JobSatisfaction</code>, so we could compare the embeddings learned on two different tasks. We won’t refer the concrete results here as accuracy turned out to be even lower than with <code>EthicsChoice</code>. We do, however, want to stress this inherent difference to representations learned by, e.g., autoencoders.</p>
+<p>Now let’s address the second use case.</p>
+<h2 id="embedding-for-profit-improving-accuracy">Embedding for profit (improving accuracy)</h2>
+<p>Our second task here is about fraud detection. The dataset is contained in the <code>DMwR2</code> package and is called <code>sales</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+data(sales, package = &quot;DMwR2&quot;)
+sales</code></pre>
+</div>
+<pre><code>
+# A tibble: 401,146 x 5
+   ID    Prod  Quant   Val Insp 
+   &lt;fct&gt; &lt;fct&gt; &lt;int&gt; &lt;dbl&gt; &lt;fct&gt;
+ 1 v1    p1      182  1665 unkn 
+ 2 v2    p1     3072  8780 unkn 
+ 3 v3    p1    20393 76990 unkn 
+ 4 v4    p1      112  1100 unkn 
+ 5 v3    p1     6164 20260 unkn 
+ 6 v5    p2      104  1155 unkn 
+ 7 v6    p2      350  5680 unkn 
+ 8 v7    p2      200  4010 unkn 
+ 9 v8    p2      233  2855 unkn 
+10 v9    p2      118  1175 unkn 
+# ... with 401,136 more rows</code></pre>
+<p>Each row indicates a transaction reported by a salesperson, - <code>ID</code> being the salesperson ID, <code>Prod</code> a product ID, <code>Quant</code> the quantity sold, <code>Val</code> the amount of money it was sold for, and <code>Insp</code> indicating one of three possibilities: (1) the transaction was examined and found fraudulent, (2) it was examined and found okay, and (3) it has not been examined (the vast majority of cases).</p>
+<p>While this dataset “cries” for semi-supervised techniques (to make use of the overwhelming amount of unlabeled data), we want to see if using embeddings can help us improve accuracy on a supervised task.</p>
+<p>We thus recklessly throw away incomplete data as well as all unlabeled entries</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+sales &lt;- filter(sales, !(is.na(Quant)))
+sales &lt;- filter(sales, !(is.na(Val)))
+
+sales &lt;- droplevels(sales %&gt;% filter(Insp != &quot;unkn&quot;))
+nrow(sales)</code></pre>
+</div>
+<p>which leaves us with 15546 transactions.</p>
+<h3 id="one-hot-model-1">One-hot model</h3>
+<p>Now we prepare the data for the one-hot model we want to compare against:</p>
+<ul>
+<li>With 2821 levels, salesperson <code>ID</code> is far too high-dimensional to work well with one-hot encoding, so we completely drop that column.</li>
+<li>Product id (<code>Prod</code>) has “just” 797 levels, but with one-hot-encoding, that still results in significant memory demand. We thus zoom in on the 500 top-sellers.</li>
+<li>The continuous variables <code>Quant</code> and <code>Val</code> are normalized to values between 0 and 1 so they fit with the one-hot-encoded <code>Prod</code>.</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+sales_1hot &lt;- sales
+
+normalize &lt;- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+top_n &lt;- 500
+top_prods &lt;- sales_1hot %&gt;% 
+  group_by(Prod) %&gt;% 
+  summarise(cnt = n()) %&gt;% 
+  arrange(desc(cnt)) %&gt;%
+  head(top_n) %&gt;%
+  select(Prod) %&gt;%
+  pull()
+sales_1hot &lt;- droplevels(sales_1hot %&gt;% filter(Prod %in% top_prods))
+
+sales_1hot &lt;- sales_1hot %&gt;%
+  select(-ID) %&gt;%
+  map_if(is.factor, ~ as.integer(.x) - 1) %&gt;%
+  map_at(&quot;Prod&quot;, ~ to_categorical(.x) %&gt;% array_reshape(c(length(.x), top_n))) %&gt;%
+  map_at(&quot;Quant&quot;, ~ normalize(.x) %&gt;% array_reshape(c(length(.x), 1))) %&gt;%
+  map_at(&quot;Val&quot;, ~ normalize(.x) %&gt;% array_reshape(c(length(.x), 1))) %&gt;%
+  abind(along = 2)</code></pre>
+</div>
+<p>We then perform the usual train-test split.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_indices &lt;- sample(1:nrow(sales_1hot), 0.7 * nrow(sales_1hot))
+
+X_train &lt;- sales_1hot[train_indices, 1:502] 
+y_train &lt;-  sales_1hot[train_indices, 503] %&gt;% as.matrix()
+
+X_valid &lt;- sales_1hot[-train_indices, 1:502] 
+y_valid &lt;-  sales_1hot[-train_indices, 503] %&gt;% as.matrix()</code></pre>
+</div>
+<p>For classification on this dataset, which will be the baseline to beat?</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+xtab_train  &lt;- y_train %&gt;% table()
+xtab_valid  &lt;- y_valid %&gt;% table()
+list(xtab_train[1]/(xtab_train[1] + xtab_train[2]), xtab_valid[1]/(xtab_valid[1] + xtab_valid[2]))</code></pre>
+</div>
+<pre><code>
+[[1]]
+        0 
+0.9393547 
+
+[[2]]
+        0 
+0.9384437 </code></pre>
+<p>So if we don’t get beyond 94% accuracy on both training and validation sets, we may just as well predict “okay” for every transaction.</p>
+<p>Here then is the model, plus the training routine and evaluation:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)
+
+model %&gt;% compile(loss = &quot;binary_crossentropy&quot;, optimizer = &quot;adam&quot;, metrics = c(&quot;accuracy&quot;))
+
+model %&gt;% fit(
+  X_train,
+  y_train,
+  validation_data = list(X_valid, y_valid),
+  class_weights = list(&quot;0&quot; = 0.1, &quot;1&quot; = 0.9),
+  batch_size = 128,
+  epochs = 200
+)
+
+model %&gt;% evaluate(X_train, y_train, batch_size = 100) 
+model %&gt;% evaluate(X_valid, y_valid, batch_size = 100) </code></pre>
+</div>
+<p>This model achieved optimal validation accuracy at a dropout rate of 0.2. At that rate, training accuracy was <code>0.9761</code>, and validation accuracy was <code>0.9507</code>. At all dropout rates lower than 0.7, validation accuracy did indeed surpass the majority vote baseline.</p>
+<p>Can we further improve performance by embedding the product id?</p>
+<h3 id="embeddings-model-1">Embeddings model</h3>
+<p>For better comparability, we again discard salesperson information and cap the number of different products at 500. Otherwise, data preparation goes as expected for this model:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+sales_embed &lt;- sales
+
+top_prods &lt;- sales_embed %&gt;% 
+  group_by(Prod) %&gt;% 
+  summarise(cnt = n()) %&gt;% 
+  arrange(desc(cnt)) %&gt;% 
+  head(top_n) %&gt;% 
+  select(Prod) %&gt;% 
+  pull()
+
+sales_embed &lt;- droplevels(sales_embed %&gt;% filter(Prod %in% top_prods))
+
+sales_embed &lt;- sales_embed %&gt;%
+  select(-ID) %&gt;%
+  mutate_if(is.factor, ~ as.integer(.x) - 1) %&gt;%
+  mutate(Quant = scale(Quant)) %&gt;%
+  mutate(Val = scale(Val))
+
+X_train &lt;- sales_embed[train_indices, 1:3] %&gt;% as.matrix()
+y_train &lt;-  sales_embed[train_indices, 4] %&gt;% as.matrix()
+
+X_valid &lt;- sales_embed[-train_indices, 1:3] %&gt;% as.matrix()
+y_valid &lt;-  sales_embed[-train_indices, 4] %&gt;% as.matrix()</code></pre>
+</div>
+<p>The model we define is as similar as possible to the one-hot alternative:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+prod_input &lt;- layer_input(shape = 1)
+cont_input &lt;- layer_input(shape = 2)
+
+prod_embed &lt;- prod_input %&gt;% 
+  layer_embedding(input_dim = sales_embed$Prod %&gt;% max() + 1,
+                  output_dim = 256
+                  ) %&gt;%
+  layer_flatten()
+cont_dense &lt;- cont_input %&gt;% layer_dense(units = 256, activation = &quot;selu&quot;)
+
+output &lt;- layer_concatenate(
+  list(prod_embed, cont_dense)) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 256, activation = &quot;selu&quot;) %&gt;%
+  layer_dropout(dropout_rate) %&gt;% 
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)
+  
+model &lt;- keras_model(inputs = list(prod_input, cont_input), outputs = output)
+
+model %&gt;% compile(loss = &quot;binary_crossentropy&quot;, optimizer = &quot;adam&quot;, metrics = &quot;accuracy&quot;)
+
+model %&gt;% fit(
+  list(X_train[ , 1], X_train[ , 2:3]),
+  y_train,
+  validation_data = list(list(X_valid[ , 1], X_valid[ , 2:3]), y_valid),
+  class_weights = list(&quot;0&quot; = 0.1, &quot;1&quot; = 0.9),
+  batch_size = 128,
+  epochs = 200
+)
+
+model %&gt;% evaluate(list(X_train[ , 1], X_train[ , 2:3]), y_train) 
+model %&gt;% evaluate(list(X_valid[ , 1], X_valid[ , 2:3]), y_valid)        </code></pre>
+</div>
+<p>This time, accuracies are in fact higher: At the optimal dropout rate (0.3 in this case), training resp. validation accuracy are at <code>0.9913</code> and <code>0.9666</code>, respectively. Quite a difference!</p>
+<p>So why did we choose this dataset? In contrast to our previous dataset, here the categorical variable is high-dimensional, so well suited for compression and densification. It is interesting that we can make such good use of an ID without knowing what it stands for!</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>In this post, we’ve shown two use cases of embeddings in “simple” tabular data. As stated in the introduction, to us, embeddings are <em>what you make of them</em>. In that vein, if you’ve used embeddings to accomplish things that mattered to your task at hand, please comment and tell us about it!</p>
+<div id="refs" class="references">
+<div id="ref-GuoB16">
+<p>Guo, Cheng, and Felix Berkhahn. 2016. “Entity Embeddings of Categorical Variables.” <em>CoRR</em> abs/1604.06737. <a href="http://arxiv.org/abs/1604.06737">http://arxiv.org/abs/1604.06737</a>.</p>
+</div>
+<div id="ref-MikolovSCCD13">
+<p>Mikolov, Tomas, Ilya Sutskever, Kai Chen, Greg Corrado, and Jeffrey Dean. 2013. “Distributed Representations of Words and Phrases and Their Compositionality.” <em>CoRR</em> abs/1310.4546. <a href="http://arxiv.org/abs/1310.4546">http://arxiv.org/abs/1310.4546</a>.</p>
+</div>
+</div>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>We did think it prudent though to omit variables like <em>country</em>, <em>ethnicity</em> or <em>gender</em>.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>at least given the way we binarized answers (more on that soon)<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>As usual when not working with one the “flagship areas” of deep learning, comparisons against other machine learning methods would be interesting. We did, however, not want to further elongate the post, nor distract from its main focus, namely, the use of embeddings with categorical data.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>No, no, of course we’re not implying that for programming languages, the second principal component, with R and assembly at its extremes, stands for high-level vs. low-level language here.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<script id="distill-bibliography" type="text/bibtex">
+@article{MikolovSCCD13,
+  author    = {Tomas Mikolov and
+               Ilya Sutskever and
+               Kai Chen and
+               Greg Corrado and
+               Jeffrey Dean},
+  title     = {Distributed Representations of Words and Phrases and their Compositionality},
+  journal   = {CoRR},
+  volume    = {abs/1310.4546},
+  year      = {2013},
+  url       = {http://arxiv.org/abs/1310.4546},
+  archivePrefix = {arXiv},
+  eprint    = {1310.4546},
+  timestamp = {Mon, 13 Aug 2018 16:47:09 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/MikolovSCCD13},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{GuoB16,
+  author    = {Cheng Guo and
+               Felix Berkhahn},
+  title     = {Entity Embeddings of Categorical Variables},
+  journal   = {CoRR},
+  volume    = {abs/1604.06737},
+  year      = {2016},
+  url       = {http://arxiv.org/abs/1604.06737},
+  archivePrefix = {arXiv},
+  eprint    = {1604.06737},
+  timestamp = {Mon, 13 Aug 2018 16:49:04 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/GuoB16},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

@@ -938,7 +938,7 @@
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"You sure? A Bayesian approach to obtaining uncertainty estimates from neural networks","description":"In deep learning, there is no obvious way of obtaining uncertainty estimates. In 2016, Gal and Ghahramani proposed a method that is both theoretically grounded and practical: use dropout at test time. In this post, we introduce a refined version of this method (Gal et al. 2017) that has the network itself learn how uncertain it is.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2018-11-12T00:00:00.000-05:00","citationText":"Keydana, 2018"}
+{"title":"You sure? A Bayesian approach to obtaining uncertainty estimates from neural networks","description":"In deep learning, there is no obvious way of obtaining uncertainty estimates. In 2016, Gal and Ghahramani proposed a method that is both theoretically grounded and practical: use dropout at test time. In this post, we introduce a refined version of this method (Gal et al. 2017) that has the network itself learn how uncertain it is.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2018-11-12T00:00:00.000+01:00","citationText":"Keydana, 2018"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -1186,7 +1186,7 @@ model &lt;- keras_model(input, output)</code></pre>
 <pre class="r"><code>
 heteroscedastic_loss &lt;- function(y_true, y_pred) {
     mean &lt;- y_pred[, 1:output_dim]
-    log_var &lt;- y_pred[, (output_dim + 1):-1]
+    log_var &lt;- y_pred[, (output_dim + 1):(output_dim * 2)]
     precision &lt;- k_exp(-log_var)
     k_sum(precision * (y_true - mean) ^ 2 + log_var, axis = 2)
   }</code></pre>
@@ -1217,8 +1217,8 @@ model %&gt;% compile(
 )
 
 history &lt;- model %&gt;% fit(
-  X,
-  Y,
+  X_train,
+  Y_train,
   epochs = 30,
   batch_size = 10
 )</code></pre>
@@ -1253,7 +1253,7 @@ epistemic_uncertainty &lt;- apply(means, 2, var) </code></pre>
 <p>Then aleatoric uncertainty is the average over the MC samples of the <em>variance</em> output.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
-logvar &lt;- MC_samples[, , (output_dim + 1):dim(MC_samples)[3]]
+logvar &lt;- MC_samples[, , (output_dim + 1):(output_dim * 2)]
 aleatoric_uncertainty &lt;- exp(colMeans(logvar))</code></pre>
 </div>
 <p>Note how this procedure gives us uncertainty estimates individually for every prediction. How do they look?</p>
@@ -1382,7 +1382,7 @@ get_model &lt;- function(input_dim, hidden_dim) {
   
   heteroscedastic_loss &lt;- function(y_true, y_pred) {
     mean &lt;- y_pred[, 1:output_dim]
-    log_var &lt;- y_pred[, (output_dim + 1):-1]
+    log_var &lt;- y_pred[, (output_dim + 1):(output_dim * 2)]
     precision &lt;- k_exp(-log_var)
     k_sum(precision * (y_true - mean) ^ 2 + log_var, axis = 2)
   }
@@ -1414,7 +1414,7 @@ for (k in 1:num_MC_samples) {
 means &lt;- MC_samples[, , 1:output_dim]  
 predictive_mean &lt;- apply(means, 2, mean) 
 epistemic_uncertainty &lt;- apply(means, 2, var) 
-logvar &lt;- MC_samples[, , (output_dim + 1):dim(MC_samples)[3]]
+logvar &lt;- MC_samples[, , (output_dim + 1):(output_dim * 2)]
 aleatoric_uncertainty &lt;- exp(colMeans(logvar))
 
 preds &lt;- data.frame(

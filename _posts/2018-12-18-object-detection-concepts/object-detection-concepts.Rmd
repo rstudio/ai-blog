@@ -299,7 +299,7 @@ dev.off()
 print(img)
 ```
 
-![](images/img_wgrid.png)
+![](images/img_wgrid.jpeg)
 
 Now it's time to address the possibly greatest mystery when you're new to object detection: How do you actually construct the ground truth input to the network?
 
@@ -856,4 +856,445 @@ bbox_loss <- function(y_true, y_pred) {
 }
 
 ```
+
+# Training
+
+Above, we've already defined the model but we still need to freeze the feature detector's weights and compile it.
+
+```{r}
+model %>% freeze_weights()
+model %>% unfreeze_weights(from = "head_conv1")
+model
+```
+
+```{r}
+model %>% compile(
+  loss = list(class_loss, bbox_loss),
+  optimizer = "adam",
+  metrics = list(
+    class_output = custom_metric("class_loss", metric_fn = class_loss),
+    bbox_output = custom_metric("bbox_loss", metric_fn = bbox_loss)
+  )
+)
+```
+
+
+And we're ready to train. Training this model is very time consuming, such that for applications "in the real world", we might want to do optimize the program for memory consumption and runtime.
+Like we said above, in this post we're really focusing on understanding the approach.
+
+```{r}
+steps_per_epoch <- nrow(imageinfo4ssd) / batch_size
+
+model %>% fit_generator(
+  train_gen,
+  steps_per_epoch = steps_per_epoch,
+  epochs = 5,
+  callbacks = callback_model_checkpoint(
+    "weights.{epoch:02d}-{loss:.2f}.hdf5", 
+    save_weights_only = TRUE
+  )
+)
+```
+
+
+
+After 5 epochs, this is what we get from the model. It's on the right way, but it will need many more epochs to reach decent performance.
+
+
+![](images/results.jpg)
+
+Apart from training for many more epochs, what could we do? We'll wrap up the post with two directions for improvement, but won't implement them completely.
+
+The first one actually _is_ quick to implement. Here we go.
+
+## Focal loss
+
+Above, we were using cross entropy for the classification loss. Let's look at what that entails.
+
+![Binary cross entropy for predictions when the ground truth equals 1](images/xent.png)
+
+The figure shows loss incurred when the correct answer is 1. We see that even though loss is highest when the network is very wrong, it still incurs significant loss when it's "right for all practical purposes" - meaning, its output is just above 0.5.
+
+In cases of strong class imbalance, this behavior can be problematic. Much training energy is wasted on getting "even more right" on cases where the net is right already - as will happen with instances of the dominant class. Instead, the network should dedicate more effort to the hard cases - exemplars of the rarer classes.
+
+In object detection, the prevalent class is _background_ - no class, really. Instead of getting more and more proficient at predicting background, the network had better learn how to tell apart the actual object classes.
+
+An alternative was pointed out by the authors of the RetinaNet paper[@abs-1708-02002]: They introduced a parameter $\gamma$ [^as well as $\alpha$, not used in the figure] that results in decreasing loss for samples that already have been well classified.
+
+![Focal loss downweights contributions from well-classified examples. Figure from [@abs-1708-02002]](images/focal.png){.external width=100%}
+
+Different implementations are found on the net, as well as different settings for the hyperparameters. Here's a direct port of the _fast.ai_ code:
+
+```{r}
+alpha <- 0.25
+gamma <- 1
+
+
+get_weights <- function(y_true, y_pred) {
+  p <- y_pred %>% k_sigmoid()
+  pt <-  y_true*p + (1-p)*(1-y_true)
+  w <- alpha*y_true + (1-alpha)*(1-y_true)
+  w <-  w * (1-pt)^gamma
+  w
+}
+
+class_loss_focal  <- function(y_true, y_pred) {
+  
+  w <- get_weights(y_true, y_pred)
+  cx <- tf$nn$sigmoid_cross_entropy_with_logits(labels = y_true, logits = y_pred)
+  weighted_cx <- w * cx
+
+  class_loss <-
+   tf$reduce_sum(weighted_cx) / tf$cast(21, "float32")
+  
+  class_loss
+}
+```
+
+From testing this loss, it seems to yield better performance, but does not render obsolete the need for substantive training time.
+
+Finally, let's see what we'd have to do if we wanted to use several anchor boxes per grid cells.
+
+## More anchor boxes
+
+The "real SSD" has anchor boxes of different aspect ratios, and it puts detectors at different stages of the network. Let's implement this.
+
+### Anchor box coordinates
+
+We create anchor boxes as combinations of
+
+- different scales:
+
+```{r}
+anchor_zooms <- c(0.7, 1, 1.3)
+anchor_zooms
+```
+
+```
+[1] 0.7 1.0 1.3
+```
+
+- and different aspect ratios:
+
+```{r}
+anchor_ratios <- matrix(c(1, 1, 1, 0.5, 0.5, 1), ncol = 2, byrow = TRUE)
+anchor_ratios
+```
+
+```
+     [,1] [,2]
+[1,]  1.0  1.0
+[2,]  1.0  0.5
+[3,]  0.5  1.0
+```
+
+In this example, we have nine different combinations:
+
+```{r}
+anchor_scales <- rbind(
+  anchor_ratios * anchor_zooms[1],
+  anchor_ratios * anchor_zooms[2],
+  anchor_ratios * anchor_zooms[3]
+)
+
+k <- nrow(anchor_scales)
+
+anchor_scales
+```
+
+```
+      [,1] [,2]
+ [1,] 0.70 0.70
+ [2,] 0.70 0.35
+ [3,] 0.35 0.70
+ [4,] 1.00 1.00
+ [5,] 1.00 0.50
+ [6,] 0.50 1.00
+ [7,] 1.30 1.30
+ [8,] 1.30 0.65
+ [9,] 0.65 1.30
+```
+
+We place detectors at three stages. Resolutions will be 4x4 (as we had before) and additionally, 2x2 and 1x1:
+
+```{r}
+anchor_grids <- c(4,2,1)
+```
+
+Once that's been determined, we can compute
+
+- x coordinates of the box centers:
+
+```{r}
+anchor_offsets <- 1/(anchor_grids * 2)
+
+anchor_x <- map(
+  1:3,
+  function(x) rep(seq(anchor_offsets[x], 1 - anchor_offsets[x], length.out = anchor_grids[x]), each = anchor_grids[x])) %>%
+  flatten() %>%
+  unlist()
+
+```
+
+- y coordinates of the box centers:
+
+```{r}
+anchor_y <- map(
+  1:3,
+  function(y) rep(seq(anchor_offsets[y], 1 - anchor_offsets[y], length.out = anchor_grids[y]), times = anchor_grids[y])) %>%
+  flatten() %>%
+  unlist()
+
+```
+
+- the x-y representations of the centers:
+
+```{r}
+anchor_centers <- cbind(rep(anchor_x, each = k), rep(anchor_y, each = k))
+```
+
+
+- the sizes of the boxes:
+
+```{r}
+anchor_sizes <- map(
+  anchor_grids,
+  function(x)
+   matrix(rep(t(anchor_scales/x), x*x), ncol = 2, byrow = TRUE)
+  ) %>%
+  abind(along = 1)
+```
+
+- the sizes of the base grids (0.25, 0.5, and 1):
+
+```{r}
+grid_sizes <- c(rep(0.25, k * anchor_grids[1]^2), rep(0.5, k * anchor_grids[2]^2), rep(1, k * anchor_grids[3]^2))
+```
+
+- the centers-width-height representations of the anchor boxes:
+
+```{r}
+anchors <- cbind(anchor_centers, anchor_sizes)
+```
+
+- and finally, the _corners_ representation of the boxes!
+
+```{r}
+hw2corners <- function(centers, height_width) {
+  cbind(centers - height_width / 2, centers + height_width / 2) %>% unname()
+}
+
+anchor_corners <- hw2corners(anchors[ , 1:2], anchors[ , 3:4])
+```
+
+So here, then, is a plot of the (distinct) box centers: One in the middle, for the 9 large boxes, 4 for the 4 * 9 medium-size boxes, and 16 for the 16 * 9 small boxes.
+
+![](images/box_centers.png)
+
+Of course, even if we aren't going to train this version, we at least need to see these in action!
+
+
+![](images/more_boxes.jpeg)
+
+How would a model look that could deal with these?
+
+### Model
+
+Again, we'd start from a feature detector ...
+
+```{r}
+feature_extractor <- application_resnet50(
+  include_top = FALSE,
+  input_shape = c(224, 224, 3)
+)
+```
+
+... and attach some custom conv layers.
+
+```{r}
+input <- feature_extractor$input
+
+common <- feature_extractor$output %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = "same",
+    activation = "relu",
+    name = "head_conv1_1"
+  ) %>%
+  layer_batch_normalization() %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = "same",
+    activation = "relu",
+    name = "head_conv1_2"
+  ) %>%
+  layer_batch_normalization() %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = "same",
+    activation = "relu",
+    name = "head_conv1_3"
+  ) %>%
+  layer_batch_normalization()
+```
+
+Then, things get different. We want to attach detectors (= output layers) to different stages in a pipeline of successive downsamplings.
+If that doesn't call for the Keras functional API...
+
+Here's the downsizing pipeline.
+
+```{r}
+ downscale_4x4 <- common %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = "same",
+    activation = "relu",
+    name = "downscale_4x4"
+  ) %>%
+  layer_batch_normalization() 
+
+```
+
+```{r}
+downscale_2x2 <- downscale_4x4 %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = "same",
+    activation = "relu",
+    name = "downscale_2x2"
+  ) %>%
+  layer_batch_normalization() 
+
+```
+
+```{r}
+downscale_1x1 <- downscale_2x2 %>%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = "same",
+    activation = "relu",
+    name = "downscale_1x1"
+  ) %>%
+  layer_batch_normalization() 
+
+```
+
+The bounding box output efinitions get a little messier than before, as each output has to take into account its relative anchor box coordinates.
+
+```{r}
+create_bbox_output <- function(prev_layer, anchor_start, anchor_stop, suffix) {
+  output <- layer_conv_2d(
+    prev_layer,
+    filters = 4 * k,
+    kernel_size = 3,
+    padding = "same",
+    name = paste0("bbox_conv_", suffix)
+  ) %>%
+  layer_reshape(target_shape = c(-1, 4), name = paste0("bbox_flatten_", suffix)) %>%
+  layer_activation("tanh") %>%
+  layer_lambda(
+    f = function(x) {
+      activation_centers <-
+        (x[, , 1:2] / 2 * matrix(grid_sizes[anchor_start:anchor_stop], ncol = 1)) + k_constant(anchors[anchor_start:anchor_stop, 1:2])
+      activation_height_width <-
+        (x[, , 3:4] / 2 + 1) * k_constant(anchors[anchor_start:anchor_stop, 3:4])
+      activation_corners <-
+        k_concatenate(
+          list(
+            activation_centers - activation_height_width / 2,
+            activation_centers + activation_height_width / 2
+          )
+        )
+     activation_corners
+    },
+    name = paste0("bbox_output_", suffix)
+  )
+  output
+}
+```
+
+Here they are: Each one attached to it's respective stage of action in the pipeline.
+
+```{r}
+bbox_output_4x4 <- create_bbox_output(downscale_4x4, 1, 144, "4x4")
+```
+
+```{r}
+bbox_output_2x2 <- create_bbox_output(downscale_2x2, 145, 180, "2x2")
+```
+
+```{r}
+bbox_output_1x1 <- create_bbox_output(downscale_1x1, 181, 189, "1x1")
+```
+
+The same principle applies to the class outputs.
+
+```{r}
+create_class_output <- function(prev_layer, suffix) {
+  output <-
+  layer_conv_2d(
+    prev_layer,
+    filters = 21 * k,
+    kernel_size = 3,
+    padding = "same",
+    name = paste0("class_conv_", suffix)
+  ) %>%
+  layer_reshape(target_shape = c(-1, 21), name = paste0("class_output_", suffix))
+  output
+}
+```
+
+```{r}
+class_output_4x4 <- create_class_output(downscale_4x4, "4x4")
+```
+
+```{r}
+class_output_2x2 <- create_class_output(downscale_2x2, "2x2")
+```
+
+```{r}
+class_output_1x1 <- create_class_output(downscale_1x1, "1x1")
+```
+
+
+And glue it all together, to get the model.
+
+```{r}
+model <- keras_model(
+  inputs = input,
+  outputs = list(
+    bbox_output_1x1,
+    bbox_output_2x2,
+    bbox_output_4x4,
+    class_output_1x1, 
+    class_output_2x2, 
+    class_output_4x4)
+)
+```
+
+
+Now, we will stop here. To run this, there is another element that has to be adjusted: the data generator.
+Our focus being on explaining the concepts though, we'll leave that to the interested reader.
+
+## Conclusion
+
+While we haven't ended up with a good-performing model for object detection, we do hope that we've managed to shed some light on the mystery of object detection. What's a bounding box? What's an anchor (resp. prior, rep. default) box? How do you match them up in practice?
+
+If you've "just" read the papers (YOLO, SSD), but never seen any code, it may seem like all actions happen in some wonderland beyond the horizon. They don't. But coding them, as we've seen, can be cumbersome, even in the very basic versions we've implemented. To perform object detection in production, then, a lot more time has to be spent on training and tuning models. But sometimes just learning about how something works can be very satisfying.
+
+Finally, we'd again like to stress how much this post leans on what the fast.ai guys did. Their work most definitely is enriching not just the PyTorch, but also the R-TensorFlow community!
+
+
+
+
+
 

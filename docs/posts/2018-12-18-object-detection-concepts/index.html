@@ -64,6 +64,7 @@
   <meta name="citation_reference" content="citation_title=YOLO9000: better, faster, stronger;citation_publication_date=2016;citation_volume=abs/1612.08242;citation_author=Joseph Redmon;citation_author=Ali Farhadi"/>
   <meta name="citation_reference" content="citation_title=YOLOv3: An incremental improvement;citation_publication_date=2018;citation_volume=abs/1804.02767;citation_author=Joseph Redmon;citation_author=Ali Farhadi"/>
   <meta name="citation_reference" content="citation_title=SSD: single shot multibox detector;citation_publication_date=2015;citation_volume=abs/1512.02325;citation_author=Wei Liu;citation_author=Dragomir Anguelov;citation_author=Dumitru Erhan;citation_author=Christian Szegedy;citation_author=Scott E. Reed;citation_author=Cheng-Yang Fu;citation_author=Alexander C. Berg"/>
+  <meta name="citation_reference" content="citation_title=Focal loss for dense object detection;citation_publication_date=2017;citation_volume=abs/1708.02002;citation_author=Tsung-Yi Lin;citation_author=Priya Goyal;citation_author=Ross B. Girshick;citation_author=Kaiming He;citation_author=Piotr Dollár"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -72,7 +73,7 @@
 <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["bibliography.bib","images/aeroplanes.jpeg","images/anchors.png","images/grid_centers.png","images/img_wgrid.jpeg","object-detection-concepts_files/bowser-1.9.3/bowser.min.js","object-detection-concepts_files/distill-2.2.21/template.v2.js","object-detection-concepts_files/jquery-1.11.3/jquery.min.js","object-detection-concepts_files/webcomponents-2.0.0/webcomponents.js"]}
+  {"type":"character","attributes":{},"value":["bibliography.bib","images/aeroplanes.jpeg","images/anchors.png","images/box_centers.png","images/focal.png","images/grid_centers.png","images/img_wgrid.jpeg","images/more_boxes.jpeg","images/results.jpg","images/xent.png","object-detection-concepts_files/bowser-1.9.3/bowser.min.js","object-detection-concepts_files/distill-2.2.21/template.v2.js","object-detection-concepts_files/jquery-1.11.3/jquery.min.js","object-detection-concepts_files/webcomponents-2.0.0/webcomponents.js"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
 
@@ -1559,7 +1560,7 @@ for (i in 1:nrow(anchor_corners)) {
 dev.off()
 print(img)</code></pre>
 </div>
-<p><img src="images/img_wgrid.png" /></p>
+<p><img src="images/img_wgrid.jpeg" /></p>
 <p>Now it’s time to address the possibly greatest mystery when you’re new to object detection: How do you actually construct the ground truth input to the network?</p>
 <p>That is the so-called “matching problem”.</p>
 <h3 id="matching-problem">Matching problem</h3>
@@ -2023,12 +2024,398 @@ bbox_loss &lt;- function(y_true, y_pred) {
   loc_loss * 100
 }</code></pre>
 </div>
+<h1 id="training">Training</h1>
+<p>Above, we’ve already defined the model but we still need to freeze the feature detector’s weights and compile it.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% freeze_weights()
+model %&gt;% unfreeze_weights(from = &quot;head_conv1&quot;)
+model</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% compile(
+  loss = list(class_loss, bbox_loss),
+  optimizer = &quot;adam&quot;,
+  metrics = list(
+    class_output = custom_metric(&quot;class_loss&quot;, metric_fn = class_loss),
+    bbox_output = custom_metric(&quot;bbox_loss&quot;, metric_fn = bbox_loss)
+  )
+)</code></pre>
+</div>
+<p>And we’re ready to train. Training this model is very time consuming, such that for applications “in the real world”, we might want to do optimize the program for memory consumption and runtime. Like we said above, in this post we’re really focusing on understanding the approach.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+steps_per_epoch &lt;- nrow(imageinfo4ssd) / batch_size
+
+model %&gt;% fit_generator(
+  train_gen,
+  steps_per_epoch = steps_per_epoch,
+  epochs = 5,
+  callbacks = callback_model_checkpoint(
+    &quot;weights.{epoch:02d}-{loss:.2f}.hdf5&quot;, 
+    save_weights_only = TRUE
+  )
+)</code></pre>
+</div>
+<p>After 5 epochs, this is what we get from the model. It’s on the right way, but it will need many more epochs to reach decent performance.</p>
+<p><img src="images/results.jpg" /></p>
+<p>Apart from training for many more epochs, what could we do? We’ll wrap up the post with two directions for improvement, but won’t implement them completely.</p>
+<p>The first one actually <em>is</em> quick to implement. Here we go.</p>
+<h2 id="focal-loss">Focal loss</h2>
+<p>Above, we were using cross entropy for the classification loss. Let’s look at what that entails.</p>
+<figure>
+<img src="images/xent.png" alt="Binary cross entropy for predictions when the ground truth equals 1" /><figcaption>Binary cross entropy for predictions when the ground truth equals 1</figcaption>
+</figure>
+<p>The figure shows loss incurred when the correct answer is 1. We see that even though loss is highest when the network is very wrong, it still incurs significant loss when it’s “right for all practical purposes” - meaning, its output is just above 0.5.</p>
+<p>In cases of strong class imbalance, this behavior can be problematic. Much training energy is wasted on getting “even more right” on cases where the net is right already - as will happen with instances of the dominant class. Instead, the network should dedicate more effort to the hard cases - exemplars of the rarer classes.</p>
+<p>In object detection, the prevalent class is <em>background</em> - no class, really. Instead of getting more and more proficient at predicting background, the network had better learn how to tell apart the actual object classes.</p>
+<p>An alternative was pointed out by the authors of the RetinaNet paper<span class="citation" data-cites="abs-1708-02002">(Lin et al. <a href="#ref-abs-1708-02002">2017</a>)</span>: They introduced a parameter <span class="math inline">\(\gamma\)</span> [^as well as <span class="math inline">\(\alpha\)</span>, not used in the figure] that results in decreasing loss for samples that already have been well classified.</p>
+<figure>
+<img src="images/focal.png" alt="Focal loss downweights contributions from well-classified examples. Figure from (Lin et al. 2017)" class="external" style="width:100.0%" /><figcaption>Focal loss downweights contributions from well-classified examples. Figure from <span class="citation" data-cites="abs-1708-02002">(Lin et al. <a href="#ref-abs-1708-02002">2017</a>)</span></figcaption>
+</figure>
+<p>Different implementations are found on the net, as well as different settings for the hyperparameters. Here’s a direct port of the <em>fast.ai</em> code:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+alpha &lt;- 0.25
+gamma &lt;- 1
+
+
+get_weights &lt;- function(y_true, y_pred) {
+  p &lt;- y_pred %&gt;% k_sigmoid()
+  pt &lt;-  y_true*p + (1-p)*(1-y_true)
+  w &lt;- alpha*y_true + (1-alpha)*(1-y_true)
+  w &lt;-  w * (1-pt)^gamma
+  w
+}
+
+class_loss_focal  &lt;- function(y_true, y_pred) {
+  
+  w &lt;- get_weights(y_true, y_pred)
+  cx &lt;- tf$nn$sigmoid_cross_entropy_with_logits(labels = y_true, logits = y_pred)
+  weighted_cx &lt;- w * cx
+
+  class_loss &lt;-
+   tf$reduce_sum(weighted_cx) / tf$cast(21, &quot;float32&quot;)
+  
+  class_loss
+}</code></pre>
+</div>
+<p>From testing this loss, it seems to yield better performance, but does not render obsolete the need for substantive training time.</p>
+<p>Finally, let’s see what we’d have to do if we wanted to use several anchor boxes per grid cells.</p>
+<h2 id="more-anchor-boxes">More anchor boxes</h2>
+<p>The “real SSD” has anchor boxes of different aspect ratios, and it puts detectors at different stages of the network. Let’s implement this.</p>
+<h3 id="anchor-box-coordinates">Anchor box coordinates</h3>
+<p>We create anchor boxes as combinations of</p>
+<ul>
+<li>different scales:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_zooms &lt;- c(0.7, 1, 1.3)
+anchor_zooms</code></pre>
+</div>
+<pre><code>
+[1] 0.7 1.0 1.3</code></pre>
+<ul>
+<li>and different aspect ratios:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_ratios &lt;- matrix(c(1, 1, 1, 0.5, 0.5, 1), ncol = 2, byrow = TRUE)
+anchor_ratios</code></pre>
+</div>
+<pre><code>
+     [,1] [,2]
+[1,]  1.0  1.0
+[2,]  1.0  0.5
+[3,]  0.5  1.0</code></pre>
+<p>In this example, we have nine different combinations:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_scales &lt;- rbind(
+  anchor_ratios * anchor_zooms[1],
+  anchor_ratios * anchor_zooms[2],
+  anchor_ratios * anchor_zooms[3]
+)
+
+k &lt;- nrow(anchor_scales)
+
+anchor_scales</code></pre>
+</div>
+<pre><code>
+      [,1] [,2]
+ [1,] 0.70 0.70
+ [2,] 0.70 0.35
+ [3,] 0.35 0.70
+ [4,] 1.00 1.00
+ [5,] 1.00 0.50
+ [6,] 0.50 1.00
+ [7,] 1.30 1.30
+ [8,] 1.30 0.65
+ [9,] 0.65 1.30</code></pre>
+<p>We place detectors at three stages. Resolutions will be 4x4 (as we had before) and additionally, 2x2 and 1x1:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_grids &lt;- c(4,2,1)</code></pre>
+</div>
+<p>Once that’s been determined, we can compute</p>
+<ul>
+<li>x coordinates of the box centers:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_offsets &lt;- 1/(anchor_grids * 2)
+
+anchor_x &lt;- map(
+  1:3,
+  function(x) rep(seq(anchor_offsets[x], 1 - anchor_offsets[x], length.out = anchor_grids[x]), each = anchor_grids[x])) %&gt;%
+  flatten() %&gt;%
+  unlist()</code></pre>
+</div>
+<ul>
+<li>y coordinates of the box centers:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_y &lt;- map(
+  1:3,
+  function(y) rep(seq(anchor_offsets[y], 1 - anchor_offsets[y], length.out = anchor_grids[y]), times = anchor_grids[y])) %&gt;%
+  flatten() %&gt;%
+  unlist()</code></pre>
+</div>
+<ul>
+<li>the x-y representations of the centers:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_centers &lt;- cbind(rep(anchor_x, each = k), rep(anchor_y, each = k))</code></pre>
+</div>
+<ul>
+<li>the sizes of the boxes:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchor_sizes &lt;- map(
+  anchor_grids,
+  function(x)
+   matrix(rep(t(anchor_scales/x), x*x), ncol = 2, byrow = TRUE)
+  ) %&gt;%
+  abind(along = 1)</code></pre>
+</div>
+<ul>
+<li>the sizes of the base grids (0.25, 0.5, and 1):</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+grid_sizes &lt;- c(rep(0.25, k * anchor_grids[1]^2), rep(0.5, k * anchor_grids[2]^2), rep(1, k * anchor_grids[3]^2))</code></pre>
+</div>
+<ul>
+<li>the centers-width-height representations of the anchor boxes:</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+anchors &lt;- cbind(anchor_centers, anchor_sizes)</code></pre>
+</div>
+<ul>
+<li>and finally, the <em>corners</em> representation of the boxes!</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+hw2corners &lt;- function(centers, height_width) {
+  cbind(centers - height_width / 2, centers + height_width / 2) %&gt;% unname()
+}
+
+anchor_corners &lt;- hw2corners(anchors[ , 1:2], anchors[ , 3:4])</code></pre>
+</div>
+<p>So here, then, is a plot of the (distinct) box centers: One in the middle, for the 9 large boxes, 4 for the 4 * 9 medium-size boxes, and 16 for the 16 * 9 small boxes.</p>
+<p><img src="images/box_centers.png" /></p>
+<p>Of course, even if we aren’t going to train this version, we at least need to see these in action!</p>
+<p><img src="images/more_boxes.jpeg" /></p>
+<p>How would a model look that could deal with these?</p>
+<h3 id="model">Model</h3>
+<p>Again, we’d start from a feature detector …</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+feature_extractor &lt;- application_resnet50(
+  include_top = FALSE,
+  input_shape = c(224, 224, 3)
+)</code></pre>
+</div>
+<p>… and attach some custom conv layers.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+input &lt;- feature_extractor$input
+
+common &lt;- feature_extractor$output %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;head_conv1_1&quot;
+  ) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;head_conv1_2&quot;
+  ) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;head_conv1_3&quot;
+  ) %&gt;%
+  layer_batch_normalization()</code></pre>
+</div>
+<p>Then, things get different. We want to attach detectors (= output layers) to different stages in a pipeline of successive downsamplings. If that doesn’t call for the Keras functional API…</p>
+<p>Here’s the downsizing pipeline.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ downscale_4x4 &lt;- common %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;downscale_4x4&quot;
+  ) %&gt;%
+  layer_batch_normalization() </code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+downscale_2x2 &lt;- downscale_4x4 %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;downscale_2x2&quot;
+  ) %&gt;%
+  layer_batch_normalization() </code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+downscale_1x1 &lt;- downscale_2x2 %&gt;%
+  layer_conv_2d(
+    filters = 256,
+    kernel_size = 3,
+    strides = 2,
+    padding = &quot;same&quot;,
+    activation = &quot;relu&quot;,
+    name = &quot;downscale_1x1&quot;
+  ) %&gt;%
+  layer_batch_normalization() </code></pre>
+</div>
+<p>The bounding box output efinitions get a little messier than before, as each output has to take into account its relative anchor box coordinates.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+create_bbox_output &lt;- function(prev_layer, anchor_start, anchor_stop, suffix) {
+  output &lt;- layer_conv_2d(
+    prev_layer,
+    filters = 4 * k,
+    kernel_size = 3,
+    padding = &quot;same&quot;,
+    name = paste0(&quot;bbox_conv_&quot;, suffix)
+  ) %&gt;%
+  layer_reshape(target_shape = c(-1, 4), name = paste0(&quot;bbox_flatten_&quot;, suffix)) %&gt;%
+  layer_activation(&quot;tanh&quot;) %&gt;%
+  layer_lambda(
+    f = function(x) {
+      activation_centers &lt;-
+        (x[, , 1:2] / 2 * matrix(grid_sizes[anchor_start:anchor_stop], ncol = 1)) + k_constant(anchors[anchor_start:anchor_stop, 1:2])
+      activation_height_width &lt;-
+        (x[, , 3:4] / 2 + 1) * k_constant(anchors[anchor_start:anchor_stop, 3:4])
+      activation_corners &lt;-
+        k_concatenate(
+          list(
+            activation_centers - activation_height_width / 2,
+            activation_centers + activation_height_width / 2
+          )
+        )
+     activation_corners
+    },
+    name = paste0(&quot;bbox_output_&quot;, suffix)
+  )
+  output
+}</code></pre>
+</div>
+<p>Here they are: Each one attached to it’s respective stage of action in the pipeline.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+bbox_output_4x4 &lt;- create_bbox_output(downscale_4x4, 1, 144, &quot;4x4&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+bbox_output_2x2 &lt;- create_bbox_output(downscale_2x2, 145, 180, &quot;2x2&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+bbox_output_1x1 &lt;- create_bbox_output(downscale_1x1, 181, 189, &quot;1x1&quot;)</code></pre>
+</div>
+<p>The same principle applies to the class outputs.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+create_class_output &lt;- function(prev_layer, suffix) {
+  output &lt;-
+  layer_conv_2d(
+    prev_layer,
+    filters = 21 * k,
+    kernel_size = 3,
+    padding = &quot;same&quot;,
+    name = paste0(&quot;class_conv_&quot;, suffix)
+  ) %&gt;%
+  layer_reshape(target_shape = c(-1, 21), name = paste0(&quot;class_output_&quot;, suffix))
+  output
+}</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+class_output_4x4 &lt;- create_class_output(downscale_4x4, &quot;4x4&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+class_output_2x2 &lt;- create_class_output(downscale_2x2, &quot;2x2&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+class_output_1x1 &lt;- create_class_output(downscale_1x1, &quot;1x1&quot;)</code></pre>
+</div>
+<p>And glue it all together, to get the model.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model(
+  inputs = input,
+  outputs = list(
+    bbox_output_1x1,
+    bbox_output_2x2,
+    bbox_output_4x4,
+    class_output_1x1, 
+    class_output_2x2, 
+    class_output_4x4)
+)</code></pre>
+</div>
+<p>Now, we will stop here. To run this, there is another element that has to be adjusted: the data generator. Our focus being on explaining the concepts though, we’ll leave that to the interested reader.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>While we haven’t ended up with a good-performing model for object detection, we do hope that we’ve managed to shed some light on the mystery of object detection. What’s a bounding box? What’s an anchor (resp. prior, rep. default) box? How do you match them up in practice?</p>
+<p>If you’ve “just” read the papers (YOLO, SSD), but never seen any code, it may seem like all actions happen in some wonderland beyond the horizon. They don’t. But coding them, as we’ve seen, can be cumbersome, even in the very basic versions we’ve implemented. To perform object detection in production, then, a lot more time has to be spent on training and tuning models. But sometimes just learning about how something works can be very satisfying.</p>
+<p>Finally, we’d again like to stress how much this post leans on what the fast.ai guys did. Their work most definitely is enriching not just the PyTorch, but also the R-TensorFlow community!</p>
 <div id="refs" class="references">
 <div id="ref-Girshick15">
 <p>Girshick, Ross B. 2015. “Fast R-CNN.” <em>CoRR</em> abs/1504.08083. <a href="http://arxiv.org/abs/1504.08083">http://arxiv.org/abs/1504.08083</a>.</p>
 </div>
 <div id="ref-GirshickDDM13">
 <p>Girshick, Ross B., Jeff Donahue, Trevor Darrell, and Jitendra Malik. 2013. “Rich Feature Hierarchies for Accurate Object Detection and Semantic Segmentation.” <em>CoRR</em> abs/1311.2524. <a href="http://arxiv.org/abs/1311.2524">http://arxiv.org/abs/1311.2524</a>.</p>
+</div>
+<div id="ref-abs-1708-02002">
+<p>Lin, Tsung-Yi, Priya Goyal, Ross B. Girshick, Kaiming He, and Piotr Dollár. 2017. “Focal Loss for Dense Object Detection.” <em>CoRR</em> abs/1708.02002. <a href="http://arxiv.org/abs/1708.02002">http://arxiv.org/abs/1708.02002</a>.</p>
 </div>
 <div id="ref-LiuAESR15">
 <p>Liu, Wei, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, Scott E. Reed, Cheng-Yang Fu, and Alexander C. Berg. 2015. “SSD: Single Shot Multibox Detector.” <em>CoRR</em> abs/1512.02325. <a href="http://arxiv.org/abs/1512.02325">http://arxiv.org/abs/1512.02325</a>.</p>
@@ -2150,6 +2537,15 @@ MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, functio
 <div class="d-appendix">
 </div>
 
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
 
 <!--radix_placeholder_site_after_body-->
 <!--/radix_placeholder_site_after_body-->
@@ -2308,6 +2704,25 @@ MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, functio
   biburl    = {https://dblp.org/rec/bib/journals/corr/LiuAESR15},
   bibsource = {dblp computer science bibliography, https://dblp.org}
 }
+
+@article{abs-1708-02002,
+  author    = {Tsung{-}Yi Lin and
+               Priya Goyal and
+               Ross B. Girshick and
+               Kaiming He and
+               Piotr Doll{\'{a}}r},
+  title     = {Focal Loss for Dense Object Detection},
+  journal   = {CoRR},
+  volume    = {abs/1708.02002},
+  year      = {2017},
+  url       = {http://arxiv.org/abs/1708.02002},
+  archivePrefix = {arXiv},
+  eprint    = {1708.02002},
+  timestamp = {Mon, 13 Aug 2018 16:46:12 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1708-02002},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
 </script>
 <!--/radix_placeholder_appendices-->
 <!--radix_placeholder_navigation_after_body-->

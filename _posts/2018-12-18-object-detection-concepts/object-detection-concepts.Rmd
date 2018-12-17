@@ -1,7 +1,9 @@
 ---
 title: "Concepts in object detection"
 description: >
- tbd
+ As shown in a previous post, naming and locating a single object in an image is a task that may be approached in a straightforward way. This is not the same with general object detection, though - naming and locating several objects at once, with no prior information about how many objects are supposed to be detected.
+ 
+ In this post, we explain the steps involved in coding a basic single-shot object detector: Not unlike SSD (Single-shot Multibox Detector), but simplified and designed not for best performance, but comprehensibility. 
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -15,7 +17,7 @@ categories:
 output:
   radix::radix_article:
     self_contained: false
-preview: images/thumb.png
+preview: images/results.jpg
 ---
 
 ```{r setup, include=FALSE}
@@ -33,8 +35,6 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(stringr)
-
-use_session_with_seed(7777, disable_gpu = FALSE, disable_parallel_cpu = FALSE)
 ```
 
 A few weeks ago, we provided an introduction to the task of [naming and locating objects in images](https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/).
@@ -42,30 +42,30 @@ Crucially, we confined ourselves to detecting a single object in an image. Readi
 
 In this post, we want to detail one viable approach, explaining (and coding) the steps involved. We won't, however, end up with a production-ready model. So if you read on, you won't have a model you can export and put on your smartphone, for use in the wild. You should, however, have learned a bit about how this - object detection - is even possible. After all, it might look like magic!
 
-The code below is heavily based on [fast.ai's implementation of SSD](https://github.com/fastai/fastai/blob/master/courses/dl2/pascal-multi.ipynb). While this is not the first time we're "porting" _fast.ai models, in this case we found differences in execution models between PyTorch and TensorFlow to be especially striking, and we will briefly touch on this in our discussion. 
+The code below is heavily based on [fast.ai's implementation of SSD](https://github.com/fastai/fastai/blob/master/courses/dl2/pascal-multi.ipynb). While this is not the first time we're "porting" _fast.ai_ models, in this case we found differences in execution models between PyTorch and TensorFlow to be especially striking, and we will briefly touch on this in our discussion. 
 
 
 ## So why is object detection hard?
 
-So like we saw, we can classify and detect a single object as follows. We make use of a powerful feature extractor, such as _Resnet 50_, add a few conv layers for specialization, and then, concatenate two outputs: One that indicates the class, and one that has four coordinates specifying a bounding box.
+As we saw, we can classify and detect a single object as follows. We make use of a powerful feature extractor, such as _Resnet 50_, add a few conv layers for specialization, and then, concatenate two outputs: one that indicates class, and one that has four coordinates specifying a bounding box.
 
 Now, to detect several objects, can't we just have several class outputs, and several bounding boxes?
 Unfortunately we can't. Assume there are two cute cats in the image, and we have just two bounding box detectors.
-How does each of them know which object to detect? What happens in practice is that both of them try to designate both cats, so we end up with two bounding boxes in the middle - where there's no cat. It's a bit like averaging a bimodal distribution.
+How does each of them know which cat to detect? What happens in practice is that both of them try to designate both cats, so we end up with two bounding boxes in the middle - where there's no cat. It's a bit like averaging a bimodal distribution.
 
 What can be done? Overall, there are three approaches to object detection, differing in performance in both common senses of the word: execution time and precision. 
 
 Probably the first option you'd think of (if you haven't been exposed to the topic before) is running the algorithm over the image piece by piece. This is called the _sliding windows_ approach, and even though in a naive implementation, it would require excessive time, it can be run effectively if making use of fully convolutional models (cf. _Overfeat_ [@SermanetEZMFL13]).
 
-Currently the best precision is gained from _region proposal_ approaches (R-CNN[@GirshickDDM13], Fast R-CNN[@Girshick15], Faster R-CNN[@RenHG015]). These operate in two steps. A first step points out _regions of interest_ in an image. Then, a convnet classfies and localizes the objects in each region.
+Currently the best precision is gained from _region proposal_ approaches (R-CNN[@GirshickDDM13], Fast R-CNN[@Girshick15], Faster R-CNN[@RenHG015]). These operate in two steps. A first step points out _regions of interest_ in an image. Then, a convnet classifies and localizes the objects in each region.
 In the first step, originally non-deep-learning algorithms were used. With Faster R-CNN though, a convnet takes care of region proposal as well, such that the method now is "fully deep learning".
 
-Last but not least, there is the class of _single shot detectors_, like YOLO[@RedmonDGF15][@RedmonF16][@abs-1804-02767]and SSD[@LiuAESR15]. Just as _Overfeat_, these perform a single pass only, but they add an additional feature that boosts precision: _anchor boxes_.
+Last but not least, there is the class of _single shot detectors_, like YOLO[@RedmonDGF15][@RedmonF16][@abs-1804-02767]and SSD[@LiuAESR15]. Just as _Overfeat_, these do a single pass only, but they add an additional feature that boosts precision: _anchor boxes_.
 
 
 ![Use of anchor boxes in SSD. Figure from [@LiuAESR15]](images/anchors.png){.external width=100%}
 
-Anchor boxes are prototypical object shapes, arranged systematically over the image. In the simplest case, these can just be rectangles (squares) spread out systematically in a grid. A simple grid already solves the basic problem we started with, above: How does each detector know which object to detect? In a single-shot approach like SSD, each detector is mapped to - _responsible for_ - a specific anchor box. We'll see how this works below.
+Anchor boxes are prototypical object shapes, arranged systematically over the image. In the simplest case, these can just be rectangles (squares) spread out systematically in a grid. A simple grid already solves the basic problem we started with, above: How does each detector know which object to detect? In a single-shot approach like SSD, each detector is mapped to - _responsible for_ - a specific anchor box. We'll see how this can be achieved below.
 
 What if we have several objects in a grid cell? We can assign more than one anchor box to each cell. Anchor boxes are created with different aspect ratios, to provide a good match to entities of different proportions, such as people or trees on the one hand, and bicycles or balconies on the other. You can see these different anchor boxes in the above figure, in illustrations _b_ and _c_.
 
@@ -76,7 +76,7 @@ In this post, we show how to code a _very basic_ single-shot approach, inspired 
 ## A basic single-shot detector
 
 
-We're using the same dataset as in [Naming and locating objects in images](https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/) - Pascal VOC, the 2007 edition - and we start out with the same preprocessing steps, up and until we have an object `imageinfo` that contains, in every row, information about a single object in an image.[^We won't need `imageinfo_maxbb` in this post.]
+We're using the same dataset as in [Naming and locating objects in images](https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/) - Pascal VOC, the 2007 edition - and we start out with the same preprocessing steps, up and until we have an object `imageinfo` that contains, in every row, information about a single object in an image.^[We won't need `imageinfo_maxbb` in this post.]
 
 ### Further preprocessing 
 
@@ -111,7 +111,7 @@ imageinfo4ssd <- imageinfo4ssd %>%
   )
 ```
 
-Okay! Let's check we got this right.
+Let's check we got this right.
 
 ```{r}
 example <- imageinfo4ssd[5, ]
@@ -155,7 +155,7 @@ Now we construct the anchor boxes.
 Like we said above, here we will have one anchor box per cell. Thus, grid cells and anchor boxes, in our case, are the same thing, and we'll call them by both names, interchangingly, depending on the context.
 Just keep in mind that in more complex models, these will most probably be different entities.
 
-Our grid will be of size 4x4. We will need the cells' coordinates, and we'll start with a `center x` - `center y` - `height` - `width` representation.
+Our grid will be of size 4x4. We will need the cells' coordinates, and we'll start with a _center x - center y - height - width_ representation.
 
 Here, first, are the center coordinates.
 
@@ -179,7 +179,7 @@ ggplot(data.frame(x = anchor_xs, y = anchor_ys), aes(x, y)) +
   theme(aspect.ratio = 1)
 ```
 
-![](images/grid_centers.png)
+<img src="images/grid_centers.png" style="width: 400px; " />
 
 The center coordinates are supplemented by height and width:
 
@@ -216,7 +216,7 @@ anchors
 ```
 
 
-In subsequent manipulations, we will sometimes we need a different representation: the corners (top-left, top-right, bottom-right, bottom-left) of the grid cells.
+In subsequent manipulations, we will sometimes we need a different representation: the corners (_top-left, top-right, bottom-right, bottom-left_) of the grid cells.
 
 
 ```{r}
@@ -299,7 +299,10 @@ dev.off()
 print(img)
 ```
 
-![](images/img_wgrid.jpeg)
+
+
+<img src="images/img_wgrid.jpeg" style="width: 400px; " />
+
 
 Now it's time to address the possibly greatest mystery when you're new to object detection: How do you actually construct the ground truth input to the network?
 
@@ -308,7 +311,7 @@ That is the so-called "matching problem".
 ### Matching problem
 
 To train the network, we need to assign the ground truth boxes to the grid cells/anchor boxes. We do this based on overlap between _bounding boxes_ on the one hand, and _anchor boxes_ on the other. 
-Overlap is computed using Intersection over Union (IoU, = Jaccard Index), as usual.
+Overlap is computed using _Intersection over Union_ (IoU, =_Jaccard Index_), as usual.
 
 Assume we've already computed the Jaccard index for all ground truth box - grid cell combinations. We then use the following algorithm:
 
@@ -397,14 +400,15 @@ box_area <- function(box) {
 
 
 By now you might be wondering - when does all this happen? Interestingly, the example we're following, [fast.ai's object detection notebook](https://github.com/fastai/fastai/blob/master/courses/dl2/pascal-multi.ipynb), does all this as part of the loss calculation! 
-In TensorFlow, this is possible in principle (requiring some juggling of `tf$cond`, `tf$while_loop` etc., as well as a bit of creativity finding replacements for non-differentiable operations). But, simple facts - like the Keras loss function expecting the same shapes for `y_true` and `y_pred` - made it impossible to follow the _fast.ai_ approach. Instead, all matching will take place in the data generator.
+In TensorFlow, this is possible in principle (requiring some juggling of `tf$cond`, `tf$while_loop` etc., as well as a bit of creativity finding replacements for non-differentiable operations).
+But, simple facts - like the Keras loss function expecting the same shapes for `y_true` and `y_pred` - made it impossible to follow the _fast.ai_ approach. Instead, all matching will take place in the data generator.
 
 
 
 ### Data generator
 
-The generator has the familiar structure, known from the aforementioned previous post.
-Here's the complete code first,- we'll talk through the details later.
+The generator has the familiar structure, known from the predecessor post.
+Here is the complete code - we'll talk through the details immediately.
 
 ```{r}
 batch_size <- 16
@@ -541,7 +545,8 @@ bbox <- cbind(xl, yt, xr, yb)
 bbox
 ```
 
-```             xl        yt         xr        yb
+```    
+          xl        yt         xr        yb
 [1,] 0.20535714 0.2723214 0.75000000 0.6473214
 [2,] 0.26339286 0.3080357 0.39285714 0.4330357
 [3,] 0.38839286 0.6383929 0.42410714 0.8125000
@@ -654,7 +659,7 @@ y2[j, , ] <- gt_bbox
 
 To summarize, our target is a list of two outputs:
 
-- the bounding box ground truth of dimensionaility _number of grid cells_ times _number of box coordinates (4)_, and 
+- the bounding box ground truth of dimensionality _number of grid cells_ times _number of box coordinates_, and 
 - the class ground truth of size _number of grid cells_ times _number of classes_.
 
 We can verify this by asking the generator for a batch of inputs and targets:
@@ -863,7 +868,7 @@ Above, we've already defined the model but we still need to freeze the feature d
 
 ```{r}
 model %>% freeze_weights()
-model %>% unfreeze_weights(from = "head_conv1")
+model %>% unfreeze_weights(from = "head_conv1_1")
 model
 ```
 
@@ -919,7 +924,7 @@ In cases of strong class imbalance, this behavior can be problematic. Much train
 
 In object detection, the prevalent class is _background_ - no class, really. Instead of getting more and more proficient at predicting background, the network had better learn how to tell apart the actual object classes.
 
-An alternative was pointed out by the authors of the RetinaNet paper[@abs-1708-02002]: They introduced a parameter $\gamma$ [^as well as $\alpha$, not used in the figure] that results in decreasing loss for samples that already have been well classified.
+An alternative was pointed out by the authors of the RetinaNet paper[@abs-1708-02002]: They introduced a parameter $\gamma$ ^[as well as $\alpha$, not used in the figure] that results in decreasing loss for samples that already have been well classified.
 
 ![Focal loss downweights contributions from well-classified examples. Figure from [@abs-1708-02002]](images/focal.png){.external width=100%}
 
@@ -928,7 +933,6 @@ Different implementations are found on the net, as well as different settings fo
 ```{r}
 alpha <- 0.25
 gamma <- 1
-
 
 get_weights <- function(y_true, y_pred) {
   p <- y_pred %>% k_sigmoid()
@@ -963,7 +967,7 @@ The "real SSD" has anchor boxes of different aspect ratios, and it puts detector
 
 We create anchor boxes as combinations of
 
-- different scales:
+- different scales, and
 
 ```{r}
 anchor_zooms <- c(0.7, 1, 1.3)
@@ -974,7 +978,7 @@ anchor_zooms
 [1] 0.7 1.0 1.3
 ```
 
-- and different aspect ratios:
+- different aspect ratios:
 
 ```{r}
 anchor_ratios <- matrix(c(1, 1, 1, 0.5, 0.5, 1), ncol = 2, byrow = TRUE)
@@ -1093,8 +1097,7 @@ So here, then, is a plot of the (distinct) box centers: One in the middle, for t
 
 Of course, even if we aren't going to train this version, we at least need to see these in action!
 
-
-![](images/more_boxes.jpeg)
+<img src="images/more_boxes.jpeg" style="width: 400px; " />
 
 How would a model look that could deal with these?
 
@@ -1188,7 +1191,7 @@ downscale_1x1 <- downscale_2x2 %>%
 
 ```
 
-The bounding box output efinitions get a little messier than before, as each output has to take into account its relative anchor box coordinates.
+The bounding box output definitions get a little messier than before, as each output has to take into account its relative anchor box coordinates.
 
 ```{r}
 create_bbox_output <- function(prev_layer, anchor_start, anchor_stop, suffix) {
@@ -1291,8 +1294,7 @@ While we haven't ended up with a good-performing model for object detection, we 
 
 If you've "just" read the papers (YOLO, SSD), but never seen any code, it may seem like all actions happen in some wonderland beyond the horizon. They don't. But coding them, as we've seen, can be cumbersome, even in the very basic versions we've implemented. To perform object detection in production, then, a lot more time has to be spent on training and tuning models. But sometimes just learning about how something works can be very satisfying.
 
-Finally, we'd again like to stress how much this post leans on what the fast.ai guys did. Their work most definitely is enriching not just the PyTorch, but also the R-TensorFlow community!
-
+Finally, we'd again like to stress how much this post leans on what the _fast.ai_ guys did. Their work most definitely is enriching not just the PyTorch, but also the R-TensorFlow community!
 
 
 

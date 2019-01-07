@@ -66,6 +66,10 @@
     width: 100%;
   }
   
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
   .pandoc-table th:not([align]) {
     text-align: left;
   }
@@ -80,6 +84,10 @@
   
   .l-screen-inset {
     padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
   }
   
   .shaded {
@@ -601,9 +609,9 @@
       var fn = $('#' + id);
       var fn_p = $('#' + id + '>p');
       fn_p.find('.footnote-back').remove();
-      var text = fn_p.text();
+      var text = fn_p.html();
       var dtfn = $('<d-footnote></d-footnote>');
-      dtfn.text(text);
+      dtfn.html(text);
       $(this).replaceWith(dtfn);
     });
     // remove footnotes
@@ -629,7 +637,10 @@
       var clz = "";
       var language = pre.attr('class');
       if (language) {
-        if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
           language = "clike";
         language = ' language="' + language + '"';
         var dt_code = $('<d-code block' + language + clz + '></d-code>');
@@ -844,9 +855,19 @@
     // prevent underline for linked images
     $('a > img').parent().css({'border-bottom' : 'none'});
   
-    // mark figures created by knitr chunks as 100% width
+    // mark non-body figures created by knitr chunks as 100% width
     $('.layout-chunk').each(function(i, val) {
-      $(this).find('img, .html-widget').css('width', '100%');
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
     });
   
     // auto-append index.html to post-preview links in file: protocol
@@ -858,7 +879,7 @@
   
     // get rid of index.html references in header
     if (window.location.protocol !== "file:") {
-      $('.radix-site-header a').each(function(i,val) {
+      $('.radix-site-header a[href]').each(function(i,val) {
         $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
       });
     }
@@ -867,6 +888,8 @@
     $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
     $('.kable-table').children('table').addClass('pandoc-table');
   
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
   
     // initialize posts list
     if (window.init_posts_list)
@@ -878,6 +901,7 @@
       $('#disqus_thread').toggleClass('hidden');
       if (!$('#disqus_thread').hasClass('hidden')) {
         var offset = $(this).offset();
+        $(window).resize();
         $('html, body').animate({
           scrollTop: offset.top - 35
         });
@@ -910,7 +934,7 @@
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"Predicting Sunspot Frequency with Keras","description":"In this post we will examine making time series predictions using the sunspots dataset that ships with base R. Sunspots are dark spots on the sun, associated with lower temperature. Our post will focus on both how to apply deep learning to time series forecasting, and how to properly apply cross validation in this domain.","authors":[{"author":"Matt Dancho","authorURL":"https://github.com/mdancho84","affiliation":"Business Science","affiliationURL":"https://www.business-science.io/"},{"author":"Sigrid Keydana","authorURL":"https://github.com/skeydan","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2018-06-25T00:00:00.000-04:00","citationText":"Dancho & Keydana, 2018"}
+{"title":"Predicting Sunspot Frequency with Keras","description":"In this post we will examine making time series predictions using the sunspots dataset that ships with base R. Sunspots are dark spots on the sun, associated with lower temperature. Our post will focus on both how to apply deep learning to time series forecasting, and how to properly apply cross validation in this domain.","authors":[{"author":"Matt Dancho","authorURL":"https://github.com/mdancho84","affiliation":"Business Science","affiliationURL":"https://www.business-science.io/"},{"author":"Sigrid Keydana","authorURL":"https://github.com/skeydan","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2018-06-25T00:00:00.000+02:00","citationText":"Dancho & Keydana, 2018"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -1053,9 +1077,9 @@ plot_grid(p_title, p1, p2, ncol = 1, rel_heights = c(0.1, 1, 1))</code></pre>
 </div>
 <h3 id="backtesting-time-series-cross-validation">Backtesting: time series cross validation</h3>
 <p>When doing cross validation on sequential data, the time dependencies on preceding samples must be preserved. We can create a cross validation sampling plan by offsetting the window used to select sequential sub-samples. In essence, we’re creatively dealing with the fact that there’s no future test data available by creating multiple synthetic “futures” - a process often, esp. in finance, called “backtesting”.</p>
-<p>As mentioned in the introduction, the <a href="https://cran.r-project.org/package=rsample">rsample</a> package includes facitlities for backtesting on time series. The vignette, <a href="https://topepo.github.io/rsample/articles/Applications/Time_Series.html">“Time Series Analysis Example”</a>, describes a procedure that uses the <code>rolling_origin()</code> function to create samples designed for time series cross validation. We’ll use this approach.</p>
+<p>As mentioned in the introduction, the <a href="https://cran.r-project.org/package=rsample">rsample</a> package includes facitlities for backtesting on time series. The vignette, <a href="https://tidymodels.github.io/rsample/articles/Applications/Time_Series.html">“Time Series Analysis Example”</a>, describes a procedure that uses the <code>rolling_origin()</code> function to create samples designed for time series cross validation. We’ll use this approach.</p>
 <h4 id="developing-a-backtesting-strategy">Developing a backtesting strategy</h4>
-<p>The sampling plan we create uses 50 years (<code>initial</code> = 12 x 50 samples) for the training set and ten years (<code>assess</code> = 12 x 10) for the testing (validation) set. We select a <code>skip</code> span of about twenty years (<code>skip</code> = 12 x 20 - 1) to approximately evenly distribute the samples into 6 sets that span the entire 265 years of sunspots history. Last, we select <code>cumulative = FALSE</code> to allow the origin to shift which ensures that models on more recent data are not given an unfair advantage (more observations) over those operating on less recent data. The tibble return contains the <code>rolling_origin_resamples</code>.</p>
+<p>The sampling plan we create uses 100 years (<code>initial</code> = 12 x 100 samples) for the training set and 50 years (<code>assess</code> = 12 x 50) for the testing (validation) set. We select a <code>skip</code> span of about 22 years (<code>skip</code> = 12 x 22 - 1) to approximately evenly distribute the samples into 6 sets that span the entire 265 years of sunspots history. Last, we select <code>cumulative = FALSE</code> to allow the origin to shift which ensures that models on more recent data are not given an unfair advantage (more observations) over those operating on less recent data. The tibble return contains the <code>rolling_origin_resamples</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 periods_train &lt;- 12 * 100

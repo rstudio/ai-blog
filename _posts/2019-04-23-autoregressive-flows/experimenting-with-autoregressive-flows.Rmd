@@ -1,7 +1,7 @@
 ---
 title: "Experimenting with autoregressive flows in TensorFlow Probability"
 description: > 
- Continuing from the recent introduction to bijectors in TensorFlow Probability (TFP), this post brings autoregressivity to the table. Again using TFP through the new R package tfprobability, we look at the implementation of masked autoregressive flows (MAF) and put them to use on two different datasets.
+ Continuing from the recent introduction to bijectors in TensorFlow Probability (TFP), this post brings autoregressivity to the table. Using TFP through the new R package tfprobability, we look at the implementation of masked autoregressive flows (MAF) and put them to use on two different datasets.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -25,13 +25,13 @@ preview: images/made.png
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-In the [first part of this mini-series on autoregressive flow models](https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/), we looked at _bijectors_ in TensorFlow Probability (TFP), and saw how to use them for sampling and density estimation. We singled out the _affine bijector_ to demonstrate the mechanics of flow construction: One starts from a distribution that is easy to sample from, and that allows for straightforward calculation of its density. Then, one attaches some number of invertible transformations, optimizing for data likelihood under the final transformed distribution. The efficiency of that (log)likelihood calculation is where normalizing flows excel: Loglikelihood under the (unknown) target distribution is obtained as a sum of the density under the base distribution of the inverse-transformed data plus the absolute log determinant of the inverse Jacobian.
+In the [first part of this mini-series on autoregressive flow models](https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/), we looked at _bijectors_ in TensorFlow Probability (TFP), and saw how to use them for sampling and density estimation. We singled out the _affine bijector_ to demonstrate the mechanics of flow construction: One starts from a distribution that is easy to sample from, and that allows for straightforward calculation of its density. Then, one attaches some number of invertible transformations, optimizing for data-likelihood under the final transformed distribution. The efficiency of that (log)likelihood calculation is where normalizing flows excel: Loglikelihood under the (unknown) target distribution is obtained as a sum of the density under the base distribution of the inverse-transformed data plus the absolute log determinant of the inverse Jacobian.
 
-Now, an affine flow will seldom be powerful enough to model nonlinear, complex transformations. In constrast, autoregressive models have shown substantive success in density estimation as well as sample generation. Combined with more involved architectures, feature engineering, and extensive compute, the concept of autoregressivity has powered - and is powering - state-of-the-art architectures in areas such as image, speech and video modeling. 
+Now, an affine flow will seldom be powerful enough to model nonlinear, complex transformations. In constrast, autoregressive models have shown substantive success in density estimation as well as sample generation. Combined with more involved architectures, feature engineering, and extensive compute, the concept of autoregressivity has powered -- and is powering -- state-of-the-art architectures in areas such as image, speech and video modeling. 
 
 This post will be concerned with the building blocks of autoregressive flows in TFP. While we won't exactly be building state-of-the-art models, we'll try to understand and play with some major ingredients, hopefully enabling the reader to do her own experiments on her own data.
 
-This post has three parts: First, we'll look at autoregressivity and its implementation in TFP. Then, we try to (approximately) reproduce one of the experiments in the "MAF paper" (_Masked Autoregressive Flows for Distribution Estimation_ [@2017arXiv170507057P]) - essentially a proof of concept. Finally, for the third time on this blog, we come back to the task of analysing audio data, with mixed results.
+This post has three parts: First, we'll look at autoregressivity and its implementation in TFP. Then, we try to (approximately) reproduce one of the experiments in the "MAF paper" (_Masked Autoregressive Flows for Distribution Estimation_ [@2017arXiv170507057P]) -- essentially a proof of concept. Finally, for the third time on this blog, we come back to the task of analysing audio data, with mixed results.
 
 ## Autoregressivity and masking
 
@@ -42,7 +42,7 @@ p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
 $$
 
 In practice, this means that autoregressive models have to impose an order on the variables - an order which might or might not "make sense". Approaches here include choosing orderings at random and/or using different orderings for each layer.
-While in recurrent neural networks, autoregressivity is conserved due to the recurrence relation inherent in state updating, it is not clear a priori how autoregressivity is to be achieved in a densely connected architecture. A computationally efficient solution was proposed in _MADE: Masked Autoencoder for Distribution Estimation_[@GermainGML15]: Starting from a densely connected layer, mask out all connections that should not be allowed, i.e., all connections from input feature $i$ to said layer's activations $1 ... i-1$. Or expressed differently, activation $i$ may be connected to input features $1 ... i-1$ only. Then when adding more layers, care must be taken that all required connections are masked so that at the end, output $i$ will only ever have seen inputs $1 ... i-1$.
+While in recurrent neural networks, autoregressivity is conserved due to the recurrence relation inherent in state updating, it is not clear a priori how autoregressivity is to be achieved in a densely connected architecture. A computationally efficient solution was proposed in _MADE: Masked Autoencoder for Distribution Estimation_[@GermainGML15]: Starting from a densely connected layer, mask out all connections that should not be allowed, i.e., all connections from input feature $i$ to said layer's activations $1 ... i-1$. Or expressed differently, activation $i$ may be connected to input features $1 ... i-1$ only. Then when adding more layers, care must be taken to ensure that all required connections are masked so that at the end, output $i$ will only ever have seen inputs $1 ... i-1$.
 
 Thus masked autoregressive flows are a fusion of two major approaches - autoregressive models (which need not be flows) and flows (which need not be autoregressive). In TFP these are provided by `MaskedAutoregressiveFlow` ^[`tfb_masked_autoregressive_flow`, in R], to be used as a bijector in a `TransformedDistribution`. ^[For a comparison of _Masked Autoregressive Flow_ to its siblings _Real NVP_ (also available as a TFP bijector) and _Inverse Autogressive Flow_ (to be obtained as an inverse of MAF in TFP), see Eric Jang's excellent [tutorial](https://blog.evjang.com/2018/01/nf2.html).]
 
@@ -368,7 +368,7 @@ target_loglik_pre_test <-
 target_loglik_pre_test %>% as.numeric()   # -11.36431
 ```
 
-The values match - good. Here now is the training loop. Being impatient, here already we keep checking the loglikelihood on the (complete) test set to see if we're making any progress.
+The values match - good. Here now is the training loop. Being impatient, we already keep checking the loglikelihood on the (complete) test set to see if we're making any progress.
 
 ```{r}
 n_epochs <- 10
@@ -411,7 +411,7 @@ for (i in 1:n_epochs) {
 }
 ```
 
-With both training and test sets amounting to over 2 million records each, we did not have the patience to run this model _until no improvement occurred for 30 consecutive epochs on the validation set_. However, the picture we get from one complete epoch's run is pretty clear: The setup seems to work pretty okay.
+With both training and test sets amounting to over 2 million records each, we did not have the patience to run this model _until no improvement occurred for 30 consecutive epochs on the validation set_ (like the authors did). However, the picture we get from one complete epoch's run is pretty clear: The setup seems to work pretty okay.
 
 ```
 Epoch  1 :  Batch      1:  -8.212026  --- test:  -10.09264 
@@ -443,11 +443,11 @@ With these training results, we regard the proof of concept as basically success
 
 _Batch normalization_ here was obligatory - and this might go for flows in general. The permutation bijectors, on the other hand, did not make much of a difference on this dataset. Overall the impression is that for flows, we might either need a "bag of tricks" (like is commonly said about GANs), or more involved architectures (see "Outlook" below).
 
-Finally, we round up with  an experiment, coming back to our favorite audio data, already featured in two posts: [Simple Audio Classification with Keras](https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/) and [Audio classification with Keras: Looking closer at the non-deep learning parts](https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/).
+Finally, we wind up with  an experiment, coming back to our favorite audio data, already featured in two posts: [Simple Audio Classification with Keras](https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/) and [Audio classification with Keras: Looking closer at the non-deep learning parts](https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/).
 
 ## Analysing audio data with MAF
 
-The [dataset in question](https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz) consists of recordings of 30 words, pronounced by a number of different speakers. In those previous posts, a convnet was trained to map spectrograms to those 30 classes. Now instead we want to try something different: Train a MAF on one of the classes - the word "zero", say - and see if we can use the trained network to mark "non-zero" words as less likely: perform _anomaly detection_, in a way. Spoiler alert: The results were not too encouraging, and if you are interested in a task like this, you might want to consider a different architecture (again, see "Outlook" below).
+The [dataset in question](https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz) consists of recordings of 30 words, pronounced by a number of different speakers. In those previous posts, a convnet was trained to map spectrograms to those 30 classes. Now instead we want to try something different: Train an MAF on one of the classes - the word "zero", say - and see if we can use the trained network to mark "non-zero" words as less likely: perform _anomaly detection_, in a way. Spoiler alert: The results were not too encouraging, and if you are interested in a task like this, you might want to consider a different architecture (again, see "Outlook" below).
 
 Nonetheless, we quickly relate what was done, as this task is a nice example of handling data where features vary over more than one axis.
 
@@ -503,7 +503,7 @@ df_test <- df_[-idx_train, ]
 Following the approach detailed in [Audio classification with Keras: Looking closer at the non-deep learning parts](https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/), we'd like to train the network on spectrograms instead of the raw time domain data. 
 Using the same settings for `frame_length` and `frame_step` of the Short Term Fourier Transform as in that post, we'd arrive at data shaped `number of frames x number of FFT coefficients`. To make this work with the `masked_dense()` employed in `tfb_masked_autoregressive_flow()`, the data would then have to be flattened, yielding an impressive 25186 features in the joint distribution.
 
-With the architecture defined as above in the GAS example, this lead to the network not making much progress. Neither did leaving the data in time domain form, with 16000 features in the joint distribution. Thus we decided to work with the FFT coefficients computed over the complete window instead, resulting in 257 joint features.^[We quickly experimented with a higher number of FFT coefficients, but the approach did not seem that promising.]
+With the architecture defined as above in the GAS example, this lead to the network not making much progress. Neither did leaving the data in time domain form, with 16000 features in the joint distribution. Thus, we decided to work with the FFT coefficients computed over the complete window instead, resulting in 257 joint features.^[We quickly experimented with a higher number of FFT coefficients, but the approach did not seem that promising.]
 
 ```{r}
 batch_size <- 100

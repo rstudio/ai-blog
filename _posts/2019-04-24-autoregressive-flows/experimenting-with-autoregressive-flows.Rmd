@@ -7,7 +7,7 @@ author:
     affiliation: RStudio
     affiliation_url: https://www.rstudio.com/
 slug: keydana2019autoregressive
-date: 04-23-2019
+date: 04-24-2019
 categories:
   - Probability and statistics 
   - Introductions
@@ -115,9 +115,7 @@ def _gen_slices(num_blocks, n_in, n_out):
   slices = []
   col = 0
   d_in = n_in // num_blocks
-  d_in
   d_out = n_out // num_blocks
-  d_out
   row = d_out 
   for _ in range(num_blocks):
     row_slice = slice(row, None)
@@ -263,7 +261,34 @@ library(caret)
 df <- read_table2("ethylene_CO.txt",
                   skip = 1,
                   col_names = FALSE)
+glimpse(df)
+```
 
+```
+Observations: 4,208,261
+Variables: 19
+$ X1  <dbl> 0.00, 0.01, 0.01, 0.03, 0.04, 0.05, 0.06, 0.07, 0.07, 0.09,...
+$ X2  <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,...
+$ X3  <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,...
+$ X4  <dbl> -50.85, -49.40, -40.04, -47.14, -33.58, -48.59, -48.27, -47.14,... 
+$ X5  <dbl> -1.95, -5.53, -16.09, -10.57, -20.79, -11.54, -9.11, -4.56,...
+$ X6  <dbl> -41.82, -42.78, -27.59, -32.28, -33.25, -36.16, -31.31, -16.57,... 
+$ X7  <dbl> 1.30, 0.49, 0.00, 4.40, 6.03, 6.03, 5.37, 4.40, 23.98, 2.77,...
+$ X8  <dbl> -4.07, 3.58, -7.16, -11.22, 3.42, 0.33, -7.97, -2.28, -2.12,...
+$ X9  <dbl> -28.73, -34.55, -42.14, -37.94, -34.22, -29.05, -30.34, -24.35,...
+$ X10 <dbl> -13.49, -9.59, -12.52, -7.16, -14.46, -16.74, -8.62, -13.17,...
+$ X11 <dbl> -3.25, 5.37, -5.86, -1.14, 8.31, -1.14, 7.00, -6.34, -0.81,...
+$ X12 <dbl> 55139.95, 54395.77, 53960.02, 53047.71, 52700.28, 51910.52,...
+$ X13 <dbl> 50669.50, 50046.91, 49299.30, 48907.00, 48330.96, 47609.00,...
+$ X14 <dbl> 9626.26, 9433.20, 9324.40, 9170.64, 9073.64, 8982.88, 8860.51,...
+$ X15 <dbl> 9762.62, 9591.21, 9449.81, 9305.58, 9163.47, 9021.08, 8966.48,...
+$ X16 <dbl> 24544.02, 24137.13, 23628.90, 23101.66, 22689.54, 22159.12,...
+$ X17 <dbl> 21420.68, 20930.33, 20504.94, 20101.42, 19694.07, 19332.57,...
+$ X18 <dbl> 7650.61, 7498.79, 7369.67, 7285.13, 7156.74, 7067.61, 6976.13,...
+$ X19 <dbl> 6928.42, 6800.66, 6697.47, 6578.52, 6468.32, 6385.31, 6300.97,...
+```
+
+```{r}
 # we don't know if we'll end up with the same columns as the authors did,
 # but we try (at least we do end up with 8 columns)
 df <- df[,-(1:3)]
@@ -272,7 +297,29 @@ df2 <- df[,-c(hc)]
 
 # scale
 df2 <- scale(df2)
+df2
+```
 
+```
+# A tibble: 4,208,261 x 8
+      X4     X5     X8    X9    X13    X16    X17   X18
+   <dbl>  <dbl>  <dbl> <dbl>  <dbl>  <dbl>  <dbl> <dbl>
+ 1 -50.8  -1.95  -4.07 -28.7 50670. 24544. 21421. 7651.
+ 2 -49.4  -5.53   3.58 -34.6 50047. 24137. 20930. 7499.
+ 3 -40.0 -16.1   -7.16 -42.1 49299. 23629. 20505. 7370.
+ 4 -47.1 -10.6  -11.2  -37.9 48907  23102. 20101. 7285.
+ 5 -33.6 -20.8    3.42 -34.2 48331. 22690. 19694. 7157.
+ 6 -48.6 -11.5    0.33 -29.0 47609  22159. 19333. 7068.
+ 7 -48.3  -9.11  -7.97 -30.3 47047. 21932. 19028. 6976.
+ 8 -47.1  -4.56  -2.28 -24.4 46758. 21504. 18780. 6900.
+ 9 -42.3  -2.77  -2.12 -27.6 46197. 21125. 18439. 6827.
+10 -44.6   3.58  -0.65 -35.5 45652. 20836. 18209. 6790.
+# … with 4,208,251 more rows
+```
+
+Now set up the data generation process:
+
+```{r}
 # train-test split
 n_rows <- nrow(df2) # 4208261
 train_ids <- sample(1:n_rows, 0.5 * n_rows)
@@ -528,8 +575,7 @@ data_generator <- function(df,
       magnitude_spectrograms <- tf$abs(stft_out) %>% tf$squeeze()
     })
   
-  ds <- ds  %>%
-    dataset_batch(batch_size)
+  ds %>% dataset_batch(batch_size)
   
 }
 
@@ -555,8 +601,10 @@ use_permute <- TRUE
 num_mafs <- 10 
 num_layers <- 3 * num_mafs
 
+# store bijectors in a list
 bijectors <- vector(mode = "list", length = num_layers)
 
+# fill list, optionally adding batchnorm and permute bijectors
 for (i in seq(1, num_layers, by = 3)) {
   maf <- tfb_masked_autoregressive_flow(
     shift_and_log_scale_fn = tfb_masked_autoregressive_default_template(
@@ -572,6 +620,7 @@ for (i in seq(1, num_layers, by = 3)) {
 
 if (use_permute) bijectors <- bijectors[-num_layers]
 flow <- bijectors %>%
+  # possibly clean out empty elements (if no batchnorm or no permute)
   discard(is.null) %>%
   rev() %>%
   tfb_chain()

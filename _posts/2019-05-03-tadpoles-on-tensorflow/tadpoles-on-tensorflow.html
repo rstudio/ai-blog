@@ -963,8 +963,8 @@
 </div>
 
 <div class="d-article">
-<p>So before we jump into the technicalities, – yes, that’s what this post is too: <em>Un hommage à</em> McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we’re aware of. If you haven’t read <em>Statistical Rethinking</em>, and are interested in modeling, you might definitely want to check it out. In this post, we’re not going to try to re-tell the story: Our clear focus will instead be a demonstration of how to do MCMC with <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>.</p>
-<p>Concretely, this post has two parts. The first is a quick overview of how to use <code>tfd_joint_sequential_distribution</code> to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part could be consulted for quick code look-up, or as a frugal template of the whole process. The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.</p>
+<p>Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we’re aware of. If you haven’t read <em>Statistical Rethinking</em>, and are interested in modeling, you might definitely want to check it out. In this post, we’re not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>.</p>
+<p>Concretely, this post has two parts. The first is a quick overview of how to use <a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_sequential_distribution</a> to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part can be consulted for quick code look-up, or as a frugal template of the whole process. The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.</p>
 <h2 id="reedfrogs">Reedfrogs</h2>
 <p>The data comes with the <code>rethinking</code> package.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1023,7 +1023,7 @@ m1 &lt;- tfd_joint_distribution_sequential(
 </div>
 <p>The model consists of two distributions: Prior means and variances for the 48 tadpole tanks are specified by <code>tfd_multivariate_normal_diag</code>; then <code>tfd_binomial</code> generates survival counts for each tank. Note how the first distribution is unconditional, while the second depends on the first. Note too how the second has to be wrapped in <code>tfd_independent</code> to avoid wrong broadcasting. (This is an aspect of <code>tfd_joint_distribution_sequential</code> usage that deserves to be documented more systematically, which is surely going to happen.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> Just think that this functionality was added to TFP <code>master</code> only three weeks ago!)</p>
 <p>As an aside, the model specification here ends up shorter than in <em>Stan</em> as <code>tfd_binomial</code> optionally takes logits as parameters.</p>
-<p>As with every TFP distribution, a quick functionality check is sampling from the model:</p>
+<p>As with every TFP distribution, you can do a quick functionality check by sampling from the model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 # sample a batch of 2 values 
@@ -1052,8 +1052,8 @@ shape=(2, 48), dtype=float32)
 [[2]]
 Tensor(&quot;IndependentJointDistributionSequential/sample/Beta/sample/Reshape:0&quot;,
 shape=(2, 48), dtype=float32)</code></pre>
-<p>You might be wondering why we are not using eager execution, something we normally like to do. The reason is that as of today, the sampling code must be executed on the graph in order to be run in parallel – which definitely is something we’ll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with <code>@tf.function</code>, a construct that as of this writing is not available from R.</p>
-<p>Now let’s see how we can sample from this model using Hamiltonian Monte Carlo.</p>
+<p>You might be wondering why we are not using eager execution, something we normally like to do. The reason is that, as of today, the sampling code must be executed on the graph in order to be run in parallel – which definitely is something we’ll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with <code>@tf.function</code>, a construct that as of this writing is not available from R.</p>
+<p>Now, let’s see how we can sample from this model using Hamiltonian Monte Carlo.</p>
 <h2 id="running-hamiltonian-monte-carlo-in-tfp">Running Hamiltonian Monte Carlo in TFP</h2>
 <p>We define a Hamiltonian Monte Carlo kernel with dynamic step size adaptation based on a desired acceptance probability.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1076,7 +1076,7 @@ hmc &lt;- mcmc_hamiltonian_monte_carlo(
   )</code></pre>
 </div>
 <p>We then run the sampler, passing in an initial state. If we want to run <span class="math inline">\(n\)</span> chains, that state has to be of length <span class="math inline">\(n\)</span>, for every parameter in the model (here we have just one).</p>
-<p>The sampling function, <code>mcmc_sample_chain</code>, may optionally be passed a <code>trace_fn</code> that tells TFP which kinds of meta information to save. Here we save acceptance ratios and step sizes.</p>
+<p>The sampling function, <a href="https://rstudio.github.io/tfprobability/reference/mcmc_sample_chain.html">mcmc_sample_chain</a>, may optionally be passed a <code>trace_fn</code> that tells TFP which kinds of meta information to save. Here we save acceptance ratios and step sizes.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 # number of steps after burnin

@@ -69,7 +69,7 @@
 <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["images/forest_plot.png","images/logits.png","images/posteriors.png","images/shrinkage.png","images/surv_probs.png","images/tadpoles_t.png","images/tadpoles.jpg","images/thumb.png","images/traceplot_a_1.png","images/traceplot_a_bar.png","images/traceplot_sigma.png","tadpoles-on-tensorflow_files/bowser-1.9.3/bowser.min.js","tadpoles-on-tensorflow_files/distill-2.2.21/template.v2.js","tadpoles-on-tensorflow_files/jquery-1.11.3/jquery.min.js","tadpoles-on-tensorflow_files/webcomponents-2.0.0/webcomponents.js"]}
+  {"type":"character","attributes":{},"value":["images/forest_plot.png","images/logits.png","images/posteriors.png","images/Rplot.png","images/shrinkage.png","images/surv_probs.png","images/tadpoles_t.png","images/tadpoles.jpg","images/thumb.png","images/traceplot_a_1.png","images/traceplot_a_bar.png","images/traceplot_sigma.png","tadpoles-on-tensorflow_files/bowser-1.9.3/bowser.min.js","tadpoles-on-tensorflow_files/distill-2.2.21/template.v2.js","tadpoles-on-tensorflow_files/jquery-1.11.3/jquery.min.js","tadpoles-on-tensorflow_files/webcomponents-2.0.0/webcomponents.js"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
 
@@ -1347,7 +1347,7 @@ gtag('config', 'UA-102325748-2');
 </div>
 
 <div class="d-article">
-<p>Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we’re aware of. If you haven’t read <em>Statistical Rethinking</em>, and are interested in modeling, you might definitely want to check it out. In this post, we’re not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>.</p>
+<p>Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we’re aware of. If you haven’t read <a href="https://www.amazon.com/Statistical-Rethinking-Bayesian-Examples-Chapman/dp/1482253445">Statistical Rethinking</a>, and are interested in modeling, you might definitely want to check it out. In this post, we’re not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
 <p>Concretely, this post has two parts. The first is a quick overview of how to use <a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_sequential_distribution</a> to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part can be consulted for quick code look-up, or as a frugal template of the whole process. The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.</p>
 <h2 id="reedfrogs">Reedfrogs</h2>
 <p>The data comes with the <code>rethinking</code> package.</p>
@@ -1405,9 +1405,9 @@ m1 &lt;- tfd_joint_distribution_sequential(
   )
 )</code></pre>
 </div>
-<p>The model consists of two distributions: Prior means and variances for the 48 tadpole tanks are specified by <code>tfd_multivariate_normal_diag</code>; then <code>tfd_binomial</code> generates survival counts for each tank. Note how the first distribution is unconditional, while the second depends on the first. Note too how the second has to be wrapped in <code>tfd_independent</code> to avoid wrong broadcasting. (This is an aspect of <code>tfd_joint_distribution_sequential</code> usage that deserves to be documented more systematically, which is surely going to happen.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> Just think that this functionality was added to TFP <code>master</code> only three weeks ago!)</p>
+<p>The model consists of two distributions: Prior means and variances for the 48 tadpole tanks are specified by <code>tfd_multivariate_normal_diag</code>; then <code>tfd_binomial</code> generates survival counts for each tank. Note how the first distribution is unconditional, while the second depends on the first. Note too how the second has to be wrapped in <code>tfd_independent</code> to avoid wrong broadcasting. (This is an aspect of <code>tfd_joint_distribution_sequential</code> usage that deserves to be documented more systematically, which is surely going to happen.<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> Just think that this functionality was added to TFP <code>master</code> only three weeks ago!)</p>
 <p>As an aside, the model specification here ends up shorter than in <em>Stan</em> as <code>tfd_binomial</code> optionally takes logits as parameters.</p>
-<p>As with every TFP distribution, you can do a quick functionality check by sampling from the model:</p>
+<p>As with every TFP distribution, you can do a quick functionality check by sampling from the model:<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 # sample a batch of 2 values 
@@ -1436,7 +1436,6 @@ shape=(2, 48), dtype=float32)
 [[2]]
 Tensor(&quot;IndependentJointDistributionSequential/sample/Beta/sample/Reshape:0&quot;,
 shape=(2, 48), dtype=float32)</code></pre>
-<p>You might be wondering why we are not using eager execution, something we normally like to do. The reason is that, as of today, the sampling code must be executed on the graph in order to be run in parallel – which definitely is something we’ll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with <code>@tf.function</code>, a construct that as of this writing is not available from R.</p>
 <p>Now, let’s see how we can sample from this model using Hamiltonian Monte Carlo.</p>
 <h2 id="running-hamiltonian-monte-carlo-in-tfp">Running Hamiltonian Monte Carlo in TFP</h2>
 <p>We define a Hamiltonian Monte Carlo kernel with dynamic step size adaptation based on a desired acceptance probability.</p>
@@ -1517,7 +1516,7 @@ is_accepted &lt;- res$trace[[1]]
 step_size &lt;- res$trace[[2]] </code></pre>
 </div>
 <p>After this quick outline, let’s move on to the topic promised in the title: multi-level modeling, or partial pooling. This time, we’ll also take a closer look at sampling results and diagnostic outputs.</p>
-<h2 id="multi-level-tadpoles">Multi-level tadpoles <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></h2>
+<h2 id="multi-level-tadpoles">Multi-level tadpoles <a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a></h2>
 <p>The multi-level model – or <em>varying intercepts model</em>, in this case: we’ll get to <em>varying slopes</em> in a later post – adds a <em>hyperprior</em> to the model. Instead of deciding on a mean and variance of the normal prior the logits are drawn from, we let the model learn means and variances for individual tanks. These per-tank means, while being priors for the binomial logits, are assumed to be normally distributed, and are themselves regularized by a normal prior for the mean and an exponential prior for the variance.</p>
 <p>For the Stan-savvy, here is the Stan formulation of this model.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1544,12 +1543,14 @@ m2 &lt;- tfd_joint_distribution_sequential(
     # sigma, the prior for the variance of the normal distribution of per-tank logits
     tfd_exponential(rate = 1),
     # normal distribution of per-tank logits
+    # parameters sigma and a_bar refer to the outputs of the above two distributions
     function(sigma, a_bar) 
       tfd_sample_distribution(
         tfd_normal(loc = a_bar, scale = sigma),
         sample_shape = list(n_tadpoles)
       ), 
     # binomial distribution of survival counts
+    # parameter l refers to the output of the normal distribution immediately above
     function(l)
       tfd_independent(
         tfd_binomial(total_count = n_start, logits = l),
@@ -1678,7 +1679,7 @@ step_size_ &lt;- res$trace[[2]]
 # effective sample size
 # again we use tensorflow to get conveniently shaped outputs
 ess_ &lt;- mcmc_effective_sample_size(mcmc_trace) 
-ess_ &lt;-tf$concat(
+ess_ &lt;- tf$concat(
   list(
     ess_[[1]] %&gt;% tf$expand_dims(axis = -1L),
     ess_[[2]]  %&gt;% tf$expand_dims(axis = -1L),
@@ -1749,7 +1750,7 @@ plot_trace(a_bar, &quot;a_bar&quot;)</code></pre>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/traceplot_a_1.png" width="400" /></p>
 </div>
-<p>How about the posterior distributions of the parameters, first and foremost, the varying intercepts <code>a_1</code> - <code>a_48</code>?</p>
+<p>How about the posterior distributions of the parameters, first and foremost, the varying intercepts <code>a_1</code> … <code>a_48</code>?</p>
 <h3 id="posterior-distributions">Posterior distributions</h3>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1766,11 +1767,7 @@ plot_posterior &lt;- function(samples) {
 }
 
 plot_posteriors &lt;- function(sample_array, num_params) {
-  plots &lt;- vector(mode = &quot;list&quot;, length = num_params)
-  for (i in 1:num_params) {
-    p &lt;- plot_posterior(sample_array[ , , i] %&gt;% as.matrix())
-    plots[[i]] &lt;- p
-  }
+  plots &lt;- purrr::map(1:num_params, ~ plot_posterior(sample_array[ , , .x] %&gt;% as.matrix()))
   do.call(grid.arrange, plots)
 }
 
@@ -1826,7 +1823,7 @@ summary %&gt;%
    xlab(&quot;&quot;) + ylab(&quot;post. mean and HPDI&quot;) +
    theme_minimal() </code></pre>
 </div>
-<div class="layout-chunk" data-layout="l-body-outset">
+<div class="layout-chunk" data-layout="l-page">
 <p><img src="images/forest_plot.png" width="400" /></p>
 </div>
 <p>Now for an equivalent to <em>precis</em>. We already computed means, standard deviations and the HPDI interval. Let’s add <em>n_eff</em>, the effective number of samples, and <em>rhat</em>, the Gelman-Rubin statistic.</p>
@@ -1905,8 +1902,10 @@ summary %&gt;%
 <section class="footnotes">
 <hr />
 <ol>
-<li id="fn1"><p>As of today, lots of useful information is available in <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/examples/jupyter_notebooks/Modeling_with_JointDistribution.ipynb">Modeling with JointDistribution</a> and <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/examples/jupyter_notebooks/Multilevel_Modeling_Primer.ipynb">Multilevel Modeling Primer</a>, but some experimentation may needed to adapt the – numerous! – examples to your needs.<a href="#fnref1" class="footnote-back">↩</a></p></li>
-<li id="fn2"><p>yep, it’s a quote<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn1"><p>For a supplementary introduction to Bayesian modeling focusing on complete coverage, yet starting from the very beginning, you might want to consult Ben Lambert’s <a href="https://www.amazon.com/Students-Guide-Bayesian-Statistics/dp/1473916364/">Student’s Guide to Bayesian Statistics</a>.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>As of today, lots of useful information is available in <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/examples/jupyter_notebooks/Modeling_with_JointDistribution.ipynb">Modeling with JointDistribution</a> and <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/examples/jupyter_notebooks/Multilevel_Modeling_Primer.ipynb">Multilevel Modeling Primer</a>, but some experimentation may needed to adapt the – numerous! – examples to your needs.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>You might be wondering why we are not using eager execution, something we normally like to do. The reason is that, as of today, the sampling code must be executed on the graph in order to be run in parallel – which definitely is something we’ll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with <code>@tf.function</code>, a construct that as of this writing is not available from R.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>yep, it’s a quote<a href="#fnref4" class="footnote-back">↩</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

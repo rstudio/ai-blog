@@ -21,8 +21,7 @@ preview: images/thumb.png
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
-
-Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we're aware of. If you haven't read _Statistical Rethinking_, and are interested in modeling, you might definitely want to check it out. In this post, we're not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with [tfprobability](https://rstudio.github.io/tfprobability/).
+Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we're aware of. If you haven't read [Statistical Rethinking](https://www.amazon.com/Statistical-Rethinking-Bayesian-Examples-Chapman/dp/1482253445), and are interested in modeling, you might definitely want to check it out. In this post, we're not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with [tfprobability](https://rstudio.github.io/tfprobability/).^[For a supplementary introduction to Bayesian modeling focusing on complete coverage, yet starting from the very beginning, you might want to consult Ben Lambert's [Student's Guide to Bayesian Statistics](https://www.amazon.com/Students-Guide-Bayesian-Statistics/dp/1473916364/).]
 
 Concretely, this post has two parts. The first is a quick overview of how to use [tfd_joint_sequential_distribution](https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html) to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part can be consulted for quick code look-up, or as a frugal template of the whole process.
 The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.
@@ -101,7 +100,8 @@ Note how the first distribution is unconditional, while the second depends on th
 
 As an aside, the model specification here ends up shorter than in _Stan_ as `tfd_binomial` optionally takes logits as parameters.
 
-As with every TFP distribution, you can do a quick functionality check by sampling from the model:
+As with every TFP distribution, you can do a quick functionality check by sampling from the model:^[You might be wondering why we are not using eager execution, something we normally like to do.
+The reason is that, as of today, the sampling code must be executed on the graph in order to be run in parallel -- which definitely is something we'll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with `@tf.function`, a construct that as of this writing is not available from R.]
 
 ```{r}
 # sample a batch of 2 values 
@@ -135,9 +135,6 @@ shape=(2, 48), dtype=float32)
 Tensor("IndependentJointDistributionSequential/sample/Beta/sample/Reshape:0",
 shape=(2, 48), dtype=float32)
 ```
-
-You might be wondering why we are not using eager execution, something we normally like to do.
-The reason is that, as of today, the sampling code must be executed on the graph in order to be run in parallel -- which definitely is something we'll want to do when with a set of Markov chains. In Python, this can be achieved by annotating the sampling function with `@tf.function`, a construct that as of this writing is not available from R.
 
 Now, let's see how we can sample from this model using Hamiltonian Monte Carlo.
 
@@ -264,12 +261,14 @@ m2 <- tfd_joint_distribution_sequential(
     # sigma, the prior for the variance of the normal distribution of per-tank logits
     tfd_exponential(rate = 1),
     # normal distribution of per-tank logits
+    # parameters sigma and a_bar refer to the outputs of the above two distributions
     function(sigma, a_bar) 
       tfd_sample_distribution(
         tfd_normal(loc = a_bar, scale = sigma),
         sample_shape = list(n_tadpoles)
       ), 
     # binomial distribution of survival counts
+    # parameter l refers to the output of the normal distribution immediately above
     function(l)
       tfd_independent(
         tfd_binomial(total_count = n_start, logits = l),
@@ -415,7 +414,7 @@ step_size_ <- res$trace[[2]]
 # effective sample size
 # again we use tensorflow to get conveniently shaped outputs
 ess_ <- mcmc_effective_sample_size(mcmc_trace) 
-ess_ <-tf$concat(
+ess_ <- tf$concat(
   list(
     ess_[[1]] %>% tf$expand_dims(axis = -1L),
     ess_[[2]]  %>% tf$expand_dims(axis = -1L),
@@ -500,7 +499,7 @@ knitr::include_graphics("images/traceplot_a_1.png")
 ```
 
 
-How about the posterior distributions of the parameters, first and foremost, the varying intercepts `a_1` - `a_48`?
+How about the posterior distributions of the parameters, first and foremost, the varying intercepts `a_1` ... `a_48`?
 
 ### Posterior distributions
 
@@ -518,11 +517,7 @@ plot_posterior <- function(samples) {
 }
 
 plot_posteriors <- function(sample_array, num_params) {
-  plots <- vector(mode = "list", length = num_params)
-  for (i in 1:num_params) {
-    p <- plot_posterior(sample_array[ , , i] %>% as.matrix())
-    plots[[i]] <- p
-  }
+  plots <- purrr::map(1:num_params, ~ plot_posterior(sample_array[ , , .x] %>% as.matrix()))
   do.call(grid.arrange, plots)
 }
 
@@ -583,7 +578,7 @@ summary %>%
    theme_minimal() 
 ```
 
-```{r, eval=TRUE, echo=FALSE, layout="l-body-outset"}
+```{r, eval=TRUE, echo=FALSE, layout="l-page"}
 knitr::include_graphics("images/forest_plot.png")
 ```
 

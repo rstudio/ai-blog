@@ -1,7 +1,7 @@
 ---
 title: "Hierarchical partial pooling, continued: Varying slopes models with TensorFlow Probability"
 description: > 
-   This post builds on our recent introduction to multi-level modeling with tfprobability, the R wrapper to TensorFlow Probability. We show how to pool not just mean values ("intercepts"), but also relationships ("slopes"), thus enabling models to learn from data in an even broader way. Again, we use an example from Richard McElreath's "Statistical Rethinking"; and again, terminology as well as the way we present this topic are largely owed to this book.
+   This post builds on our recent introduction to multi-level modeling with tfprobability, the R wrapper to TensorFlow Probability. We show how to pool not just mean values ("intercepts"), but also relationships ("slopes"), thus enabling models to learn from data in an even broader way. Again, we use an example from Richard McElreath's "Statistical Rethinking"; the terminology as well as the way we present this topic are largely owed to this book.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -23,17 +23,16 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
 
-In a previous post, we showed how to use [tfprobability](https://rstudio.github.io/tfprobability/) -- the R interface to TensorFlow Probability -- to build a _multilevel_, or  _partial pooling_, model of tadpole survival in differently sized (and thus, differing in inhabitant number) tanks.
+In a [previous post](https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/), we showed how to use [tfprobability](https://rstudio.github.io/tfprobability/) -- the R interface to TensorFlow Probability -- to build a _multilevel_, or  _partial pooling_ model of tadpole survival in differently sized (and thus, differing in inhabitant number) tanks.
 
-A completely _pooled_ model would have resulted in a global estimate of survival count, irrespective of tank; an _unpooled_ model would have learned to predict survival count for each tank separately. The former approach does not take into account different circumstances; the latter does not make use of common information. (Also, it clearly has no predictive use unless we want to make predictions for the very same entities we used to train the model.)
+A completely _pooled_ model would have resulted in a global estimate of survival count, irrespective of tank, while an _unpooled_ model would have learned to predict survival count for each tank separately. The former approach does not take into account different circumstances; the latter does not make use of common information. (Also, it clearly has no predictive use unless we want to make predictions for the very same entities we used to train the model.)
 
 In contrast, a _partially pooled_ model lets you make predictions for the familiar, as well as new entities: Just use the appropriate prior.
 
 Assuming we _are_ in fact interested in the same entities -- why would we want to apply partial pooling?
-For the same reasons so much effort in machine learning goes into devising regularization mechanisms.
-We don't want to overfit too much to actual measurements, be they related to the same entity or a class of entities. If I want to predict my heart rate as I wake up next morning, based on a single measurement I'm taking now (let's say it's evening and I'm frantically typing a blog post), I better take into account some facts about heart rate behavior in general (instead of just projecting into the future the exact value measured right now).
+For the same reasons so much effort in machine learning goes into devising regularization mechanisms. We don't want to overfit too much to actual measurements, be they related to the same entity or a class of entities. If I want to predict my heart rate as I wake up next morning, based on a single measurement I'm taking now (let's say it's evening and I'm frantically typing a blog post), I better take into account some facts about heart rate behavior in general (instead of just projecting into the future the exact value measured right now).
 
-In the tadpole example, this means we expect generalization to work better for tanks with many inhabitants, compared to more solitary environments. For the latter ones, we better take a peek at survival rates from other tanks, to supplement the sparse idiosyncratic information available. 
+In the tadpole example, this means we expect generalization to work better for tanks with many inhabitants, compared to more solitary environments. For the latter ones, we better take a peek at survival rates from other tanks, to supplement the sparse, idiosyncratic information available. 
 Or using the technical term, in the latter case we hope for the model to _shrink_ its estimates toward the overall mean more noticeably than in the former.
 
 This type of information sharing is already very useful, but it gets better. The tadpole model is a _varying intercepts_ model, as McElreath calls it (or _random intercepts_, as it is sometimes -- confusingly -- called ^[cf. [the Wikipedia article on multilevel models](https://en.wikipedia.org/wiki/Multilevel_model) for a collection of terms encountered when dealing with this subject, and e.g. [Gelman's](https://statmodeling.stat.columbia.edu/2005/01/25/why_i_dont_use/) dissection of various ways _random effects_ are defined]) -- _intercepts_ referring to the way we make predictions for entities (here: tanks), with no predictor variables present. So if we can pool information about intercepts, why not pool information about _slopes_ as well? This will allow us to, in addition, make use of _relationships_ between variables learnt on different entities in the training set.
@@ -212,14 +211,14 @@ model <- function(cafe_id) {
 ```
 
 
-The first five distributions are priors. First,
+The first five distributions are priors. First, we have the prior for the correlation matrix: an [LKJ distribution]() of shape `2x2` and with _concentration_ parameter equal to 2. 
 
 ```{r}
 # rho, the prior correlation matrix between intercepts and slopes
 tfd_lkj(2, 2, input_output_cholesky = TRUE)
 ```
 
-we have the prior for the correlation matrix: an [LKJ distribution]() of shape `2x2` and with _concentration_ parameter equal to 2. What kind of prior is this? As McElreath keeps reminding us, nothing more instructive than sampling from the prior:
+What kind of prior is this? As McElreath keeps reminding us, nothing more instructive than sampling from the prior:
 
 ```{r}
 corr_prior <- tfd_lkj(2, 2)
@@ -264,7 +263,7 @@ tfd_sample_distribution(tfd_normal(loc = -1, scale = 0.5), sample_shape = 1)
 tfd_sample_distribution(tfd_normal(loc = 5, scale = 2), sample_shape = 1)
 ```
 
-On to the heart of the model, where the partial pooling happens. We are going to construct partially pooled intercepts and slopes for all of the cafés. Like we said above, intercepts and slopes are not independent; they interact. Thus, we need to use a multivariate normal distribution. 
+On to the heart of the model, where the partial pooling happens. We are going to construct partially-pooled intercepts and slopes for all of the cafés. Like we said above, intercepts and slopes are not independent; they interact. Thus, we need to use a multivariate normal distribution. 
 The means are given by the prior means defined right above, while the covariance matrix is built from the above prior variances and the prior correlation matrix.
 The output shape here is determined by the number of cafés: We want an intercept and a slope for every café.
 
@@ -331,7 +330,7 @@ The actual Monte Carlo sampling works just like in the previous post, with one e
 
 ```{r}
 constraining_bijectors <- list(
-  # make sure the rho[1:4] parameters are valid for a cholesky factor
+  # make sure the rho[1:4] parameters are valid for a Cholesky factor
   tfb_correlation_cholesky(),
   # make sure variance is positive
   tfb_exp(),
@@ -504,9 +503,9 @@ plot_traces(samples, 49)
 knitr::include_graphics("images/trace.png")
 ```
 
-Awesome! (The first two parameters of `rho`, the cholesky factor of the correlation matrix, need to stay fixed at 1 and 0, respectively.)
+Awesome! (The first two parameters of `rho`, the Cholesky factor of the correlation matrix, need to stay fixed at 1 and 0, respectively.)
 
-Now to some summary statistics on the posteriors of the parameters.
+Now, on to some summary statistics on the posteriors of the parameters.
 
 ### Parameters
 
@@ -623,7 +622,7 @@ print(summary_with_diag, n = 49)
 So what do we have? If you run this "live", for the rows `a_cafe_n` resp. `b_cafe_n`, you see a nice alternation of white and red coloring: For all cafés, the inferred slopes are negative.
 The inferred slope prior (`b`) is around -1.14, which is not too far off from the value we used for sampling: 1.
 
-The `rho` posterior estimates, admittedly, are less useful unless you are accustomed to compose cholesky factors in your head. We compute the resulting posterior correlations and their mean:
+The `rho` posterior estimates, admittedly, are less useful unless you are accustomed to compose Cholesky factors in your head. We compute the resulting posterior correlations and their mean:
 
 ```{r}
 rhos <- all_samples[ , 1:4] %>% tibble()

@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>Adding uncertainty estimates to Keras models with tfprobability</title>
+  
+  <meta property="description" itemprop="description" content="As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way."/>
+  
+  
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2019-06-05"/>
+  <meta property="article:created" itemprop="dateCreated" content="2019-06-05"/>
+  <meta name="article:author" content="Sigrid Keydana"/>
+  
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="Adding uncertainty estimates to Keras models with tfprobability"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way."/>
+  <meta property="og:locale" content="en_US"/>
+  
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="Adding uncertainty estimates to Keras models with tfprobability"/>
+  <meta property="twitter:description" content="As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way."/>
+  
+  <!--/radix_placeholder_meta_tags-->
+  <!--radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","slug","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Adding uncertainty estimates to Keras models with tfprobability"]},{"type":"character","attributes":{},"value":["As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way.\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydana2019uncertaintytfp"]},{"type":"character","attributes":{},"value":["06-05-2019"]},{"type":"character","attributes":{},"value":["Probability and statistics","Keras","Concepts"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/uci_both.png"]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["images/g_aleatoric_linear_8.png","images/g_aleatoric_relu_8.png","images/g_both_scale_all.png","images/g_both_scale0.01.png","images/g_epistemic_100epochs.png","images/g_epistemic_linear_kl150.png","images/g_epistemic_relu.png","images/g_epistemic_variations.png","images/simdata.png","images/uci_aleatoric.png","images/uci_allpreds_all.png","images/uci_both.png","images/uci_epistemic.png","uncertainty_tfprobability_files/bowser-1.9.3/bowser.min.js","uncertainty_tfprobability_files/distill-2.2.21/template.v2.js","uncertainty_tfprobability_files/jquery-1.11.3/jquery.min.js","uncertainty_tfprobability_files/webcomponents-2.0.0/webcomponents.js"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+  
+  <style type="text/css">
+  
+  body {
+    background-color: white;
+  }
+  
+  .pandoc-table {
+    width: 100%;
+  }
+  
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+  
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+  
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+  
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
+  }
+  
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .shaded-content {
+    background: white;
+  }
+  
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+  
+  d-article {
+    padding-bottom: 30px;
+  }
+  
+  d-appendix {
+    padding-top: 30px;
+  }
+  
+  d-article>p>img {
+    width: 100%;
+  }
+  
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+  
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  /* CSS for table of contents */
+  
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+  
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+  
+  .d-toc a {
+    border-bottom: none;
+  }
+  
+  .d-toc ul {
+    padding-left: 0;
+  }
+  
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+  
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+  
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+  
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+  
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  
+  
+  
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+  
+  d-code {
+    overflow-x: auto !important;
+  }
+  
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  pre.text-output {
+  
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  @media(min-width: 768px) {
+  
+  d-code {
+    overflow-x: visible !important;
+  }
+  
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+  
+  /* Figure */
+  
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+  
+  .figure img {
+    width: 100%;
+  }
+  
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+  
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+  
+  
+  
+  /* Tweak 1000px media break to show more text */
+  
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+  
+    .grid {
+      grid-column-gap: 16px;
+    }
+  
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption, .figure .caption, figure figcaption {
+      font-size: 13px;
+    }
+  }
+  
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+  
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+  
+  
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+  
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  
+  /* Social footer */
+  
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+  
+  .disqus-comments {
+    margin-right: 30px;
+  }
+  
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+  
+  #disqus_thread {
+    margin-top: 30px;
+  }
+  
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+  
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+  
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+  
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+  
+  
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+  
+  
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+  
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+  
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+  
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+  
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+  
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+  
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+  
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+  
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+  
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+  
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  </style>
+  
+  <script type="application/javascript">
+  
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+  
+  // show body when load is complete
+  function on_load_complete() {
+  
+    // set body to visible
+    document.body.style.visibility = 'visible';
+  
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+  
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+  
+  function init_distill() {
+  
+    init_common();
+  
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+  
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+  
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+  
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+  
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+  
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+  
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+  
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+  
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+  
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#' + id + '>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.html();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.html(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+  
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+  
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+  
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+  
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+  
+      // capture layout
+      var layout = $(this).attr('data-layout');
+  
+      // apply layout to markdown level block elements
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+  
+  
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+  
+    // load distill framework
+    load_distill_framework();
+  
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+  
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+  
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+  
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+  
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+  
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+  
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+  
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+  
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+  
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+  
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+  
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+  
+      // clear polling timer
+      clearInterval(tid);
+  
+      // show body now that everything is ready
+      on_load_complete();
+    }
+  
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+  
+  }
+  
+  function init_downlevel() {
+  
+    init_common();
+  
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+  
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+  
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+  
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+  
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+  
+  
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+  
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+  
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+  
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+  
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+  
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+  
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+  
+    $('body').addClass('downlevel');
+  
+    on_load_complete();
+  }
+  
+  
+  function init_common() {
+  
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+  
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+  
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+  
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+  
+    // mark non-body figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
+    });
+  
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+  
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.distill-site-header a[href]').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+  
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+  
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
+  
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+  
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $(window).resize();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+  
+  </script>
+  
+  <!--/radix_placeholder_distill-->
+  <script src="uncertainty_tfprobability_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="uncertainty_tfprobability_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="uncertainty_tfprobability_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="uncertainty_tfprobability_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Adding uncertainty estimates to Keras models with tfprobability","description":"As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2019-06-05T00:00:00.000+02:00","citationText":"Keydana, 2019"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Adding uncertainty estimates to Keras models with tfprobability</h1>
+<p>As of today, there is no mainstream road to obtain uncertainty estimates from neural networks. All that can be said this that normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way.</p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>06-05-2019
+</div>
+
+<div class="d-article">
+<p>About six months ago, we showed <a href="https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout/">how to create a custom wrapper</a> to obtain uncertainty estimates from a Keras network. Today we present a less laborious, as well faster-running, way using <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>, the R wrapper to TensorFlow Probability. Like most posts on this blog, this one won’t be short, so let’s quickly state what you can expect in return of reading time.</p>
+<h2 id="what-to-expect-from-this-post">What to expect from this post</h2>
+<p>Starting from what <em>not</em> to expect: There won’t be a recipe that tells you how <em>exactly</em> to set all parameters involved in order to report the “right” uncertainty measures. But then, what <em>are</em> the “right” uncertainty measures? Unless you happen to work with a method that has no (hyper-)parameters to tweak, there will always be uncertainty about how to report uncertainty.</p>
+<p>What you <em>can</em> expect though is an introduction to obtaining uncertainty estimates for Keras networks, as well as an empirical report of how tweaking (hyper-)parameters may affect the results. As in the aforementioned post, we perform our tests on a simulated as well as on a real dataset, the <a href="http://archive.ics.uci.edu/ml/datasets/Combined+Cycle+Power+Plant">Combined Cycle Power Plant Data Set</a>. At the end, in place of strict rules you should have acquired some intuition that will transfer to other real-world datasets.</p>
+<p>Did you notice our talking about <em>Keras networks</em> above? Indeed this post has an additional goal: So far, we haven’t really discussed yet how <code>tfprobability</code> goes together with <code>keras</code>. Now we finally do (in short: they work together seemlessly).</p>
+<p>Finally, the notions of <em>aleatoric</em> and <em>epistemic</em> uncertainty, which may have stayed a bit abstract in the prior post, should get much more concrete here.</p>
+<h2 id="aleatoric-vs.epistemic-uncertainty">Aleatoric vs. epistemic uncertainty</h2>
+<p>Reminiscent somehow of the classic decomposition of generalization error into bias and variance, splitting uncertainty into its epistemic and aleatoric constituents separates an irreducible from a reducible part.</p>
+<p>The reducible part relates to imperfection in the model: In theory, if our model were perfect, epistemic uncertainty would vanish. Put differently, if the training data were unlimited – or if they comprised the whole population – we could just add capacity to the model until we’ve obtained a perfect fit.</p>
+<p>In contrast, normally there is variation in our measurements. There may be one true process that determines my resting heart rate; nonetheless, actual measurements will vary over time. There is nothing to be done about this: This is the aleatoric part that just remains, to be factored into our expectations.</p>
+<p>Now reading this, you might be thinking: “Wouldn’t a model that actually <em>were</em> perfect capture those pseudo-random fluctuations?”. We’ll leave that phisosophical question be; instead, we’ll try to illustrate the usefulness of this distinction by example, in a practical way. In a nutshell, viewing a model’s <em>aleatoric</em> uncertainty output should caution us to factor in appropriate deviations when making our predictions, while inspecting <em>epistemic</em> uncertainty should help us re-think the appropriateness of the chosen model.</p>
+<p>Now let’s dive in and see how we may accomplish our goal with <code>tfprobability</code>. We start with the simulated dataset.</p>
+<h2 id="uncertainty-estimates-on-simulated-data">Uncertainty estimates on simulated data</h2>
+<h3 id="dataset">Dataset</h3>
+<p>We re-use the dataset from the Google TensorFlow Probability team’s <a href="https://medium.com/tensorflow/regression-with-probabilistic-layers-in-tensorflow-probability-e46ff5d37baf">blog post on the same subject</a> <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, with one exception: We extend the range of the independent variable a bit on the negative side, to better demonstrate the different methods’ behaviors.</p>
+<p>Here is the data-generating process. We also get library loading out of the way. Like in the preceding posts on <code>tfprobability</code>, please use the development versions of <code>tensorflow</code> and <code>tfprobability</code> as well as <code>keras</code>. Call <code>install_tensorflow(version = &quot;nightly&quot;)</code> to obtain a current nightly build of TensorFlow and TensorFlow Probability:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# make sure we use the development versions of tensorflow, tfprobability and keras
+devtools::install_github(&quot;rstudio/tensorflow&quot;)
+devtools::install_github(&quot;rstudio/tfprobability&quot;)
+devtools::install_github(&quot;rstudio/keras&quot;)
+
+# and that we use a nightly build of TensorFlow and TensorFlow Probability
+tensorflow::install_tensorflow(version = &quot;nightly&quot;)
+
+library(tensorflow)
+tf$compat$v1$enable_v2_behavior()
+library(tfprobability)
+library(keras)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# generate the data
+x_min &lt;- -40
+x_max &lt;- 60
+n &lt;- 150
+w0 &lt;- 0.125
+b0 &lt;- 5
+
+normalize &lt;- function(x) (x - x_min) / (x_max - x_min)
+
+# training data; predictor 
+x &lt;- x_min + (x_max - x_min) * runif(n) %&gt;% as.matrix()
+
+# training data; target
+eps &lt;- rnorm(n) * (3 * (0.25 + (normalize(x)) ^ 2))
+y &lt;- (w0 * x * (1 + sin(x)) + b0) + eps
+
+# test data (predictor)
+x_test &lt;- seq(x_min, x_max, length.out = n) %&gt;% as.matrix()</code></pre>
+</div>
+<p>How does the data look?</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ggplot(data.frame(x = x, y = y), aes(x, y)) + geom_point()</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-3"></span>
+<img src="images/simdata.png" alt="Simulated data" width="500" />
+<p class="caption">
+Figure 1: Simulated data
+</p>
+</div>
+</div>
+<p>The task here is single-predictor regression, which in principle we can achieve use Keras <code>dense</code> layers. Let’s see how to enhance this by indicating uncertainty, starting from the aleatoric type.</p>
+<h3 id="aleatoric-uncertainty">Aleatoric uncertainty</h3>
+<p>Aleatoric uncertainty, by definition, is not a statement about the model. So why not have the model learn the uncertainty inherent in the data?</p>
+<p>This is exactly how aleatoric uncertainty is operationalized in this approach. Instead of a single output per input – the predicted mean of the regression – here we have two outputs: one for the mean, and one for the standard deviation.</p>
+<p>How will we use these? Until shortly, we would have had to roll our own logic. Now with <code>tfprobability</code>, we make the network output not tensors, but distributions – put differently, we make the last layer a <a href="https://rstudio.github.io/tfprobability/reference/index.html#section-distribution-layers">distribution layer</a>.</p>
+<p>Distribution layers are Keras layers, but contributed by <code>tfprobability</code>. The awesome thing is that we can train them with just tensors as targets, as usual: No need to compute probabilities ourselves.</p>
+<p>Several specialized distribution layers exist, such as <a href="https://rstudio.github.io/tfprobability/reference/layer_kl_divergence_add_loss.html">layer_kl_divergence_add_loss</a>, <a href="https://rstudio.github.io/tfprobability/reference/layer_independent_bernoulli.html">layer_independent_bernoulli</a>, or <a href="https://rstudio.github.io/tfprobability/reference/layer_mixture_same_family.html">layer_mixture_same_family</a>, but the most general is <a href="https://rstudio.github.io/tfprobability/reference/layer_distribution_lambda.html">layer_distribution_lambda</a>. <code>layer_distribution_lambda</code> takes as inputs the preceding layer and outputs a distribution. In order to be able to do this, we need to tell it how to make use of the preceding layer’s activations.</p>
+<p>In our case, at some point we will want to have a <code>dense</code> layer with two units.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+... %&gt;% layer_dense(units = 2, activation = &quot;linear&quot;) %&gt;%</code></pre>
+</div>
+<p>Then <code>layer_distribution_lambda</code> will use the first unit as the mean of a normal distribution, and the second as its standard deviation.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               scale = 1e-3 + tf$math$softplus(x[, 2, drop = FALSE])
+               )
+)</code></pre>
+</div>
+<p>Here is the complete model we use. We insert an additional dense layer in front, with a <code>relu</code> activation, to give the model a bit more freedom and capacity. We discuss this, as well as that <code>scale = ...</code> foo, as soon as we’ve finished our walkthrough of model training.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 8, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 2, activation = &quot;linear&quot;) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               # ignore on first read, we&#39;ll come back to this
+               # scale = 1e-3 + 0.05 * tf$math$softplus(x[, 2, drop = FALSE])
+               scale = 1e-3 + tf$math$softplus(x[, 2, drop = FALSE])
+               )
+  )</code></pre>
+</div>
+<p>For a model that outputs a distribution, the loss is the negative log likelihood given the target data.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+negloglik &lt;- function(y, model) - (model %&gt;% tfd_log_prob(y))</code></pre>
+</div>
+<p>We can now compile and fit the model.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+learning_rate &lt;- 0.01
+model %&gt;% compile(optimizer = optimizer_adam(lr = learning_rate), loss = negloglik)
+
+model %&gt;% fit(x, y, epochs = 1000)</code></pre>
+</div>
+<p>We now call the model on the test data to obtain the predictions. The predictions now actually are <em>distributions</em>, and we have 150 of them, one for each datapoint:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+yhat &lt;- model(tf$constant(x_test))</code></pre>
+</div>
+<pre><code>
+tfp.distributions.Normal(&quot;sequential/distribution_lambda/Normal/&quot;,
+batch_shape=[150, 1], event_shape=[], dtype=float32)</code></pre>
+<p>To obtain the means and standard deviations – the latter being that measure of aleatoric uncertainty we’re interested in – we just call <a href="https://rstudio.github.io/tfprobability/reference/tfd_mean.html">tfd_mean</a> and <a href="https://rstudio.github.io/tfprobability/reference/tfd_stddev.html">tfd_stddev</a> on these distributions. That will give us the predicted mean, as well as the predicted variance, <em>per datapoint</em>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+mean &lt;- yhat %&gt;% tfd_mean()
+sd &lt;- yhat %&gt;% tfd_stddev()</code></pre>
+</div>
+<p>Let’s visualize this. Here are the actual test data points, the predicted means, as well as confidence bands indicating the mean estimate plus/minus two standard deviations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ggplot(data.frame(
+  x = x,
+  y = y,
+  mean = as.numeric(mean),
+  sd = as.numeric(sd)
+),
+aes(x, y)) +
+  geom_point() +
+  geom_line(aes(x = x_test, y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_ribbon(aes(
+    x = x_test,
+    ymin = mean - 2 * sd,
+    ymax = mean + 2 * sd
+  ),
+  alpha = 0.2,
+  fill = &quot;grey&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-12"></span>
+<img src="images/g_aleatoric_relu_8.png" alt="Aleatoric uncertainty on simulated data, using relu activation in the first dense layer." width="500" />
+<p class="caption">
+Figure 2: Aleatoric uncertainty on simulated data, using relu activation in the first dense layer.
+</p>
+</div>
+</div>
+<p>This looks pretty reasonable. What if we had used linear activation in the first layer? Meaning, what if the model had looked like this<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 8, activation = &quot;linear&quot;) %&gt;%
+  layer_dense(units = 2, activation = &quot;linear&quot;) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               scale = 1e-3 + 0.05 * tf$math$softplus(x[, 2, drop = FALSE])
+               )
+  )</code></pre>
+</div>
+<p>This time, the model does not capture the “form” of the data that well, as we’ve disallowed any nonlinearities.</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-14"></span>
+<img src="images/g_aleatoric_linear_8.png" alt="Aleatoric uncertainty on simulated data, using linear activation in the first dense layer." width="500" />
+<p class="caption">
+Figure 3: Aleatoric uncertainty on simulated data, using linear activation in the first dense layer.
+</p>
+</div>
+</div>
+<p>Using linear activations only, we also need to do more experimenting with the <code>scale = ...</code> line to get the result look “right”. With <code>relu</code>, on the other hand, results are pretty robust to changes in how <code>scale</code> is computed. Which activation do we choose? If our goal is to adequately model variation in the data, we can just choose <code>relu</code> – and leave assessing <em>uncertainty in the model</em> to a different technique (the <em>epistemic</em> uncertainty that is up next).</p>
+<p>Overall, it seems like aleatoric uncertainty is the straightforward part. We want the network to learn the variation inherent in the data, which it does. What do we gain? Instead of obtaining just point estimates, which in this example might turn out pretty bad in the two fan-like areas of the data on the left and right sides, we learn about the spread as well. We’ll thus be appropriately cautious depending on what input range we’re making predictions for.</p>
+<h3 id="epistemic-uncertainty">Epistemic uncertainty</h3>
+<p>Now our focus is on the model. Given a speficic model (e.g., one from the linear family), what kind of data does it say conforms to its expectations?</p>
+<p>To answer this question, we make use of a <a href="https://rstudio.github.io/tfprobability/reference/layer_dense_variational.html">variational-dense layer</a>. This is again a Keras layer provided by <code>tfprobability</code>. Internally, it works by minimizing the <em>evidence lower bound</em> (ELBO), thus striving to find an approximative posterior that does two things:</p>
+<ol type="1">
+<li>fit the actual data well (put differently: achieve high <em>log likelihood</em>), and</li>
+<li>stay close to a <em>prior</em> (as measured by <a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence">KL divergence</a>).</li>
+</ol>
+<p>As users, we actually specify the form of the posterior as well as that of the prior. Here is how a prior could look.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+prior_trainable &lt;-
+  function(kernel_size,
+           bias_size = 0,
+           dtype = NULL) {
+    n &lt;- kernel_size + bias_size
+    keras_model_sequential() %&gt;%
+      # we&#39;ll comment on this soon
+      # layer_variable(n, dtype = dtype, trainable = FALSE) %&gt;%
+      layer_variable(n, dtype = dtype, trainable = TRUE) %&gt;%
+      layer_distribution_lambda(function(t) {
+        tfd_independent(tfd_normal(loc = t, scale = 1),
+                        reinterpreted_batch_ndims = 1)
+      })
+  }</code></pre>
+</div>
+<p>This prior is itself a Keras model, containing a <a href="https://rstudio.github.io/tfprobability/reference/layer_variable.html">layer that wraps a variable</a> and a <code>layer_distribution_lambda</code>, that type of distribution-yielding layer we’ve just encountered above. The variable layer could be fixed (non-trainable) or non-trainable, corresponding to a genuine prior or a prior learnt from the data in an <em>empirical Bayes</em>-like way. The distribution layer outputs a normal distribution since we’re in a regression setting.</p>
+<p>The posterior too is a Keras model – definitely trainable this time. It too outputs a normal distribution:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+posterior_mean_field &lt;-
+  function(kernel_size,
+           bias_size = 0,
+           dtype = NULL) {
+    n &lt;- kernel_size + bias_size
+    c &lt;- log(expm1(1))
+    keras_model_sequential(list(
+      layer_variable(shape = 2 * n, dtype = dtype),
+      layer_distribution_lambda(
+        make_distribution_fn = function(t) {
+          tfd_independent(tfd_normal(
+            loc = t[1:n],
+            scale = 1e-5 + tf$nn$softplus(c + t[(n + 1):(2 * n)])
+            ), reinterpreted_batch_ndims = 1)
+        }
+      )
+    ))
+  }</code></pre>
+</div>
+<p>Now that we’ve defined both, we can set up the model’s layers. The first one, a variational-dense layer, has a single unit. The ensuing distribution layer then takes that unit’s output and uses it for the mean of a normal distribution – while the scale of that Normal is fixed at 1:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense_variational(
+    units = 1,
+    make_posterior_fn = posterior_mean_field,
+    make_prior_fn = prior_trainable,
+    kl_weight = 1 / n
+  ) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x, scale = 1))</code></pre>
+</div>
+<p>You may have noticed one argument to <code>layer_dense_variational</code> we haven’t discussed yet, <code>kl_weight</code>. This is used to scale the contribution to the total loss of the KL divergence, and normally should equal one over the number of data points.</p>
+<p>Training the model is straightforward. As users, we only specify the <em>negative log likelihood</em> part of the loss; the KL divergence part is taken care of transparently by the framework.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+negloglik &lt;- function(y, model) - (model %&gt;% tfd_log_prob(y))
+model %&gt;% compile(optimizer = optimizer_adam(lr = learning_rate), loss = negloglik)
+model %&gt;% fit(x, y, epochs = 1000)</code></pre>
+</div>
+<p>Because of the stochasticity inherent in a variational-dense layer, each time we call this model, we obtain different results: different normal distributions, in this case. To obtain the uncertainty estimates we’re looking for, we therefore call the model a bunch of times – 100, say:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+yhats &lt;- purrr::map(1:100, function(x) model(tf$constant(x_test)))</code></pre>
+</div>
+<p>We can now plot those 100 predictions – lines, in this case, as there are no nonlinearities:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+means &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_mean)) %&gt;% abind::abind()
+
+lines &lt;- data.frame(cbind(x_test, means)) %&gt;%
+  gather(key = run, value = value,-X1)
+
+mean &lt;- apply(means, 1, mean)
+
+ggplot(data.frame(x = x, y = y, mean = as.numeric(mean)), aes(x, y)) +
+  geom_point() +
+  geom_line(aes(x = x_test, y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_line(
+    data = lines,
+    aes(x = X1, y = value, color = run),
+    alpha = 0.3,
+    size = 0.5
+  ) +
+  theme(legend.position = &quot;none&quot;)</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-21"></span>
+<img src="images/g_epistemic_linear_kl150.png" alt="Epistemic uncertainty on simulated data, using linear activation in the variational-dense layer." width="500" />
+<p class="caption">
+Figure 4: Epistemic uncertainty on simulated data, using linear activation in the variational-dense layer.
+</p>
+</div>
+</div>
+<p>What we see here are essentially <em>different models</em>, consistent with the assumptions built into the architecture. What we’re not accounting for is the spread in the data. Can we do both? We can; but first let’s comment on a few choices that were made and see how they affect the results.</p>
+<p>To prevent this post from growing to infinite size, we’ve refrained from performing a systematic experiment; please take what follows not as generalizable statements, but as <em>pointers to things you will want to keep in mind</em> in your own ventures. Especially, each (hyper-)parameter is not an island; they could interact in unforeseen ways.</p>
+<p>After those words of caution, here are some things we noticed.</p>
+<ol type="1">
+<li>One question you might ask: Before, in the aleatoric uncertainty setup, we added an additional dense layer to the model, with <code>relu</code> activation. What if we did this here? Firstly, we’re not adding any additional, non-variational layers in order to keep the setup “fully Bayesian” – we want priors at every level. As to using <code>relu</code> in <code>layer_dense_variational</code>, we did try that, and the results look pretty similar:</li>
+</ol>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-22"></span>
+<img src="images/g_epistemic_relu.png" alt="Epistemic uncertainty on simulated data, using relu activation in the variational-dense layer." width="500" />
+<p class="caption">
+Figure 5: Epistemic uncertainty on simulated data, using relu activation in the variational-dense layer.
+</p>
+</div>
+</div>
+<p>However, things look pretty different if we drastically reduce training time… which brings us to the next observation.</p>
+<ol start="2" type="1">
+<li>Unlike in the aleatoric setup, the number of training epochs matter <em>a lot</em>. If we train, <em>quote unquote</em>, too long, the posterior estimates will get closer and closer to the posterior mean: we lose uncertainty. What happens if we train “too short” is even more notable. Here are the results for the linear-activation as well as the relu-activation cases:</li>
+</ol>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-23"></span>
+<img src="images/g_epistemic_100epochs.png" alt="Epistemic uncertainty on simulated data if we train for 100 epochs only. Left: linear activation. Right: relu activation." width="1010" />
+<p class="caption">
+Figure 6: Epistemic uncertainty on simulated data if we train for 100 epochs only. Left: linear activation. Right: relu activation.
+</p>
+</div>
+</div>
+<p>Interestingly, both model families look very different now, and while the linear-activation family looks more reasonable at first, it still considers an overall negative slope consistent with the data.</p>
+<p>So how many epochs are “long enough”? From observation, we’d say that a working heuristic should probably be based on the rate of loss reduction. But certainly, it’ll make sense to try different numbers of epochs and check the effect on model behavior. As an aside, monitoring estimates over training time may even yield important insights into the assumptions built into a model (e.g., the effect of different activation functions).</p>
+<ol start="3" type="1">
+<li><p>As important as the number of epochs trained, and similar in effect, is the <em>learning rate</em>. If we replace the learning rate in this setup by <code>0.001</code>, results will look similar to what we saw above for the <code>epochs = 100</code> case. Again, we will want to try different learning rates and make sure we train the model “to completion” in some reasonable sense.</p></li>
+<li><p>To conclude this section, let’s quickly look at what happens if we vary two other parameters. What if the prior were non-trainable (see the commented line above)? And what if we scaled the importance of the KL divergence (<code>kl_weight</code> in <code>layer_dense_variational</code>’s argument list) differently, replacing <code>kl_weight = 1/n</code> by <code>kl_weight = 1</code> (or equivalently, removing it)? Here are the respective results for an otherwise-default setup. They don’t lend themselves to generalization – on different (e.g., bigger!) datasets the outcomes will most certainly look different – but definitely interesting to observe.</p></li>
+</ol>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-24"></span>
+<img src="images/g_epistemic_100epochs.png" alt="Epistemic uncertainty on simulated data. Left: kl_weight = 1. Right: prior non-trainable." width="1010" />
+<p class="caption">
+Figure 7: Epistemic uncertainty on simulated data. Left: kl_weight = 1. Right: prior non-trainable.
+</p>
+</div>
+</div>
+<p>Now let’s come back to the question: We’ve modeled spread in the data, we’ve peeked into the heart of the model, – can we do both at the same time?</p>
+<p>We can if we combine both approaches. We add an additional unit to the variational-dense layer and use this to learn the variance: once for each “sub-model” contained in the model.</p>
+<h3 id="combining-both-aleatoric-and-epistemic-uncertainty">Combining both aleatoric and epistemic uncertainty</h3>
+<p>Reusing the prior and posterior from above, this is how the final model looks:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense_variational(
+    units = 2,
+    make_posterior_fn = posterior_mean_field,
+    make_prior_fn = prior_trainable,
+    kl_weight = 1 / n
+  ) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               scale = 1e-3 + tf$math$softplus(0.01 * x[, 2, drop = FALSE])
+               )
+    )</code></pre>
+</div>
+<p>We train this model just like the epistemic-uncertainty only one. We then obtain a measure of uncertainty <em>per predicted line</em>. Or in the words we used above, we now have an ensemble of models each with its own indication of spread in the data. Here is a way we could display this – each colored line is the mean of a distribution, surrounded by a confidence band indicating +/- two standard deviations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+yhats &lt;- purrr::map(1:100, function(x) model(tf$constant(x_test)))
+means &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_mean)) %&gt;% abind::abind()
+sds &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_stddev)) %&gt;% abind::abind()
+
+means_gathered &lt;- data.frame(cbind(x_test, means)) %&gt;%
+  gather(key = run, value = mean_val,-X1)
+sds_gathered &lt;- data.frame(cbind(x_test, sds)) %&gt;%
+  gather(key = run, value = sd_val,-X1)
+
+lines &lt;-
+  means_gathered %&gt;% inner_join(sds_gathered, by = c(&quot;X1&quot;, &quot;run&quot;))
+mean &lt;- apply(means, 1, mean)
+
+ggplot(data.frame(x = x, y = y, mean = as.numeric(mean)), aes(x, y)) +
+  geom_point() +
+  theme(legend.position = &quot;none&quot;) +
+  geom_line(aes(x = x_test, y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_line(
+    data = lines,
+    aes(x = X1, y = mean_val, color = run),
+    alpha = 0.6,
+    size = 0.5
+  ) +
+  geom_ribbon(
+    data = lines,
+    aes(
+      x = X1,
+      ymin = mean_val - 2 * sd_val,
+      ymax = mean_val + 2 * sd_val,
+      group = run
+    ),
+    alpha = 0.05,
+    fill = &quot;grey&quot;,
+    inherit.aes = FALSE
+  )</code></pre>
+</div>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-27"></span>
+<img src="images/g_both_scale0.01.png" alt="Displaying both epistemic and aleatoric uncertainty on the simulated dataset." width="500" />
+<p class="caption">
+Figure 8: Displaying both epistemic and aleatoric uncertainty on the simulated dataset.
+</p>
+</div>
+</div>
+<p>Nice! This looks like something we could report.</p>
+<p>As you might imagine, this model, too, is sensitive to how long (think: number of epochs) or how fast (think: learning rate) we train it. And compared to the epistemic-uncertainty only model, there is an additional choice to be made here: the scaling of the previous layer’s activation – the <code>0.01</code> in the <code>scale</code> argument to <code>tfd_normal</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+scale = 1e-3 + tf$math$softplus(0.01 * x[, 2, drop = FALSE])</code></pre>
+</div>
+<p>Keeping everything else constant, here we vary that parameter between <code>0.01</code> and <code>0.05</code>:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-29"></span>
+<img src="images/g_both_scale_all.png" alt="Epistemic plus aleatoric uncertainty on the simulated dataset: Varying the scale argument." width="1515" />
+<p class="caption">
+Figure 9: Epistemic plus aleatoric uncertainty on the simulated dataset: Varying the scale argument.
+</p>
+</div>
+</div>
+<p>Evidently, this is another parameter we should be prepared to experiment with.</p>
+<p>Now that we’ve introduced all three types of presenting uncertainty – aleatoric only, epistemic only, or both – let’s see them on the aforementioned <a href="http://archive.ics.uci.edu/ml/datasets/Combined+Cycle+Power+Plant">Combined Cycle Power Plant Data Set</a>. Please see <a href="https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout/">our previous post on uncertainty</a> for a quick characterization, as well as visualization, of the dataset.</p>
+<h2 id="combined-cycle-power-plant-data-set">Combined Cycle Power Plant Data Set</h2>
+<p>To keep this post at a digestible length, we’ll refrain from trying as many alternatives as with the simulated data and mainly stay with what worked well there. This should also give us an idea of how well these “defaults” generalize. We separately inspect two scenarios: The single-predictor setup (using each of the four available predictors alone) and the complete one (using all four predictors at once).</p>
+<p>The dataset is loaded just as in the previous post.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(tensorflow)
+tf$compat$v1$enable_v2_behavior()
+library(tfprobability)
+library(keras)
+
+library(tidyr)
+library(readxl)
+library(dplyr)
+library(GGally)
+
+df &lt;- read_xlsx(&quot;CCPP/Folds5x2_pp.xlsx&quot;)
+
+df_scaled &lt;- scale(df)
+centers &lt;- attr(df_scaled, &quot;scaled:center&quot;)
+scales &lt;- attr(df_scaled, &quot;scaled:scale&quot;)
+
+X &lt;- df_scaled[, 1:4]
+train_samples &lt;- sample(1:nrow(df_scaled), 0.8 * nrow(X))
+X_train &lt;- X[train_samples, ]
+X_val &lt;- X[-train_samples, ]
+
+y &lt;- df_scaled[, 5] 
+y_train &lt;- y[train_samples] %&gt;% as.matrix()
+y_val &lt;- y[-train_samples] %&gt;% as.matrix()</code></pre>
+</div>
+<p>First we look at the single-predictor case, starting from aleatoric uncertainty.</p>
+<h3 id="single-predictor-aleatoric-uncertainty">Single predictor: Aleatoric uncertainty</h3>
+<p>Here is the “default” aleatoric model again. We also duplicate the plotting code here for the reader’s convenience.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+n &lt;- nrow(X_train) # 7654
+n_epochs &lt;- 10 # we need fewer epochs because the dataset is so much bigger
+
+batch_size &lt;- 100
+
+learning_rate &lt;- 0.01
+
+# variable to fit - change to 2,3,4 to get the other predictors
+i &lt;- 1
+
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 16, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 2, activation = &quot;linear&quot;) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               scale = tf$math$softplus(x[, 2, drop = FALSE])
+               )
+    )
+
+negloglik &lt;- function(y, model) - (model %&gt;% tfd_log_prob(y))
+
+model %&gt;% compile(optimizer = optimizer_adam(lr = learning_rate), loss = negloglik)
+
+hist &lt;-
+  model %&gt;% fit(
+    X_train[, i, drop = FALSE],
+    y_train,
+    validation_data = list(X_val[, i, drop = FALSE], y_val),
+    epochs = n_epochs,
+    batch_size = batch_size
+  )
+
+yhat &lt;- model(tf$constant(X_val[, i, drop = FALSE]))
+
+mean &lt;- yhat %&gt;% tfd_mean()
+sd &lt;- yhat %&gt;% tfd_stddev()
+
+ggplot(data.frame(
+  x = X_val[, i],
+  y = y_val,
+  mean = as.numeric(mean),
+  sd = as.numeric(sd)
+),
+aes(x, y)) +
+  geom_point() +
+  geom_line(aes(x = x, y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_ribbon(aes(
+    x = x,
+    ymin = mean - 2 * sd,
+    ymax = mean + 2 * sd
+  ),
+  alpha = 0.4,
+  fill = &quot;grey&quot;)</code></pre>
+</div>
+<p>How well does this work?</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-32"></span>
+<img src="images/uci_aleatoric.png" alt="Aleatoric uncertainty on the Combined Cycle Power Plant Data Set; single predictors." width="1010" />
+<p class="caption">
+Figure 10: Aleatoric uncertainty on the Combined Cycle Power Plant Data Set; single predictors.
+</p>
+</div>
+</div>
+<p>This looks pretty good we’d say! How about epistemic uncertainty?</p>
+<h3 id="single-predictor-epistemic-uncertainty">Single predictor: Epistemic uncertainty</h3>
+<p>Here’s the code:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+posterior_mean_field &lt;-
+  function(kernel_size,
+           bias_size = 0,
+           dtype = NULL) {
+    n &lt;- kernel_size + bias_size
+    c &lt;- log(expm1(1))
+    keras_model_sequential(list(
+      layer_variable(shape = 2 * n, dtype = dtype),
+      layer_distribution_lambda(
+        make_distribution_fn = function(t) {
+          tfd_independent(tfd_normal(
+            loc = t[1:n],
+            scale = 1e-5 + tf$nn$softplus(c + t[(n + 1):(2 * n)])
+          ), reinterpreted_batch_ndims = 1)
+        }
+      )
+    ))
+  }
+
+prior_trainable &lt;-
+  function(kernel_size,
+           bias_size = 0,
+           dtype = NULL) {
+    n &lt;- kernel_size + bias_size
+    keras_model_sequential() %&gt;%
+      layer_variable(n, dtype = dtype, trainable = TRUE) %&gt;%
+      layer_distribution_lambda(function(t) {
+        tfd_independent(tfd_normal(loc = t, scale = 1),
+                        reinterpreted_batch_ndims = 1)
+      })
+  }
+
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense_variational(
+    units = 1,
+    make_posterior_fn = posterior_mean_field,
+    make_prior_fn = prior_trainable,
+    kl_weight = 1 / n,
+    activation = &quot;linear&quot;,
+  ) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x, scale = 1))
+
+negloglik &lt;- function(y, model) - (model %&gt;% tfd_log_prob(y))
+model %&gt;% compile(optimizer = optimizer_adam(lr = learning_rate), loss = negloglik)
+hist &lt;-
+  model %&gt;% fit(
+    X_train[, i, drop = FALSE],
+    y_train,
+    validation_data = list(X_val[, i, drop = FALSE], y_val),
+    epochs = n_epochs,
+    batch_size = batch_size
+  )
+
+yhats &lt;- purrr::map(1:100, function(x)
+  yhat &lt;- model(tf$constant(X_val[, i, drop = FALSE])))
+  
+means &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_mean)) %&gt;% abind::abind()
+
+lines &lt;- data.frame(cbind(X_val[, i], means)) %&gt;%
+  gather(key = run, value = value,-X1)
+
+mean &lt;- apply(means, 1, mean)
+ggplot(data.frame(x = X_val[, i], y = y_val, mean = as.numeric(mean)), aes(x, y)) +
+  geom_point() +
+  geom_line(aes(x = X_val[, i], y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_line(
+    data = lines,
+    aes(x = X1, y = value, color = run),
+    alpha = 0.3,
+    size = 0.5
+  ) +
+  theme(legend.position = &quot;none&quot;)</code></pre>
+</div>
+<p>And this is the result.</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-34"></span>
+<img src="images/uci_epistemic.png" alt="Epistemic uncertainty on the Combined Cycle Power Plant Data Set; single predictors." width="1010" />
+<p class="caption">
+Figure 11: Epistemic uncertainty on the Combined Cycle Power Plant Data Set; single predictors.
+</p>
+</div>
+</div>
+<p>As with the simulated data, the linear models seems to “do the right thing”. And here too, we think we will want to augment this with the spread in the data: Thus, on to way 3.</p>
+<h3 id="single-predictor-combining-both-types">Single predictor: Combining both types</h3>
+<p>Here we go. Again, <code>posterior_mean_field</code> and <code>prior_trainable</code> look just like in the epistemic-only case.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense_variational(
+    units = 2,
+    make_posterior_fn = posterior_mean_field,
+    make_prior_fn = prior_trainable,
+    kl_weight = 1 / n,
+    activation = &quot;linear&quot;
+  ) %&gt;%
+  layer_distribution_lambda(function(x)
+    tfd_normal(loc = x[, 1, drop = FALSE],
+               scale = 1e-3 + tf$math$softplus(0.01 * x[, 2, drop = FALSE])))
+
+
+negloglik &lt;- function(y, model)
+  - (model %&gt;% tfd_log_prob(y))
+model %&gt;% compile(optimizer = optimizer_adam(lr = learning_rate), loss = negloglik)
+hist &lt;-
+  model %&gt;% fit(
+    X_train[, i, drop = FALSE],
+    y_train,
+    validation_data = list(X_val[, i, drop = FALSE], y_val),
+    epochs = n_epochs,
+    batch_size = batch_size
+  )
+
+yhats &lt;- purrr::map(1:100, function(x)
+  model(tf$constant(X_val[, i, drop = FALSE])))
+means &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_mean)) %&gt;% abind::abind()
+sds &lt;-
+  purrr::map(yhats, purrr::compose(as.matrix, tfd_stddev)) %&gt;% abind::abind()
+
+means_gathered &lt;- data.frame(cbind(X_val[, i], means)) %&gt;%
+  gather(key = run, value = mean_val,-X1)
+sds_gathered &lt;- data.frame(cbind(X_val[, i], sds)) %&gt;%
+  gather(key = run, value = sd_val,-X1)
+
+lines &lt;-
+  means_gathered %&gt;% inner_join(sds_gathered, by = c(&quot;X1&quot;, &quot;run&quot;))
+
+mean &lt;- apply(means, 1, mean)
+
+#lines &lt;- lines %&gt;% filter(run==&quot;X3&quot; | run ==&quot;X4&quot;)
+
+ggplot(data.frame(x = X_val[, i], y = y_val, mean = as.numeric(mean)), aes(x, y)) +
+  geom_point() +
+  theme(legend.position = &quot;none&quot;) +
+  geom_line(aes(x = X_val[, i], y = mean), color = &quot;violet&quot;, size = 1.5) +
+  geom_line(
+    data = lines,
+    aes(x = X1, y = mean_val, color = run),
+    alpha = 0.2,
+    size = 0.5
+  ) +
+geom_ribbon(
+  data = lines,
+  aes(
+    x = X1,
+    ymin = mean_val - 2 * sd_val,
+    ymax = mean_val + 2 * sd_val,
+    group = run
+  ),
+  alpha = 0.01,
+  fill = &quot;grey&quot;,
+  inherit.aes = FALSE
+)</code></pre>
+</div>
+<p>And the output?</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-36"></span>
+<img src="images/uci_both.png" alt="Combined uncertainty on the Combined Cycle Power Plant Data Set; single predictors." width="1010" />
+<p class="caption">
+Figure 12: Combined uncertainty on the Combined Cycle Power Plant Data Set; single predictors.
+</p>
+</div>
+</div>
+<p>This looks useful! Let’s wrap up with our final test case: Using all four predictors together.</p>
+<h3 id="all-predictors">All predictors</h3>
+<p>The training code used in this scenario looks just like before, apart from our feeding all predictors to the model. For plotting, we resort to displaying the first principal component on the x-axis – this makes the plots look noisier than before. We also display fewer lines for the epistemic and epistemic plus aleatoric cases (20 instead of 100). Here are the results:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-37"></span>
+<img src="images/uci_allpreds_all.png" alt="Uncertainty (aleatoric, epistemic, both) on the Combined Cycle Power Plant Data Set; all predictors." width="1515" />
+<p class="caption">
+Figure 13: Uncertainty (aleatoric, epistemic, both) on the Combined Cycle Power Plant Data Set; all predictors.
+</p>
+</div>
+</div>
+<h2 id="conclusion">Conclusion</h2>
+<p>Where does this leave us? Compared to the learnable-dropout approach described in the prior post, the way presented here is a lot easier, faster, and more intuitively understandable. The methods per se are that easy to use that in this first introductory post, we could afford to explore alternatives already: something we had no time to do in that previous exposition.</p>
+<p>In fact, we hope this post leaves you in a position to do your own experiments, on your own data. Obviously, you will have to make decisions, but isn’t that the way it is in data science? There’s no way around making decisions; we just should be prepared to justify them … Thanks for reading!</p>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>see also the corresponding <a href="https://colab.research.google.com/github/tensorflow/probability/blob/master/tensorflow_probability/examples/jupyter_notebooks/Probabilistic_Layers_Regression.ipynb#scrollTo=5zCEYpzu7bDX">notebook</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>yes, we also use that other line for <code>scale</code> that was commented before; more on that in a second<a href="#fnref2" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

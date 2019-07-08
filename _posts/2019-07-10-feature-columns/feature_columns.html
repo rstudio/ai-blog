@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>TensorFlow feature columns: Transforming your data recipes-style</title>
+  
+  <meta property="description" itemprop="description" content="TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular &quot;recipes&quot; style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What&#39;s more, because of its elegance, feature-spec code reads nice and is fun to write as well."/>
+  
+  
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2019-07-10"/>
+  <meta property="article:created" itemprop="dateCreated" content="2019-07-10"/>
+  <meta name="article:author" content="Daniel Falbel and Sigrid Keydana"/>
+  
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="TensorFlow feature columns: Transforming your data recipes-style"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular &quot;recipes&quot; style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What&#39;s more, because of its elegance, feature-spec code reads nice and is fun to write as well."/>
+  <meta property="og:locale" content="en_US"/>
+  
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="TensorFlow feature columns: Transforming your data recipes-style"/>
+  <meta property="twitter:description" content="TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular &quot;recipes&quot; style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What&#39;s more, because of its elegance, feature-spec code reads nice and is fun to write as well."/>
+  
+  <!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Optimizing classifier performance via an approximation to the wilcoxon-mann-whitney statistic;citation_publication_date=2003;citation_author=Lian Yan;citation_author=Robert H Dodier;citation_author=Michael Mozer;citation_author=Richard H Wolniewicz"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","slug","date","bibliography","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["TensorFlow feature columns: Transforming your data recipes-style"]},{"type":"character","attributes":{},"value":["TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular \"recipes\" style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What's more, because of its elegance, feature-spec code reads nice and is fun to write as well. \n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Daniel Falbel and Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["falbelkeydana2019featurecols"]},{"type":"character","attributes":{},"value":["07-10-2019"]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["Keras","Introductions"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/feature_cols_hier.png"]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","feature_columns_files/bowser-1.9.3/bowser.min.js","feature_columns_files/distill-2.2.21/template.v2.js","feature_columns_files/jquery-1.11.3/jquery.min.js","feature_columns_files/webcomponents-2.0.0/webcomponents.js","images/feature_cols_hier.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+  
+  <style type="text/css">
+  
+  body {
+    background-color: white;
+  }
+  
+  .pandoc-table {
+    width: 100%;
+  }
+  
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+  
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+  
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+  
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
+  }
+  
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .shaded .shaded-content {
+    background: white;
+  }
+  
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+  
+  d-article {
+    padding-bottom: 30px;
+  }
+  
+  d-appendix {
+    padding-top: 30px;
+  }
+  
+  d-article>p>img {
+    width: 100%;
+  }
+  
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+  
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  /* CSS for table of contents */
+  
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+  
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+  
+  .d-toc a {
+    border-bottom: none;
+  }
+  
+  .d-toc ul {
+    padding-left: 0;
+  }
+  
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+  
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+  
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+  
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+  
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  
+  
+  
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+  
+  d-code {
+    overflow-x: auto !important;
+  }
+  
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  pre.text-output {
+  
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  @media(min-width: 768px) {
+  
+  d-code {
+    overflow-x: visible !important;
+  }
+  
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+  
+  /* Figure */
+  
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+  
+  .figure img {
+    width: 100%;
+  }
+  
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+  
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+  
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+  
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+  
+  
+  
+  /* Tweak 1000px media break to show more text */
+  
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+  
+    .grid {
+      grid-column-gap: 16px;
+    }
+  
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption, .figure .caption, figure figcaption {
+      font-size: 13px;
+    }
+  }
+  
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+  
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+  
+  
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+  
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  
+  /* Social footer */
+  
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+  
+  .disqus-comments {
+    margin-right: 30px;
+  }
+  
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+  
+  #disqus_thread {
+    margin-top: 30px;
+  }
+  
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+  
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+  
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+  
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+  
+  
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+  
+  
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+  
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+  
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+  
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+  
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+  
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+  
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+  
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+  
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+  
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+  
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+  
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+  
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+  
+  </style>
+  
+  <script type="application/javascript">
+  
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+  
+  // show body when load is complete
+  function on_load_complete() {
+  
+    // set body to visible
+    document.body.style.visibility = 'visible';
+  
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+  
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+  
+  function init_distill() {
+  
+    init_common();
+  
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+  
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+  
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+  
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+  
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+  
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+  
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+  
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+  
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+  
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#' + id + '>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.html();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.html(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+  
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+  
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+  
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+  
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+  
+      // capture layout
+      var layout = $(this).attr('data-layout');
+  
+      // apply layout to markdown level block elements
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+  
+  
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+  
+    // load distill framework
+    load_distill_framework();
+  
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+  
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+  
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+  
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+  
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+  
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+  
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+  
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+  
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+  
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+  
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+  
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+  
+      // clear polling timer
+      clearInterval(tid);
+  
+      // show body now that everything is ready
+      on_load_complete();
+    }
+  
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+  
+  }
+  
+  function init_downlevel() {
+  
+    init_common();
+  
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+  
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+  
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+  
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+  
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+  
+  
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+  
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+  
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+  
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+  
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+  
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+  
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+  
+    $('body').addClass('downlevel');
+  
+    on_load_complete();
+  }
+  
+  
+  function init_common() {
+  
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+  
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+  
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+  
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+  
+    // mark non-body figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
+    });
+  
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+  
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.distill-site-header a[href]').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+  
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+  
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
+  
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+  
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $(window).resize();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+  
+  </script>
+  
+  <!--/radix_placeholder_distill-->
+  <script src="feature_columns_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="feature_columns_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="feature_columns_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="feature_columns_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"TensorFlow feature columns: Transforming your data recipes-style","description":"TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular \"recipes\" style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What's more, because of its elegance, feature-spec code reads nice and is fun to write as well.","authors":[{"author":"Daniel Falbel and Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2019-07-10T00:00:00.000+02:00","citationText":"Keydana, 2019"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>TensorFlow feature columns: Transforming your data recipes-style</h1>
+<p>TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations like bucketization or feature crossing. From R, we use them in popular “recipes” style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What’s more, because of its elegance, feature-spec code reads nice and is fun to write as well.</p>
+</div>
+
+<div class="d-byline">
+  Daniel Falbel and Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>07-10-2019
+</div>
+
+<div class="d-article">
+<p>It’s 2019; no-one doubts the effectiveness of deep learning in computer vision. Or natural language processing. With “normal”, Excel-style, a.k.a. <em>tabular</em> data however, the situation is different.</p>
+<p>Basically there are two cases: One, you have numeric data only. Then, creating the network is straightforward, and all will be about optimization and hyperparameter search. Two, you have a mix of numeric and categorical data, where categorical could be anything from ordered-numeric to symbolic (e.g., text). In this latter case, with categorical data entering the picture, there is an extremely nice idea you can make use of: <em>embed</em> what are equidistant symbols into a high-dimensional, numeric representation. In that new representation, we can define a distance metric that allows us to make statements like “cycling is closer to running than to baseball”, or “😃 is closer to 😂 than to 😠”. When not dealing with language data, this technique is referred to as <em>entity embeddings</em>.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+<p>Nice as this sounds, why don’t we see it used all the time? Well, creating a Keras network that processes a mix of numeric and categorical data used to require a bit of an effort. With TensorFlow’s new <em>feature columns</em>, usable from R through a combination of <code>tfdatasets</code> and <code>keras</code>, there is a much easier way to achieve this. What’s more, <code>tfdatasets</code> follows the popular <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes</a> idiom to initialize, refine and apply a feature specification <code>%&gt;%</code>-style. And finally, there are ready-made steps for bucketizing a numeric column, or hashing it, or creating <em>crossed columns</em> to capture interactions.</p>
+<p>This post introduces feature specs starting from a scenario where they don’t exist: basically, the status quo until very recently. Imagine you have a dataset like that from the <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">Porto Seguro car insurance competition</a> where some of the columns are numeric, and some are categorical. You want to train a fully connected network on it, with all categorical columns fed into embedding layers. How can you do that? We then contrast this with the feature spec way, which makes things <em>a lot</em> easier – especially when there’s a lot of categorical columns. In a second applied example, we demonstrate the use of <em>crossed columns</em> on the <em>rugged</em> dataset from Richard McElreath’s <em>rethinking</em> package. Here, we also direct attention to a few technical details that are worth knowing about.</p>
+<h2 id="mixing-numeric-data-and-embeddings-the-pre-feature-spec-way">Mixing numeric data and embeddings, the pre-feature-spec way</h2>
+<p>Our first example dataset is taken from Kaggle. Two years ago, Brazilian car insurance company Porto Seguro asked participants to predict <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">how likely it is a car owner will file a claim</a> based on a mix of characteristics collected during the previous year. The dataset is comparatively large – there are ~ 600,000 rows in the training set, with 57 predictors. Among others, features are named so as to indicate the type of the data – binary, categorical, or continuous/ordinal. While it’s common in competitions to try to reverse-engineer column meanings, here we just make use of the type of the data, and see how far that gets us.</p>
+<p>Concretely, this means we want to</p>
+<ul>
+<li>use binary features just the way they are, as zeroes and ones,</li>
+<li>scale the remaining numeric features to mean 0 and variance 1, and</li>
+<li>embed the categorical variables (each one by itself).</li>
+</ul>
+<p>We’ll then define a dense network to predict <code>target</code>, the binary outcome. So first, let’s see how we could get our data into shape, as well as build up the network, in a “manual”, pre-feature-columns way.</p>
+<p>When loading libraries, we already use the versions we’ll need very soon: Tensorflow 2 (&gt;= beta 1), and the development (= Github) versions of <code>tfdatasets</code> and <code>keras</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+tensorflow::install_tensorflow(version = &quot;2.0.0-beta1&quot;)
+
+remotes::install_github(&quot;rstudio/tfdatasets&quot;)
+remotes::install_github(&quot;rstudio/keras&quot;)
+
+library(keras)
+library(tfdatasets)
+library(readr)
+library(dplyr)</code></pre>
+</div>
+<p>In this first version of preparing the data, we make our lives easier by assigning different R types, based on what the features represent (categorical, binary, or numeric qualities):<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# downloaded from https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/data
+path &lt;- &quot;train.csv&quot;
+
+porto &lt;- read_csv(path) %&gt;%
+  select(-id) %&gt;%
+  # to obtain number of unique levels, later
+  mutate_at(vars(ends_with(&quot;cat&quot;)), factor) %&gt;%
+  # to easily keep them apart from the non-binary numeric data
+  mutate_at(vars(ends_with(&quot;bin&quot;)), as.integer)
+
+porto %&gt;% glimpse()</code></pre>
+</div>
+<pre><code>
+Observations: 595,212
+Variables: 58
+$ target         &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_01      &lt;dbl&gt; 2, 1, 5, 0, 0, 5, 2, 5, 5, 1, 5, 2, 2, 1, 5, 5,…
+$ ps_ind_02_cat  &lt;fct&gt; 2, 1, 4, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1,…
+$ ps_ind_03      &lt;dbl&gt; 5, 7, 9, 2, 0, 4, 3, 4, 3, 2, 2, 3, 1, 3, 11, 3…
+$ ps_ind_04_cat  &lt;fct&gt; 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1,…
+$ ps_ind_05_cat  &lt;fct&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_06_bin  &lt;int&gt; 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_07_bin  &lt;int&gt; 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1,…
+$ ps_ind_08_bin  &lt;int&gt; 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…
+$ ps_ind_09_bin  &lt;int&gt; 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,…
+$ ps_ind_10_bin  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_11_bin  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_12_bin  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_13_bin  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_14      &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_15      &lt;dbl&gt; 11, 3, 12, 8, 9, 6, 8, 13, 6, 4, 3, 9, 10, 12, …
+$ ps_ind_16_bin  &lt;int&gt; 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0,…
+$ ps_ind_17_bin  &lt;int&gt; 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_ind_18_bin  &lt;int&gt; 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1,…
+$ ps_reg_01      &lt;dbl&gt; 0.7, 0.8, 0.0, 0.9, 0.7, 0.9, 0.6, 0.7, 0.9, 0.…
+$ ps_reg_02      &lt;dbl&gt; 0.2, 0.4, 0.0, 0.2, 0.6, 1.8, 0.1, 0.4, 0.7, 1.…
+$ ps_reg_03      &lt;dbl&gt; 0.7180703, 0.7660777, -1.0000000, 0.5809475, 0.…
+$ ps_car_01_cat  &lt;fct&gt; 10, 11, 7, 7, 11, 10, 6, 11, 10, 11, 11, 11, 6,…
+$ ps_car_02_cat  &lt;fct&gt; 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1,…
+$ ps_car_03_cat  &lt;fct&gt; -1, -1, -1, 0, -1, -1, -1, 0, -1, 0, -1, -1, -1…
+$ ps_car_04_cat  &lt;fct&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 8, 0, 0, 0, 0, 9,…
+$ ps_car_05_cat  &lt;fct&gt; 1, -1, -1, 1, -1, 0, 1, 0, 1, 0, -1, -1, -1, 1,…
+$ ps_car_06_cat  &lt;fct&gt; 4, 11, 14, 11, 14, 14, 11, 11, 14, 14, 13, 11, …
+$ ps_car_07_cat  &lt;fct&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+$ ps_car_08_cat  &lt;fct&gt; 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0,…
+$ ps_car_09_cat  &lt;fct&gt; 0, 2, 2, 3, 2, 0, 0, 2, 0, 2, 2, 0, 2, 2, 2, 0,…
+$ ps_car_10_cat  &lt;fct&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+$ ps_car_11_cat  &lt;fct&gt; 12, 19, 60, 104, 82, 104, 99, 30, 68, 104, 20, …
+$ ps_car_11      &lt;dbl&gt; 2, 3, 1, 1, 3, 2, 2, 3, 3, 2, 3, 3, 3, 3, 1, 2,…
+$ ps_car_12      &lt;dbl&gt; 0.4000000, 0.3162278, 0.3162278, 0.3741657, 0.3…
+$ ps_car_13      &lt;dbl&gt; 0.8836789, 0.6188165, 0.6415857, 0.5429488, 0.5…
+$ ps_car_14      &lt;dbl&gt; 0.3708099, 0.3887158, 0.3472751, 0.2949576, 0.3…
+$ ps_car_15      &lt;dbl&gt; 3.605551, 2.449490, 3.316625, 2.000000, 2.00000…
+$ ps_calc_01     &lt;dbl&gt; 0.6, 0.3, 0.5, 0.6, 0.4, 0.7, 0.2, 0.1, 0.9, 0.…
+$ ps_calc_02     &lt;dbl&gt; 0.5, 0.1, 0.7, 0.9, 0.6, 0.8, 0.6, 0.5, 0.8, 0.…
+$ ps_calc_03     &lt;dbl&gt; 0.2, 0.3, 0.1, 0.1, 0.0, 0.4, 0.5, 0.1, 0.6, 0.…
+$ ps_calc_04     &lt;dbl&gt; 3, 2, 2, 2, 2, 3, 2, 1, 3, 2, 2, 2, 4, 2, 3, 2,…
+$ ps_calc_05     &lt;dbl&gt; 1, 1, 2, 4, 2, 1, 2, 2, 1, 2, 3, 2, 1, 1, 1, 1,…
+$ ps_calc_06     &lt;dbl&gt; 10, 9, 9, 7, 6, 8, 8, 7, 7, 8, 8, 8, 8, 10, 8, …
+$ ps_calc_07     &lt;dbl&gt; 1, 5, 1, 1, 3, 2, 1, 1, 3, 2, 2, 2, 4, 1, 2, 5,…
+$ ps_calc_08     &lt;dbl&gt; 10, 8, 8, 8, 10, 11, 8, 6, 9, 9, 9, 10, 11, 8, …
+$ ps_calc_09     &lt;dbl&gt; 1, 1, 2, 4, 2, 3, 3, 1, 4, 1, 4, 1, 1, 3, 3, 2,…
+$ ps_calc_10     &lt;dbl&gt; 5, 7, 7, 2, 12, 8, 10, 13, 11, 11, 7, 8, 9, 8, …
+$ ps_calc_11     &lt;dbl&gt; 9, 3, 4, 2, 3, 4, 3, 7, 4, 3, 6, 9, 6, 2, 4, 5,…
+$ ps_calc_12     &lt;dbl&gt; 1, 1, 2, 2, 1, 2, 0, 1, 2, 5, 3, 2, 3, 0, 1, 2,…
+$ ps_calc_13     &lt;dbl&gt; 5, 1, 7, 4, 1, 0, 0, 3, 1, 0, 3, 1, 3, 4, 3, 6,…
+$ ps_calc_14     &lt;dbl&gt; 8, 9, 7, 9, 3, 9, 10, 6, 5, 6, 6, 10, 8, 3, 9, …
+$ ps_calc_15_bin &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ ps_calc_16_bin &lt;int&gt; 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1,…
+$ ps_calc_17_bin &lt;int&gt; 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1,…
+$ ps_calc_18_bin &lt;int&gt; 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,…
+$ ps_calc_19_bin &lt;int&gt; 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1,…
+$ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…</code></pre>
+<p>We split off 25% for validation.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# train-test split
+id_training &lt;- sample.int(nrow(porto), size = 0.75*nrow(porto))
+
+x_train &lt;- porto[id_training,] %&gt;% select(-target)
+x_test &lt;- porto[-id_training,] %&gt;% select(-target)
+y_train &lt;- porto[id_training, &quot;target&quot;]
+y_test &lt;- porto[-id_training, &quot;target&quot;] </code></pre>
+</div>
+<p>The only thing we want to do to the <em>data</em> before defining the network is scaling the numeric features. Binary and categorical features can stay as is, with the minor correction that for the categorical ones, we’ll actually pass the network the numeric representation of the factor data.</p>
+<p>Here is the scaling.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_means &lt;- colMeans(x_train[sapply(x_train, is.double)]) %&gt;% unname()
+train_sds &lt;- apply(x_train[sapply(x_train, is.double)], 2, sd)  %&gt;% unname()
+train_sds[train_sds == 0] &lt;- 0.000001
+
+x_train[sapply(x_train, is.double)] &lt;- sweep(
+  x_train[sapply(x_train, is.double)],
+  2,
+  train_means
+  ) %&gt;%
+  sweep(2, train_sds, &quot;/&quot;)
+x_test[sapply(x_test, is.double)] &lt;- sweep(
+  x_test[sapply(x_test, is.double)],
+  2,
+  train_means
+  ) %&gt;%
+  sweep(2, train_sds, &quot;/&quot;)</code></pre>
+</div>
+<p>When building the network, we need to specify the input and output dimensionalities for the embedding layers. Input dimensionality refers to the number of different symbols that “come in”; in NLP tasks this would be the vocabulary size while here, it’s simply the number of values a variable can take.<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> Output dimensionality, the capacity of the internal representation, can then be calculated based on some heuristic. Below, we’ll follow a popular rule of thumb that takes the square root of the dimensionality of the input.</p>
+<p>So as part one of the network, here we build up the embedding layers in a loop, each wired to the input layer that feeds it:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# number of levels per factor, required to specify input dimensionality for
+# the embedding layers
+n_levels_in &lt;- map(x_train %&gt;% select_if(is.factor), compose(length, levels)) %&gt;%
+  unlist() 
+
+# output dimensionality for the embedding layers, need +1 because Python is 0-based
+n_levels_out &lt;- n_levels_in %&gt;% sqrt() %&gt;% trunc() %&gt;% `+`(1)
+
+# each embedding layer gets its own input layer
+cat_inputs &lt;- map(n_levels_in, function(l) layer_input(shape = 1)) %&gt;%
+  unname()
+
+# construct the embedding layers, connecting each to its input
+embedding_layers &lt;- vector(mode = &quot;list&quot;, length = length(cat_inputs))
+for (i in 1:length(cat_inputs)) {
+  embedding_layer &lt;-  cat_inputs[[i]] %&gt;% 
+    layer_embedding(input_dim = n_levels_in[[i]] + 1, output_dim = n_levels_out[[i]]) %&gt;%
+    layer_flatten()
+  embedding_layers[[i]] &lt;- embedding_layer
+}</code></pre>
+</div>
+<p>In case you were wondering about the <code>flatten</code> layer following each embedding: We need to squeeze out the third dimension (introduced by the embedding layers) from the tensors, effectively rendering them rank-2. That is because we want to combine them with the rank-2 tensor coming out of the dense layer processing the numeric features.</p>
+<p>In order to be able to combine it with anything, we have to actually construct that dense layer first. It will be connected to a single input layer, of shape 43, that takes in the numeric features we scaled as well as the binary features we left untouched:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# create a single input and a dense layer for the numeric data
+quant_input &lt;- layer_input(shape = 43)
+  
+quant_dense &lt;- quant_input %&gt;% layer_dense(units = 64)</code></pre>
+</div>
+<p>Are parts assembled, we wire them together using <code>layer_concatenate</code>, and we’re good to call <code>keras_model</code> to create the final graph.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+intermediate_layers &lt;- list(embedding_layers, list(quant_dense)) %&gt;% flatten()
+inputs &lt;- list(cat_inputs, list(quant_input)) %&gt;% flatten()
+
+l &lt;- 0.25
+
+output &lt;- layer_concatenate(intermediate_layers) %&gt;%
+  layer_dense(units = 30, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 10, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 5, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;, kernel_regularizer = regularizer_l2(l))
+
+model &lt;- keras_model(inputs, output)</code></pre>
+</div>
+<p>Now, if you’ve actually read through the whole of this part, you may wish for an easier way to get to this point. So let’s switch to feature specs for the rest of this post.</p>
+<h2 id="feature-specs-to-the-rescue">Feature specs to the rescue</h2>
+<p>In spirit, the way feature specs are defined follows the example of the <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes package</a>. (It won’t make you hungry, though.) You initialize a feature spec with the prediction target – <code>feature_spec(target ~ .)</code>, and then use the <code>%&gt;%</code> to tell it what to do with individual columns. “What to do” here signifies two things:</p>
+<ul>
+<li>First, how to “read in” the data. Are they numeric or categorical, and if categorical, what am I supposed to do with them? For example, should I treat all distinct symbols as distinct, resulting in, potentially, an enormous count of categories – or should I constrain myself to a fixed number of entities? Or hash them, even?</li>
+<li>Second, optional subsequent transformations. Numeric columns may be bucketized; categorical columns may be embedded. Or features could be combined to capture interaction.</li>
+</ul>
+<p>In this post, we demonstrate the use of a subset of <code>step_</code> functions. The vignettes on <a href="https://github.com/rstudio/tfdatasets/blob/master/vignettes/feature_columns.Rmd">Feature columns</a> and <a href="https://github.com/rstudio/tfdatasets/blob/master/vignettes/feature_spec.Rmd">Feature specs</a> illustrate additional functions and their application.</p>
+<p>Starting from the beginning again, here is the complete code for data read-in and train-test split in the feature spec version.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+library(tfdatasets)
+library(readr)
+library(dplyr)
+
+path &lt;- &quot;train.csv&quot;
+
+porto &lt;- read_csv(path)
+
+porto &lt;- porto %&gt;%
+  mutate_at(vars(ends_with(&quot;cat&quot;)), as.character)
+
+id_training &lt;- sample.int(nrow(porto), size = 0.75*nrow(porto))
+training &lt;- porto[id_training,]
+testing &lt;- porto[-id_training,]</code></pre>
+</div>
+<p>Data-prep-wise, recall what our goals are: leave alone if binary; scale if numeric; embed if categorical. Specifying all of this does not need more than a few lines of code:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ft_spec &lt;- training %&gt;%
+  select(-id) %&gt;%
+  feature_spec(target ~ .) %&gt;%
+  step_numeric_column(ends_with(&quot;bin&quot;)) %&gt;%
+  step_numeric_column(-ends_with(&quot;bin&quot;),
+                      -ends_with(&quot;cat&quot;),
+                      normalizer_fn = scaler_standard()
+                      ) %&gt;%
+  step_categorical_column_with_vocabulary_list(ends_with(&quot;cat&quot;)) %&gt;%
+  step_embedding_column(ends_with(&quot;cat&quot;),
+                        dimension = function(vocab_size) as.integer(sqrt(vocab_size) + 1)
+                        ) %&gt;%
+  fit()</code></pre>
+</div>
+<p>Note how here we are passing in the training set, and just like with <code>recipes</code>, we won’t need to repeat any of the steps for the validation set. Scaling is taken care of by <code>scaler_standard()</code>, an optional transformation function passed in to <code>step_numeric_column</code>. Categorical columns are meant to make use of the complete vocabulary<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> and pipe their outputs into embedding layers.</p>
+<p>Now, what actually happened when we called <code>fit</code>? A lot – for us; as we got rid of a ton of manual preparation. For TensorFlow, nothing really – it just came to know about a few pieces in the graph we’ll ask it to construct.</p>
+<p>But wait, – don’t we still have to build up that graph ourselves, connecting and concatenating layers? Concretely, above, we had to</p>
+<ul>
+<li>create the correct number of input layers, of correct shape; and</li>
+<li>wire them to their matching embedding layers, of correct dimensionality.</li>
+</ul>
+<p>So here comes the real magic, and it has two steps.</p>
+<p>First, creating the input layers is as easy as calling <code>layer_input_from_dataset</code>:</p>
+`
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+inputs &lt;- layer_input_from_dataset(porto %&gt;% select(-target))</code></pre>
+</div>
+<p>And second, we can extract the features from the feature spec and have <code>layer_dense_features</code> create the necessary layers based on that information:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+layer_dense_features(ft_spec$dense_features())</code></pre>
+</div>
+<p>Without further ado, we add a few dense layers, and there is our model. Magic!</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+output &lt;- inputs %&gt;%
+  layer_dense_features(ft_spec$dense_features()) %&gt;%
+  layer_dense(units = 30, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 10, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 5, activation = &quot;relu&quot;, kernel_regularizer = regularizer_l2(l)) %&gt;%
+  layer_dropout(rate = 0.25) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;, kernel_regularizer = regularizer_l2(l))
+
+model &lt;- keras_model(inputs, output)</code></pre>
+</div>
+<p>How do we feed this model? In the non-feature-columns example, we would have had to feed each input separately, passing a list of tensors. Now we can just pass it the complete training set all at once:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+model %&gt;% fit(x = training, y = training$target)</code></pre>
+</div>
+<p>In the Kaggle competition, submissions are <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/overview/evaluation">evaluated using the normalized Gini coefficient</a>, which we can calculate with the help of a new metric available in Keras, <code>tf$keras$metrics$AUC()</code>. For training, we can use an approximation to the AUC due to Yan et al. (2003) <span class="citation" data-cites="yan2003optimizing">(Yan et al. <a href="#ref-yan2003optimizing">2003</a>)</span>. Then training is as straightforward as:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+auc &lt;- tf$keras$metrics$AUC()
+
+gini &lt;- custom_metric(name = &quot;gini&quot;, function(y_true, y_pred) {
+  2*auc(y_true, y_pred) - 1
+})
+
+# Yan, L., Dodier, R., Mozer, M. C., &amp; Wolniewicz, R. (2003). 
+# Optimizing Classifier Performance via an Approximation to the Wilcoxon-Mann-Whitney Statistic.
+roc_auc_score &lt;- function(y_true, y_pred) {
+
+  pos = tf$boolean_mask(y_pred, tf$cast(y_true, tf$bool))
+  neg = tf$boolean_mask(y_pred, !tf$cast(y_true, tf$bool))
+
+  pos = tf$expand_dims(pos, 0L)
+  neg = tf$expand_dims(neg, 1L)
+
+  # original paper suggests performance is robust to exact parameter choice
+  gamma = 0.2
+  p     = 3
+
+  difference = tf$zeros_like(pos * neg) + pos - neg - gamma
+
+  masked = tf$boolean_mask(difference, difference &lt; 0.0)
+
+  tf$reduce_sum(tf$pow(-masked, p))
+}
+
+model %&gt;%
+  compile(
+    loss = roc_auc_score,
+    optimizer = optimizer_adam(),
+    metrics = list(auc, gini)
+  )
+
+model %&gt;%
+  fit(
+    x = training,
+    y = training$target,
+    epochs = 50,
+    validation_data = list(testing, testing$target),
+    batch_size = 512
+  )
+
+predictions &lt;- predict(model, testing)
+Metrics::auc(testing$target, predictions)</code></pre>
+</div>
+<p>After 50 epochs, we achieve an AUC of 0.64 on the validation set, or equivalently, a Gini coefficient of 0.27. Not a bad result for a simple fully connected network!</p>
+<p>We’ve seen how using feature columns automates away a number of steps in setting up the network, so we can spend more time on actually tuning it. This is most impressively demonstrated on a dataset like this, with more than a handful categorical columns. However, to explain a bit more what to pay attention to when using feature columns, it’s better to choose a smaller example where we can easily do some peeking around.</p>
+<p>Let’s move on the second application.</p>
+<h2 id="interactions-and-what-to-look-out-for">Interactions, and what to look out for</h2>
+<p>To demonstrate the use of <code>step_crossed_column</code> to capture interactions, we make use of the <code>rugged</code> dataset from Richard McElreath’s <em>rethinking</em> package.</p>
+<p>We want to predict log GDP based on terrain ruggedness, for a number of countries (170, to be precise). However, the effect of ruggedness is different in Africa as opposed to other continents. Citing from <em>Statistical Rethinking</em></p>
+<blockquote>
+<p>It makes sense that ruggedness is associated with poorer countries, in most of the world. Rugged terrain means transport is difficult. Which means market access is hampered. Which means reduced gross domestic product. So the reversed relationship within Africa is puzzling. Why should difficult terrain be associated with higher GDP per capita?</p>
+</blockquote>
+<blockquote>
+<p>If this relationship is at all causal, it may be because rugged regions of Africa were protected against the Atlantic and Indian Ocean slave trades. Slavers preferred to raid easily accessed settlements, with easy routes to the sea. Those regions that suffered under the slave trade understandably continue to suffer economically, long after the decline of slave-trading markets. However, an outcome like GDP has many influences, and is furthermore a strange measure of economic activity. So it is hard to be sure what’s going on here.</p>
+</blockquote>
+<p>While the causal situation is difficult, the purely technical one is easily described: We want to learn an interaction. We could rely on the network finding out by itself (in this case it probably will, if we just give it enough parameters). But it’s an excellent occasion to showcase the new <code>step_crossed_column</code>.</p>
+<p>Loading the dataset, zooming in on the variables of interest, and normalizing them the way it is done in <em>Rethinking</em>, we have:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(rethinking)
+library(keras)
+library(tfdatasets)
+library(tibble)
+
+data(rugged)
+
+d &lt;- rugged
+d &lt;- d[complete.cases(d$rgdppc_2000), ]
+
+df &lt;- tibble(
+  log_gdp = log(d$rgdppc_2000)/mean(log(d$rgdppc_2000)),
+  rugged = d$rugged/max(d$rugged),
+  africa = d$cont_africa
+)
+
+df %&gt;% glimpse()</code></pre>
+</div>
+<pre><code>
+Observations: 170
+Variables: 3
+$ log_gdp &lt;dbl&gt; 0.8797119, 0.9647547, 1.1662705, 1.1044854, 0.9149038,…
+$ rugged  &lt;dbl&gt; 0.1383424702, 0.5525636891, 0.1239922606, 0.1249596904…
+$ africa  &lt;int&gt; 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, …</code></pre>
+<p>Now, let’s first forget about the interaction and do the very minimal thing required to work with this data. <code>rugged</code> should be a numeric column, while <code>africa</code> is categorical in nature, which means we use one of the <code>step_categorical_[...]</code> functions on it. (In this case we happen to know there are just two categories, Africa and not-Africa, so we could as well treat the column as numeric like in the previous example; but in other applications that won’t be the case, so here we show a method that generalizes to categorical features in general.)</p>
+<p>So we start out creating a feature spec and adding the two predictor columns. We check the result using <code>feature_spec</code>’s <code>dense_features()</code> method:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ft_spec &lt;- training %&gt;%
+  feature_spec(log_gdp ~ .) %&gt;%
+  step_numeric_column(rugged) %&gt;%
+  step_categorical_column_with_identity(africa, num_buckets = 2) 
+  fit()
+
+ft_spec$dense_features()</code></pre>
+</div>
+<pre><code>
+$rugged
+NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None)</code></pre>
+<p>Hm, that doesn’t look too good. Where’d <code>africa</code> go? In fact, there is one more thing we should have done: convert the categorical column to an <em>indicator column</em>. Why?</p>
+<p>The rule of thumb is, whenever you have something <em>categorical</em>, including <em>crossed</em>, you need to then transform it into something <em>numeric</em>, which includes <em>indicator</em> and <em>embedding</em>.</p>
+<p>Being a heuristic, this rule works overall, and it matches our intuition. There’s one exception though, <code>step_bucketized_column</code>, which although it “feels” categorical actually does not need that conversion.</p>
+<p>Therefore, it is best to supplement that intuition with a simple lookup diagram, which is also part of the <a href="https://github.com/rstudio/tfdatasets/blob/master/vignettes/feature_columns.Rmd">feature columns vignette</a>.</p>
+<p>With this diagram, the simple rule is: <em>We always need to end up with something that inherits from <code>DenseColumn</code></em>. So:</p>
+<ul>
+<li><code>step_numeric_column</code>, <code>step_indicator_column</code>, and <code>step_embedding_column</code> are standalone;</li>
+<li><code>step_bucketized_column</code> is, too, however categorical it “feels”; and</li>
+<li>all <code>step_categorical_column_[...]</code>, as well as <code>step_crossed_column</code>, need to be transformed using one the <em>dense</em> column types.</li>
+</ul>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-17"></span>
+<img src="images/feature_cols_hier.png" alt="For use with Keras, all features need to end up inheriting from DenseColumn somehow." width="586" />
+<p class="caption">
+Figure 1: For use with Keras, all features need to end up inheriting from DenseColumn somehow.
+</p>
+</div>
+</div>
+<p>Thus, we can fix the situation like so:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ft_spec &lt;- training %&gt;%
+  feature_spec(log_gdp ~ .) %&gt;%
+  step_numeric_column(rugged) %&gt;%
+  step_categorical_column_with_identity(africa, num_buckets = 2) %&gt;%
+  step_indicator_column(&quot;africa&quot;) %&gt;%
+  fit()</code></pre>
+</div>
+<p>and now <code>ft_spec$dense_features()</code> will show us</p>
+<pre><code>
+$rugged
+NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None)
+
+$indicator_africa
+IndicatorColumn(categorical_column=IdentityCategoricalColumn(key=&#39;africa&#39;, number_buckets=2.0, default_value=None))
+</code></pre>
+<p>Now, what we really wanted to do is capture the interaction between ruggedness and continent. To this end, we first <em>bucketize</em> <code>rugged</code>, and then cross it with – already binary – <code>africa</code>. As per the rules, we finally transform into an <em>indicator</em> column:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ft_spec &lt;- training %&gt;%
+  feature_spec(log_gdp ~ .) %&gt;%
+  step_numeric_column(rugged) %&gt;%
+  step_categorical_column_with_identity(africa, num_buckets = 2) %&gt;%
+  step_indicator_column(&quot;africa&quot;) %&gt;%
+  step_bucketized_column(rugged,
+                         boundaries = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8)) %&gt;%
+  step_crossed_column(africa_rugged_interact = c(africa, bucketized_rugged),
+                      hash_bucket_size = 16) %&gt;%
+  step_indicator_column(africa_rugged_interact) %&gt;%
+  fit()</code></pre>
+</div>
+<p>Looking at this code you may be asking yourself, now how many features do I have in the model? Let’s check.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+ft_spec$dense_features()</code></pre>
+</div>
+<pre><code>
+$rugged
+NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None)
+
+$indicator_africa
+IndicatorColumn(categorical_column=IdentityCategoricalColumn(key=&#39;africa&#39;, number_buckets=2.0, default_value=None))
+
+$bucketized_rugged
+BucketizedColumn(source_column=NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None), boundaries=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8))
+
+$indicator_africa_rugged_interact
+IndicatorColumn(categorical_column=CrossedColumn(keys=(IdentityCategoricalColumn(key=&#39;africa&#39;, number_buckets=2.0, default_value=None), BucketizedColumn(source_column=NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None), boundaries=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8))), hash_bucket_size=16.0, hash_key=None))</code></pre>
+<p>We see that all features, original or transformed, are kept, as long as they inherit from <code>DenseColumn</code>. This means that, for example, the non-bucketized, continuous values of <code>rugged</code> are used as well.</p>
+<p>Now setting up the training goes as expected.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+inputs &lt;- layer_input_from_dataset(df %&gt;% select(-log_gdp))
+
+output &lt;- inputs %&gt;%
+  layer_dense_features(ft_spec$dense_features()) %&gt;%
+  layer_dense(units = 8, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 8, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 1)
+
+model &lt;- keras_model(inputs, output)
+
+model %&gt;% compile(loss = &quot;mse&quot;, optimizer = &quot;adam&quot;, metrics = &quot;mse&quot;)
+
+history &lt;- model %&gt;% fit(
+  x = training,
+  y = training$log_gdp,
+  validation_data = list(testing, testing$log_gdp),
+  epochs = 100)</code></pre>
+</div>
+<p>Just as a sanity check, the final loss on the validation set for this code was ~ 0.014. But really this example did serve different purposes.</p>
+<h2 id="in-a-nutshell">In a nutshell</h2>
+<p><em>Feature specs</em> are a convenient, elegant way of making categorical data available to Keras, as well as to chain useful transformations like bucketizing and creating crossed columns. The time you save data wrangling may go into tuning and experimentation. Enjoy, and thanks for reading!</p>
+<div id="refs" class="references">
+<div id="ref-yan2003optimizing">
+<p>Yan, Lian, Robert H Dodier, Michael Mozer, and Richard H Wolniewicz. 2003. “Optimizing Classifier Performance via an Approximation to the Wilcoxon-Mann-Whitney Statistic.” In <em>Proceedings of the 20th International Conference on Machine Learning (Icml-03)</em>, 848–55.</p>
+</div>
+</div>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>see e.g. <a href="https://blogs.rstudio.com/tensorflow/posts/2018-11-26-embeddings-fun-and-profit/">Entity embeddings for fun and profit</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>Having mentioned, above, that these really may be continuous or ordinal, from now on we’ll just call them numeric as we won’t make further use of the distinction. However, fitting ordinal data with neural networks is definitely a topic that would deserve its own post.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>In this dataset, every categorical variable is a column of singleton integers.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>as indicated by leaving out the optional <code>vocabulary_list</code><a href="#fnref4" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<script id="distill-bibliography" type="text/bibtex">
+@inproceedings{yan2003optimizing,
+  title={Optimizing classifier performance via an approximation to the Wilcoxon-Mann-Whitney statistic},
+  author={Yan, Lian and Dodier, Robert H and Mozer, Michael and Wolniewicz, Richard H},
+  booktitle={Proceedings of the 20th International Conference on Machine Learning (ICML-03)},
+  pages={848--855},
+  year={2003}
+}
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

@@ -1,0 +1,724 @@
+---
+title: "Modeling censored data with tfprobability"
+description: > 
+ In this post we use tfprobability, the R interface to TensorFlow Probability, to model censored data. Again, the exposition is inspired by the treatment of this topic in Richard McElreath's Statistical Rethinking. Instead of cute cats though, we model immaterial entities from the cold world of technology: This post explores durations of CRAN package checks, a dataset that comes with Max Kuhn's parsnip.
+author:
+  - name: Sigrid Keydana
+    affiliation: RStudio
+    affiliation_url: https://www.rstudio.com/
+slug: keydana2019tfpcensored
+date: 07-30-2019
+categories:
+  - Probability and Statistics
+output:
+  distill::distill_article:
+    self_contained: false
+preview: images/thumb_cropped.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+Nothing's ever perfect, and data isn't either. One type of "imperfection" is _missing data_, where some features are unobserved for some subjects. (A topic for another post.) Another is _censored data_, where an event whose characteristics we want to measure does not occur in the observation interval. The example in Richard McElreath's _Statistical Rethinking_ is time to adoption of cats in an animal shelter. If we fix an interval and observe wait times for those cats that actually _did_ get adopted, our estimate will end up too optimistic: We don't take into account those cats who weren't adopted during this interval and thus, would have contributed wait times of length longer than the complete interval.
+
+In this post, we use a slightly less emotional example which nonetheless may be of interest, especially to R package developers: time to completion of `R CMD check`, collected from CRAN and provided by the `parsnip` package as `check_times`. Here, the censored portion are those checks that errored out for whatever reason, i.e., for whom the check did not complete.
+
+Why do we care about the censored portion, the entities for whom the event of interest did not occur in the period of observation? In the cat adoption scenario, this is pretty obvious: We want to be able to get a realistic estimate for any unknown cat, not just those cats that will turn out to be "lucky". How about `check_times`? Well, if your submission is one of those that errored out, you still care about how long you wait, so even though their percentage is low (< 1%) we don't want to simply exclude them. Also, there is the possibility that the failing ones would have taken longer, had they run to completion, dut to some intrinsic difference between both groups. Conversely, if failures were random, the longer-running checks would have a greater chance to get hit by an error. So here too, exluding the censored data may result in bias.
+
+How can we model durations for that censored portion, where the "true duration" is unknown? Taking one step back, how can we model durations in general? Making as few assumptions as possible, the [maximum entropy distribution](https://en.wikipedia.org/wiki/Maximum_entropy_probability_distribution) for displacements (in space or time) is the exponential. Thus, for the checks that actually did complete, durations are assumed to be exponentially distributed. 
+
+For the others, all we know is that in a virtual world where the check completed, it would take _at least as long_ as the given duration. This quantity can be modeled by the exponential complementary cumulative distribution function (CCDF). Why? A cumulative distribution function (CDF) indicates the probability that a value lower or equal to some reference point was reached; e.g., "the probability of durations <= 255 is 0.9". Its complement, 1 - CDF, then gives the probability that a value will exceed than that reference point.
+
+Let's see this in action.
+
+## The data
+
+The following code works with the current stable releases of TensorFlow and TensorFlow Probability, which are 1.14 and 0.7, respectively. If you don't have `tfprobability`  installed, get it from Github:
+
+```{r}
+remotes::install_github("rstudio/tfprobability")
+```
+
+These are the libraries we need. As of TensorFlow 1.14, we call `tf$compat$v2$enable_v2_behavior()` to run with eager execution.
+
+```{r}
+library(tensorflow)
+library(tfprobability)
+library(parsnip)
+library(tidyverse)
+library(zeallot)
+library(gridExtra)
+library(HDInterval)
+
+tf$compat$v2$enable_v2_behavior()
+```
+
+Besides the check durations we want to model, `check_times` reports various features of the package in question, such as number of imported packages, number of dependencies, size of code and documentation files, etc. The `status` variable indicates whether the check completed or errored out.
+
+```{r}
+df <- check_times %>% select(-package)
+glimpse(df)
+```
+
+```
+Observations: 13,626
+Variables: 24
+$ authors        <int> 1, 1, 1, 1, 5, 3, 2, 1, 4, 6, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1,…
+$ imports        <dbl> 0, 6, 0, 0, 3, 1, 0, 4, 0, 7, 0, 0, 0, 0, 3, 2, 14, 2, 2, 0…
+$ suggests       <dbl> 2, 4, 0, 0, 2, 0, 2, 2, 0, 0, 2, 8, 0, 0, 2, 0, 1, 3, 0, 0,…
+$ depends        <dbl> 3, 1, 6, 1, 1, 1, 5, 0, 1, 1, 6, 5, 0, 0, 0, 1, 1, 5, 0, 2,…
+$ Roxygen        <dbl> 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0,…
+$ gh             <dbl> 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0,…
+$ rforge         <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ descr          <int> 217, 313, 269, 63, 223, 1031, 135, 344, 204, 335, 104, 163,…
+$ r_count        <int> 2, 20, 8, 0, 10, 10, 16, 3, 6, 14, 16, 4, 1, 1, 11, 5, 7, 1…
+$ r_size         <dbl> 0.029053, 0.046336, 0.078374, 0.000000, 0.019080, 0.032607,…
+$ ns_import      <dbl> 3, 15, 6, 0, 4, 5, 0, 4, 2, 10, 5, 6, 1, 0, 2, 2, 1, 11, 0,…
+$ ns_export      <dbl> 0, 19, 0, 0, 10, 0, 0, 2, 0, 9, 3, 4, 0, 1, 10, 0, 16, 0, 2…
+$ s3_methods     <dbl> 3, 0, 11, 0, 0, 0, 0, 2, 0, 23, 0, 0, 2, 5, 0, 4, 0, 0, 0, …
+$ s4_methods     <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+$ doc_count      <int> 0, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,…
+$ doc_size       <dbl> 0.000000, 0.019757, 0.038281, 0.000000, 0.007874, 0.000000,…
+$ src_count      <int> 0, 0, 0, 0, 0, 0, 0, 2, 0, 5, 3, 0, 0, 0, 0, 0, 0, 54, 0, 0…
+$ src_size       <dbl> 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000,…
+$ data_count     <int> 2, 0, 0, 3, 3, 1, 10, 0, 4, 2, 2, 146, 0, 0, 0, 0, 0, 10, 0…
+$ data_size      <dbl> 0.025292, 0.000000, 0.000000, 4.885864, 4.595504, 0.006500,…
+$ testthat_count <int> 0, 8, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0,…
+$ testthat_size  <dbl> 0.000000, 0.002496, 0.000000, 0.000000, 0.000000, 0.000000,…
+$ check_time     <dbl> 49, 101, 292, 21, 103, 46, 78, 91, 47, 196, 200, 169, 45, 2…
+$ status         <dbl> 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+```
+
+Of these 13626 observations, just 103 are censored:
+
+```{r}
+table(df$status)
+```
+
+```
+0     1 
+103 13523 
+```
+
+For better readability of this text, we want to work with an interesting subset of the columns. We use `lm` to help us guide our selection:
+
+
+```{r}
+fit <- lm(check_time ~ ., data = df)
+summary(fit)
+```
+
+```
+Call:
+lm(formula = check_time ~ ., data = df)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-602.08  -30.69  -12.67   11.82 1146.09 
+
+Coefficients:
+                 Estimate Std. Error t value Pr(>|t|)    
+(Intercept)     22.043226   7.757023   2.842  0.00449 ** 
+authors          0.870572   0.336555   2.587  0.00970 ** 
+imports          6.490745   0.202145  32.109  < 2e-16 ***
+suggests         3.669009   0.233718  15.698  < 2e-16 ***
+depends         10.673075   0.459641  23.220  < 2e-16 ***
+Roxygen          2.602223   1.585654   1.641  0.10080    
+gh              -1.457627   1.649566  -0.884  0.37690    
+rforge           7.870322   5.060673   1.555  0.11992    
+descr            0.012181   0.002510   4.854 1.23e-06 ***
+r_count          0.148266   0.037318   3.973 7.13e-05 ***
+r_size         113.029030   5.798490  19.493  < 2e-16 ***
+ns_import        0.658115   0.058568  11.237  < 2e-16 ***
+ns_export       -0.212985   0.021317  -9.991  < 2e-16 ***
+s3_methods      -0.002599   0.028722  -0.090  0.92791    
+s4_methods       0.110948   0.161135   0.689  0.49112    
+doc_count        8.230161   0.725361  11.346  < 2e-16 ***
+doc_size       547.271957  32.644602  16.765  < 2e-16 ***
+src_count        1.328554   0.076582  17.348  < 2e-16 ***
+src_size        -2.285533   1.583432  -1.443  0.14893    
+data_count       0.082173   0.074296   1.106  0.26873    
+data_size        3.878125   0.940686   4.123 3.77e-05 ***
+testthat_count   0.162082   0.088090   1.840  0.06580 .  
+testthat_size    1.080599   0.839307   1.287  0.19795    
+status          11.135893   7.609893   1.463  0.14340    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 76.6 on 13602 degrees of freedom
+Multiple R-squared:  0.4282,	Adjusted R-squared:  0.4273 
+F-statistic: 442.9 on 23 and 13602 DF,  p-value: < 2.2e-16
+
+```
+
+It seems that if we choose `imports`, `depends`, `r_size`, `doc_size`, `ns_import` and `ns_export` we end up with a mix of (comparatively) powerful predictors from different semantic spaces and of different scales.
+
+Before pruning the dataframe, we save away the target variable. In our model and training setup, it is convenient to have censored and uncensored data stored separately, so here we create _two_ target matrices instead of one:
+
+```{r}
+# check times for failed checks
+# _c stands for censored
+check_time_c <- df %>%
+  filter(status == 0) %>%
+  select(check_time) %>%
+  as.matrix()
+
+# check times for successful checks 
+check_time_nc <- df %>%
+  filter(status == 1) %>%
+  select(check_time) %>%
+  as.matrix()
+```
+
+Now we can zoom in on the variables of interest, setting up one dataframe for the censored data and one for the uncensored data each. We add a column of `1`s for use as an intercept.
+
+```{r}
+df <- df %>% select(status,
+                    depends,
+                    imports,
+                    doc_size,
+                    r_size,
+                    ns_import,
+                    ns_export) %>%
+  add_column(intercept = rep(1, nrow(df)), .before = 1)
+
+# dataframe of predictors for censored data  
+df_c <- df %>% filter(status == 0) %>% select(-status)
+# dataframe of predictors for non-censored data 
+df_nc <- df %>% filter(status == 1) %>% select(-status)
+```
+
+That's it for preparations. But of course we're curious. Do check times look different? Do predictors -- the ones we chose -- look different?
+
+Comparing a few meaningful percentiles for both classes, we see that durations for uncompleted checks are higher than those for completed checks throughout, apart from the 100% percentile. It's not surprising that given the enormous difference in sample size, maximum duration is higher for completed checks. Otherwise though, doesn't it look like the errored-out package checks "were going to take longer"?
+
+::: l-body
+| percentiles: _check time_   |   10%   |   30%   |   50%   |   70%   |   90%   |   100%   |
+|-----------------------------|---------|---------|---------|---------|---------|----------|
+| completed                   |   36    |    54   |    79   |   115   |   211   |   1343   |
+| not completed               |   42    |    71   |    97   |   143   |   293   |    696   |
+:::
+
+
+How about the predictors? We don't see any differences for `depends`, the number of package dependencies (apart from, again, the higher maximum reached for packages whose check completed):
+
+::: l-body
+| percentiles: _depends_      |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |     0   |     1   |     1   |     2   |     4  |      12   |
+| not completed               |     0   |     1   |     1   |     2   |     4  |       7   |
+:::
+
+But for all others, we see the same pattern as reported above for `check_time`. Number of packages imported is higher for censored data at all percentiles besides the maximum:
+
+::: l-body
+| percentiles: _imports_      |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |     0   |     0   |     2   |     4   |    9   |      43   |
+| not completed               |     0   |     1   |     5   |     8   |    12  |      22   |
+:::
+
+
+Same for `ns_export`, the estimated number of exported functions or methods:
+
+::: l-body
+| percentiles: _ns_export_    |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |     0   |     1   |     2   |     8   |    26  |    2547   |
+| not completed               |     0   |     1   |     5   |    13   |    34  |     336   |
+:::
+
+As well as for `ns_import`, the estimated number of imported functions or methods:
+
+::: l-body
+| percentiles: _ns_import_    |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |     0   |     1   |     3   |     6   |    19  |     312   |
+| not completed               |     0   |     2   |     5   |    11   |    23  |     297   |
+:::
+
+Same pattern for `r_size`, the size on disk of files in the `R` directory:
+
+::: l-body
+| percentiles: _r_size_       |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |   0.005 |   0.015 |   0.031 |   0.063 |  0.176 |     3.746 |
+| not completed               |   0.008 |   0.019 |   0.041 |   0.097 |  0.217 |     2.148 |
+:::
+
+And finally, we see it for `doc_size` too, where `doc_size` is the size of `.Rmd` and `.Rnw` files:
+
+::: l-body
+| percentiles: _doc_size_     |   10%   |   30%   |   50%   |   70%   |   90%  |    100%   |
+|-----------------------------|---------|---------|---------|---------|--------|-----------|
+| completed                   |   0.000 |   0.000 |   0.000 |   0.000 |  0.023 |     0.988 |
+| not completed               |   0.000 |   0.000 |   0.000 |   0.011 |  0.042 |     0.114 |
+:::
+
+Given our task at hand -- model check durations taking into account uncensored as well as censored data -- we won't dwell on differences between both groups any longer; nonetheless we thought it interesting to relate these numbers.
+
+So now, back to work. We need to create a model.
+
+## The model
+
+As explained in the introduction, for completed checks duration is modeled using an exponential PDF. This is as straightforward as adding [tfd_exponential()](https://rstudio.github.io/tfprobability/reference/tfd_exponential.html) to the model function, [tfd_joint_distribution_sequential()](https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html). ^[For a first introduction to MCMC sampling with `tfprobability`, see [Tadpoles on TensorFlow: Hierarchical partial pooling with tfprobability](https://blogs.rstudio.com/tensorflow/posts/2019-05-06-tadpoles-on-tensorflow/)]For the censored portion, we need the exponential CCDF. This one is not, as of today, easily added to the model. What we can do though is calculate its value ourselves and add it to the "main" model likelihood. We'll see this below when discussing sampling; for now it means the model definition ends up straightforward as it only covers the non-censored data. It is made of just the said exponential PDF and priors for the regression parameters.
+
+As to the latter, we use 0-centered, wide, Gaussian priors for all parameters. As the priors are all the same, instead of listing a bunch of `tfd_normal`s, we can create them all at once as
+
+```{r}
+tfd_sample_distribution(tfd_normal(0, 100), sample_shape = 7)
+```
+
+Mean check time is modeled as an affine combination of the six predictors and the intercept. Here then is the complete model, instantiated using the uncensored data only:
+
+```{r}
+model <- function(data) {
+  tfd_joint_distribution_sequential(
+    list(
+      tfd_sample_distribution(tfd_normal(0, 100), sample_shape = 7),
+      function(betas)
+        tfd_independent(
+          tfd_exponential(
+            rate = 1 / tf$transpose(
+              tf$matmul(tf$cast(data, betas$dtype), tf$transpose(betas)))),
+          reinterpreted_batch_ndims = 1)))
+}
+
+m <- model(df_nc %>% as.matrix())
+```
+
+Always, we test if samples from that model have the expected shapes:
+
+```{r}
+samples <- m %>% tfd_sample(2)
+samples
+```
+
+```
+[[1]]
+tf.Tensor(
+[[ 141.84642     17.583323    -6.5479555  -25.12014     18.62184
+  -126.62813    102.31883  ]
+ [ -52.142303  -100.36682    226.64438    129.737      111.23234
+    38.10004     16.63677  ]], shape=(2, 7), dtype=float32)
+
+[[2]]
+tf.Tensor(
+[[-194.48752   330.73102  -215.10345  ...  519.6042   -487.9084
+    46.02937 ]
+ [-781.0923   2058.9512   -105.909386 ... -188.32635  8672.187
+  -294.24957 ]], shape=(2, 13523), dtype=float32)
+```
+
+This looks fine: We have a list of length two, one element for each distribution in the model. For both tensors, dimension 1 reflects the batch size (which we arbitrarily set to 2 in this test), while dimension 2 is 7 for the number of normal priors and 13523 for the number of durations predicted.
+
+How likely are these samples?
+
+```{r}
+m %>% tfd_log_prob(samples)
+```
+
+```
+tf.Tensor([nan nan], shape=(2,), dtype=float32)
+```
+
+Well, the shape looks correct but even if you like _naan_ ^[https://en.wikipedia.org/wiki/Naan], that's not what we want to see here. Let's do a quick test for sample row 1. The sampled parameters are
+
+```{r}
+betas <- c(141.84642, 17.583323, -6.5479555, -25.12014, 18.62184, -126.62813, 102.31883)
+```
+
+The first line in the dataframe is 
+
+```{r}
+x <- df_nc[1, ]
+x
+```
+
+```
+# A tibble: 1 x 7
+  intercept depends imports doc_size r_size ns_import ns_export
+      <dbl>   <dbl>   <dbl>    <dbl>  <dbl>     <dbl>     <dbl>
+1         1       3       0        0 0.0291         3         0
+```
+
+Then for this sample, our model's exponential rate will look like this:
+
+```{r}
+1/sum(x * betas)
+```
+
+
+which is `-0.005412808`. Negative rates are not defined for the exponential distribution, and the resulting log probability will be `NaN`.
+
+For the rate to be positive always, all possible linear combinations of the predictors have to end up positive. As the predictors themselves are positive throughout, the parameter samples have to be as well. So if we want to use normal priors, we need to add an extra transformation -- namely, an exponential bijector that ensures MCMC can work in unconstrained space while the model will receive positive samples:
+
+```{r}
+unconstraining_bijectors <- list(tfb_exp(), tfb_identity())
+```
+
+The next thing to do is define the target we want to optimize.
+
+## Optimization target
+
+Abstractly, the thing to maximize is the log probility of the data -- that is, the measured durations -- under the model.
+Now here the data comes in two parts, and the target does as well. First, we have the non-censored data, for whom
+
+```{r}
+m %>% tfd_log_prob(list(betas, tf$cast(target_nc, betas$dtype)))
+```
+
+will calculate the log probability. Second, to obtain log probability for the censored data we write a custom function that calculates the log of the exponential CCDF:
+
+
+```{r}
+get_exponential_lccdf <- function(betas, data, target) {
+  e <-  tfd_independent(tfd_exponential(rate = 1 / tf$transpose(tf$matmul(
+    tf$cast(data, betas$dtype), tf$transpose(betas)
+  ))),
+  reinterpreted_batch_ndims = 1)
+  cum_prob <- e %>% tfd_cdf(tf$cast(target, betas$dtype))
+  tf$math$log(1 - cum_prob)
+}
+```
+
+Both parts are combined in a little wrapper function that allows to compare training including and excluding the censored data. We won't do that in this post, but you might be interested to do it with your own data, especially if the ratio of censored and uncensored parts is a little less imbalanced.
+
+```{r}
+get_log_prob <-
+  function(target_nc,
+           censored_data = NULL,
+           target_c = NULL) {
+    log_prob <- function(betas) {
+      log_prob <-
+        m %>% tfd_log_prob(list(betas, tf$cast(target_nc, betas$dtype)))
+      potential <-
+        if (!is.null(censored_data) && !is.null(target_c))
+          get_exponential_lccdf(betas, censored_data, target_c)
+      else
+        0
+      log_prob + potential
+    }
+    log_prob
+  }
+
+log_prob <-
+  get_log_prob(
+    check_time_nc %>% tf$transpose(),
+    df_c %>% as.matrix(),
+    check_time_c %>% tf$transpose()
+  )
+```
+
+
+
+## Sampling
+
+
+With model and target defined, we're ready to do sampling.
+
+```{r}
+n_chains <- 4
+n_burnin <- 1000
+n_steps <- 1000
+
+# keep track of some diagnostic output, acceptance and step size
+trace_fn <- function(state, pkr) {
+  list(
+    pkr$inner_results$inner_results$is_accepted,
+    pkr$inner_results$inner_results$accepted_results$step_size
+  )
+}
+
+# get shape of initial values 
+# to start sampling without producing NaNs, we will feed the algorithm
+# tf$ones_like(initial_betas)
+# instead 
+initial_betas <- (m %>% tfd_sample(n_chains))[[1]]
+```
+
+As to the HMC algorithm, experimentation with number of leapfrog steps and invidual step sizes was crucial to get the chains to mix and converge. We started with a step size of 0.1 for all parameters and varied the number of leapfrog steps to get into the right ballpark, then fine-tuned the step sizes for those parameters whose chains didn't look so good yet.
+
+```{r}
+hmc <- mcmc_hamiltonian_monte_carlo(
+  target_log_prob_fn = log_prob,
+  num_leapfrog_steps = 16,
+  step_size = tf$constant(c(0.1, 0.1, 0.1, 0.5, 0.15, 0.15, 0.3))
+) %>%
+  mcmc_transformed_transition_kernel(bijector = unconstraining_bijectors) %>%
+  mcmc_simple_step_size_adaptation(target_accept_prob = 0.8,
+                                   num_adaptation_steps = n_burnin)
+
+run_mcmc <- function(kernel) {
+  kernel %>% mcmc_sample_chain(
+    num_results = n_steps,
+    num_burnin_steps = n_burnin,
+    current_state = tf$ones_like(initial_betas),
+    trace_fn = trace_fn
+  )
+}
+
+# important for performance: run HMC in graph mode
+run_mcmc <- tf_function(run_mcmc)
+
+res <- hmc %>% run_mcmc()
+samples <- res$all_states
+```
+
+## Results
+
+Before we inspect the chains, here is a quick look at the proportion of accepted steps and the per-parameter mean step size:
+
+```{r}
+accepted <- res$trace[[1]]
+as.numeric(accepted) %>% mean()
+```
+
+```
+0.838
+```
+
+```{r}
+step_sizes <- res$trace[[2]]
+step_sizes %>% as.matrix() %>% apply(2, mean)
+```
+
+```
+[1] 0.01667838 0.01667838 0.01667838 0.08339182 0.02501755 0.02501755 0.05003509
+```
+
+We also store away effective sample sizes and the _rhat_ metrics for later addition to the synopsis. 
+
+```{r}
+effective_sample_size <- mcmc_effective_sample_size(samples) %>%
+  as.matrix() %>%
+  apply(2, mean)
+potential_scale_reduction <- mcmc_potential_scale_reduction(samples) %>%
+  as.numeric()
+```
+
+We then convert the `samples` tensor to an R array for use in postprocessing.
+
+```{r}
+# 2-item list, where each item has dim (1000, 4)
+samples <- as.array(samples) %>% array_branch(margin = 3)
+```
+
+
+Now, how well did the sampling work? The chains mix well, but for some parameters, autocorrelation is still pretty high, individual tuning of step sizes nonwithstanding.
+
+```{r}
+prep_tibble <- function(samples) {
+  as_tibble(samples,
+            .name_repair = ~ c("chain_1", "chain_2", "chain_3", "chain_4")) %>%
+    add_column(sample = 1:n_steps) %>%
+    gather(key = "chain", value = "value",-sample)
+}
+
+plot_trace <- function(samples) {
+  prep_tibble(samples) %>%
+    ggplot(aes(x = sample, y = value, color = chain)) +
+    geom_line() +
+    theme_light() +
+    theme(
+      legend.position = "none",
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank()
+    )
+}
+
+plot_traces <- function(samples) {
+  plots <- purrr::map(samples, plot_trace)
+  do.call(grid.arrange, plots)
+}
+
+plot_traces(samples)
+```
+
+
+```{r, eval=TRUE, echo=FALSE, layout="l-body-outset", fig.cap = "Trace plots for the 7 parameters."}
+knitr::include_graphics("images/chains.png")
+```
+
+Now for a synopsis of posterior parameter statistics, including the usual per-parameter sampling indicators _effective sample size_ and _rhat_.
+
+```{r}
+all_samples <- map(samples, as.vector)
+
+means <- map_dbl(all_samples, mean)
+
+sds <- map_dbl(all_samples, sd)
+
+hpdis <- map(all_samples, ~ hdi(.x) %>% t() %>% as_tibble())
+
+summary <- tibble(
+  mean = means,
+  sd = sds,
+  hpdi = hpdis
+) %>% unnest() %>%
+  add_column(param = colnames(df_c), .after = FALSE) %>%
+  add_column(
+    n_effective = effective_sample_size,
+    rhat = potential_scale_reduction
+  )
+
+summary
+```
+
+```
+# A tibble: 7 x 7
+  param         mean      sd       lower   upper n_effective  rhat
+  <chr>        <dbl>   <dbl>       <dbl>   <dbl>       <dbl> <dbl>
+1 intercept  40.0     0.959   38.1        41.9          115.  1.01
+2 depends     9.82    0.594    8.68       11.0         1000   1.00
+3 imports     7.78    0.412    6.97        8.56         119.  1.01
+4 doc_size  880.     58.8    756.        986.           193.  1.01
+5 r_size    184.     15.7    155.        215.           502.  1.00
+6 ns_import   1.22    0.176    0.869       1.55        1000   1.00
+7 ns_export   0.0423  0.0341   0.0000815   0.109        191.  1.01
+```
+
+```{r, eval=TRUE, echo=FALSE, layout="l-body-outset", fig.cap = "Posterior means and HPDIs. Because of the wildly differing magnitudes, HPDIs are too small to be visible for some parameters (consult table instead)."}
+knitr::include_graphics("images/synopsis.png")
+```
+
+From the diagnostics and trace plots, the model seems to work reasonably well, but as there is no straightforward error metric involved (MSE, say), it's hard to know if actual predictions would even land in an appropriate range. So as a sanity check, let's take our two data frames, holding the censored and the non-censored data, respectively, and see if predictions are of similar quality as those from `lm`. 
+
+Here is `lm`, using just the chosen predictors:
+
+```{r}
+fit <- lm(check_time ~ depends + imports + doc_size + r_size + ns_import + ns_export, data = check_times)
+summary(fit)
+```
+
+```
+Call:
+lm(formula = check_time ~ depends + imports + doc_size + r_size + 
+    ns_import + ns_export, data = check_times)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-705.24  -32.93  -15.95   12.01 1162.71 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  47.54846    1.10895  42.877  < 2e-16 ***
+depends      10.52560    0.46618  22.578  < 2e-16 ***
+imports       7.21918    0.20048  36.010  < 2e-16 ***
+doc_size    928.31223   27.34305  33.951  < 2e-16 ***
+r_size      143.21639    5.16464  27.730  < 2e-16 ***
+ns_import     0.75196    0.05932  12.677  < 2e-16 ***
+ns_export    -0.08621    0.02071  -4.163 3.16e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 79.37 on 13619 degrees of freedom
+Multiple R-squared:  0.3853,	Adjusted R-squared:  0.3851 
+F-statistic:  1423 on 6 and 13619 DF,  p-value: < 2.2e-16
+```
+
+With an R² of ~ 0.39, we don't expect predictions to be very close for `lm` either; but what we're interested in is seeing predictions from both models end up "in the same ballpark" quality-wise.
+
+```{r}
+# lm predictions on non-censored data
+pred_nc_lm <- predict(fit, df_nc %>% select(- intercept))
+# lm predictions on censored data
+pred_c_lm <- predict(fit, df_c %>% select(- intercept))
+```
+
+For the purpose of a simple sanity check, we just get point predictions from our model:
+
+```{r}
+# model predictions on non-censored data, making use of posterior mean
+pred_nc_mcmc <- df_nc %>% as.matrix() %*% summary$mean
+# model predictions on censored data, making use of posterior mean
+pred_c_mcmc <- df_c %>% as.matrix() %*% summary$mean
+```
+
+Let's see predictions next to each other, starting with the non-censored data:
+
+```{r}
+comp_nc <- tibble(
+  actual = as.vector(check_time_nc),
+  predicted_lm = as.vector(pred_nc_lm),
+  predicted_mcmc = as.vector(pred_nc_mcmc)
+)
+head(comp_nc, 10)
+```
+
+```
+# A tibble: 10 x 3
+   actual predicted_lm predicted_mcmc
+    <dbl>        <dbl>          <dbl>
+ 1     49         85.5           78.5
+ 2    101        136.           142. 
+ 3    292        162.           154. 
+ 4     21         58.1           49.8
+ 5    103         91.9           88.9
+ 6     46         73.7           69.7
+ 7     78        106.            96.6
+ 8     91         82.3           79.9
+ 9     47         60.0           52.7
+10    196        122.           126. 
+ 
+```
+
+It seems fair to say that for both models, predictions can be pretty far off, but it is interesting -- and reassuring -- to see how similar they are. We could also compare MSEs:
+
+```{r}
+mse_lm <- ((comp_nc$predicted_lm - comp_nc$actual)^2) %>% mean()
+mse_mcmc <- ((comp_nc$predicted_mcmc - comp_nc$actual)^2) %>% mean()
+c(mse_lm, mse_mcmc)
+```
+
+```
+[1] 6273.799 6477.195
+```
+
+Doing the same for the censored data:
+
+```{r}
+comp_c <- tibble(
+  actual = as.vector(check_time_c),
+  predicted_lm = as.vector(pred_c_lm),
+  predicted_mcmc = as.vector(pred_c)
+)
+head
+```
+
+
+```
+# A tibble: 10 x 3
+   actual predicted_lm predicted_mcmc
+    <dbl>        <dbl>          <dbl>
+ 1     10         91.4           91.1
+ 2     80         87.8           82.3
+ 3     38         61.0           53.9
+ 4    304        673.           893. 
+ 5     89        105.           104. 
+ 6     68         89.7           92.8
+ 7      5         71.6           64.3
+ 8     77         68.0           61.6
+ 9     89        125.           122. 
+10    174        119.           117. 
+ 
+```
+
+```{r}
+mse_lm <- ((comp_c$predicted_lm - comp_c$actual) ^ 2) %>% mean()
+mse_mcmc <- ((comp_c$predicted_mcmc - comp_c$actual) ^ 2) %>% mean()
+c(mse_lm, mse_mcmc)
+```
+
+```
+
+[1]  9273.062 11328.088
+```
+
+Overall, we conclude that the model works reasonably well.
+
+## Wrapup
+
+We've shown how to model censored data -- resp. a frequent subtype thereof involving durations -- using `tfprobability`. The `check_times` data from `parsnip` were a fun choice, but this modeling technique may be even more useful when censoring is more substantial. Hopefully his post has provided some guidance on how to handle censored data in your own work. Thanks for reading!

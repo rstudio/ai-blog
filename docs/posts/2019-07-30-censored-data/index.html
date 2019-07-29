@@ -1348,7 +1348,7 @@ gtag('config', 'UA-102325748-2');
 
 <div class="d-article">
 <p>Nothing’s ever perfect, and data isn’t either. One type of “imperfection” is <em>missing data</em>, where some features are unobserved for some subjects. (A topic for another post.) Another is <em>censored data</em>, where an event whose characteristics we want to measure does not occur in the observation interval. The example in Richard McElreath’s <em>Statistical Rethinking</em> is time to adoption of cats in an animal shelter. If we fix an interval and observe wait times for those cats that actually <em>did</em> get adopted, our estimate will end up too optimistic: We don’t take into account those cats who weren’t adopted during this interval and thus, would have contributed wait times of length longer than the complete interval.</p>
-<p>In this post, we use a slightly less emotional example which nonetheless may be of interest, especially to R package developers: time to completion of <code>R CMD check</code>, collected from CRAN and provided by the <code>parsnip</code> package as <code>check_times</code>. Here, the censored portion are those checks that errored out for whatever reason, i.e., for whom the check did not complete.</p>
+<p>In this post, we use a slightly less emotional example which nonetheless may be of interest, especially to R package developers: time to completion of <code>R CMD check</code>, collected from CRAN and provided by the <code>parsnip</code> package as <code>check_times</code>. Here, the censored portion are those checks that errored out for whatever reason, i.e., for which the check did not complete.</p>
 <p>Why do we care about the censored portion, the entities for whom the event of interest did not occur in the period of observation? In the cat adoption scenario, this is pretty obvious: We want to be able to get a realistic estimate for any unknown cat, not just those cats that will turn out to be “lucky”. How about <code>check_times</code>? Well, if your submission is one of those that errored out, you still care about how long you wait, so even though their percentage is low (&lt; 1%) we don’t want to simply exclude them. Also, there is the possibility that the failing ones would have taken longer, had they run to completion, dut to some intrinsic difference between both groups. Conversely, if failures were random, the longer-running checks would have a greater chance to get hit by an error. So here too, exluding the censored data may result in bias.</p>
 <p>How can we model durations for that censored portion, where the “true duration” is unknown? Taking one step back, how can we model durations in general? Making as few assumptions as possible, the <a href="https://en.wikipedia.org/wiki/Maximum_entropy_probability_distribution">maximum entropy distribution</a> for displacements (in space or time) is the exponential. Thus, for the checks that actually did complete, durations are assumed to be exponentially distributed.</p>
 <p>For the others, all we know is that in a virtual world where the check completed, it would take <em>at least as long</em> as the given duration. This quantity can be modeled by the exponential complementary cumulative distribution function (CCDF). Why? A cumulative distribution function (CDF) indicates the probability that a value lower or equal to some reference point was reached; e.g., “the probability of durations &lt;= 255 is 0.9”. Its complement, 1 - CDF, then gives the probability that a value will exceed than that reference point.</p>
@@ -1405,7 +1405,7 @@ $ testthat_count &lt;int&gt; 0, 8, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 
 $ testthat_size  &lt;dbl&gt; 0.000000, 0.002496, 0.000000, 0.000000, 0.000000, 0.000000,…
 $ check_time     &lt;dbl&gt; 49, 101, 292, 21, 103, 46, 78, 91, 47, 196, 200, 169, 45, 2…
 $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…</code></pre>
-<p>Of these 13626 observations, just 103 are censored:</p>
+<p>Of these 13,626 observations, just 103 are censored:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 table(df$status)</code></pre>
@@ -1413,7 +1413,7 @@ table(df$status)</code></pre>
 <pre><code>
 0     1 
 103 13523 </code></pre>
-<p>For better readability of this text, we want to work with an interesting subset of the columns. We use <code>lm</code> to help us guide our selection:</p>
+<p>For better readability, we’ll work with an interesting subset of the columns. We use <code>lm</code> to help us guide our selection:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 fit &lt;- lm(check_time ~ ., data = df)
@@ -1751,7 +1751,7 @@ df_nc &lt;- df %&gt;% filter(status == 1) %&gt;% select(-status)</code></pre>
 <p>So now, back to work. We need to create a model.</p>
 <h2 id="the-model">The model</h2>
 <p>As explained in the introduction, for completed checks duration is modeled using an exponential PDF. This is as straightforward as adding <a href="https://rstudio.github.io/tfprobability/reference/tfd_exponential.html">tfd_exponential()</a> to the model function, <a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_distribution_sequential()</a>. <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>For the censored portion, we need the exponential CCDF. This one is not, as of today, easily added to the model. What we can do though is calculate its value ourselves and add it to the “main” model likelihood. We’ll see this below when discussing sampling; for now it means the model definition ends up straightforward as it only covers the non-censored data. It is made of just the said exponential PDF and priors for the regression parameters.</p>
-<p>As to the latter, we use 0-centered, wide, Gaussian priors for all parameters. As the priors are all the same, instead of listing a bunch of <code>tfd_normal</code>s, we can create them all at once as</p>
+<p>As for the latter, we use 0-centered, wide, Gaussian priors for all parameters. As the priors are all the same, instead of listing a bunch of <code>tfd_normal</code>s, we can create them all at once as</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 tfd_sample_distribution(tfd_normal(0, 100), sample_shape = 7)</code></pre>
@@ -1830,7 +1830,7 @@ unconstraining_bijectors &lt;- list(tfb_exp(), tfb_identity())</code></pre>
 </div>
 <p>The next thing to do is define the target we want to optimize.</p>
 <h2 id="optimization-target">Optimization target</h2>
-<p>Abstractly, the thing to maximize is the log probility of the data – that is, the measured durations – under the model. Now here the data comes in two parts, and the target does as well. First, we have the non-censored data, for whom</p>
+<p>Abstractly, the thing to maximize is the log probility of the data – that is, the measured durations – under the model. Now here the data comes in two parts, and the target does as well. First, we have the non-censored data, for which</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 m %&gt;% tfd_log_prob(list(betas, tf$cast(target_nc, betas$dtype)))</code></pre>
@@ -1847,7 +1847,7 @@ get_exponential_lccdf &lt;- function(betas, data, target) {
   tf$math$log(1 - cum_prob)
 }</code></pre>
 </div>
-<p>Both parts are combined in a little wrapper function that allows to compare training including and excluding the censored data. We won’t do that in this post, but you might be interested to do it with your own data, especially if the ratio of censored and uncensored parts is a little less imbalanced.</p>
+<p>Both parts are combined in a little wrapper function that allows us to compare training including and excluding the censored data. We won’t do that in this post, but you might be interested to do it with your own data, especially if the ratio of censored and uncensored parts is a little less imbalanced.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 get_log_prob &lt;-
@@ -1954,7 +1954,7 @@ potential_scale_reduction &lt;- mcmc_potential_scale_reduction(samples) %&gt;%
 # 2-item list, where each item has dim (1000, 4)
 samples &lt;- as.array(samples) %&gt;% array_branch(margin = 3)</code></pre>
 </div>
-<p>Now, how well did the sampling work? The chains mix well, but for some parameters, autocorrelation is still pretty high, individual tuning of step sizes nonwithstanding.</p>
+<p>How well did the sampling work? The chains mix well, but for some parameters, autocorrelation is still pretty high, individual tuning of step sizes notwithstanding.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 prep_tibble &lt;- function(samples) {
@@ -2151,7 +2151,7 @@ c(mse_lm, mse_mcmc)</code></pre>
 [1]  9273.062 11328.088</code></pre>
 <p>Overall, we conclude that the model works reasonably well.</p>
 <h2 id="wrapup">Wrapup</h2>
-<p>We’ve shown how to model censored data – resp. a frequent subtype thereof involving durations – using <code>tfprobability</code>. The <code>check_times</code> data from <code>parsnip</code> were a fun choice, but this modeling technique may be even more useful when censoring is more substantial. Hopefully his post has provided some guidance on how to handle censored data in your own work. Thanks for reading!</p>
+<p>We’ve shown how to model censored data – or rather, a frequent subtype thereof involving durations – using <code>tfprobability</code>. The <code>check_times</code> data from <code>parsnip</code> were a fun choice, but this modeling technique may be even more useful when censoring is more substantial. Hopefully his post has provided some guidance on how to handle censored data in your own work. Thanks for reading!</p>
 <section class="footnotes">
 <hr />
 <ol>

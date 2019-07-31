@@ -7,7 +7,7 @@ author:
     affiliation: RStudio
     affiliation_url: https://www.rstudio.com/
 slug: keydana2019tfpcensored
-date: 07-30-2019
+date: 07-31-2019
 categories:
   - Probability and statistics
 output:
@@ -24,7 +24,7 @@ Nothing's ever perfect, and data isn't either. One type of "imperfection" is _mi
 
 In this post, we use a slightly less emotional example which nonetheless may be of interest, especially to R package developers: time to completion of `R CMD check`, collected from CRAN and provided by the `parsnip` package as `check_times`. Here, the censored portion are those checks that errored out for whatever reason, i.e., for which the check did not complete.
 
-Why do we care about the censored portion? In the cat adoption scenario, this is pretty obvious: We want to be able to get a realistic estimate for any unknown cat, not just those cats that will turn out to be "lucky". How about `check_times`? Well, if your submission is one of those that errored out, you still care about how long you wait, so even though their percentage is low (< 1%) we don't want to simply exclude them. Also, there is the possibility that the failing ones would have taken longer, had they run to completion, dut to some intrinsic difference between both groups. Conversely, if failures were random, the longer-running checks would have a greater chance to get hit by an error. So here too, exluding the censored data may result in bias.
+Why do we care about the censored portion? In the cat adoption scenario, this is pretty obvious: We want to be able to get a realistic estimate for any unknown cat, not just those cats that will turn out to be "lucky". How about `check_times`? Well, if your submission is one of those that errored out, you still care about how long you wait, so even though their percentage is low (< 1%) we don't want to simply exclude them. Also, there is the possibility that the failing ones would have taken longer, had they run to completion, due to some intrinsic difference between both groups. Conversely, if failures were random, the longer-running checks would have a greater chance to get hit by an error. So here too, exluding the censored data may result in bias.
 
 How can we model durations for that censored portion, where the "true duration" is unknown? Taking one step back, how can we model durations in general? Making as few assumptions as possible, the [maximum entropy distribution](https://en.wikipedia.org/wiki/Maximum_entropy_probability_distribution) for displacements (in space or time) is the exponential. Thus, for the checks that actually did complete, durations are assumed to be exponentially distributed. 
 
@@ -50,6 +50,8 @@ library(tidyverse)
 library(zeallot)
 library(gridExtra)
 library(HDInterval)
+library(tidymodels)
+library(survival)
 
 tf$compat$v2$enable_v2_behavior()
 ```
@@ -101,54 +103,45 @@ table(df$status)
 103 13523 
 ```
 
-For better readability, we'll work with an interesting subset of the columns. We use `lm` to help us guide our selection:
+For better readability, we'll work with a subset of the columns. We use `surv_reg` to help us find a useful and interesting subset of predictors:
 
 
 ```{r}
-fit <- lm(check_time ~ ., data = df)
-summary(fit)
+survreg_fit <-
+  surv_reg(dist = "exponential") %>% 
+  set_engine("survreg") %>% 
+  fit(Surv(check_time, status) ~ ., 
+      data = df)
+tidy(survreg_fit) 
 ```
 
 ```
-Call:
-lm(formula = check_time ~ ., data = df)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--602.08  -30.69  -12.67   11.82 1146.09 
-
-Coefficients:
-                 Estimate Std. Error t value Pr(>|t|)    
-(Intercept)     22.043226   7.757023   2.842  0.00449 ** 
-authors          0.870572   0.336555   2.587  0.00970 ** 
-imports          6.490745   0.202145  32.109  < 2e-16 ***
-suggests         3.669009   0.233718  15.698  < 2e-16 ***
-depends         10.673075   0.459641  23.220  < 2e-16 ***
-Roxygen          2.602223   1.585654   1.641  0.10080    
-gh              -1.457627   1.649566  -0.884  0.37690    
-rforge           7.870322   5.060673   1.555  0.11992    
-descr            0.012181   0.002510   4.854 1.23e-06 ***
-r_count          0.148266   0.037318   3.973 7.13e-05 ***
-r_size         113.029030   5.798490  19.493  < 2e-16 ***
-ns_import        0.658115   0.058568  11.237  < 2e-16 ***
-ns_export       -0.212985   0.021317  -9.991  < 2e-16 ***
-s3_methods      -0.002599   0.028722  -0.090  0.92791    
-s4_methods       0.110948   0.161135   0.689  0.49112    
-doc_count        8.230161   0.725361  11.346  < 2e-16 ***
-doc_size       547.271957  32.644602  16.765  < 2e-16 ***
-src_count        1.328554   0.076582  17.348  < 2e-16 ***
-src_size        -2.285533   1.583432  -1.443  0.14893    
-data_count       0.082173   0.074296   1.106  0.26873    
-data_size        3.878125   0.940686   4.123 3.77e-05 ***
-testthat_count   0.162082   0.088090   1.840  0.06580 .  
-testthat_size    1.080599   0.839307   1.287  0.19795    
-status          11.135893   7.609893   1.463  0.14340    
----
-Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-Residual standard error: 76.6 on 13602 degrees of freedom
-Multiple R-squared:  0.4282,	Adjusted R-squared:  0.4273 
-F-statistic: 442.9 on 23 and 13602 DF,  p-value: < 2.2e-16
+# A tibble: 23 x 7
+   term             estimate std.error statistic  p.value conf.low conf.high
+   <chr>               <dbl>     <dbl>     <dbl>    <dbl>    <dbl>     <dbl>
+ 1 (Intercept)     3.86      0.0219     176.     0.             NA        NA
+ 2 authors         0.0139    0.00580      2.40   1.65e- 2       NA        NA
+ 3 imports         0.0606    0.00290     20.9    7.49e-97       NA        NA
+ 4 suggests        0.0332    0.00358      9.28   1.73e-20       NA        NA
+ 5 depends         0.118     0.00617     19.1    5.66e-81       NA        NA
+ 6 Roxygen         0.0702    0.0209       3.36   7.87e- 4       NA        NA
+ 7 gh              0.00898   0.0217       0.414  6.79e- 1       NA        NA
+ 8 rforge          0.0232    0.0662       0.351  7.26e- 1       NA        NA
+ 9 descr           0.000138  0.0000337    4.10   4.18e- 5       NA        NA
+10 r_count         0.00209   0.000525     3.98   7.03e- 5       NA        NA
+11 r_size          0.481     0.0819       5.87   4.28e- 9       NA        NA
+12 ns_import       0.00352   0.000896     3.93   8.48e- 5       NA        NA
+13 ns_export      -0.00161   0.000308    -5.24   1.57e- 7       NA        NA
+14 s3_methods      0.000449  0.000421     1.06   2.87e- 1       NA        NA
+15 s4_methods     -0.00154   0.00206     -0.745  4.56e- 1       NA        NA
+16 doc_count       0.0739    0.0117       6.33   2.44e-10       NA        NA
+17 doc_size        2.86      0.517        5.54   3.08e- 8       NA        NA
+18 src_count       0.0122    0.00127      9.58   9.96e-22       NA        NA
+19 src_size       -0.0242    0.0181      -1.34   1.82e- 1       NA        NA
+20 data_count      0.0000415 0.000980     0.0423 9.66e- 1       NA        NA
+21 data_size       0.0217    0.0135       1.61   1.08e- 1       NA        NA
+22 testthat_count -0.000128  0.00127     -0.101  9.20e- 1       NA        NA
+23 testthat_size   0.0108    0.0139       0.774  4.39e- 1       NA        NA
 
 ```
 
@@ -584,140 +577,86 @@ summary
 knitr::include_graphics("images/synopsis.png")
 ```
 
-From the diagnostics and trace plots, the model seems to work reasonably well, but as there is no straightforward error metric involved (MSE, say), it's hard to know if actual predictions would even land in an appropriate range. So as a sanity check, let's take our two data frames, holding the censored and the non-censored data, respectively, and see if predictions are of similar quality as those from `lm`. 
+From the diagnostics and trace plots, the model seems to work reasonably well, but as there is no straightforward error metric involved, it's hard to know if actual predictions would even land in an appropriate range. 
 
-Here is `lm`, using just the chosen predictors:
-
-```{r}
-fit <- lm(check_time ~ depends + imports + doc_size + r_size + ns_import + ns_export, data = check_times)
-summary(fit)
-```
-
-```
-Call:
-lm(formula = check_time ~ depends + imports + doc_size + r_size + 
-    ns_import + ns_export, data = check_times)
-
-Residuals:
-    Min      1Q  Median      3Q     Max 
--705.24  -32.93  -15.95   12.01 1162.71 
-
-Coefficients:
-             Estimate Std. Error t value Pr(>|t|)    
-(Intercept)  47.54846    1.10895  42.877  < 2e-16 ***
-depends      10.52560    0.46618  22.578  < 2e-16 ***
-imports       7.21918    0.20048  36.010  < 2e-16 ***
-doc_size    928.31223   27.34305  33.951  < 2e-16 ***
-r_size      143.21639    5.16464  27.730  < 2e-16 ***
-ns_import     0.75196    0.05932  12.677  < 2e-16 ***
-ns_export    -0.08621    0.02071  -4.163 3.16e-05 ***
----
-Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-Residual standard error: 79.37 on 13619 degrees of freedom
-Multiple R-squared:  0.3853,	Adjusted R-squared:  0.3851 
-F-statistic:  1423 on 6 and 13619 DF,  p-value: < 2.2e-16
-```
-
-With an R² of ~ 0.39, we don't expect predictions to be very close for `lm` either; but what we're interested in is seeing predictions from both models end up "in the same ballpark" quality-wise.
+To make sure they do, we inspect predictions from our model as well as from `surv_reg`.
+This time, we also split the data into training and test sets. Here first are the predictions from `surv_reg`:
 
 ```{r}
-# lm predictions on non-censored data
-pred_nc_lm <- predict(fit, df_nc %>% select(- intercept))
-# lm predictions on censored data
-pred_c_lm <- predict(fit, df_c %>% select(- intercept))
+train_test_split <- initial_split(check_times, strata = "status")
+check_time_train <- training(train_test_split)
+check_time_test <- testing(train_test_split)
+
+survreg_fit <-
+  surv_reg(dist = "exponential") %>% 
+  set_engine("survreg") %>% 
+  fit(Surv(check_time, status) ~ depends + imports + doc_size + r_size + 
+        ns_import + ns_export, 
+      data = check_time_train)
+survreg_fit(sr_fit)
 ```
 
-For the purpose of a simple sanity check, we just get point predictions from our model:
+```
+# A tibble: 7 x 7
+  term         estimate std.error statistic  p.value conf.low conf.high
+  <chr>           <dbl>     <dbl>     <dbl>    <dbl>    <dbl>     <dbl>
+1 (Intercept)  4.05      0.0174     234.    0.             NA        NA
+2 depends      0.108     0.00701     15.4   3.40e-53       NA        NA
+3 imports      0.0660    0.00327     20.2   1.09e-90       NA        NA
+4 doc_size     7.76      0.543       14.3   2.24e-46       NA        NA
+5 r_size       0.812     0.0889       9.13  6.94e-20       NA        NA
+6 ns_import    0.00501   0.00103      4.85  1.22e- 6       NA        NA
+7 ns_export   -0.000212  0.000375    -0.566 5.71e- 1       NA        NA
+```
+
 
 ```{r}
-# model predictions on non-censored data, making use of posterior mean
-pred_nc_mcmc <- df_nc %>% as.matrix() %*% summary$mean
-# model predictions on censored data, making use of posterior mean
-pred_c_mcmc <- df_c %>% as.matrix() %*% summary$mean
+survreg_pred <- 
+  predict(survreg_fit, check_time_test) %>% 
+  bind_cols(check_time_test %>% select(check_time, status))  
+
+ggplot(survreg_pred, aes(x = check_time, y = .pred, color = factor(status))) +
+  geom_point() + 
+  coord_cartesian(ylim = c(0, 1400))
 ```
 
-Let's see predictions next to each other, starting with the non-censored data:
+```{r, eval=TRUE, echo=FALSE, layout="l-body-outset", fig.cap = "Test set predictions from surv_reg. One outlier (of value 160421) is excluded via coord_cartesian() to avoid distorting the plot."}
+knitr::include_graphics("images/survreg_pred.png")
+```
+
+
+For the MCMC model, we re-train on just the training set and obtain the parameter summary. The code is analogous to the above and not shown here.
+
+We can now predict on the test set, for simplicity just using the posterior means:
 
 ```{r}
-comp_nc <- tibble(
-  actual = as.vector(check_time_nc),
-  predicted_lm = as.vector(pred_nc_lm),
-  predicted_mcmc = as.vector(pred_nc_mcmc)
-)
-head(comp_nc, 10)
-```
+df <- check_time_test %>% select(
+                    depends,
+                    imports,
+                    doc_size,
+                    r_size,
+                    ns_import,
+                    ns_export) %>%
+  add_column(intercept = rep(1, nrow(check_time_test)), .before = 1)
 
-```
-# A tibble: 10 x 3
-   actual predicted_lm predicted_mcmc
-    <dbl>        <dbl>          <dbl>
- 1     49         85.5           78.5
- 2    101        136.           142. 
- 3    292        162.           154. 
- 4     21         58.1           49.8
- 5    103         91.9           88.9
- 6     46         73.7           69.7
- 7     78        106.            96.6
- 8     91         82.3           79.9
- 9     47         60.0           52.7
-10    196        122.           126. 
- 
-```
+mcmc_pred <- df %>% as.matrix() %*% summary$mean %>% as.numeric()
+mcmc_pred <- check_time_test %>% select(check_time, status) %>%
+  add_column(.pred = mcmc_pred)
 
-It seems fair to say that for both models, predictions can be pretty far off, but it is interesting -- and reassuring -- to see how similar they are. We could also compare MSEs:
-
-```{r}
-mse_lm <- ((comp_nc$predicted_lm - comp_nc$actual)^2) %>% mean()
-mse_mcmc <- ((comp_nc$predicted_mcmc - comp_nc$actual)^2) %>% mean()
-c(mse_lm, mse_mcmc)
-```
-
-```
-[1] 6273.799 6477.195
-```
-
-Doing the same for the censored data:
-
-```{r}
-comp_c <- tibble(
-  actual = as.vector(check_time_c),
-  predicted_lm = as.vector(pred_c_lm),
-  predicted_mcmc = as.vector(pred_c)
-)
-head
-```
-
-
-```
-# A tibble: 10 x 3
-   actual predicted_lm predicted_mcmc
-    <dbl>        <dbl>          <dbl>
- 1     10         91.4           91.1
- 2     80         87.8           82.3
- 3     38         61.0           53.9
- 4    304        673.           893. 
- 5     89        105.           104. 
- 6     68         89.7           92.8
- 7      5         71.6           64.3
- 8     77         68.0           61.6
- 9     89        125.           122. 
-10    174        119.           117. 
- 
-```
-
-```{r}
-mse_lm <- ((comp_c$predicted_lm - comp_c$actual) ^ 2) %>% mean()
-mse_mcmc <- ((comp_c$predicted_mcmc - comp_c$actual) ^ 2) %>% mean()
-c(mse_lm, mse_mcmc)
-```
+ggplot(mcmc_pred, aes(x = check_time, y = .pred, color = factor(status))) +
+  geom_point() + 
+  coord_cartesian(ylim = c(0, 1400)) +
+  theme(aspect.ratio = 1)
 
 ```
 
-[1]  9273.062 11328.088
+```{r, eval=TRUE, echo=FALSE, layout="l-body-outset", fig.cap = "Test set predictions from the mcmc model. No outliers, just using same scale as above for comparison."}
+knitr::include_graphics("images/mcmc_preds.png")
 ```
 
-Overall, we conclude that the model works reasonably well.
+
+This looks good!
+
 
 ## Wrapup
 

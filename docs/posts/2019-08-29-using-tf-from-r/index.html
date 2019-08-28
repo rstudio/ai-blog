@@ -1306,7 +1306,7 @@ gtag('config', 'UA-102325748-2');
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"So, how come we can use TensorFlow from R?","description":"Have you ever wondered why you can call TensorFlow - mostly known as a Python framework - from R? If not - that's how it should be, as the R packages keras and tensorflow aim to make this process as transparent as possible to the user. But for them to be those helpful genies, someone else first has to tame the Python.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2019-08-28T00:00:00.000-03:00","citationText":"Keydana, 2019"}
+{"title":"So, how come we can use TensorFlow from R?","description":"Have you ever wondered why you can call TensorFlow - mostly known as a Python framework - from R? If not - that's how it should be, as the R packages keras and tensorflow aim to make this process as transparent as possible to the user. But for them to be those helpful genies, someone else first has to tame the Python.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2019-08-28T00:00:00.000+02:00","citationText":"Keydana, 2019"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -1438,6 +1438,7 @@ m &lt;- keras_model_custom(name = &quot;mymodel&quot;, function(self) {
 <pre class="r"><code>
 py_run_string(&quot;x = 1&quot;)</code></pre>
 </div>
+<p>So: There is a variable, called x, with value 1, living in Python world. Now how do we bring this thing into R?</p>
 <p>We know the main entry point to conversion is <code>py_to_r</code>, defined as a generic in <code>conversion.R</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1526,14 +1527,14 @@ SEXP py_ref_to_r_with_convert(PyObjectRef x, bool convert) {
 }</code></pre>
 </div>
 <p>we finally arrive at <code>py_to_r</code> in #0.</p>
-<p>Before we look at that, let’s contemplate that C/C++ “bridge” from the other side - Python. While strictly, Python is a language specification, its reference implementation is CPython, built of C and Python. In CPython, every Python object (including integers or other numeric types) is a <code>PyObject</code>. <code>PyObject</code>s are allocated through and operated on using pointers; most C API functions return a pointer to one, <code>PyObject *</code>.</p>
+<p>Before we look at that, let’s contemplate that C/C++ “bridge” from the other side - Python. While strictly, Python is a language specification, its reference implementation is CPython, with a core written in C and much more functionality built on top in Python. In CPython, every Python object (including integers or other numeric types) is a <code>PyObject</code>. <code>PyObject</code>s are allocated through and operated on using pointers; most C API functions return a pointer to one, <code>PyObject *</code>.</p>
 <p>So this is what we expect to work with, from R. What then is <code>PyObjectRef</code> doing in <code>py_ref_to_r</code>? <code>PyObjectRef</code> is not part of the C API, it is part of the functionality introduced by <code>reticulate</code> to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an <code>Rcpp::Environment</code>) goes out of scope. Why use an R environment to wrap the Python-level pointer? This is because R environments can have finalizers: functions that are called before objects are garbage collected. We use this R-level finalizer to ensure the Python-side object gets finalized as well:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
 Rcpp::RObject xptr = R_MakeExternalPtr((void*) object, R_NilValue, R_NilValue);
 R_RegisterCFinalizer(xptr, python_object_finalize);</code></pre>
 </div>
-<p><code>python_object_finalize</code> is interesting, as it tells us something crucial about Python – about CPython, to be precise: CPython does not have garbage collection; instead, it uses reference counting, placing on the user the burden of correctly incrementing and decrementing references according to language semantics.</p>
+<p><code>python_object_finalize</code> is interesting, as it tells us something crucial about Python – about CPython, to be precise: To find out if an object is still needed, or could be garbage collected, it uses reference counting, thus placing on the user the burden of correctly incrementing and decrementing references according to language semantics.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
 inline void python_object_finalize(SEXP object) {
@@ -1551,7 +1552,7 @@ SEXP py_to_r(PyObject* x, bool convert) {
   //...
 }</code></pre>
 </div>
-<p>and – but wait. Didn’t <code>py_ref_to_r_with_convert</code> pass it a <code>PyObjectRef</code>? So how come it receives a <code>PyObject</code> instead? This is because <code>PyObjectRef</code> inherits from <code>Rcpp::Environment</code>, and its address-of operator is used to extract the Python object from the <code>Environment</code>:</p>
+<p>and – but wait. Didn’t <code>py_ref_to_r_with_convert</code> pass it a <code>PyObjectRef</code>? So how come it receives a <code>PyObject</code> instead? This is because <code>PyObjectRef</code> inherits from <code>Rcpp::Environment</code>, and its implicit conversion operator is used to extract the Python object from the <code>Environment</code>. Concretely, that operator tells the compiler that a <code>PyObjectRef</code> can be used as though it were a <code>PyObject*</code> in some concepts, and the associated code specifies how to convert from <code>PyObjectRef</code> to <code>PyObject*</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
 operator PyObject*() const {

@@ -973,10 +973,11 @@ model &lt;- keras_model_sequential() %&gt;%
   layer_dense(units = 1)</code></pre>
 </div>
 <p>(all nice with <code>%&gt;%</code>s and all!) – then train and evaluate it, get predictions and plot them, all that without ever leaving R?</p>
-<p>The short answer is, you have <code>keras</code>, <code>tensorflow</code> and <code>reticulate</code> installed which taken together, create and manage Python objects for you and let you operate on them on a high level. This post first elaborates a bit on the short answer. We then look deeper into what happens in the background.</p>
+<p>The short answer is, you have <code>keras</code>, <code>tensorflow</code> and <code>reticulate</code> installed. <code>reticulate</code> <em>embeds</em> a Python session <em>within</em> the R process. A single process means a single address space: The same objects exist, and can be operated upon, regardless of whether they’re seen by R or by Python. On that basis, <code>tensorflow</code> and <code>keras</code> then wrap the respective Python libraries <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> and let you write R code that, in fact, looks like R.</p>
+<p>This post first elaborates a bit on the short answer. We then go deeper into what happens in the background.</p>
 <p>One note on terminology before we jump in. On the R side, we’re making a clear distinction between the packages <code>keras</code> and <code>tensorflow</code>. For Python we are going to use <em>TensorFlow</em> and <em>Keras</em> interchangeably. Historically, these have been different, and TensorFlow was commonly thought of as one possible backend to run Keras on, besides the pioneering, now discontinued Theano, and CNTK. Standalone Keras does still <a href="https://github.com/keras-team/keras">exist</a>, but recent work has been, and is being, done in <a href="https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python/keras">tf.keras</a>. Of course, this makes Python <code>Keras</code> a subset of Python <code>TensorFlow</code>, but all examples in this post will use that subset so we can use both to refer to the same thing.</p>
 <h2 id="so-keras-tensorflow-reticulate-what-are-they-for">So keras, tensorflow, reticulate, what are they for?</h2>
-<p>Firstly, nothing of this would be possible without <code>reticulate</code>. <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> <a href="https://rstudio.github.io/reticulate/">reticulate</a> is an R package designed to allow seemless interoperability between R and Python. If we absolutely wanted, we could construct a Keras model like this:</p>
+<p>Firstly, nothing of this would be possible without <code>reticulate</code>. <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> <a href="https://rstudio.github.io/reticulate/">reticulate</a> is an R package designed to allow seemless interoperability between R and Python. If we absolutely wanted, we could construct a Keras model like this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 library(reticulate)
@@ -1000,8 +1001,8 @@ m$layers</code></pre>
 [[2]]
 &lt;tensorflow.python.keras.layers.core.Dense&gt;
 </code></pre>
-<p>But who would want to? If this were the only way, it’d be less cumbersome to directly write Python instead. Plus, as a user you’d have to know the complete Python-side module structure (now where do optimizers live, currently? <code>tf.keras.optimizers</code>, <code>tf.optimizers</code> …?), and keep up with all path and name changes in the Python API. <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
-<p>So this is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
+<p>But who would want to? If this were the only way, it’d be less cumbersome to directly write Python instead. Plus, as a user you’d have to know the complete Python-side module structure (now where do optimizers live, currently: <code>tf.keras.optimizers</code>, <code>tf.optimizers</code> …?), and keep up with all path and name changes in the Python API. <a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
+<p>So this is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 model &lt;- keras_model_sequential()
@@ -1028,7 +1029,7 @@ CustomCallback &lt;- R6::R6Class(&quot;CustomCallback&quot;,
     )
   )</code></pre>
 </div>
-<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’es methods to it. Another example are <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>. These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
+<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’ methods to it. Another example are <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>. These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 m &lt;- keras_model_custom(name = &quot;mymodel&quot;, function(self) {
@@ -1071,7 +1072,7 @@ py_to_r.default &lt;- function(x) {
   [...]
 }</code></pre>
 </div>
-<p>To find out more about what is going on, debugging on the R level won’t get us far. We start <code>gdb</code> so we can set breakpoints in C++ functions: <a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a></p>
+<p>To find out more about what is going on, debugging on the R level won’t get us far. We start <code>gdb</code> so we can set breakpoints in C++ functions: <a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a></p>
 <pre><code>
 $ R -d gdb
 
@@ -1115,7 +1116,7 @@ Thread 1 &quot;R&quot; hit Breakpoint 3, 0x00007fffe48315d0 in py_to_r(libpython
 <p>We’ve removed a few intermediate frames related to (R-level) method dispatch.</p>
 <p>As we already saw in the source code, <code>py_to_r.default</code> will delegate to a method called <code>py_ref_to_r</code>, which we see appears in #2. But what is <code>_reticulate_py_ref_to_r</code> in #3, the frame just below? Here is where the magic, unseen by the user, begins.</p>
 <p>Let’s look at this from a bird’s eye’s view. To translate an object from one language to another, we need to find a common ground, that is, a third language “spoken” by both of them. In the case of R and Python (as well as in a lot of other cases) this will be C / C++. So assuming we are going to write a C function to talk to Python, how can we use this function in R?</p>
-<p>While R users have the ability to call into C directly, using <code>.Call</code> or <code>.External</code> <a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a>, this is made much more convenient by <a href="https://cran.r-project.org/web/packages/Rcpp/index.html">Rcpp</a> <a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a>: You just write your C++ function, and Rcpp takes care of compilation and provides the glue code necessary to call this function from R.</p>
+<p>While R users have the ability to call into C directly, using <code>.Call</code> or <code>.External</code> <a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a>, this is made much more convenient by <a href="https://cran.r-project.org/web/packages/Rcpp/index.html">Rcpp</a> <a href="#fn7" class="footnote-ref" id="fnref7"><sup>7</sup></a>: You just write your C++ function, and Rcpp takes care of compilation and provides the glue code necessary to call this function from R.</p>
 <p>So <code>py_ref_to_r</code> really is written in C++:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
@@ -1142,7 +1143,23 @@ SEXP py_ref_to_r_with_convert(PyObjectRef x, bool convert) {
 </div>
 <p>we finally arrive at <code>py_to_r</code> in #0.</p>
 <p>Before we look at that, let’s contemplate that C/C++ “bridge” from the other side - Python. While strictly, Python is a language specification, its reference implementation is CPython, built of C and Python. In CPython, every Python object (including integers or other numeric types) is a <code>PyObject</code>. <code>PyObject</code>s are allocated through and operated on using pointers; most C API functions return a pointer to one, <code>PyObject *</code>.</p>
-<p>So this is what we expect to work with, from R. What then is <code>PyObjectRef</code> doing in <code>py_ref_to_r</code>? <code>PyObjectRef</code> is not part of the C API, it is part of the functionality introduced by <code>reticulate</code> to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an <code>Rcpp::Environment</code>) goes out of scope. It also stores the “convert” feature of the Python object, used to determine whether that object should be converted to R automatically.</p>
+<p>So this is what we expect to work with, from R. What then is <code>PyObjectRef</code> doing in <code>py_ref_to_r</code>? <code>PyObjectRef</code> is not part of the C API, it is part of the functionality introduced by <code>reticulate</code> to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an <code>Rcpp::Environment</code>) goes out of scope. Why use an R environment to wrap the Python-level pointer? This is because R environments can have finalizers: functions that are called before objects are garbage collected. We use this R-level finalizer to ensure the Python-side object gets finalized as well:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="cpp"><code>
+Rcpp::RObject xptr = R_MakeExternalPtr((void*) object, R_NilValue, R_NilValue);
+R_RegisterCFinalizer(xptr, python_object_finalize);</code></pre>
+</div>
+<p><code>python_object_finalize</code> is interesting, as it tells us something crucial about Python – about CPython, to be precise: CPython does not have garbage collection; instead, it uses reference counting, placing on the user the burden of correctly incrementing and decrementing references according to language semantics.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="cpp"><code>
+inline void python_object_finalize(SEXP object) {
+  PyObject* pyObject = (PyObject*)R_ExternalPtrAddr(object);
+  if (pyObject != NULL)
+    Py_DecRef(pyObject);
+}</code></pre>
+</div>
+<p>The above <em>finalizer</em> mechanism thus frees <code>reticulate</code> code of having to decrement reference count on every single object.</p>
+<p>Resuming on <code>PyObjectRef</code>, let’s quickly note that it also stores the “convert” feature of the Python object, used to determine whether that object should be converted to R automatically.</p>
 <p>Back to <code>py_to_r</code>. This one now really gets to work with (a pointer to the) Python object,</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
@@ -1206,13 +1223,14 @@ Rcpp::Function f = py_callable_as_function(pyFunc, convert);</code></pre>
 <p>The cpython-side action starts when <code>py_callable_as_function</code> then calls <code>py_call_impl</code>. <code>py_call_impl</code> executes the actual call and returns an R object, a <code>SEXP</code>. Now you may be asking, how does the Python runtime know it shouldn’t deallocate that object, now that its work is done? This is taken of by the same <code>PyObjectRef</code> class used to wrap instances of <code>PyObject *</code>: It can wrap <code>SEXP</code>s as well.</p>
 <p>While a lot more could be said about what happens before we finally get to work with that <code>Sequential</code> model from R, let’s stop here and look at our third scenario.</p>
 <h3 id="scenario-3-calling-r-from-python">Scenario 3: Calling R from Python</h3>
-<p>Not surprisingly, sometimes we need to pass R callbacks to Python. An example are R data generators that can be used with <code>keras</code> models <a href="#fn7" class="footnote-ref" id="fnref7"><sup>7</sup></a>.</p>
+<p>Not surprisingly, sometimes we need to pass R callbacks to Python. An example are R data generators that can be used with <code>keras</code> models <a href="#fn8" class="footnote-ref" id="fnref8"><sup>8</sup></a>.</p>
 <p>In general, for R objects to be passed to Python, the process is somewhat opposite to what we described in example 1. Say we type:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 py$a &lt;- 1</code></pre>
 </div>
-<p>This assigns <code>1</code> to a variable <code>a</code> in the python main module. A prerequisite for the assignment to happen is getting that <code>1</code> converted to Python. (We’re using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn’t a simple number).</p>
+<p>This assigns <code>1</code> to a variable <code>a</code> in the python main module. To enable assignment, <code>reticulate</code> provides an implementation of the S3 generic <code>$&lt;-</code>, <code>$&lt;-.python.builtin.object</code>, which delegates to <code>py_set_attr</code>, which then calls <code>py_set_attr_impl</code> – yet another C++ function exported via Rcpp.</p>
+<p>Let’s focus on a different aspect here though. A prerequisite for the assignment to happen is getting that <code>1</code> converted to Python. (We’re using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn’t a simple number).</p>
 <p>For our “minimal example”, we see a stacktrace like the following</p>
 <pre><code>
 #0 0x00007fffe4832010 in r_to_py_cpp(Rcpp::RObject_Impl&lt;Rcpp::PreserveStorage&gt;, bool)@plt () from /home/key/R/x86_64-redhat-linux-gnu-library/3.6/reticulate/libs/reticulate.so
@@ -1251,13 +1269,14 @@ PyMethodDef RPYCallMethods[] = {
 <section class="footnotes">
 <hr />
 <ol>
-<li id="fn1"><p>Not without <code>Rcpp</code> either, but we’ll save that for the “Digging deeper” section.<a href="#fnref1" class="footnote-back">↩</a></p></li>
-<li id="fn2"><p>of which there are many currently, accompanying the substantial changes related to the introduction of TF 2.0.<a href="#fnref2" class="footnote-back">↩</a></p></li>
-<li id="fn3"><p>It goes without saying that as a generic mediator between R and Python, <code>reticulate</code> can not provide convenience features for all R packages that use it.<a href="#fnref3" class="footnote-back">↩</a></p></li>
-<li id="fn4"><p>For a very nice introduction to debugging R with a debugger like <code>gdb</code> or <code>lldb</code>, see <a href="http://kevinushey.github.io/blog/2015/04/13/debugging-with-lldb/.">Kevin Ushey’s “Debugging with LLDB”</a><a href="#fnref4" class="footnote-back">↩</a></p></li>
-<li id="fn5"><p>For a nice introduction, see <a href="http://adv-r.had.co.nz/C-interface.html">version 1 of Advanced R</a>.<a href="#fnref5" class="footnote-back">↩</a></p></li>
-<li id="fn6"><p>Not a copy-paste error: For a nice introduction, see <a href="https://adv-r.hadley.nz/rcpp.html">version 2 of Advanced R</a>.<a href="#fnref6" class="footnote-back">↩</a></p></li>
-<li id="fn7"><p>For performance reasons, it is often advisable to use <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a> instead.<a href="#fnref7" class="footnote-back">↩</a></p></li>
+<li id="fn1"><p>but see the “note on terminology” below<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>Not without <code>Rcpp</code> either, but we’ll save that for the “Digging deeper” section.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>of which there are many, currently, accompanying the substantial changes related to the introduction of TF 2.0.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>It goes without saying that as a generic mediator between R and Python, <code>reticulate</code> can not provide convenience features for all R packages that use it.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+<li id="fn5"><p>For a very nice introduction to debugging R with a debugger like <code>gdb</code>, see <a href="http://kevinushey.github.io/blog/2015/04/13/debugging-with-lldb/.">Kevin Ushey’s “Debugging with LLDB”</a> That post uses <code>lldb</code> which is the standard debugger on Macintosh, while here we’re using <code>gdb</code> on linux; but mostly the behaviors are very similar.<a href="#fnref5" class="footnote-back">↩</a></p></li>
+<li id="fn6"><p>For a nice introduction, see <a href="http://adv-r.had.co.nz/C-interface.html">version 1 of Advanced R</a>.<a href="#fnref6" class="footnote-back">↩</a></p></li>
+<li id="fn7"><p>Not a copy-paste error: For a nice introduction, see <a href="https://adv-r.hadley.nz/rcpp.html">version 2 of Advanced R</a>.<a href="#fnref7" class="footnote-back">↩</a></p></li>
+<li id="fn8"><p>For performance reasons, it is often advisable to use <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a> instead.<a href="#fnref8" class="footnote-back">↩</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

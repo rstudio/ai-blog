@@ -37,8 +37,10 @@ model <- keras_model_sequential() %>%
 
 (all nice with `%>%`s and all!) -- then train and evaluate it, get predictions and plot them, all that without ever leaving R?
 
-The short answer is, you have `keras`, `tensorflow` and `reticulate` installed which taken together, create and manage Python objects for you and let you operate on them on a high level. 
-This post first elaborates a bit on the short answer. We then look deeper into what happens in the background.
+The short answer is, you have `keras`, `tensorflow` and `reticulate` installed. 
+`reticulate` _embeds_ a Python session _within_ the R process. A single process means a single address space: The same objects exist, and can be operated upon, regardless of whether they're seen by R or by Python. On that basis, `tensorflow` and `keras` then wrap the respective Python libraries ^[but see the "note on terminology" below] and let you write R code that, in fact, looks like R.
+
+This post first elaborates a bit on the short answer. We then go deeper into what happens in the background.
 
 One note on terminology before we jump in. On the R side, we're making a clear distinction between the packages `keras` and `tensorflow`. For Python we are going to use _TensorFlow_ and _Keras_ interchangeably. Historically, these have been different, and TensorFlow was commonly thought of as one possible backend to run Keras on, besides the pioneering, now discontinued Theano, and CNTK. Standalone Keras does still [exist](https://github.com/keras-team/keras), but recent work has been, and is being, done in [tf.keras](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python/keras). Of course, this makes Python `Keras` a subset of Python `TensorFlow`, but all examples in this post will use that subset so we can use both to refer to the same thing.
 
@@ -75,7 +77,7 @@ m$layers
 
 ```
 
-But who would want to? If this were the only way, it'd be less cumbersome to directly write Python instead. Plus, as a user you'd have to know the complete Python-side module structure (now where do optimizers live, currently? `tf.keras.optimizers`, `tf.optimizers` ...?), and keep up with all path and name changes in the Python API. ^[of which there are many currently, accompanying the substantial changes related to the introduction of TF 2.0.]
+But who would want to? If this were the only way, it'd be less cumbersome to directly write Python instead. Plus, as a user you'd have to know the complete Python-side module structure (now where do optimizers live, currently: `tf.keras.optimizers`, `tf.optimizers` ...?), and keep up with all path and name changes in the Python API. ^[of which there are many, currently, accompanying the substantial changes related to the introduction of TF 2.0.]
 
 So this is where `keras` comes into play. `keras` is where the TensorFlow-specific usability, re-usability, and convenience features live. ^[It goes without saying that as a generic mediator between R and Python, `reticulate` can not provide convenience features for all R packages that use it.]
 Functionality provided by `keras` spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider `layer_dense` which, among others, converts its `units` argument to an integer, and takes arguments in an order that allow it to be "pipe-added" to a model: Instead of
@@ -109,7 +111,7 @@ CustomCallback <- R6::R6Class("CustomCallback",
   )
 ```
 
-This is because `keras` defines an actual Python class, `RCallback`, and maps your R6 class'es methods to it.
+This is because `keras` defines an actual Python class, `RCallback`, and maps your R6 class' methods to it.
 Another example are [custom models](https://tensorflow.rstudio.com/keras/articles/custom_models.html), introduced on this blog [about a year ago](https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/).
 These models can be trained with custom training loops. In R, you use `keras_model_custom` to create one, for example, like this:
 
@@ -169,7 +171,7 @@ py_to_r.default <- function(x) {
 ```
 
 
-To find out more about what is going on, debugging on the R level won't get us far. We start `gdb` so we can set breakpoints in C++ functions: ^[For a very nice introduction to debugging R with a debugger like `gdb` or `lldb`, see [Kevin Ushey's "Debugging with LLDB"](http://kevinushey.github.io/blog/2015/04/13/debugging-with-lldb/.)]
+To find out more about what is going on, debugging on the R level won't get us far. We start `gdb` so we can set breakpoints in C++ functions: ^[For a very nice introduction to debugging R with a debugger like `gdb`, see [Kevin Ushey's "Debugging with LLDB"](http://kevinushey.github.io/blog/2015/04/13/debugging-with-lldb/.) That post uses `lldb` which is the standard debugger on Macintosh, while here we're using `gdb` on linux; but mostly the behaviors are very similar.]
 
 ```
 $ R -d gdb
@@ -267,8 +269,29 @@ Before we look at that, let's contemplate that C/C++ "bridge" from the other sid
 While strictly, Python is a language specification, its reference implementation is CPython, built of C and Python. In CPython, every Python object (including integers or other numeric types) is a `PyObject`. `PyObject`s are allocated through and operated on using pointers; most C API functions return a pointer to one, `PyObject *`.
 
 So this is what we expect to work with, from R. What then is `PyObjectRef` doing in `py_ref_to_r`?
-`PyObjectRef` is not part of the C API, it is part of the functionality introduced by `reticulate` to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an `Rcpp::Environment`) goes out of scope. It also stores the "convert" feature of the Python object, used to determine whether that object should be converted to R automatically.
-  
+`PyObjectRef` is not part of the C API, it is part of the functionality introduced by `reticulate` to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an `Rcpp::Environment`) goes out of scope. 
+Why use an R environment to wrap the Python-level pointer? This is because R environments can have finalizers: functions that are called before objects are garbage collected.
+We use this R-level finalizer to ensure the Python-side object gets finalized as well:
+
+```{Rcpp}
+Rcpp::RObject xptr = R_MakeExternalPtr((void*) object, R_NilValue, R_NilValue);
+R_RegisterCFinalizer(xptr, python_object_finalize);
+```
+
+`python_object_finalize` is interesting, as it tells us something crucial about Python -- about CPython, to be precise: CPython does not have garbage collection; instead, it uses reference counting, placing on the user the burden of correctly incrementing and decrementing references according to language semantics.
+
+```{Rcpp}
+inline void python_object_finalize(SEXP object) {
+  PyObject* pyObject = (PyObject*)R_ExternalPtrAddr(object);
+  if (pyObject != NULL)
+    Py_DecRef(pyObject);
+}
+```
+
+The above _finalizer_ mechanism thus frees `reticulate` code of having to decrement reference count on every single object.
+
+Resuming on `PyObjectRef`, let's quickly note that it also stores the "convert" feature of the Python object, used to determine whether that object should be converted to R automatically.
+
 Back to `py_to_r`. This one now really gets to work with (a pointer to the) Python object, 
 
 ```{Rcpp}
@@ -358,7 +381,10 @@ In general, for R objects to be passed to Python, the process is somewhat opposi
 py$a <- 1
 ```
 
-This assigns `1` to a variable `a` in the python main module. A prerequisite for the assignment to happen is getting that `1` converted to Python. (We're using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn't a simple number).
+This assigns `1` to a variable `a` in the python main module. 
+To enable assignment, `reticulate` provides an implementation of the S3 generic `$<-`, `$<-.python.builtin.object`, which delegates to `py_set_attr`, which then calls `py_set_attr_impl` -- yet another C++ function exported via Rcpp.
+
+Let's focus on a different aspect here though. A prerequisite for the assignment to happen is getting that `1` converted to Python. (We're using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn't a simple number).
 
 For our "minimal example", we see a stacktrace like the following
 

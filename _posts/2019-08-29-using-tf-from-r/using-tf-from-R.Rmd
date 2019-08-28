@@ -148,6 +148,8 @@ Let's assume we have created a Python object in the global namespace, like this:
 py_run_string("x = 1")
 ```
 
+So: There is a variable, called x, with value 1, living in Python world. Now how do we bring this thing into R?
+
 We know the main entry point to conversion is `py_to_r`, defined as a generic in `conversion.R`:
   
 ```{r}
@@ -278,7 +280,7 @@ Rcpp::RObject xptr = R_MakeExternalPtr((void*) object, R_NilValue, R_NilValue);
 R_RegisterCFinalizer(xptr, python_object_finalize);
 ```
 
-`python_object_finalize` is interesting, as it tells us something crucial about Python -- about CPython, to be precise: CPython does not have garbage collection; instead, it uses reference counting, placing on the user the burden of correctly incrementing and decrementing references according to language semantics.
+`python_object_finalize` is interesting, as it tells us something crucial about Python -- about CPython, to be precise: To find out if an object is still needed, or could be garbage collected, it uses reference counting, thus placing on the user the burden of correctly incrementing and decrementing references according to language semantics.
 
 ```{Rcpp}
 inline void python_object_finalize(SEXP object) {
@@ -300,7 +302,7 @@ SEXP py_to_r(PyObject* x, bool convert) {
 }
 ```
 
-and -- but wait. Didn't `py_ref_to_r_with_convert` pass it a `PyObjectRef`? So how come it receives a `PyObject` instead? This is because `PyObjectRef` inherits from `Rcpp::Environment`, and its address-of operator is used to extract the Python object from the `Environment`:
+and -- but wait. Didn't `py_ref_to_r_with_convert` pass it a `PyObjectRef`? So how come it receives a `PyObject` instead? This is because `PyObjectRef` inherits from `Rcpp::Environment`, and its implicit conversion operator is used to extract the Python object from the `Environment`. Concretely, that operator tells the compiler that a `PyObjectRef` can be used as though it were a `PyObject*` in some concepts, and the associated code specifies how to convert from `PyObjectRef` to `PyObject*`:
 
 ```{Rcpp}
 operator PyObject*() const {

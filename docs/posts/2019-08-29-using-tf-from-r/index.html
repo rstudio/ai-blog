@@ -1356,10 +1356,10 @@ model &lt;- keras_model_sequential() %&gt;%
   layer_dense(units = 32, activation = &quot;relu&quot;) %&gt;%
   layer_dense(units = 1)</code></pre>
 </div>
-<p>(all nice with <code>%&gt;%</code>s and all!) – then train and evaluate it, get predictions and plot them, all that without ever leaving R?</p>
+<p>(nice with <code>%&gt;%</code>s and all!) – then train and evaluate it, get predictions and plot them, all that without ever leaving R?</p>
 <p>The short answer is, you have <code>keras</code>, <code>tensorflow</code> and <code>reticulate</code> installed. <code>reticulate</code> <em>embeds</em> a Python session <em>within</em> the R process. A single process means a single address space: The same objects exist, and can be operated upon, regardless of whether they’re seen by R or by Python. On that basis, <code>tensorflow</code> and <code>keras</code> then wrap the respective Python libraries <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> and let you write R code that, in fact, looks like R.</p>
 <p>This post first elaborates a bit on the short answer. We then go deeper into what happens in the background.</p>
-<p>One note on terminology before we jump in. On the R side, we’re making a clear distinction between the packages <code>keras</code> and <code>tensorflow</code>. For Python we are going to use <em>TensorFlow</em> and <em>Keras</em> interchangeably. Historically, these have been different, and TensorFlow was commonly thought of as one possible backend to run Keras on, besides the pioneering, now discontinued Theano, and CNTK. Standalone Keras does still <a href="https://github.com/keras-team/keras">exist</a>, but recent work has been, and is being, done in <a href="https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python/keras">tf.keras</a>. Of course, this makes Python <code>Keras</code> a subset of Python <code>TensorFlow</code>, but all examples in this post will use that subset so we can use both to refer to the same thing.</p>
+<p>One note on terminology before we jump in: On the R side, we’re making a clear distinction between the packages <code>keras</code> and <code>tensorflow</code>. For Python we are going to use <em>TensorFlow</em> and <em>Keras</em> interchangeably. Historically, these have been different, and TensorFlow was commonly thought of as one possible backend to run Keras on, besides the pioneering, now discontinued Theano, and CNTK. Standalone Keras does still <a href="https://github.com/keras-team/keras">exist</a>, but recent work has been, and is being, done in <a href="https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python/keras">tf.keras</a>. Of course, this makes Python <code>Keras</code> a subset of Python <code>TensorFlow</code>, but all examples in this post will use that subset so we can use both to refer to the same thing.</p>
 <h2 id="so-keras-tensorflow-reticulate-what-are-they-for">So keras, tensorflow, reticulate, what are they for?</h2>
 <p>Firstly, nothing of this would be possible without <code>reticulate</code>. <a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> <a href="https://rstudio.github.io/reticulate/">reticulate</a> is an R package designed to allow seemless interoperability between R and Python. If we absolutely wanted, we could construct a Keras model like this:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1386,7 +1386,7 @@ m$layers</code></pre>
 &lt;tensorflow.python.keras.layers.core.Dense&gt;
 </code></pre>
 <p>But who would want to? If this were the only way, it’d be less cumbersome to directly write Python instead. Plus, as a user you’d have to know the complete Python-side module structure (now where do optimizers live, currently: <code>tf.keras.optimizers</code>, <code>tf.optimizers</code> …?), and keep up with all path and name changes in the Python API. <a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a></p>
-<p>So this is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
+<p>This is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 model &lt;- keras_model_sequential()
@@ -1413,7 +1413,7 @@ CustomCallback &lt;- R6::R6Class(&quot;CustomCallback&quot;,
     )
   )</code></pre>
 </div>
-<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’ methods to it. Another example are <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>. These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
+<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’ methods to it. Another example is <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>. These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 m &lt;- keras_model_custom(name = &quot;mymodel&quot;, function(self) {
@@ -1426,7 +1426,7 @@ m &lt;- keras_model_custom(name = &quot;mymodel&quot;, function(self) {
   }
 })</code></pre>
 </div>
-<p>Here, <code>keras</code> will make sure an actual Python object is created that subclasses <code>tf.keras.Model</code> and when called, runs the above anonymous <code>function()</code>.</p>
+<p>Here, <code>keras</code> will make sure an actual Python object is created which subclasses <code>tf.keras.Model</code> and when called, runs the above anonymous <code>function()</code>.</p>
 <p>So that’s <code>keras</code>. What about the <code>tensorflow</code> package? As a user you only need it when you have to do advanced stuff, like configure TensorFlow device usage or (in TF 1.x) access elements of the <code>Graph</code> or the <code>Session</code>. Internally, it is used by <code>keras</code> heavily. Essential internal functionality includes, e.g., implementations of S3 methods, like <code>print</code>, <code>[</code> or <code>+</code>, on <code>Tensor</code>s, so you can operate on them like on R vectors.</p>
 <p>Now that we know what each of the packages is “for”, let’s dig deeper into what makes this possible.</p>
 <h2 id="show-me-the-magic-reticulate">Show me the magic: reticulate</h2>
@@ -1543,7 +1543,7 @@ inline void python_object_finalize(SEXP object) {
     Py_DecRef(pyObject);
 }</code></pre>
 </div>
-<p>Resuming on <code>PyObjectRef</code>, let’s quickly note that it also stores the “convert” feature of the Python object, used to determine whether that object should be converted to R automatically.</p>
+<p>Resuming on <code>PyObjectRef</code>, note that it also stores the “convert” feature of the Python object, used to determine whether that object should be converted to R automatically.</p>
 <p>Back to <code>py_to_r</code>. This one now really gets to work with (a pointer to the) Python object,</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="cpp"><code>
@@ -1614,7 +1614,7 @@ Rcpp::Function f = py_callable_as_function(pyFunc, convert);</code></pre>
 py$a &lt;- 1</code></pre>
 </div>
 <p>This assigns <code>1</code> to a variable <code>a</code> in the python main module. To enable assignment, <code>reticulate</code> provides an implementation of the S3 generic <code>$&lt;-</code>, <code>$&lt;-.python.builtin.object</code>, which delegates to <code>py_set_attr</code>, which then calls <code>py_set_attr_impl</code> – yet another C++ function exported via Rcpp.</p>
-<p>Let’s focus on a different aspect here though. A prerequisite for the assignment to happen is getting that <code>1</code> converted to Python. (We’re using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn’t a simple number).</p>
+<p>Let’s focus on a different aspect here, though. A prerequisite for the assignment to happen is getting that <code>1</code> converted to Python. (We’re using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn’t a simple number).</p>
 <p>For our “minimal example”, we see a stacktrace like the following</p>
 <pre><code>
 #0 0x00007fffe4832010 in r_to_py_cpp(Rcpp::RObject_Impl&lt;Rcpp::PreserveStorage&gt;, bool)@plt () from /home/key/R/x86_64-redhat-linux-gnu-library/3.6/reticulate/libs/reticulate.so
@@ -1625,8 +1625,8 @@ py$a &lt;- 1</code></pre>
     generic=0x555557634458 &quot;r_to_py&quot;, rho=0x55555d1d98a8, callrho=0x5555555af2d0, defrho=0x555557947430, op=&lt;optimized out&gt;, op=&lt;optimized out&gt;) at objects.c:436
 #13 0x00007ffff7cc5fc7 in Rf_usemethod (generic=0x555557634458 &quot;r_to_py&quot;, obj=obj@entry=0x55555ec88fa8, call=call@entry=0x55555c0317b8, args=args@entry=0x55555557cc60, 
     rho=rho@entry=0x55555d1d98a8, callrho=0x5555555af2d0, defrho=0x555557947430, ans=0x7ffffffe9928) at objects.c:486</code></pre>
-<p>where <code>r_to_py</code> is a generic (like <code>py_to_r</code> above), <code>r_to_py_impl</code> is wrapped by Rcpp and <code>r_to_py_cpp</code> is a C++ function that branches on the type of the object – basically the counterpart of the C++ <code>r_to_py</code>.</p>
-<p>Now in addition to that general process, there is more going on when we call an R function from Python. As Python doesn’t “speak” R, we need to wrap the R function in CPython - basically, we are extending Python here! How to do this is described in the official <a href="https://docs.python.org/3/extending/index.html#extending-index">Extending Python Guide</a>.</p>
+<p>Whereas <code>r_to_py</code> is a generic (like <code>py_to_r</code> above), <code>r_to_py_impl</code> is wrapped by Rcpp and <code>r_to_py_cpp</code> is a C++ function that branches on the type of the object – basically the counterpart of the C++ <code>r_to_py</code>.</p>
+<p>In addition to that general process, there is more going on when we call an R function from Python. As Python doesn’t “speak” R, we need to wrap the R function in CPython - basically, we are extending Python here! How to do this is described in the official <a href="https://docs.python.org/3/extending/index.html#extending-index">Extending Python Guide</a>.</p>
 <p>In official terms, what <code>reticulate</code> does it <em>embed</em> and <em>extend</em> Python. Embed, because it lets you use Python from inside R. Extend, because to enable Python to call back into R it needs to wrap R functions in C, so Python can understand them.</p>
 <p>As part of the former, the desired Python is loaded (<code>Py_Initialize()</code>); as part of the latter, two functions are defined in a new module named <code>rpycall</code>, that will be loaded when Python itself is loaded.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1648,7 +1648,7 @@ PyMethodDef RPYCallMethods[] = {
 <p>That’s it for our three “spotlights on <code>reticulate</code>”.</p>
 <h2 id="wrapup">Wrapup</h2>
 <p>It goes without saying that there’s a lot about <code>reticulate</code> we didn’t cover in this article, such as memory management, initialization, or specifics of data conversion. Nonetheless, we hope we were able to shed a bit of light on the <em>magic</em> involved in calling TensorFlow from R.</p>
-<p>R is a concise and elegant language, but to a high degree its power comes from its packages. Hearing someone say such a thing, we naturally think of the <code>tidyverse</code>; but there’s also the packages that allow you to call into, and interact with, the outside world, such as deep learning frameworks or distributed processing engines. In this post, it was a special pleasure to focus on a central building block that makes much of this possible: <code>reticulate</code>.</p>
+<p>R is a concise and elegant language, but to a high degree its power comes from its packages, including those that allow you to call into, and interact with, the outside world, such as deep learning frameworks or distributed processing engines. In this post, it was a special pleasure to focus on a central building block that makes much of this possible: <code>reticulate</code>.</p>
 <p>Thanks for reading!</p>
 <section class="footnotes">
 <hr />

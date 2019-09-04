@@ -1087,7 +1087,7 @@ model &lt;- function(cafe_id) {
   tfd_joint_distribution_sequential(
       list(
         # rho, the prior for the correlation matrix between intercepts and slopes
-        tfd_lkj(2, 2, input_output_cholesky = TRUE), 
+        tfd_cholesky_lkj(2, 2), 
         # sigma, prior variance for the waiting time
         tfd_sample_distribution(tfd_exponential(rate = 1), sample_shape = 1),
         # sigma_cafe, prior of variances for intercepts and slopes (vector of 2)
@@ -1119,13 +1119,14 @@ model &lt;- function(cafe_id) {
   )
 }</code></pre>
 </div>
-<p>The first five distributions are priors. First, we have the prior for the correlation matrix: an <a href="">LKJ distribution</a> of shape <code>2x2</code> and with <em>concentration</em> parameter equal to 2.</p>
+<p>The first five distributions are priors. First, we have the prior for the correlation matrix. Basically, this would be an <a href="https://rstudio.github.io/tfprobability/reference/tfd_lkj.html">LKJ distribution</a> of shape <code>2x2</code> and with <em>concentration</em> parameter equal to 2.</p>
+<p>For performance reasons, we work with a version that inputs and outputs Cholesky factors instead:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 # rho, the prior correlation matrix between intercepts and slopes
-tfd_lkj(2, 2, input_output_cholesky = TRUE)</code></pre>
+tfd_cholesky_lkj(2, 2)</code></pre>
 </div>
-<p>What kind of prior is this? As McElreath keeps reminding us, nothing more instructive than sampling from the prior:</p>
+<p>What kind of prior is this? As McElreath keeps reminding us, nothing is more instructive than sampling from the prior. For us to see what’s going on, we use the base LKJ distribution, not the Cholesky one:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 corr_prior &lt;- tfd_lkj(2, 2)
@@ -1137,7 +1138,6 @@ data.frame(correlation) %&gt;% ggplot(aes(x = correlation)) + geom_density()</co
 <p><img src="images/lkj.png" width="297" /></p>
 </div>
 <p>So this prior is moderately skeptical about strong correlations, but pretty open to learning from data.</p>
-<p>One short note about the <code>input_output_cholesky</code> parameter in the definition of the LKJ. This is a pure performance optimization, allowing for more efficient construction of the multivariate normal that makes use of the LKJ’s output a few lines later.</p>
 <p>The next distribution in line</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1395,11 +1395,11 @@ all_samples &lt;- all_samples %&gt;%
 all_samples %&gt;% glimpse()
 
 means &lt;- all_samples %&gt;% 
-  summarise_all(list (~ mean)) %&gt;% 
+  summarise_all(list (mean)) %&gt;% 
   gather(key = &quot;key&quot;, value = &quot;mean&quot;)
 
 sds &lt;- all_samples %&gt;% 
-  summarise_all(list (~ sd)) %&gt;% 
+  summarise_all(list (sd)) %&gt;% 
   gather(key = &quot;key&quot;, value = &quot;sd&quot;)
 
 hpdis &lt;-

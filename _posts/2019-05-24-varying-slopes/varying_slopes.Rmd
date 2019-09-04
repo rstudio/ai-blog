@@ -177,7 +177,7 @@ model <- function(cafe_id) {
   tfd_joint_distribution_sequential(
       list(
         # rho, the prior for the correlation matrix between intercepts and slopes
-        tfd_lkj(2, 2, input_output_cholesky = TRUE), 
+        tfd_cholesky_lkj(2, 2), 
         # sigma, prior variance for the waiting time
         tfd_sample_distribution(tfd_exponential(rate = 1), sample_shape = 1),
         # sigma_cafe, prior of variances for intercepts and slopes (vector of 2)
@@ -211,14 +211,17 @@ model <- function(cafe_id) {
 ```
 
 
-The first five distributions are priors. First, we have the prior for the correlation matrix: an [LKJ distribution]() of shape `2x2` and with _concentration_ parameter equal to 2. 
+The first five distributions are priors. First, we have the prior for the correlation matrix.
+Basically, this would be an [LKJ distribution](https://rstudio.github.io/tfprobability/reference/tfd_lkj.html) of shape `2x2` and with _concentration_ parameter equal to 2. 
+
+For performance reasons, we work with a version that inputs and outputs Cholesky factors instead:
 
 ```{r}
 # rho, the prior correlation matrix between intercepts and slopes
-tfd_lkj(2, 2, input_output_cholesky = TRUE)
+tfd_cholesky_lkj(2, 2)
 ```
 
-What kind of prior is this? As McElreath keeps reminding us, nothing more instructive than sampling from the prior:
+What kind of prior is this? As McElreath keeps reminding us, nothing is more instructive than sampling from the prior. For us to see what's going on, we use the base LKJ distribution, not the Cholesky one:
 
 ```{r}
 corr_prior <- tfd_lkj(2, 2)
@@ -232,8 +235,6 @@ knitr::include_graphics("images/lkj.png")
 ```
 
 So this prior is moderately skeptical about strong correlations, but pretty open to learning from data.
-
-One short note about the `input_output_cholesky` parameter in the definition of the LKJ. This is a pure performance optimization, allowing for more efficient construction of the multivariate normal that makes use of the LKJ's output a few lines later.
 
 The next distribution in line
 
@@ -528,11 +529,11 @@ all_samples <- all_samples %>%
 all_samples %>% glimpse()
 
 means <- all_samples %>% 
-  summarise_all(list (~ mean)) %>% 
+  summarise_all(list (mean)) %>% 
   gather(key = "key", value = "mean")
 
 sds <- all_samples %>% 
-  summarise_all(list (~ sd)) %>% 
+  summarise_all(list (sd)) %>% 
   gather(key = "key", value = "sd")
 
 hpdis <-

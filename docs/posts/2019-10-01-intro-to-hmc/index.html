@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+<title>TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo</title>
+
+<meta property="description" itemprop="description" content="TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won&#39;t necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard &quot;buzzwords&quot; accompanying it, always striving to keep in mind what it is all &quot;for&quot;."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="../../images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2019-10-01"/>
+<meta property="article:created" itemprop="dateCreated" content="2019-10-01"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won&#39;t necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard &quot;buzzwords&quot; accompanying it, always striving to keep in mind what it is all &quot;for&quot;."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/images/mb.png"/>
+<meta property="og:image:width" content="548"/>
+<meta property="og:image:height" content="345"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="TensorFlow for R"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo"/>
+<meta property="twitter:description" content="TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won&#39;t necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard &quot;buzzwords&quot; accompanying it, always striving to keep in mind what it is all &quot;for&quot;."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/images/mb.png"/>
+<meta property="twitter:image:width" content="548"/>
+<meta property="twitter:image:height" content="345"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2019/10/01"/>
+<meta name="citation_publication_date" content="2019/10/01"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=&lt;span class=&quot;nocase&quot;&gt;MCMC using Hamiltonian dynamics&lt;/span&gt;;citation_publication_date=2012;citation_author=Radford M. Neal"/>
+  <meta name="citation_reference" content="citation_title=&lt;span class=&quot;nocase&quot;&gt;A Conceptual Introduction to Hamiltonian Monte Carlo&lt;/span&gt;;citation_publication_date=2017;citation_author=Michael Betancourt"/>
+  <meta name="citation_reference" content="citation_title=Variational inference: A review for statisticians;citation_publication_date=2017;citation_publisher=Informa UK Limited;citation_volume=112;citation_doi=10.1080/01621459.2017.1285773;citation_issn=1537-274X;citation_author=David M. Blei;citation_author=Alp Kucukelbir;citation_author=Jon D. McAuliffe"/>
+  <meta name="citation_reference" content="citation_title=Information theory, inference &amp; learning algorithms;citation_publication_date=2002;citation_publisher=Cambridge University Press;citation_author=David J. C. MacKay"/>
+  <meta name="citation_reference" content="citation_title=Statistical rethinking: A bayesian course with examples in r and stan;citation_publication_date=2016;citation_publisher=CRC Press;citation_author=Richard McElreath"/>
+  <meta name="citation_reference" content="citation_title=Doing bayesian data analysis: A tutorial with r and bugs;citation_publication_date=2010;citation_publisher=Academic Press, Inc.;citation_author=John K. Kruschke"/>
+  <meta name="citation_reference" content="citation_title=The no-u-turn sampler: Adaptively setting path lengths in hamiltonian monte carlo;citation_publication_date=2011;citation_author=Matthew D. Hoffman;citation_author=Andrew Gelman"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","slug","date","categories","bibliography","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo"]},{"type":"character","attributes":{},"value":["TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won't necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard \"buzzwords\" accompanying it, always striving to keep in mind what it is all \"for\"."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydana2019hmc"]},{"type":"character","attributes":{},"value":["10-01-2019"]},{"type":"character","attributes":{},"value":["Probability and statistics","Concepts","Introductions"]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/mb.png"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","hmc-intro_files/bowser-1.9.3/bowser.min.js","hmc-intro_files/distill-2.2.21/template.v2.js","hmc-intro_files/jquery-1.11.3/jquery.min.js","hmc-intro_files/webcomponents-2.0.0/webcomponents.js","images/comments.png","images/mb.png","images/planet.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.distill-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.distill-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #455a64;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.distill-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.distill-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .distill-site-nav {
+    display: none;
+  }
+}
+
+.distill-site-header {
+
+}
+
+.distill-site-footer {
+
+}
+
+
+/* Site Header */
+
+.distill-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.distill-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.distill-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.distill-site-header a,
+.distill-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.distill-site-header .title {
+  font-size: 18px;
+}
+
+.distill-site-header .logo {
+  padding: 0;
+}
+
+.distill-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.distill-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .distill-site-header .logo img {
+    display: inline-block;
+  }
+  .distill-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .distill-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.distill-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a, .nav-dropdown-content .nav-dropdown-header {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown-content .nav-dropdown-header {
+  display: block;
+  padding: 5px 24px;
+  padding-bottom: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header a, .distill-site-header .nav-dropdown  {display: none;}
+  .distill-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .distill-site-header .title {
+    margin-left: 0;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 0;
+  }
+  .distill-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-header.responsive {position: relative;}
+  .distill-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .distill-site-header.responsive a,
+  .distill-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .distill-site-header.responsive .nav-left,
+  .distill-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .distill-site-header.responsive .nav-dropdown {float: none;}
+  .distill-site-header.responsive .nav-dropdown-content {position: relative;}
+  .distill-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.distill-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table>caption {
+  margin-bottom: 10px;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.l-screen .caption {
+  margin-left: 10px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for table of contents */
+
+.d-toc {
+  color: rgba(0,0,0,0.8);
+  font-size: 0.8em;
+  line-height: 1em;
+}
+
+.d-toc-header {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  margin-top: 0;
+  margin-bottom: 1.3em;
+}
+
+.d-toc a {
+  border-bottom: none;
+}
+
+.d-toc ul {
+  padding-left: 0;
+}
+
+.d-toc li>ul {
+  padding-top: 0.8em;
+  padding-left: 16px;
+  margin-bottom: 0.6em;
+}
+
+.d-toc ul,
+.d-toc li {
+  list-style-type: none;
+}
+
+.d-toc li {
+  margin-bottom: 0.9em;
+}
+
+.d-toc-separator {
+  margin-top: 20px;
+  margin-bottom: 2em;
+}
+
+.d-article-with-toc {
+  border-top: none;
+  padding-top: 0;
+}
+
+
+
+/* Tweak code blocks (note that this CSS is repeated above in an injection
+   into the d-code shadow dom) */
+
+d-code {
+  overflow-x: auto !important;
+}
+
+pre.d-code code.d-code {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+pre.text-output {
+
+  font-size: 12px;
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+@media(min-width: 768px) {
+
+d-code {
+  overflow-x: visible !important;
+}
+
+pre.d-code code.d-code  {
+    padding-left: 18px;
+    font-size: 14px;
+}
+pre.text-output {
+  font-size: 14px;
+}
+}
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure img {
+  width: 100%;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // create d-bibliography
+  var bibliography = $('<d-bibliography></d-bibliography>');
+  $('#distill-bibliography').wrap(bibliography);
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace citations with <d-cite>
+  $('.citation').each(function(i, val) {
+    appendix = true;
+    var cites = $(this).attr('data-cites').split(" ");
+    var dt_cite = $('<d-cite></d-cite>');
+    dt_cite.attr('key', cites.join());
+    $(this).replaceWith(dt_cite);
+  });
+  // remove refs
+  $('#refs').remove();
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.html();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.html(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-toc a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // replace code blocks with d-code
+  $('pre>code').each(function(i, val) {
+    var code = $(this);
+    var pre = code.parent();
+    var clz = "";
+    var language = pre.attr('class');
+    if (language) {
+      // map unknown languages to "clike" (without this they just dissapear)
+      if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                               "javascript", "js", "julia", "lua", "markdown",
+                               "markup", "mathml", "python", "svg", "xml"]) == -1)
+        language = "clike";
+      language = ' language="' + language + '"';
+      var dt_code = $('<d-code block' + language + clz + '></d-code>');
+      dt_code.text(code.text());
+      pre.replaceWith(dt_code);
+    } else {
+      code.addClass('text-output').unwrap().changeElementType('pre');
+    }
+  });
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('d-code, pre.text-output, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // table of contents
+    if (have_authors) // adjust border if we are in authors
+      $('.d-toc').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+    $('d-code').each(function(i, val) {
+      var style = document.createElement('style');
+      style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                        '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+      if (this.shadowRoot)
+        this.shadowRoot.appendChild(style);
+    });
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-toc-header').remove();
+  $('.d-toc').remove();
+  $('.d-toc-separator').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark non-body figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    var figures = $(this).find('img, .html-widget');
+    if ($(this).attr('data-layout') !== "l-body") {
+      figures.css('width', '100%');
+    } else {
+      figures.css('max-width', '100%');
+      figures.filter("[width]").each(function(i, val) {
+        var fig = $(this);
+        fig.css('width', fig.attr('width') + 'px');
+      });
+
+    }
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.distill-site-header a[href]').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+  // add figcaption style to table captions
+  $('caption').parent('table').addClass("figcaption");
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $(window).resize();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-102325748-2"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-102325748-2');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo","description":"TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won't necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard \"buzzwords\" accompanying it, always striving to keep in mind what it is all \"for\".","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2019-10-01T00:00:00.000+02:00","citationText":"Keydana, 2019"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="distill-site-nav distill-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">TensorFlow for R Blog</a>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo</h1>
+<p>TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won’t necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard “buzzwords” accompanying it, always striving to keep in mind what it is all “for”.</p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>10-01-2019
+</div>
+
+<div class="d-article">
+<p>Why a <em>very (meaning: VERY!) first conceptual introduction to Hamiltonian Monte Carlo</em> (HMC) on this blog?</p>
+<p>Well, in our endeavor to feature the various capabilities of TensorFlow Probability (TFP) / <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>, we started showing examples of how to fit hierarchical models, using one of TFP’s joint distribution classes<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> and HMC. The technical aspects being complex enough in themselves, we never provided an introduction to the “math side of things”. For those of our readers who are familiar with the technique (Stan users, for example), we hope this was acceptable; but how about those who are following the blog – the <em>TensorFlow for R</em> blog, alright – due to their interest in <em>deep learning</em>? They may have felt left behind or – put more prosaically – just have stopped reading instantaneously.</p>
+<p>This post is directed towards the second group of readers, aiming to make up for the imposition. If after reading, you still feel confused, it isn’t your fault and <em>maybe</em>, not even the fault of this text. Based on an inofficial, minimal-sample-size survey, this topic is a <em>lot</em> more confusing than deep learning :-). As to the content, we’ll try to keep it as digestable as possible, while at the same time striving to mention all of the famous incantations: Hamiltonian Monte Carlo, <em>leapfrog</em> steps, NUTS.</p>
+<h2 id="so-what-is-it-for">So what is it for?</h2>
+<p>Sampling, or <em>Monte Carlo</em>, techniques in general are used when we want to produce samples from, or statistically describe, a distribution we don’t have a closed-form formulation of. Sometimes, we might really be interested in the samples; sometimes we just want them so we can compute, for example, the mean and variance of the distribution.</p>
+<p>What distribution? In the type of applications we’re talking about, we have a <em>model</em>, a joint distribution, supposed to describe some reality. Starting from the most basic scenario, it might look like this:</p>
+<p><span class="math display">\[
+x \sim \mathcal{Poisson}(\lambda)
+\]</span></p>
+<p>This “joint distribution” only has a single member, a Poisson distribution, that is supposed to model, say, the number of comments in a code review. We also have data on actual code reviews, like this, say:<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
+<div class="layout-chunk" data-layout="l-body">
+
+</div>
+<div class="layout-chunk" data-layout="l-body">
+<p><img src="images/comments.png" width="500" /></p>
+</div>
+<p>We now want to determine the <em>parameter</em>, <span class="math inline">\(\lambda\)</span>, of the Poisson that make these data most <em>likely</em>. So far, we’re not even beign Bayesian yet: There is no prior on this parameter. But of course, we want to be Bayesian, so we add one – imagine fixed priors<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a> on <em>its</em> parameters:</p>
+<p><span class="math display">\[
+x \sim \mathcal{Poisson}(\lambda)\\
+\lambda \sim \gamma(\alpha, \beta)\\
+\alpha \sim [...]\\  
+\beta \sim [...]
+\]</span></p>
+<p>This now really being a joint distribution, we have three parameters to determine: <span class="math inline">\(\lambda\)</span>, <span class="math inline">\(\alpha\)</span> and <span class="math inline">\(\beta\)</span>. And what we’re interested in is the <em>posterior distribution</em> of the parameters given the data.</p>
+<p>Now many expositions will tell you how, depending on the distributions involved, we usually cannot calculate the posterior distributions in closed form. Instead of reiterating these explanations, here we’ll just build on them and state that we have to use sampling techniques to determine those parameters.<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> What we’d like to point out instead is the following: In the upcoming discussions of sampling, HMC &amp; co., it is really easy to forget <em>what is it that we are sampling</em>. Try to always keep in mind that what we’re sampling isn’t the data, it’s parameters: the parameters of the posterior distributions we’re interested in.</p>
+<h2 id="sampling">Sampling</h2>
+<p>Sampling methods in general consist of two steps: generating a sample (“proposal”) and deciding whether to keep it or to throw it away (“acceptance”). Intuitively, in our given scenario – where we have measured something and are now looking for a mechanism that explains those measurements – the latter should be easier: We “just” need to determine the likelihood of the data under those hypothetical model parameters. But how do we come up with suggestions to start with?</p>
+<p>In theory, straightforward(-ish) methods exist that could be used to generate samples from an unknown (in closed form) distribution – as long as their unnormalized probabilities can be evaluated, and the problem is (very) low-dimensional. (For concise portraits of those methods, such as uniform sampling, importance sampling, and rejection sampling, see<span class="citation" data-cites="MacKay:2002:ITI:971143">(MacKay <a href="#ref-MacKay:2002:ITI:971143">2002</a>)</span>.) Those are not used in MCMC software though, for lack of efficiency and non-suitability in high dimensions. Before HMC became the dominant algorithm in such software, the <em>Metropolis</em> and <em>Gibbs</em> methods were the algorithms of choice. Both are nicely and understandably explained – in the case of Metropolis, often exemplified by nice stories –, and we refer the interested reader to the go-to references, such as <span class="citation" data-cites="statrethinkingbook">(McElreath <a href="#ref-statrethinkingbook">2016</a>)</span> and <span class="citation" data-cites="Kruschke:2010:DBD:1951940">(Kruschke <a href="#ref-Kruschke:2010:DBD:1951940">2010</a>)</span>. Both were shown to be less efficient than HMC, the main topic of this post, due to their random-walk behavior: Every proposal is based on the current position in state space, meaning that samples may be highly correlated and state space exploration proceeds slowly.</p>
+<h2 id="hmc">HMC</h2>
+<p>So HMC is popular because compared to random-walk-based algorithms, it is a <em>lot</em> more efficient. Unfortunately, it is also a lot more difficult to “get”.<a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> As discussed in <a href="https://blogs.rstudio.com/tensorflow/posts/2019-03-15-concepts-way-to-dl/">Math, code, concepts: A third road to deep learning</a>, there seem to be (at least) three languages to express an algorithm: Math; code (including pseudo-code, which may or may not be on the verge to math notation); and one I call <em>conceptual</em> which spans the whole range from very abstract to very concrete, even visual. To me personally, HMC is different from most other cases in that even though I find the conceptual explanations fascinating, they result in less “perceived understanding” than either the equations or the code. For people with backgrounds in physics, statistical mechanics and/or differential geometry this will probably be different!</p>
+<p>In any case, physical analogies make for the best start.</p>
+<h2 id="physical-analogies">Physical analogies</h2>
+<p>The classic physical analogy is given in the reference article, Radford Neal’s “MCMC using Hamiltonian dynamics” <span class="citation" data-cites="2012arXiv1206.1901N">(Neal <a href="#ref-2012arXiv1206.1901N">2012</a>)</span>, and nicely explained in a <a href="https://www.youtube.com/watch?v=a-wydhEuAm0">video by Ben Lambert</a>.</p>
+<p>So there’s this “thing” we want to maximize, the loglikelihood of the data under the model parameters. Alternatively we can say, we want to minimize the negative loglikelihood (like loss in a neural network). This “thing” to be optimized can then be visualized as an object sliding over a landscape with hills and valleys, and like with gradient descent in deep learning, we want it to end up deep down in some valley.</p>
+<p>In Neal’s own words</p>
+<blockquote>
+<p>In two dimensions, we can visualize the dynamics as that of a frictionless puck that slides over a surface of varying height. The state of this system consists of the position of the puck, given by a 2D vector q, and the momentum of the puck (its mass times its velocity), given by a 2D vector p.</p>
+</blockquote>
+<p>Now when you hear “momentum” (and given that I’ve primed you to think of deep learning) you may feel that sounds familiar, but even though the respective analogies are related the association does not help that much. In deep learning, momentum is commonly praised for its avoidance of ineffective oscillations in imbalanced optimization landscapes.<a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a> With HMC however, the focus is on the concept of <em>energy</em>.</p>
+<p>In <a href="https://en.wikipedia.org/wiki/Statistical_mechanics">statistical mechanics</a>, the probability of being in some state is inverse-exponentially related to its energy:<a href="#fn7" class="footnote-ref" id="fnref7"><sup>7</sup></a></p>
+<p><span class="math display">\[P(E_i) \sim e^{\frac{-E_i}{T}} \]</span></p>
+<p>As you might or might not remember from school physics, energy comes in two forms: potential energy and kinetic energy. In the sliding-object scenario, the object’s potential energy corresponds to its height (position), while its kinetic energy is related to its momentum by the formula<a href="#fn8" class="footnote-ref" id="fnref8"><sup>8</sup></a></p>
+<p><span class="math display">\[K(m) = \frac{m^2}{2 * mass} \]</span></p>
+<p>Now without kinetic energy, the object would slide downhill always, and as soon as the landscape slopes up again, would come to a halt. Through its momentum though, it is able to continue uphill for a while, just as if, going downhill on your bike, you pick up speed you may make it over the next (short) hill without pedaling.</p>
+<p>So that’s kinetic energy. The other part, potential energy, corresponds to the thing we really want to know - the <em>negative log posterior</em> of the parameters we’re really after:</p>
+<p><span class="math display">\[U(\theta) \sim - log (P(x | \theta) P(\theta))\]</span></p>
+<p>So the “trick” of HMC is augmenting the state space of interest - the vector of posterior parameters - by a momentum vector, to improve optimization efficiency. When we’re finished, the momentum part is just thrown away. (This aspect is especially nicely explained in Ben Lambert’s video.)</p>
+<p>Following his exposition and notation, here we have the energy of a state of parameter and momentum vectors, equaling a sum of potential and kinetic energies:</p>
+<p><span class="math display">\[E(\theta, m) = U(\theta) + K(m)\]</span></p>
+<p>The corresponding probability, as per the relationship given above, then is</p>
+<p><span class="math display">\[P(E) \sim e^{\frac{-E}{T}} = e^{\frac{- U(\theta)}{T}} e^{\frac{- K(m)}{T}}\]</span></p>
+<p>We now substitute into this equation, assuming a temperature (T) of 1 and a mass of 1:</p>
+<p><span class="math display">\[P(E) \sim P(x | \theta) P(\theta) e^{\frac{- m^2}{2}}\]</span></p>
+<p>Now in this formulation, the distribution of momentum is just a standard normal (<span class="math inline">\(e^{\frac{- m^2}{2}}\)</span>)! Thus, we can just integrate out the momentum and take <span class="math inline">\(P(\theta)\)</span> as samples from the posterior distribution:<a href="#fn9" class="footnote-ref" id="fnref9"><sup>9</sup></a></p>
+<p><span class="math display">\[
+\begin{aligned}
+&amp; \int \! P(\theta, m) \mathrm{d}m = \frac{1}{Z} \int \! P(x | \theta) P(\theta) \mathcal{N}(m|0,1) \mathrm{d}m\\
+&amp; P(\theta) = \frac{1}{Z} \int \! P(x | \theta) P(\theta)
+\end{aligned}
+\]</span></p>
+<p>How does this work in practice? At every step, we</p>
+<ul>
+<li>sample a new momentum value from its marginal distribution (which is the same as the conditional distribution given <span class="math inline">\(U\)</span>, as they are independent), and</li>
+<li>solve for the path of the particle. This is where <em>Hamilton’s equations</em> come into play.</li>
+</ul>
+<h2 id="hamiltons-equations-equations-of-motion">Hamilton’s equations (equations of motion)</h2>
+<p>For the sake of less confusion, should you decide to read the paper, here we switch to Radford Neal’s notation.</p>
+<p>Hamiltonian dynamics operates on a d-dimensional position vector, <span class="math inline">\(q\)</span>, and a d-dimensional momentum vector, <span class="math inline">\(p\)</span>. The state space is described by the <em>Hamiltonian</em>, a function of <span class="math inline">\(p\)</span> and <span class="math inline">\(q\)</span>:</p>
+<p><span class="math display">\[H(q, p) =U(q) +K(p)\]</span></p>
+<p>Here <span class="math inline">\(U(q)\)</span> is the potential energy (called <span class="math inline">\(U(\theta)\)</span> above), and <span class="math inline">\(K(p)\)</span> is the potential energy as a function of momentum (called <span class="math inline">\(K(m)\)</span> above).</p>
+<p>The partial derivatives of the Hamiltonian determine how <span class="math inline">\(p\)</span> and <span class="math inline">\(q\)</span> change over time, <span class="math inline">\(t\)</span>, according to Hamilton’s equations:</p>
+<p><span class="math display">\[
+\begin{aligned}
+&amp; \frac{dq}{dt} = \frac{\partial H}{\partial p}\\
+&amp; \frac{dp}{dt} = - \frac{\partial H}{\partial q}
+\end{aligned}
+\]</span></p>
+<p>How can we solve this system of partial differential equations? The basic workhorse in numerical integration is <em>Euler’s method</em>, where time (or the independent variable, in general) is advanced by a step of size <span class="math inline">\(\epsilon\)</span>, and a new value of the dependent variable is computed by taking the (partial) derivative and adding it to its current value. For the Hamiltonian system, doing this one equation after the other looks like this:</p>
+<p><span class="math display">\[
+\begin{aligned}
+&amp; p(t+\epsilon) = p(t) + \epsilon \frac{dp}{dt}(t) = p(t) − \epsilon \frac{\partial U}{\partial q}(q(t))\\
+&amp; q(t+\epsilon) = q(t) + \epsilon \frac{dq}{dt}(t) = q(t) + \epsilon \frac{p(t)}{m})
+\end{aligned}
+\]</span></p>
+<p>Here first a new position is computed for time <span class="math inline">\(t + 1\)</span>, making use of the current momentum at time <span class="math inline">\(t\)</span>; then a new momentum is computed, also for time <span class="math inline">\(t + 1\)</span>, making use of the current position at time <span class="math inline">\(t\)</span>.</p>
+<p>This process can be improved if in step 2, we make use of the <em>new</em> position we just freshly computed in step 1; but let’s directly go to what is actually used in contemporary software, the <em>leapfrog</em> method.</p>
+<h2 id="leapfrog-algorithm">Leapfrog algorithm</h2>
+<p>So after <em>Hamiltonian</em>, we’ve hit the second magic word: <em>leapfrog</em>. Unlike <em>Hamiltonian</em> however, there is less mystery here. The leapfrog method is “just” a more efficient way to perform the numerical integration.</p>
+<p>It consists of three steps, basically splitting up the Euler step 1 into two parts, before and after the momentum update:</p>
+<p><span class="math display">\[
+\begin{aligned}
+&amp; p(t+\frac{\epsilon}{2}) = p(t) − \frac{\epsilon}{2} \frac{\partial U}{\partial q}(q(t))\\
+&amp; q(t+\epsilon) = q(t) + \epsilon \frac{p(t + \frac{\epsilon}{2})}{m}\\
+&amp; p(t+ \epsilon) = p(t+\frac{\epsilon}{2}) − \frac{\epsilon}{2} \frac{\partial U}{\partial q}(q(t + \epsilon))
+\end{aligned}
+\]</span></p>
+<p>As you can see, each step makes use of the corresponding variable-to-differentiate’s value computed in the preceding step. In practice, several leapfrog steps are executed before a proposal is made; so steps 3 and 1 (of the subsequent iteration) are combined.</p>
+<p><em>Proposal</em> – this keyword brings us back to the higher-level “plan”. All this – Hamiltonian equations, leapfrog integration – served to generate a proposal for a new value of the parameters, which can be accepted or not. The way that decision is taken is not particular to HMC and explained in detail in the above-mentioned expositions on the Metropolis algorithm, so we just cover it briefly.</p>
+<h2 id="acceptance-metropolis-algorithm">Acceptance: Metropolis algorithm</h2>
+<p>Under the Metropolis algorithm, proposed new vectors <span class="math inline">\(q*\)</span> and <span class="math inline">\(p*\)</span> are accepted with probability</p>
+<p><span class="math display">\[
+min(1, exp(−H(q∗, p∗) +H(q, p)))
+\]</span></p>
+<p>That is, if the proposed parameters yield a higher likelihood, they are accepted; if not, they are accepted only with a certain probability that depends on the ratio between old and new likelihoods. In theory, energy staying constant in a Hamiltonian system, proposals should always be accepted; in practice, loss of precision due to numerical integration may yield an acceptance rate less than 1.</p>
+<h2 id="hmc-in-a-few-lines-of-code">HMC in a few lines of code</h2>
+<p>We’ve talked about concepts, and we’ve seen the math, but between analogies and equations, it’s easy to lose track of the overall algorithm. Nicely, Radford Neal’s paper <span class="citation" data-cites="2012arXiv1206.1901N">(Neal <a href="#ref-2012arXiv1206.1901N">2012</a>)</span> has some code, too! Here it is reproduced, with just a few additional comments added (many comments were preexisting):</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# U is a function that returns the potential energy given q
+# grad_U returns the respective partial derivatives
+# epsilon stepsize
+# L number of leapfrog steps
+# current_q current position
+
+# kinetic energy is assumed to be sum(p^2/2) (mass == 1)
+HMC &lt;- function (U, grad_U, epsilon, L, current_q) {
+  q &lt;- current_q
+  # independent standard normal variates
+  p &lt;- rnorm(length(q), 0, 1)  
+  # Make a half step for momentum at the beginning
+  current_p &lt;- p 
+  # Alternate full steps for position and momentum
+  p &lt;- p - epsilon * grad_U(q) / 2 
+  for (i in 1:L) {
+    # Make a full step for the position
+    q &lt;- q + epsilon * p
+    # Make a full step for the momentum, except at end of trajectory
+    if (i != L) p &lt;- p - epsilon * grad_U(q)
+    }
+  # Make a half step for momentum at the end
+  p &lt;- p - epsilon * grad_U(q) / 2
+  # Negate momentum at end of trajectory to make the proposal symmetric
+  p &lt;- -p
+  # Evaluate potential and kinetic energies at start and end of trajectory 
+  current_U &lt;- U(current_q)
+  current_K &lt;- sum(current_p^2) / 2
+  proposed_U &lt;- U(q)
+  proposed_K &lt;- sum(p^2) / 2
+  # Accept or reject the state at end of trajectory, returning either
+  # the position at the end of the trajectory or the initial position
+  if (runif(1) &lt; exp(current_U-proposed_U+current_K-proposed_K)) {
+    return (q)  # accept
+  } else {
+    return (current_q)  # reject
+  }
+}</code></pre>
+</div>
+<p>Hopefully, you find this piece of code as helpful as I do. Are we through yet? Well, so far we haven’t encountered the last magic word: NUTS. What, or who, is NUTS?</p>
+<h2 id="nuts">NUTS</h2>
+<p>NUTS, <a href="https://statmodeling.stat.columbia.edu/2011/11/30/stan-uses-nuts/">added to Stan in 2011</a><a href="#fn10" class="footnote-ref" id="fnref10"><sup>10</sup></a> and about a month ago, to <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/python/mcmc/nuts.py">TensorFlow Probability’s master branch</a>, is an algorithm that aims to circumvent one of the practical difficulties in using HMC: The choice of number of leapfrog steps to perform before making a proposal. The acronym stands for No-U-Turn Sampler, alluding to the avoidance of U-turn-shaped curves in the optimization landscape when the number of leapfrog steps is chosen too high.</p>
+<p>The reference paper by Hoffman &amp; Gelman <span class="citation" data-cites="hoffman2011nouturn">(Hoffman and Gelman <a href="#ref-hoffman2011nouturn">2011</a>)</span> also describes a solution to a related difficulty: choosing the step size <span class="math inline">\(\epsilon\)</span>. The respective algorithm, <em>dual averaging</em>, <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/python/mcmc/dual_averaging_step_size_adaptation.py">was also recently added to TFP</a>.</p>
+<p>NUTS being more of algorithm in the computer science usage of the word than a thing to explain conceptually, we’ll leave it at that, and ask the interested reader to read the paper – or even, <a href="https://github.com/tensorflow/probability/blob/master/discussion/technical_note_on_unrolled_nuts.md">consult the TFP documentation to see how NUTS is implemented there</a>. Instead, we’ll round up with another conceptual analogy, Michael Bétancourts crashing (or not!) satellite <span class="citation" data-cites="2017arXiv170102434B">(Betancourt <a href="#ref-2017arXiv170102434B">2017</a>)</span>.</p>
+<h2 id="how-to-avoid-crashes">How to avoid crashes</h2>
+<p>Bétancourt’s article is an awesome read, and a paragraph focusing on a single point made in the paper can be nothing than a “teaser” (which is why we’ll have a picture, too!).</p>
+<p>To introduce the upcoming analogy, the problem starts with high dimensionality, which is a given in most real-world problems. In high dimensions, as usual, the density function has a <em>mode</em> (the place where it is maximal), but necessarily, there cannot be much <em>volume</em> around it – just like with k-nearest neighbors, the more dimensions you add, the farther your nearest neighbor will be. A product of volume and density, the only significant probability mass resides in the so-called <em>typical set</em><a href="#fn11" class="footnote-ref" id="fnref11"><sup>11</sup></a> , which becomes more and more narrow in high dimensions.</p>
+<p>So, the typical set is what we want to explore, but it gets more and more difficult to find it (and stay there). Now as we saw above, HMC uses gradient information to get near the mode, but if it just followed the gradient of the log probability (the <em>position</em>) it would leave the typical set and stop at the mode.</p>
+<p>This is where momentum comes in – it counteracts the gradient, and both together ensure that the Markov chain stays on the typical set. Now here’s the satellite analogy, in Bétancourt’s own words:</p>
+<blockquote>
+<p>For example, instead of trying to reason about a mode, a gradient, and a typical set, we can equivalently reason about a planet, a gravitational field, and an orbit (Figure 14). The probabilistic endeavor of exploring the typical set then becomes a physical endeavor of placing a satellite in a stable orbit around the hypothetical planet. Because these are just two different perspectives of the same mathematical system, they will suffer from the same pathologies. Indeed, if we place a satellite at rest out in space it will fall in the gravitational field and crash into the surface of the planet, just as naive gradient-driven trajectories crash into the mode (Figure 15). From either the probabilistic or physical perspective we are left with a catastrophic outcome.</p>
+</blockquote>
+<blockquote>
+<p>The physical picture, however, provides an immediate solution: although objects at rest will crash into the planet, we can maintain a stable orbit by endowing our satellite with enough momentum to counteract the gravitational attraction. We have to be careful, however, in how exactly we add momentum to our satellite. If we add too little momentum transverse to the gravitational field, for example, then the gravitational attraction will be too strong and the satellite will still crash into the planet (Figure 16a). On the other hand, if we add too much momentum then the gravitational attraction will be too weak to capture the satellite at all and it will instead fly out into the depths of space (Figure 16b).</p>
+</blockquote>
+<p>And here’s the picture I promised (Figure 16 from the paper):</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-4"></span>
+<img src="images/planet.png" alt="Figure 16 from [@2017arXiv170102434B]" width="324" />
+<p class="caption">
+Figure 1: Figure 16 from <span class="citation" data-cites="2017arXiv170102434B">(Betancourt <a href="#ref-2017arXiv170102434B">2017</a>)</span>
+</p>
+</div>
+</div>
+<p>And with this, we conclude. Hopefully, you’ll have found this helpful – unless you knew it all (or more) beforehand, in which case you probably wouldn’t have read this post :-)</p>
+<p>Thanks for reading!</p>
+<div id="refs" class="references">
+<div id="ref-2017arXiv170102434B">
+<p>Betancourt, Michael. 2017. “A Conceptual Introduction to Hamiltonian Monte Carlo.” <em>arXiv E-Prints</em>, January, arXiv:1701.02434.</p>
+</div>
+<div id="ref-Blei_2017">
+<p>Blei, David M., Alp Kucukelbir, and Jon D. McAuliffe. 2017. “Variational Inference: A Review for Statisticians.” <em>Journal of the American Statistical Association</em> 112 (518). Informa UK Limited: 859–77. <a href="https://doi.org/10.1080/01621459.2017.1285773">https://doi.org/10.1080/01621459.2017.1285773</a>.</p>
+</div>
+<div id="ref-hoffman2011nouturn">
+<p>Hoffman, Matthew D., and Andrew Gelman. 2011. “The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo.”</p>
+</div>
+<div id="ref-Kruschke:2010:DBD:1951940">
+<p>Kruschke, John K. 2010. <em>Doing Bayesian Data Analysis: A Tutorial with R and Bugs</em>. 1st ed. Orlando, FL, USA: Academic Press, Inc.</p>
+</div>
+<div id="ref-MacKay:2002:ITI:971143">
+<p>MacKay, David J. C. 2002. <em>Information Theory, Inference &amp; Learning Algorithms</em>. New York, NY, USA: Cambridge University Press.</p>
+</div>
+<div id="ref-statrethinkingbook">
+<p>McElreath, Richard. 2016. <em>Statistical Rethinking: A Bayesian Course with Examples in R and Stan</em>. CRC Press. <a href="http://xcelab.net/rm/statistical-rethinking/">http://xcelab.net/rm/statistical-rethinking/</a>.</p>
+</div>
+<div id="ref-2012arXiv1206.1901N">
+<p>Neal, Radford M. 2012. “MCMC using Hamiltonian dynamics.” <em>arXiv E-Prints</em>, June, arXiv:1206.1901.</p>
+</div>
+</div>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p><a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_distribution_sequential</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>data are purely made up<a href="#fnref2" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>elided<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>In some cases, variational inference is an alternative. See <span class="citation" data-cites="Blei_2017">(Blei, Kucukelbir, and McAuliffe <a href="#ref-Blei_2017">2017</a>)</span> for a nice introduction.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+<li id="fn5"><p>By “get [it]” I mean the subjective feeling of understanding what’s going on; not more and not less.<a href="#fnref5" class="footnote-back">↩</a></p></li>
+<li id="fn6"><p>Though see <a href="https://distill.pub/2017/momentum/">this great distill.pub post</a> for a different view.<a href="#fnref6" class="footnote-back">↩</a></p></li>
+<li id="fn7"><p>Here <span class="math inline">\(T\)</span> is the <em>temperature</em>; we won’t focus on this so just imagine it being set to 1 in this and subsequent equations.<a href="#fnref7" class="footnote-back">↩</a></p></li>
+<li id="fn8"><p><span class="math inline">\(m\)</span> here stands for momentum.<a href="#fnref8" class="footnote-back">↩</a></p></li>
+<li id="fn9"><p>Here <span class="math inline">\(Z\)</span> is the normalizer required to have the integral sum to 1.<a href="#fnref9" class="footnote-back">↩</a></p></li>
+<li id="fn10"><p>As of today, Stan uses a modified version, see appendix A.5 of <span class="citation" data-cites="2017arXiv170102434B">(Betancourt <a href="#ref-2017arXiv170102434B">2017</a>)</span>, to be cited soon.<a href="#fnref10" class="footnote-back">↩</a></p></li>
+<li id="fn11"><p>for a detailed discussion of typical sets, see the book by McKay <span class="citation" data-cites="MacKay:2002:ITI:971143">(MacKay <a href="#ref-MacKay:2002:ITI:971143">2002</a>)</span>.<a href="#fnref11" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2019-10-01-intro-to-hmc/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=On%20leapfrogs%2C%20crashing%20satellites%2C%20and%20going%20nuts%3A%20A%20very%20first%20conceptual%20introduction%20to%20Hamiltonian%20Monte%20Carlo&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2019-10-01-intro-to-hmc%2F">
+        <i class="fab fa-twitter"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2019-10-01-intro-to-hmc%2F&amp;title=On%20leapfrogs%2C%20crashing%20satellites%2C%20and%20going%20nuts%3A%20A%20very%20first%20conceptual%20introduction%20to%20Hamiltonian%20Monte%20Carlo">
+        <i class="fab fa-linkedin"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script>
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/';
+  this.page.identifier = 'posts/2019-10-01-intro-to-hmc/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+</div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2019, Oct. 1). TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydana2019hmc,
+  author = {Keydana, Sigrid},
+  title = {TensorFlow for R: On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2019-10-01-intro-to-hmc/},
+  year = {2019}
+}</pre>
+</div>
+<script id="distill-bibliography" type="text/bibtex">
+@ARTICLE{2012arXiv1206.1901N,
+       author = {Neal, Radford M.},
+        title = "{MCMC using Hamiltonian dynamics}",
+      journal = {arXiv e-prints},
+     keywords = {Statistics - Computation, Physics - Computational Physics},
+         year = "2012",
+        month = "Jun",
+          eid = {arXiv:1206.1901},
+        pages = {arXiv:1206.1901},
+archivePrefix = {arXiv},
+       eprint = {1206.1901},
+ primaryClass = {stat.CO},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2012arXiv1206.1901N},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+@ARTICLE{2017arXiv170102434B,
+       author = {Betancourt, Michael},
+        title = "{A Conceptual Introduction to Hamiltonian Monte Carlo}",
+      journal = {arXiv e-prints},
+     keywords = {Statistics - Methodology},
+         year = "2017",
+        month = "Jan",
+          eid = {arXiv:1701.02434},
+        pages = {arXiv:1701.02434},
+archivePrefix = {arXiv},
+       eprint = {1701.02434},
+ primaryClass = {stat.ME},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2017arXiv170102434B},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@article{Blei_2017,
+   title={Variational Inference: A Review for Statisticians},
+   volume={112},
+   ISSN={1537-274X},
+   url={http://dx.doi.org/10.1080/01621459.2017.1285773},
+   DOI={10.1080/01621459.2017.1285773},
+   number={518},
+   journal={Journal of the American Statistical Association},
+   publisher={Informa UK Limited},
+   author={Blei, David M. and Kucukelbir, Alp and McAuliffe, Jon D.},
+   year={2017},
+   month={Feb},
+   pages={859–877}
+}
+
+@book{MacKay:2002:ITI:971143,
+ author = {MacKay, David J. C.},
+ title = {Information Theory, Inference & Learning Algorithms},
+ year = {2002},
+ isbn = {0521642981},
+ publisher = {Cambridge University Press},
+ address = {New York, NY, USA},
+} 
+
+@book{statrethinkingbook,
+  author = {McElreath, Richard},
+  Publisher = {CRC Press},
+  Title = {Statistical Rethinking: A Bayesian Course with Examples in R and Stan},
+  Year = {2016},
+  URL = {http://xcelab.net/rm/statistical-rethinking/}
+}
+
+@book{Kruschke:2010:DBD:1951940,
+ author = {Kruschke, John K.},
+ title = {Doing Bayesian Data Analysis: A Tutorial with R and BUGS},
+ year = {2010},
+ isbn = {0123814855, 9780123814852},
+ edition = {1st},
+ publisher = {Academic Press, Inc.},
+ address = {Orlando, FL, USA},
+} 
+
+@misc{hoffman2011nouturn,
+    title={The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo},
+    author={Matthew D. Hoffman and Andrew Gelman},
+    year={2011},
+    eprint={1111.4246},
+    archivePrefix={arXiv},
+    primaryClass={stat.CO}
+}
+
+
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

@@ -965,12 +965,12 @@
 </div>
 
 <div class="d-article">
-<p>A bit more than a year ago, in his beautiful <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/">guest post</a> Nick Strayer showed how to classify a set of everyday activities using smartphone-recorded gyroscope and accelerometer data. Accuracy was very good, but Nick went on to inspect classification results more closely. Were there activities more prone to misclassification than others? And how about those erroneous results: Did the network report them with equal, or less, confidence than those that were correct?</p>
-<p>Technically, what we refer to when talking of <em>confidence</em> in that manner is the <em>score</em> obtained for the “winning” class after softmax activation.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> If that winning score is 0.9, we might say “the network is sure that’s a gentoo penguin”; if it’s 0.2, we’d instead conclude “to the network, neither option seemed fitting, but cheetah looked best”.</p>
+<p>A bit more than a year ago, in his beautiful <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/">guest post</a>, Nick Strayer showed how to classify a set of everyday activities using smartphone-recorded gyroscope and accelerometer data. Accuracy was very good, but Nick went on to inspect classification results more closely. Were there activities more prone to misclassification than others? And how about those erroneous results: Did the network report them with equal, or less confidence than those that were correct?</p>
+<p>Technically, when we speak of <em>confidence</em> in that manner, we’re referring to the <em>score</em> obtained for the “winning” class after softmax activation.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> If that winning score is 0.9, we might say “the network is sure that’s a gentoo penguin”; if it’s 0.2, we’d instead conclude “to the network, neither option seemed fitting, but cheetah looked best”.</p>
 <p>This use of “confidence” is convincing, but it has nothing to do with confidence – or credibility, or prediction, what have you – intervals. What we’d really like to be able to do is put distributions over the network’s weights and make it <em>Bayesian</em>. Using <em>tfprobability</em>’s variational Keras-compatible layers, this is something we actually can do.</p>
-<p><a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/">Adding uncertainty estimates to Keras models with tfprobability</a> showed how to use a variational dense layer to obtain estimates of epistemic uncertainty. In this post, we modify the convnet used in Nick’s post to be variational throughout. Before we start, let’s quickly summarize the task.</p>
+<p><a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/">Adding uncertainty estimates to Keras models with tfprobability</a> shows how to use a variational dense layer to obtain estimates of epistemic uncertainty. In this post, we modify the convnet used in Nick’s post to be variational throughout. Before we start, let’s quickly summarize the task.</p>
 <h2 id="the-task">The task</h2>
-<p>To create the <a href="http://archive.ics.uci.edu/ml/datasets/Smartphone-Based+Recognition+of+Human+Activities+and+Postural+Transitions">Smartphone-Based Recognition of Human Activities and Postural Transitions Data Set</a> <span class="citation" data-cites="Reyes-Ortiz">(Reyes-Ortiz et al. <a href="#ref-Reyes-Ortiz">2016</a>)</span>, the researchers had subjects walk, sit, stand, and transition from one of those activities to another. Meanwhile, two types of smartphone sensors were used to record motion data: <em>Accelerometers</em> measure linear acceleration in three<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> dimensions, while <em>gyroscopes</em> are used to track angular velocity around the coordinate axes. Here are, from Nick’s original post, the respective raw sensor data for six types of activities:</p>
+<p>To create the <a href="http://archive.ics.uci.edu/ml/datasets/Smartphone-Based+Recognition+of+Human+Activities+and+Postural+Transitions">Smartphone-Based Recognition of Human Activities and Postural Transitions Data Set</a> <span class="citation" data-cites="Reyes-Ortiz">(Reyes-Ortiz et al. <a href="#ref-Reyes-Ortiz">2016</a>)</span>, the researchers had subjects walk, sit, stand, and transition from one of those activities to another. Meanwhile, two types of smartphone sensors were used to record motion data: <em>Accelerometers</em> measure linear acceleration in three<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a> dimensions, while <em>gyroscopes</em> are used to track angular velocity around the coordinate axes. Here are the respective raw sensor data for six types of activities from Nick’s original post:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span id="fig:unnamed-chunk-1"></span>
 <img src="images/raw-data.png" alt="Source: https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/" width="1152" />
@@ -1179,15 +1179,15 @@ train_history &lt;- model %&gt;% fit(
   )
 )</code></pre>
 </div>
-<p>While the overall loss declines linearly (and probably would for many more epochs), this is not the case for classification accuracy and the NLL part of the loss:</p>
+<p>While the overall loss declines linearly (and probably would for many more epochs), this is not the case for classification accuracy or the NLL part of the loss:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/history.png" width="600" /></p>
 </div>
 <p>Final accuracy is not as high as in the non-variational setup, though still not bad for a six-class problem. We see that without any additional regularization, there is very little overfitting to the training data.</p>
 <p>Now how do we obtain predictions from this model?</p>
 <h2 id="probabilistic-predictions">Probabilistic predictions</h2>
-<p>Though we won’t go into this here, it’s good to know that we can’t just access the output distributions; through their <code>kernel_posterior</code> attribute, we can access the hidden layers’ posterior weight distributions as well.</p>
-<p>Given the small size of the test set, we compute all predictions at once. The predictions now are categorical distributions, one for each sample in the batch:</p>
+<p>Though we won’t go into this here, it’s good to know that we access more than just the output distributions; through their <code>kernel_posterior</code> attribute, we can access the hidden layers’ posterior weight distributions as well.</p>
+<p>Given the small size of the test set, we compute all predictions at once. The predictions are now categorical distributions, one for each sample in the batch:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 test_data_all &lt;- dataset_collect(test_dataset) %&gt;% { .[[1]][[1]]}
@@ -1200,7 +1200,7 @@ one_shot_preds</code></pre>
 tfp.distributions.OneHotCategorical(
  &quot;sequential_one_hot_categorical_OneHotCategorical_OneHotCategorical&quot;,
  batch_shape=[69], event_shape=[6], dtype=float32)</code></pre>
-<p>We prefixed those predictions by <code>one_shot</code> to indicate their noisy nature: These are predictions obtained on a single pass through the network, all layer weights being sampled from their respective posteriors.</p>
+<p>We prefixed those predictions with <code>one_shot</code> to indicate their noisy nature: These are predictions obtained on a single pass through the network, all layer weights being sampled from their respective posteriors.</p>
 <p>From the predicted distributions, we calculate mean and standard deviation <em>per (test) sample</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
@@ -1317,7 +1317,7 @@ eval_table %&gt;%
 1 FALSE      19    0.775  0.380     0.237
 2 TRUE       50    0.879  0.264     0.183</code></pre>
 <p>They are; though perhaps not to the extent we might desire.</p>
-<p>With just six classes, we can as well inspect standard deviations on the individual prediction-target pairings level.</p>
+<p>With just six classes, we can also inspect standard deviations on the individual prediction-target pairings level.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 eval_table %&gt;% 

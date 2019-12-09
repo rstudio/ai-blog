@@ -980,8 +980,8 @@
 <p>As an aside, this “bringing together communities” – or ways of thinking, or solution strategies – makes for a good overall characterization of TensorFlow Probability as well.<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
 <h2 id="gaussian-processes">Gaussian Processes</h2>
 <p>A Gaussian Process is a <a href="https://math.stackexchange.com/a/2297480">distribution over functions, where the function values you sample are jointly Gaussian</a> - roughly speaking, a generalization to infinity of the multivariate Gaussian. Besides the reference book we already mentioned <span class="citation" data-cites="Rasmussen">(Rasmussen and Williams <a href="#ref-Rasmussen">2005</a>)</span>, there are a number of nice introductions on the net: see e.g. <a href="https://distill.pub/2019/visual-exploration-gaussian-processes/">https://distill.pub/2019/visual-exploration-gaussian-processes/</a> or <a href="https://peterroelants.github.io/posts/gaussian-process-tutorial/">https://peterroelants.github.io/posts/gaussian-process-tutorial/</a>. And like on everything cool, there is a chapter on Gaussian Processes in the late David MacKay’s <span class="citation" data-cites="MacKay">(MacKay <a href="#ref-MacKay">2002</a>)</span> <a href="http://www.inference.org.uk/itprnn/book.pdf">book</a>.</p>
-<p>In this post, we’ll use TensorFlow Probability’s <em>Variational Gaussian Process</em> (VGP) layer, designed to efficiently work with “big data”. As Gaussian Process Regression (GPR, from now on) involves the inversion of a – possibly big – covariance matrix, attempts have been made to design approximate versions, often based on variational principles. The TFP implementation is based on papers by Titsias (2009) <span class="citation" data-cites="titsias09a">(Titsias <a href="#ref-titsias09a">2009</a>)</span> and Hensman et al. (2013) <span class="citation" data-cites="HensmanFL13">(Hensman, Fusi, and Lawrence <a href="#ref-HensmanFL13">2013</a>)</span>. Instead of <span class="math inline">\(p(y|X)\)</span>, the actual probability of the target data given the actual input, we work with a variational distribution <span class="math inline">\(q(u)\)</span> that acts as a lower bound.</p>
-<p>Here <span class="math inline">\(u\)</span> is a set of so-called <em>inducing index points</em> specified by the user, chosen to well cover the range of the actual data. This algorithm is a lot faster than “normal” GPR, as only the covariance matrix of <span class="math inline">\(u\)</span> has to be inverted. As we’ll see below, at least in this example (as well as in others not described here) it seems to be pretty robust as to the number of <em>inducing points</em> passed.</p>
+<p>In this post, we’ll use TensorFlow Probability’s <em>Variational Gaussian Process</em> (VGP) layer, designed to efficiently work with “big data”. As Gaussian Process Regression (GPR, from now on) involves the inversion of a – possibly big – covariance matrix, attempts have been made to design approximate versions, often based on variational principles. The TFP implementation is based on papers by Titsias (2009) <span class="citation" data-cites="titsias09a">(Titsias <a href="#ref-titsias09a">2009</a>)</span> and Hensman et al. (2013) <span class="citation" data-cites="HensmanFL13">(Hensman, Fusi, and Lawrence <a href="#ref-HensmanFL13">2013</a>)</span>. Instead of <span class="math inline">\(p(\mathbf{y}|\mathbf{X})\)</span>, the actual probability of the target data given the actual input, we work with a variational distribution <span class="math inline">\(q(\mathbf{u})\)</span> that acts as a lower bound.</p>
+<p>Here <span class="math inline">\(\mathbf{u}\)</span> are the function values at a set of so-called <em>inducing index points</em> specified by the user, chosen to well cover the range of the actual data. This algorithm is a lot faster than “normal” GPR, as only the covariance matrix of <span class="math inline">\(\mathbf{u}\)</span> has to be inverted. As we’ll see below, at least in this example (as well as in others not described here) it seems to be pretty robust as to the number of <em>inducing points</em> passed.</p>
 <p>Let’s start.</p>
 <h2 id="the-dataset">The dataset</h2>
 <p>The <a href="https://archive.ics.uci.edu/ml/datasets/concrete+compressive+strength">Concrete Compressive Strength Data Set</a> is part of the UCI Machine Learning Repository. Its web page says:</p>
@@ -1214,7 +1214,7 @@ model &lt;- keras_model_sequential() %&gt;%
 <p>a layer instance equipped with an @property, which yields a <code>PositiveSemidefiniteKernel</code> instance&quot;.</p>
 </blockquote>
 <p>In other words, the VGP layer wraps another Keras layer that, <em>itself</em>, wraps or bundles together the TensorFlow <code>Variables</code> containing the kernel parameters.</p>
-<p>We can make use of <code>reticulate</code>s new <code>PyClass</code> constructor to fulfill the above requirements. Using <code>PyClass</code>, we can directly inherit from a Python object, adding and/or overriding methods or fields as we like - and yes, even create a Python <a href="https://docs.python.org/3/library/functions.html?#property">property</a>.</p>
+<p>We can make use of <code>reticulate</code>’s new <code>PyClass</code> constructor to fulfill the above requirements. Using <code>PyClass</code>, we can directly inherit from a Python object, adding and/or overriding methods or fields as we like - and yes, even create a Python <a href="https://docs.python.org/3/library/functions.html?#property">property</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 bt &lt;- import(&quot;builtins&quot;)
@@ -1271,7 +1271,7 @@ sampled_points &lt;- train[sample_ids, 1:8]</code></pre>
 <pre class="r"><code>
 k_set_floatx(&quot;float64&quot;)</code></pre>
 </div>
-<p>Now we define (for real, this time) and run the model.</p>
+<p>Now we define (for real, this time) and run the model.<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 model &lt;- keras_model_sequential() %&gt;%
@@ -1307,7 +1307,7 @@ plot(history)</code></pre>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/history.png" width="700" /></p>
 </div>
-<p>Interestingly, higher numbers of <em>inducing points</em> (we tried 100 and 200) did not have much impact on regression performance.<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a> Nor does the exact choice of multiplication constants (<code>0.1</code> and <code>2</code>) applied to the trained kernel <code>Variables</code> (<code>_amplitude</code> and <code>_length_scale</code>)</p>
+<p>Interestingly, higher numbers of <em>inducing points</em> (we tried 100 and 200) did not have much impact on regression performance.<a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a> Nor does the exact choice of multiplication constants (<code>0.1</code> and <code>2</code>) applied to the trained kernel <code>Variables</code> (<code>_amplitude</code> and <code>_length_scale</code>)</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 tfp$math$psd_kernels$ExponentiatedQuadratic(
@@ -1315,7 +1315,7 @@ tfp$math$psd_kernels$ExponentiatedQuadratic(
   length_scale = tf$nn$softplus(array(2) * self$`_length_scale`)
 )</code></pre>
 </div>
-<p>make much of a difference to the end result.<a href="#fn5" class="footnote-ref" id="fnref5"><sup>5</sup></a></p>
+<p>make much of a difference to the end result.<a href="#fn6" class="footnote-ref" id="fnref6"><sup>6</sup></a></p>
 <h2 id="predictions">Predictions</h2>
 <p>We generate predictions on the test set and add them to the <code>data.frame</code> containing the linear models’ predictions. As with other probabilistic output layers, “the predictions” are in fact distributions; to obtain actual tensors we sample from them. Here, we average over 10 samples:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1463,8 +1463,9 @@ ScaledRBFKernelFn &lt;- reticulate::PyClass(
 <li id="fn1"><p>In the book, it’s “two communities”, not “two cultures”; we choose L. Breiman’s <span class="citation" data-cites="breiman2001">(Breiman <a href="#ref-breiman2001">2001</a>)</span> more punchy expression just … because.<a href="#fnref1" class="footnote-back">↩</a></p></li>
 <li id="fn2"><p>So far, we have seen uses of TensorFlow Probability for such different applications as <a href="https://blogs.rstudio.com/tensorflow/posts/2019-11-13-variational-convnet/">adding uncertainty estimates to neural networks</a>, <a href="https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes/">Bayesian model estimation using Hamiltonian Monte Carlo</a>, or <a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-25-dynamic_linear_models_tfprobability/">linear-Gaussian state space models</a>.<a href="#fnref2" class="footnote-back">↩</a></p></li>
 <li id="fn3"><p>See David Duvenaud’s <a href="https://www.cs.toronto.edu/~duvenaud/cookbook/" class="uri">https://www.cs.toronto.edu/~duvenaud/cookbook/</a> for an excellent synopsis of kernels and kernel composition.<a href="#fnref3" class="footnote-back">↩</a></p></li>
-<li id="fn4"><p>Performance being used in the sense of “lower regression error”, not running speed. As to the latter, there definitely is a (negative) relationship between number of inducing points and training speed.<a href="#fnref4" class="footnote-back">↩</a></p></li>
-<li id="fn5"><p>This may sound like a matter of course; it isn’t necessarily, as shown by prior experiments with variational layers e.g. in <a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/">Adding uncertainty estimates to Keras models with tfprobability</a>.<a href="#fnref5" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>In case you’re wondering about the <code>dense</code> layer up front: This will be discussed in the last section on feature relevance.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+<li id="fn5"><p>Performance being used in the sense of “lower regression error”, not running speed. As to the latter, there definitely is a (negative) relationship between number of inducing points and training speed.<a href="#fnref5" class="footnote-back">↩</a></p></li>
+<li id="fn6"><p>This may sound like a matter of course; it isn’t necessarily, as shown by prior experiments with variational layers e.g. in <a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/">Adding uncertainty estimates to Keras models with tfprobability</a>.<a href="#fnref6" class="footnote-back">↩</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

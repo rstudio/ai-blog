@@ -58,7 +58,9 @@ This is reflected in the formal definition of DP. The idea is that queries to tw
 
 This $\epsilon$ -differential privacy is additive: If one query is $\epsilon$-DP at a value of 0.01, and another one at 0.03, together they will be 0.04 $\epsilon$-differentially private.
 
-If $\epsilon$-DP is to be achieved via adding noise, how exactly should this be done? Here, several mechanisms exist; the basic, intuitively plausible principle though is that the amount of noise should be calibrated to the target function's sensitivity, defined as the maximum $l1$ norm of the difference of function values computed on all pairs of datasets differing in a single example.
+If $\epsilon$-DP is to be achieved via adding noise, how exactly should this be done? Here, several mechanisms exist; the basic, intuitively plausible principle though is that the amount of noise should be calibrated to the target function's _sensitivity_, defined as the maximum $\ell 1$ norm of the difference of function values computed on all pairs of datasets differing in a single example [@dwork2006differential]:
+
+> $\Delta f = \max_{D1,D2} {\| f(D1)−f(D2) \|}_1$
 
 So far, we've been talking about databases and datasets. How does this apply to machine and/or deep learning? 
 
@@ -149,7 +151,7 @@ The following function serves two purposes:
 ```{r}
 average_and_make_sequences <-
   function(data, window_size_avg, num_timesteps) {
-    data %>% tf$cast(tf$float32) %>%
+    data %>% k_cast("float32") %>%
       # create an initial tf.data dataset to work with
       tensor_slices_dataset() %>%
       # use dataset_window to compute the running average of size window_size_avg
@@ -236,9 +238,9 @@ x_test <- zip_datasets(acc_test, bvp_test, eda_test, temp_test) %>%
 On the ground truth side, as alluded to before, we leave out the first eleven values in each case: 
 
 ```{r}
-y_train <- tensor_slices_dataset(label[num_timesteps:train_max] %>% tf$cast(tf$float32))
+y_train <- tensor_slices_dataset(label[num_timesteps:train_max] %>% k_cast("float32"))
 
-y_test <- tensor_slices_dataset(label[(train_max + num_timesteps):nrow(label)] %>% tf$cast(tf$float32))
+y_test <- tensor_slices_dataset(label[(train_max + num_timesteps):nrow(label)] %>% k_cast("float32")
 
 ```
 
@@ -272,6 +274,8 @@ Here, in any case, would be the relevant code:
 
 ```{r}
 # this piece needs TF 2 behavior enabled
+# run after restarting R and commenting the tf$compat$v1$disable_v2_behavior() line
+# then to fit the DP model, undo comment, restart R and rerun
 iter <- as_iterator(ds_test) # or any other dataset you want to check
 while (TRUE) {
  item <- iter_next(iter)
@@ -391,7 +395,7 @@ Having talked about its parameters, now let's define the DP optimizer:
 ```{r}
 l2_norm_clip <- 1
 noise_multiplier <- 1.1
-num_microbatches <- tf$cast(batch_size, tf$int32)
+num_microbatches <- k_cast(batch_size, "int32")
 learning_rate <- 0.01
 
 optimizer <- priv$DPAdamGaussianOptimizer(

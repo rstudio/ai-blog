@@ -992,7 +992,10 @@
 <p><span class="math inline">\(Pr[\mathcal{K}(D1)\in S] \leq exp(\epsilon) × Pr[K(D2) \in S]\)</span></p>
 </blockquote>
 <p>This <span class="math inline">\(\epsilon\)</span> -differential privacy is additive: If one query is <span class="math inline">\(\epsilon\)</span>-DP at a value of 0.01, and another one at 0.03, together they will be 0.04 <span class="math inline">\(\epsilon\)</span>-differentially private.</p>
-<p>If <span class="math inline">\(\epsilon\)</span>-DP is to be achieved via adding noise, how exactly should this be done? Here, several mechanisms exist; the basic, intuitively plausible principle though is that the amount of noise should be calibrated to the target function’s sensitivity, defined as the maximum <span class="math inline">\(l1\)</span> norm of the difference of function values computed on all pairs of datasets differing in a single example.</p>
+<p>If <span class="math inline">\(\epsilon\)</span>-DP is to be achieved via adding noise, how exactly should this be done? Here, several mechanisms exist; the basic, intuitively plausible principle though is that the amount of noise should be calibrated to the target function’s <em>sensitivity</em>, defined as the maximum <span class="math inline">\(\ell 1\)</span> norm of the difference of function values computed on all pairs of datasets differing in a single example <span class="citation" data-cites="dwork2006differential">(Dwork <a href="#ref-dwork2006differential">2006</a>)</span>:</p>
+<blockquote>
+<p><span class="math inline">\(\Delta f = \max_{D1,D2} {\| f(D1)−f(D2) \|}_1\)</span></p>
+</blockquote>
 <p>So far, we’ve been talking about databases and datasets. How does this apply to machine and/or deep learning?</p>
 <h2 id="tensorflow-privacy">TensorFlow Privacy</h2>
 <p>Applying DP to deep learning, we want a model’s parameters to wind up “essentially the same” whether trained on a dataset including that cute little kitty or not. TensorFlow (TF) Privacy <span class="citation" data-cites="abaditfp">(Abadi et al. <a href="#ref-abaditfp">2016</a>)</span>, a library built on top of TF, makes it easy on users to add privacy guarantees to their models – easy, that is, from a technical point of view. (As with life overall, the hard decisions on <em>how much</em> of an asset we should be reaching for, and how to trade off one asset (here: privacy) with another (here: model performance), remain to be taken by each of us ourselves.)</p>
@@ -1062,7 +1065,7 @@ s1$label %&gt;% nrow() # 4603</code></pre>
 <pre class="r"><code>
 average_and_make_sequences &lt;-
   function(data, window_size_avg, num_timesteps) {
-    data %&gt;% tf$cast(tf$float32) %&gt;%
+    data %&gt;% k_cast(&quot;float32&quot;) %&gt;%
       # create an initial tf.data dataset to work with
       tensor_slices_dataset() %&gt;%
       # use dataset_window to compute the running average of size window_size_avg
@@ -1141,9 +1144,9 @@ x_test &lt;- zip_datasets(acc_test, bvp_test, eda_test, temp_test) %&gt;%
 <p>On the ground truth side, as alluded to before, we leave out the first eleven values in each case:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
-y_train &lt;- tensor_slices_dataset(label[num_timesteps:train_max] %&gt;% tf$cast(tf$float32))
+y_train &lt;- tensor_slices_dataset(label[num_timesteps:train_max] %&gt;% k_cast(&quot;float32&quot;))
 
-y_test &lt;- tensor_slices_dataset(label[(train_max + num_timesteps):nrow(label)] %&gt;% tf$cast(tf$float32))</code></pre>
+y_test &lt;- tensor_slices_dataset(label[(train_max + num_timesteps):nrow(label)] %&gt;% k_cast(&quot;float32&quot;)</code></pre>
 </div>
 <p>Zip predictors and targets together, configure shuffling/batching, and the datasets are complete:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1170,6 +1173,8 @@ ds_test &lt;- ds_test %&gt;%
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 # this piece needs TF 2 behavior enabled
+# run after restarting R and commenting the tf$compat$v1$disable_v2_behavior() line
+# then to fit the DP model, undo comment, restart R and rerun
 iter &lt;- as_iterator(ds_test) # or any other dataset you want to check
 while (TRUE) {
  item &lt;- iter_next(iter)
@@ -1265,7 +1270,7 @@ DP-SGD with sampling rate = 0.802% and noise_multiplier = 1.1 iterated over
 <pre class="r"><code>
 l2_norm_clip &lt;- 1
 noise_multiplier &lt;- 1.1
-num_microbatches &lt;- tf$cast(batch_size, tf$int32)
+num_microbatches &lt;- k_cast(batch_size, &quot;int32&quot;)
 learning_rate &lt;- 0.01
 
 optimizer &lt;- priv$DPAdamGaussianOptimizer(

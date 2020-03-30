@@ -6,7 +6,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
-  <meta name="generator" content="radix" />
+  <meta name="generator" content="distill" />
 
   <style type="text/css">
   /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
@@ -49,7 +49,7 @@
   <!--radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-rmarkdown-metadata">
-  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","bibliography","slug","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Image-to-image translation with pix2pix"]},{"type":"character","attributes":{},"value":["Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["keydana2018eagerpix2pix"]},{"type":"character","attributes":{},"value":["09-20-2018"]},{"type":"character","attributes":{},"value":["Keras","Eager","Images","GAN"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/pix2pixlosses.png"]}]}
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","bibliography","slug","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Image-to-image translation with pix2pix"]},{"type":"character","attributes":{},"value":["Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.\n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["keydana2018eagerpix2pix"]},{"type":"character","attributes":{},"value":["09-20-2018"]},{"type":"character","attributes":{},"value":["TensorFlow/Keras","Image Recognition & Image Processing","Unsupervised Learning"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/pix2pixlosses.png"]}]}
   </script>
   <!--/radix_placeholder_rmarkdown_metadata-->
   
@@ -70,6 +70,10 @@
     width: 100%;
   }
   
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
   .pandoc-table th:not([align]) {
     text-align: left;
   }
@@ -84,6 +88,10 @@
   
   .l-screen-inset {
     padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
   }
   
   .shaded {
@@ -193,6 +201,10 @@
   /* Tweak code blocks (note that this CSS is repeated above in an injection
      into the d-code shadow dom) */
   
+  d-code {
+    overflow-x: auto !important;
+  }
+  
   pre.d-code code.d-code {
     padding-left: 10px;
     font-size: 12px;
@@ -223,6 +235,11 @@
   }
   
   @media(min-width: 768px) {
+  
+  d-code {
+    overflow-x: visible !important;
+  }
+  
   pre.d-code code.d-code  {
       padding-left: 18px;
       font-size: 14px;
@@ -605,9 +622,9 @@
       var fn = $('#' + id);
       var fn_p = $('#' + id + '>p');
       fn_p.find('.footnote-back').remove();
-      var text = fn_p.text();
+      var text = fn_p.html();
       var dtfn = $('<d-footnote></d-footnote>');
-      dtfn.text(text);
+      dtfn.html(text);
       $(this).replaceWith(dtfn);
     });
     // remove footnotes
@@ -633,7 +650,10 @@
       var clz = "";
       var language = pre.attr('class');
       if (language) {
-        if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
           language = "clike";
         language = ' language="' + language + '"';
         var dt_code = $('<d-code block' + language + clz + '></d-code>');
@@ -848,9 +868,19 @@
     // prevent underline for linked images
     $('a > img').parent().css({'border-bottom' : 'none'});
   
-    // mark figures created by knitr chunks as 100% width
+    // mark non-body figures created by knitr chunks as 100% width
     $('.layout-chunk').each(function(i, val) {
-      $(this).find('img, .html-widget').css('width', '100%');
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
     });
   
     // auto-append index.html to post-preview links in file: protocol
@@ -862,7 +892,7 @@
   
     // get rid of index.html references in header
     if (window.location.protocol !== "file:") {
-      $('.radix-site-header a').each(function(i,val) {
+      $('.distill-site-header a[href]').each(function(i,val) {
         $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
       });
     }
@@ -871,6 +901,8 @@
     $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
     $('.kable-table').children('table').addClass('pandoc-table');
   
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
   
     // initialize posts list
     if (window.init_posts_list)
@@ -882,6 +914,7 @@
       $('#disqus_thread').toggleClass('hidden');
       if (!$('#disqus_thread').hasClass('hidden')) {
         var offset = $(this).offset();
+        $(window).resize();
         $('html, body').animate({
           scrollTop: offset.top - 35
         });
@@ -925,7 +958,7 @@
 
 <div class="d-title">
 <h1>Image-to-image translation with pix2pix</h1>
-<p>Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.</p>
+<p><p>Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.</p></p>
 </div>
 
 <div class="d-byline">
@@ -943,11 +976,11 @@
 <p>Put concretely, this means the generator is passed not (or not only) white noise, but data of a certain input structure, such as edges or shapes. It then has to generate realistic-looking pictures of real objects having those shapes. The discriminator, too, may receive the shapes or edges as input, in addition to the fake and real objects it is tasked to tell apart.</p>
 <p>Here are a few examples of conditioning, taken from the paper we’ll be implementing (see below):</p>
 <figure>
-<img src="images/pix2pix.png" alt="Figure from Image-to-Image Translation with Conditional Adversarial Networks Isola et al. (2016)" class="external" style="width:100.0%" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16">2016</a>)</span></figcaption>
+<img src="images/pix2pix.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span></figcaption>
 </figure>
-<p>In this post, we port to R a <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/pix2pix/pix2pix_eager.ipynb">Google Colaboratory Notebook</a> using Keras with eager execution. We’re implementing the basic architecture from <em>pix2pix</em>, as described by Isola et al. in their 2016 paper<span class="citation" data-cites="IsolaZZE16">(Isola et al. <a href="#ref-IsolaZZE16">2016</a>)</span>. It’s an interesting paper to read as it validates the approach on a bunch of different datasets, and shares outcomes of using different loss families, too:</p>
+<p>In this post, we port to R a <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/pix2pix/pix2pix_eager.ipynb">Google Colaboratory Notebook</a> using Keras with eager execution. We’re implementing the basic architecture from <em>pix2pix</em>, as described by Isola et al. in their 2016 paper<span class="citation" data-cites="IsolaZZE16">(Isola et al. <a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span>. It’s an interesting paper to read as it validates the approach on a bunch of different datasets, and shares outcomes of using different loss families, too:</p>
 <figure>
-<img src="images/pix2pixlosses.png" alt="Figure from Image-to-Image Translation with Conditional Adversarial Networks Isola et al. (2016)" class="external" style="width:100.0%" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16">2016</a>)</span></figcaption>
+<img src="images/pix2pixlosses.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span></figcaption>
 </figure>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>The code shown here will work with the current CRAN versions of <code>tensorflow</code>, <code>keras</code>, and <code>tfdatasets</code>. Also, be sure to check that you’re using at least version 1.9 of TensorFlow. If that isn’t the case, as of this writing, this</p>
@@ -973,7 +1006,7 @@ library(purrr)</code></pre>
 <p>For this post, we’re working with one of the datasets used in the paper, a <a href="https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/">preprocessed</a> version of the <a href="http://cmp.felk.cvut.cz/~tylecr1/facade/">CMP Facade Dataset</a>.</p>
 <p>Images contain the ground truth - that we’d wish for the generator to generate, and for the discriminator to correctly detect as authentic - and the input we’re conditioning on (a coarse segmention into object classes) next to each other in the same file.</p>
 <figure>
-<img src="images/105.jpg" alt="Figure from https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/" class="external" style="width:100.0%" /><figcaption>Figure from <a href="https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/" class="uri">https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/</a></figcaption>
+<img src="images/105.jpg" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <a href="https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/" class="uri">https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/</a></figcaption>
 </figure>
 <h2 id="preprocessing">Preprocessing</h2>
 <p>Obviously, our preprocessing will have to split the input images into parts. That’s the first thing that happens in the function below.</p>
@@ -1132,9 +1165,9 @@ generator &lt;- function(name = &quot;generator&quot;) {
   })
 }</code></pre>
 </div>
-<p>How can spatial information be preserved if we downsample all the way down to a single pixel? The generator follows the general principle of a <em>U-Net</em> <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15">2015</a>)</span>, where skip connections exist from layers earlier in the downsampling process to layers later on the way up.</p>
+<p>How can spatial information be preserved if we downsample all the way down to a single pixel? The generator follows the general principle of a <em>U-Net</em> <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15" role="doc-biblioref">2015</a>)</span>, where skip connections exist from layers earlier in the downsampling process to layers later on the way up.</p>
 <figure>
-<img src="images/unet.png" alt="Figure from (Ronneberger, Fischer, and Brox 2015)" class="external" style="width:100.0%" /><figcaption>Figure from <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15">2015</a>)</span></figcaption>
+<img src="images/unet.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15" role="doc-biblioref">2015</a>)</span></figcaption>
 </figure>
 <p>Let’s take the line</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1443,24 +1476,24 @@ if (!restore) {
 <h2 id="conclusion">Conclusion</h2>
 <p>When we say the network has internalized the dominant style of the training set, is this a bad thing? (We’re used to thinking in terms of overfitting on the training set.)</p>
 <p>With GANs though, one could say it all depends on the purpose. If it doesn’t fit our purpose, one thing we could try is training on several datasets at the same time.</p>
-<p>Again depending on what we want to achieve, another weakness could be the lack of stochasticity in the model, as stated by the authors of the paper themselves. This will be hard to avoid when working with paired datasets as the ones used in <em>pix2pix</em>. An interesting alternative is CycleGAN<span class="citation" data-cites="ZhuPIE17">(Zhu et al. <a href="#ref-ZhuPIE17">2017</a>)</span> that lets you transfer style between complete datasets without using paired instances:</p>
+<p>Again depending on what we want to achieve, another weakness could be the lack of stochasticity in the model, as stated by the authors of the paper themselves. This will be hard to avoid when working with paired datasets as the ones used in <em>pix2pix</em>. An interesting alternative is CycleGAN<span class="citation" data-cites="ZhuPIE17">(Zhu et al. <a href="#ref-ZhuPIE17" role="doc-biblioref">2017</a>)</span> that lets you transfer style between complete datasets without using paired instances:</p>
 <figure>
-<img src="images/cyclegan.png" alt="Figure from Zhu et al. (2017)" class="external" style="width:100.0%" /><figcaption>Figure from <span class="citation" data-cites="ZhuPIE17">Zhu et al. (<a href="#ref-ZhuPIE17">2017</a>)</span></figcaption>
+<img src="images/cyclegan.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <span class="citation" data-cites="ZhuPIE17">Zhu et al. (<a href="#ref-ZhuPIE17" role="doc-biblioref">2017</a>)</span></figcaption>
 </figure>
-<p>Finally closing on a more technical note, you may have noticed the prominent checkerboard effects in the above fake examples. This phenomenon (and ways to address it) is superbly explained in a 2016 article on <a href="https://distill.pub/">distill.pub</a> <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution">2016</a>)</span>. In our case, it will mostly be due to the use of <code>layer_conv_2d_transpose</code> for upsampling.</p>
-<p>As per the authors <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution">2016</a>)</span>, a better alternative is upsizing followed by padding and (standard) convolution. If you’re interested, it should be straightforward to modify the example code to use <code>tf$image$resize_images</code> (using <code>ResizeMethod.NEAREST_NEIGHBOR</code> as recommended by the authors), <code>tf$pad</code> and <code>layer_conv2d</code>.</p>
-<div id="refs" class="references">
+<p>Finally closing on a more technical note, you may have noticed the prominent checkerboard effects in the above fake examples. This phenomenon (and ways to address it) is superbly explained in a 2016 article on <a href="https://distill.pub/">distill.pub</a> <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution" role="doc-biblioref">2016</a>)</span>. In our case, it will mostly be due to the use of <code>layer_conv_2d_transpose</code> for upsampling.</p>
+<p>As per the authors <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution" role="doc-biblioref">2016</a>)</span>, a better alternative is upsizing followed by padding and (standard) convolution. If you’re interested, it should be straightforward to modify the example code to use <code>tf$image$resize_images</code> (using <code>ResizeMethod.NEAREST_NEIGHBOR</code> as recommended by the authors), <code>tf$pad</code> and <code>layer_conv2d</code>.</p>
+<div id="refs" class="references" role="doc-bibliography">
 <div id="ref-IsolaZZE16">
-<p>Isola, Phillip, Jun-Yan Zhu, Tinghui Zhou, and Alexei A. Efros. 2016. “Image-to-Image Translation with Conditional Adversarial Networks.” <em>CoRR</em> abs/1611.07004. <a href="http://arxiv.org/abs/1611.07004" class="uri">http://arxiv.org/abs/1611.07004</a>.</p>
+<p>Isola, Phillip, Jun-Yan Zhu, Tinghui Zhou, and Alexei A. Efros. 2016. “Image-to-Image Translation with Conditional Adversarial Networks.” <em>CoRR</em> abs/1611.07004. <a href="http://arxiv.org/abs/1611.07004">http://arxiv.org/abs/1611.07004</a>.</p>
 </div>
 <div id="ref-odena2016deconvolution">
-<p>Odena, Augustus, Vincent Dumoulin, and Chris Olah. 2016. “Deconvolution and Checkerboard Artifacts.” <em>Distill</em>. <a href="https://doi.org/10.23915/distill.00003" class="uri">https://doi.org/10.23915/distill.00003</a>.</p>
+<p>Odena, Augustus, Vincent Dumoulin, and Chris Olah. 2016. “Deconvolution and Checkerboard Artifacts.” <em>Distill</em>. <a href="https://doi.org/10.23915/distill.00003">https://doi.org/10.23915/distill.00003</a>.</p>
 </div>
 <div id="ref-RonnebergerFB15">
-<p>Ronneberger, Olaf, Philipp Fischer, and Thomas Brox. 2015. “U-Net: Convolutional Networks for Biomedical Image Segmentation.” <em>CoRR</em> abs/1505.04597. <a href="http://arxiv.org/abs/1505.04597" class="uri">http://arxiv.org/abs/1505.04597</a>.</p>
+<p>Ronneberger, Olaf, Philipp Fischer, and Thomas Brox. 2015. “U-Net: Convolutional Networks for Biomedical Image Segmentation.” <em>CoRR</em> abs/1505.04597. <a href="http://arxiv.org/abs/1505.04597">http://arxiv.org/abs/1505.04597</a>.</p>
 </div>
 <div id="ref-ZhuPIE17">
-<p>Zhu, Jun-Yan, Taesung Park, Phillip Isola, and Alexei A. Efros. 2017. “Unpaired Image-to-Image Translation Using Cycle-Consistent Adversarial Networks.” <em>CoRR</em> abs/1703.10593. <a href="http://arxiv.org/abs/1703.10593" class="uri">http://arxiv.org/abs/1703.10593</a>.</p>
+<p>Zhu, Jun-Yan, Taesung Park, Phillip Isola, and Alexei A. Efros. 2017. “Unpaired Image-to-Image Translation Using Cycle-Consistent Adversarial Networks.” <em>CoRR</em> abs/1703.10593. <a href="http://arxiv.org/abs/1703.10593">http://arxiv.org/abs/1703.10593</a>.</p>
 </div>
 </div>
 <!--radix_placeholder_article_footer-->

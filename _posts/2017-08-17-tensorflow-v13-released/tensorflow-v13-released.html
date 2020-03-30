@@ -6,7 +6,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
-  <meta name="generator" content="radix" />
+  <meta name="generator" content="distill" />
 
   <style type="text/css">
   /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
@@ -44,7 +44,7 @@
   <!--radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-rmarkdown-metadata">
-  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","categories","author","date","preview","output"]}},"value":[{"type":"character","attributes":{},"value":["TensorFlow v1.3 Released"]},{"type":"character","attributes":{},"value":["The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and  DNNRegressor. \n"]},{"type":"character","attributes":{},"value":["Releases"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["J.J. Allaire"]},{"type":"character","attributes":{},"value":["https://github.com/jjallaire"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com"]}]}]},{"type":"character","attributes":{},"value":["08-17-2017"]},{"type":"character","attributes":{},"value":["tensorflow-logo.png"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["radix::radix_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]}]}
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","categories","author","date","preview","output"]}},"value":[{"type":"character","attributes":{},"value":["TensorFlow v1.3 Released"]},{"type":"character","attributes":{},"value":["The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and  DNNRegressor. \n"]},{"type":"character","attributes":{},"value":["Packages/Releases"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","url","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["J.J. Allaire"]},{"type":"character","attributes":{},"value":["https://github.com/jjallaire"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com"]}]}]},{"type":"character","attributes":{},"value":["08-17-2017"]},{"type":"character","attributes":{},"value":["tensorflow-logo.png"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]}]}
   </script>
   <!--/radix_placeholder_rmarkdown_metadata-->
   
@@ -65,6 +65,10 @@
     width: 100%;
   }
   
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+  
   .pandoc-table th:not([align]) {
     text-align: left;
   }
@@ -79,6 +83,10 @@
   
   .l-screen-inset {
     padding-right: 16px;
+  }
+  
+  .l-screen .caption {
+    margin-left: 10px;
   }
   
   .shaded {
@@ -188,6 +196,10 @@
   /* Tweak code blocks (note that this CSS is repeated above in an injection
      into the d-code shadow dom) */
   
+  d-code {
+    overflow-x: auto !important;
+  }
+  
   pre.d-code code.d-code {
     padding-left: 10px;
     font-size: 12px;
@@ -218,6 +230,11 @@
   }
   
   @media(min-width: 768px) {
+  
+  d-code {
+    overflow-x: visible !important;
+  }
+  
   pre.d-code code.d-code  {
       padding-left: 18px;
       font-size: 14px;
@@ -600,9 +617,9 @@
       var fn = $('#' + id);
       var fn_p = $('#' + id + '>p');
       fn_p.find('.footnote-back').remove();
-      var text = fn_p.text();
+      var text = fn_p.html();
       var dtfn = $('<d-footnote></d-footnote>');
-      dtfn.text(text);
+      dtfn.html(text);
       $(this).replaceWith(dtfn);
     });
     // remove footnotes
@@ -628,7 +645,10 @@
       var clz = "";
       var language = pre.attr('class');
       if (language) {
-        if ($.inArray(language, ["r", "cpp", "c", "java"]) != -1)
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
           language = "clike";
         language = ' language="' + language + '"';
         var dt_code = $('<d-code block' + language + clz + '></d-code>');
@@ -843,9 +863,19 @@
     // prevent underline for linked images
     $('a > img').parent().css({'border-bottom' : 'none'});
   
-    // mark figures created by knitr chunks as 100% width
+    // mark non-body figures created by knitr chunks as 100% width
     $('.layout-chunk').each(function(i, val) {
-      $(this).find('img, .html-widget').css('width', '100%');
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+  
+      }
     });
   
     // auto-append index.html to post-preview links in file: protocol
@@ -857,7 +887,7 @@
   
     // get rid of index.html references in header
     if (window.location.protocol !== "file:") {
-      $('.radix-site-header a').each(function(i,val) {
+      $('.distill-site-header a[href]').each(function(i,val) {
         $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
       });
     }
@@ -866,6 +896,8 @@
     $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
     $('.kable-table').children('table').addClass('pandoc-table');
   
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
   
     // initialize posts list
     if (window.init_posts_list)
@@ -877,6 +909,7 @@
       $('#disqus_thread').toggleClass('hidden');
       if (!$('#disqus_thread').hasClass('hidden')) {
         var offset = $(this).offset();
+        $(window).resize();
         $('html, body').animate({
           scrollTop: offset.top - 35
         });
@@ -909,7 +942,7 @@
 <!--radix_placeholder_front_matter-->
 
 <script id="distill-front-matter" type="text/json">
-{"title":"TensorFlow v1.3 Released","description":"The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and  DNNRegressor.","authors":[{"author":"J.J. Allaire","authorURL":"https://github.com/jjallaire","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2017-08-17T00:00:00.000-04:00","citationText":"Allaire, 2017"}
+{"title":"TensorFlow v1.3 Released","description":"The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and  DNNRegressor.","authors":[{"author":"J.J. Allaire","authorURL":"https://github.com/jjallaire","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com"}],"publishedDate":"2017-08-17T00:00:00.000+02:00","citationText":"Allaire, 2017"}
 </script>
 
 <!--/radix_placeholder_front_matter-->
@@ -920,7 +953,7 @@
 
 <div class="d-title">
 <h1>TensorFlow v1.3 Released</h1>
-<p>The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and DNNRegressor.</p>
+<p><p>The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and DNNRegressor.</p></p>
 </div>
 
 <div class="d-byline">
@@ -945,7 +978,7 @@
 <pre class="r"><code>
 library(tensorflow)
 install_tensorflow()</code></pre>
-<p>Note that you should also provide any options used in your original installation (e.g. <code>method = &quot;conda&quot;</code>, <code>version = &quot;gpu&quot;</code>, etc. )</p>
+<p>Note that you should also provide any options used in your original installation (e.g. <code>method = "conda"</code>, <code>version = "gpu"</code>, etc. )</p>
 <h3 id="cudnn-6.0">cuDNN 6.0</h3>
 <p>TensorFlow v1.3 is built against version 6.0 of the <a href="https://developer.nvidia.com/cudnn">cuDNN library</a> from NVIDIA. Previous versions were built against cuDNN v5.1, so for installations running the GPU version of TensorFlow this means that you will need to install an updated version of cuDNN along with TensorFlow v1.3.</p>
 <p>Updated installation instructions are available here: <a href="https://tensorflow.rstudio.com/tensorflow/articles/installation_gpu.html">https://tensorflow.rstudio.com/tensorflow/installation_gpu.html</a>.</p>

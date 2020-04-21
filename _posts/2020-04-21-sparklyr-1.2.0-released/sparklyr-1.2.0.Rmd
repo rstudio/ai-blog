@@ -1,7 +1,7 @@
 ---
 title: "sparklyr 1.2: Foreach, Spark 3.0 and Databricks Connect"
 description: |
-  New sparklyr release is now available. This sparklyr 1.2 release features new functionalities such as support for Databricks Connect, a Spark backend for the 'foreach' package, inter-op improvements for working with Spark 3.0 preview, as well as a number of bug fixes and improvements addressing user-visible pain points.
+  A new sparklyr release is now available. This sparklyr 1.2 release features new functionalities such as support for Databricks Connect, a Spark backend for the 'foreach' package, inter-op improvements for working with Spark 3.0 preview, as well as a number of bug fixes and improvements addressing user-visible pain points.
 author:
   - name: Yitao Li
     url: https://github.com/yl790
@@ -27,6 +27,9 @@ Behold the glory that is [sparklyr](https://sparklyr.ai) 1.2! In this release, t
 
 - A `registerDoSpark` method to create a [foreach]((https://cran.r-project.org/web/packages/foreach/index.html)) parallel backend powered by Spark that enables hundreds of existing R packages to run in Spark.
 - Support for [Databricks Connect](https://docs.databricks.com/dev-tools/databricks-connect.html), allowing `sparklyr` to connect to remote Databricks clusters.
+- Improved capabilities to work with Spark SQL structs and arrays of Spark SQL structs in Spark 2.4 or above
+   * `sdf_collect` can now collect them into equivalent lists or named lists in R
+   * `dplyr` grammar can be applied to successfully query nested attributes within such datums
 
 A number of inter-op issues observed with `sparklyr` and Spark 3.0 preview were also addressed recently, in hope that by the time Spark 3.0 officially graces us with its presence, `sparklyr` will be fully ready to work with it. Most notably, key features such as `spark_submit`, `sdf_bind_rows`, and standalone connections are now finally working with Spark 3.0 preview.
 
@@ -57,9 +60,9 @@ foreach(i = 1:3, .combine = 'c') %dopar% {
 [1] 1.000000 1.414214 1.732051
 ```
 
-Now, since many R packages are based on `foreach` to perform parallel computation, we can now make use of all those great packages in Spark as well!
+Since many R packages are based on `foreach` to perform parallel computation, we can now make use of all those great packages in Spark as well!
 
-For instance, we can use [parsnip](https://tidymodels.github.io/parsnip/) and the [tune](https://tidymodels.github.io/tune/) package with data from [mlbench](https://CRAN.R-project.org/package=mlbench) to perform hyper-parameter tuning in Spark with ease:
+For instance, we can use [parsnip](https://tidymodels.github.io/parsnip/) and the [tune](https://tidymodels.github.io/tune/) package with data from [mlbench](https://CRAN.R-project.org/package=mlbench) to perform hyperparameter tuning in Spark with ease:
 
 ```{r echo=TRUE, eval=FALSE}
 library(tune)
@@ -67,18 +70,18 @@ library(parsnip)
 library(mlbench)
 
 data(Ionosphere)
-svm_rbf(cost = tune(), rbf_sigma = tune()) %>% 
+svm_rbf(cost = tune(), rbf_sigma = tune()) %>%
   set_mode("classification") %>%
   set_engine("kernlab") %>%
   tune_grid(Class ~ .,
-    resamples = rsample::bootstraps(dplyr::select(Ionosphere, -V2), times = 30), 
+    resamples = rsample::bootstraps(dplyr::select(Ionosphere, -V2), times = 30),
     control = control_grid(verbose = FALSE))
 ```
 ```
-# Bootstrap sampling 
+# Bootstrap sampling
 # A tibble: 30 x 4
-   splits            id          .metrics          .notes          
- * <list>            <chr>       <list>            <list>          
+   splits            id          .metrics          .notes
+ * <list>            <chr>       <list>            <list>
  1 <split [351/124]> Bootstrap01 <tibble [10 × 5]> <tibble [0 × 1]>
  2 <split [351/126]> Bootstrap02 <tibble [10 × 5]> <tibble [0 × 1]>
  3 <split [351/125]> Bootstrap03 <tibble [10 × 5]> <tibble [0 × 1]>
@@ -92,7 +95,7 @@ svm_rbf(cost = tune(), rbf_sigma = tune()) %>%
 # … with 20 more rows
 ```
 
-The Spark connection was already registered so the code ran in Spark without any additional changes, we can verify this was the case by navigating to the Spark web interface:
+The Spark connection was already registered, so the code ran in Spark without any additional changes. We can verify this was the case by navigating to the Spark web interface:
 
 ![](images/spark-backend-foreach-package.png)
 
@@ -100,7 +103,7 @@ The Spark connection was already registered so the code ran in Spark without any
 
 [Databricks Connect](https://docs.databricks.com/dev-tools/databricks-connect.html) allows you to connect your favorite IDE (like [RStudio](https://rstudio.com/products/rstudio/download/)!) to a Spark [Databricks](https://databricks.com/) cluster.
 
-You will first have to install the `databricks-connect` package as described in our  [README](https://github.com/sparklyr/sparklyr#connecting-through-databricks-connect) and also start a Databricks cluster, but once that's ready, connecting to the remote cluster is as easy as running:
+You will first have to install the `databricks-connect` package as described in our [README](https://github.com/sparklyr/sparklyr#connecting-through-databricks-connect) and start a Databricks cluster, but once that's ready, connecting to the remote cluster is as easy as running:
 
 ```{r echo=TRUE, eval=FALSE}
 sc <- spark_connect(
@@ -112,6 +115,90 @@ sc <- spark_connect(
 
 That's about it, you are now remotely connected to a Databricks cluster from your local R session.
 
+## Better support for Spark SQL structs
+
+If you previously used `sdf_collect` to deserialize structurally complex Spark dataframes into their equivalents in R, you likely have noticed Spark SQL struct columns were only mapped into JSON strings in R, which was non-ideal. You might also have run into a much dreaded `java.lang.IllegalArgumentException: Invalid type list` error when using `dplyr` to query nested attributes from any struct column of a Spark dataframe in sparklyr.
+
+Unfortunately, often times in real-world Spark use cases, data describing entities comprising of sub-entities (e.g., a product catalog of all hardware components of some computers) needs to be denormalized / shaped in an object-oriented manner in the form of Spark SQL structs to allow efficient read queries. When sparklyr had the limitations mentioned above, users often had to invent their own workarounds when querying Spark struct columns, which explained why there was a mass popular demand for sparklyr to have better support for such use cases.
+
+The good news is with sparklyr-1.2.0, those limitations no longer exist any more when working running with Spark 2.4 or above.
+
+As a concrete example, consider the following:
+
+```{r echo=TRUE, eval=FALSE}
+library(tibble)
+library(sparklyr)
+library(dplyr)
+
+# Let's say we have a product catalog of computers and each computer has some attributes
+computers_df <- tibble(
+  id = seq(1, 2),
+  attributes = list(
+    # computer 1
+    list(
+      # processor of computer 1
+      processor = list(freq = 2.4, num_cores = 256),
+      # price of computer 1
+      price = 100
+   ),
+   # computer 2
+   list(
+      # processor of computer 2
+     processor = list(freq = 1.6, num_cores = 512),
+      # price of computer 2
+     price = 133
+   )
+  )
+)
+
+# and we have connected to Spark 2.4 or above
+sc <- spark_connect(master = "local", version = "2.4")
+
+```
+
+For this example, let's pretend we are querying structurally complex data that exists in Spark only and none of the columns has been deserialized into its equivalent in R yet. So, we shall copy `computers_df` into a Spark dataframe named `computers_sdf`, delete `computers_df`, and only query `computers_sdf` from now on.
+
+```{r echo=TRUE, eval=FALSE}
+computers_sdf <- sdf_copy_to(sc, computers_df, overwrite = TRUE)
+rm(computers_df)
+```
+
+A typical `dplyr` use case involving `computers_sdf` would be the following:
+
+```{r echo=TRUE, eval=FALSE}
+high_freq_computers <- computers_sdf %>%
+                       filter(attributes.processor.freq >= 2) %>%
+                       sdf_collect()
+```
+
+As previously mentioned, before sparklyr-1.2.0, such query would fail with `Error: java.lang.IllegalArgumentException: Invalid type list`.
+
+Whereas with sparklyr-1.2.0, the expected result is returned in the following form:
+
+```
+# A tibble: 1 x 2
+     id attributes
+  <int> <list>
+1     1 <named list [2]>
+```
+
+ where `high_freq_computers$attributes` is
+
+```
+[[1]]
+[[1]]$price
+[1] 100
+
+[[1]]$processor
+[[1]]$processor$freq
+[1] 2.4
+
+[[1]]$processor$num_cores
+[1] 256
+```
+, as expected.
+
+
 ## And More!
 
 Last but not least, we heard about a number of pain points `sparklyr` users have run into, and have addressed many of them in this release as well. For example:
@@ -119,8 +206,8 @@ Last but not least, we heard about a number of pain points `sparklyr` users have
  -  Date type in R is now correctly serialized into Spark SQL date type by `sdf_copy_to`
  -  `<spark dataframe> %>% print(n = 20)` now actually prints 20 rows as expected instead of 10
  - `spark_connect(master = "local")` will emit a more informative error message if it's failing because the loopback interface is not up
- 
-Just name a few. We want to thank the open source community for their continuous feedback on `sparklyr`, and are looking forward to incorporating more of that feedback to make `sparklyr` even better in the future.
+
+... to just name a few. We want to thank the open source community for their continuous feedback on `sparklyr`, and are looking forward to incorporating more of that feedback to make `sparklyr` even better in the future.
 
 Finally, in chronological order, we wish to thank the following individuals for contributing to `sparklyr` v1.2.0: [zero323](https://github.com/zero323), [Andy Zhang](https://github.com/Loquats), [Yitao Li](https://github.com/yl790),
 [Javier Luraschi](https://github.com/javierluraschi), [Hossein Falaki](https://github.com/falaki), [Lu Wang](https://github.com/lu-wang-dl), and [Samuel Macedo](https://github.com/samuelmacedo83). Great job everyone!

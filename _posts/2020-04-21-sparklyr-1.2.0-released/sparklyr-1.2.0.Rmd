@@ -25,11 +25,9 @@ knitr::opts_chunk$set(echo = FALSE)
 
 Behold the glory that is [sparklyr](https://sparklyr.ai) 1.2! In this release, the following new hotnesses have emerged into spotlight:
 
-- A `registerDoSpark` method to create a [foreach]((https://cran.r-project.org/web/packages/foreach/index.html)) parallel backend powered by Spark that enables hundreds of existing R packages to run in Spark.
-- Support for [Databricks Connect](https://docs.databricks.com/dev-tools/databricks-connect.html), allowing `sparklyr` to connect to remote Databricks clusters.
-- Improved capabilities to work with Spark SQL structs and arrays of Spark SQL structs in Spark 2.4 or above
-   * `sdf_collect` can now collect them into equivalent lists or named lists in R
-   * `dplyr` grammar can be applied to successfully query nested attributes within such datums
+- A `registerDoSpark` method to create a [foreach](#foreach) parallel backend powered by Spark that enables hundreds of existing R packages to run in Spark.
+- Support for [Databricks Connect](#databricks-connect), allowing `sparklyr` to connect to remote Databricks clusters.
+- Improved support for Spark [structures](#structures) when collecting and querying their nested attributes with `dplyr`.
 
 A number of inter-op issues observed with `sparklyr` and Spark 3.0 preview were also addressed recently, in hope that by the time Spark 3.0 officially graces us with its presence, `sparklyr` will be fully ready to work with it. Most notably, key features such as `spark_submit`, `sdf_bind_rows`, and standalone connections are now finally working with Spark 3.0 preview.
 
@@ -115,65 +113,49 @@ sc <- spark_connect(
 
 That's about it, you are now remotely connected to a Databricks cluster from your local R session.
 
-## Better support for Spark SQL structs
+## Structures
 
 If you previously used `sdf_collect` to deserialize structurally complex Spark dataframes into their equivalents in R, you likely have noticed Spark SQL struct columns were only mapped into JSON strings in R, which was non-ideal. You might also have run into a much dreaded `java.lang.IllegalArgumentException: Invalid type list` error when using `dplyr` to query nested attributes from any struct column of a Spark dataframe in sparklyr.
 
 Unfortunately, often times in real-world Spark use cases, data describing entities comprising of sub-entities (e.g., a product catalog of all hardware components of some computers) needs to be denormalized / shaped in an object-oriented manner in the form of Spark SQL structs to allow efficient read queries. When sparklyr had the limitations mentioned above, users often had to invent their own workarounds when querying Spark struct columns, which explained why there was a mass popular demand for sparklyr to have better support for such use cases.
 
-The good news is with sparklyr-1.2.0, those limitations no longer exist any more when working running with Spark 2.4 or above.
+The good news is with `sparklyr` 1.2.0, those limitations no longer exist any more when working running with Spark 2.4 or above.
 
-As a concrete example, consider the following:
+As a concrete example, consider the following catalog of computers:
 
 ```{r echo=TRUE, eval=FALSE}
 library(tibble)
 library(sparklyr)
 library(dplyr)
 
-# Let's say we have a product catalog of computers and each computer has some attributes
-computers_df <- tibble(
+computers <- tibble(
   id = seq(1, 2),
   attributes = list(
-    # computer 1
     list(
-      # processor of computer 1
       processor = list(freq = 2.4, num_cores = 256),
-      # price of computer 1
       price = 100
    ),
-   # computer 2
    list(
-      # processor of computer 2
      processor = list(freq = 1.6, num_cores = 512),
-      # price of computer 2
      price = 133
    )
   )
 )
 
-# and we have connected to Spark 2.4 or above
-sc <- spark_connect(master = "local", version = "2.4")
-
+computers <- copy_to(sc, computers, overwrite = TRUE)
 ```
 
-For this example, let's pretend we are querying structurally complex data that exists in Spark only and none of the columns has been deserialized into its equivalent in R yet. So, we shall copy `computers_df` into a Spark dataframe named `computers_sdf`, delete `computers_df`, and only query `computers_sdf` from now on.
+A typical `dplyr` use case involving `computers` would be the following:
 
 ```{r echo=TRUE, eval=FALSE}
-computers_sdf <- sdf_copy_to(sc, computers_df, overwrite = TRUE)
-rm(computers_df)
-```
-
-A typical `dplyr` use case involving `computers_sdf` would be the following:
-
-```{r echo=TRUE, eval=FALSE}
-high_freq_computers <- computers_sdf %>%
+high_freq_computers <- computers %>%
                        filter(attributes.processor.freq >= 2) %>%
-                       sdf_collect()
+                       collect()
 ```
 
-As previously mentioned, before sparklyr-1.2.0, such query would fail with `Error: java.lang.IllegalArgumentException: Invalid type list`.
+As previously mentioned, before `sparklyr` 1.2.0, such query would fail with `Error: java.lang.IllegalArgumentException: Invalid type list`.
 
-Whereas with sparklyr-1.2.0, the expected result is returned in the following form:
+Whereas with `sparklyr` 1.2.0, the expected result is returned in the following form:
 
 ```
 # A tibble: 1 x 2
@@ -182,7 +164,7 @@ Whereas with sparklyr-1.2.0, the expected result is returned in the following fo
 1     1 <named list [2]>
 ```
 
- where `high_freq_computers$attributes` is
+where `high_freq_computers$attributes` is what we would expect:
 
 ```
 [[1]]
@@ -196,8 +178,6 @@ Whereas with sparklyr-1.2.0, the expected result is returned in the following fo
 [[1]]$processor$num_cores
 [1] 256
 ```
-, as expected.
-
 
 ## And More!
 
@@ -209,7 +189,7 @@ Last but not least, we heard about a number of pain points `sparklyr` users have
 
 ... to just name a few. We want to thank the open source community for their continuous feedback on `sparklyr`, and are looking forward to incorporating more of that feedback to make `sparklyr` even better in the future.
 
-Finally, in chronological order, we wish to thank the following individuals for contributing to `sparklyr` v1.2.0: [zero323](https://github.com/zero323), [Andy Zhang](https://github.com/Loquats), [Yitao Li](https://github.com/yl790),
+Finally, in chronological order, we wish to thank the following individuals for contributing to `sparklyr` 1.2.0: [zero323](https://github.com/zero323), [Andy Zhang](https://github.com/Loquats), [Yitao Li](https://github.com/yl790),
 [Javier Luraschi](https://github.com/javierluraschi), [Hossein Falaki](https://github.com/falaki), [Lu Wang](https://github.com/lu-wang-dl), and [Samuel Macedo](https://github.com/samuelmacedo83). Great job everyone!
 
 If you need to catch up on `sparklyr`, please visit [sparklyr.ai](https://sparklyr.ai), [spark.rstudio.com](https://spark.rstudio.com), or some of the previous release posts: [sparklyr 1.1](https://blog.rstudio.com/2020/01/29/sparklyr-1-1/) and [sparklyr 1.0](https://blog.rstudio.com/2019/03/15/sparklyr-1-0/).

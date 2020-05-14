@@ -1,7 +1,7 @@
 ---
 title: "Hacking deep learning: model inversion attack by example"
 description: > 
-  Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under "model inversion" allow to spy on raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy. 
+  Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under "model inversion" allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy. 
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -23,14 +23,13 @@ preview: images/results.png
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-
 How private are individual data in the context of machine learning models? The data used to train the model, say. There are
 types of models where the answer is simple. Take k-nearest-neighbors, for example. There *is not* even a model without the
 complete dataset. Or support vector machines. There is no model without the support vectors. But neural networks? They're just
 some composition of functions, -- no data included.
 
-The same is true for data fed to a deployed deep-learning model. It's pretty unlikely one could invert the final softmax output from a
-big ResNet and get back the raw input data.
+The same is true for data fed to a deployed deep-learning model. It's pretty unlikely one could invert the final softmax
+output from a big ResNet and get back the raw input data.
 
 In theory, then, "hacking" a standard neural net to spy on input data sounds illusory. In practice, however, there is always
 some real-world *context*. The context may be other datasets, publicly available, that can be linked to the "private" data in
@@ -39,7 +38,7 @@ dig up complementary information from public sources, and de-anonymize records a
 often be used in "black-box" attacks, ones that presuppose no insider information about the model to be hacked.
 
 But context can also be structural, such as in the scenario demonstrated in this post. For example, assume a distributed
-model, where sets of layers run on different devices (embedded devices or mobile phones, for example). (A scenario like that
+model, where sets of layers run on different devices -- embedded devices or mobile phones, for example. (A scenario like that
 is sometimes seen as "white-box"[@7536387], but in common understanding, white-box attacks probably presuppose some more
 insider knowledge, such as access to model architecture or even, weights. I'd therefore prefer calling this white-ish at
 most.) --- Now assume that in this context, it is possible to intercept, and interact with, a system that executes the deeper
@@ -47,7 +46,7 @@ layers of the model. Based on that system's intermediate-level output, it is pos
 that is, to reconstruct the input data fed into the system.
 
 In this post, we'll demonstrate such a model inversion attack, basically porting the approach given in a
-[notebook](https://github.com/OpenMined/PySyft/blob/master/examples/tutorials/advanced/privacy_attacks/Tutorial%201%20-%20Black%20box%20model%20inversion.ipynb Sy)
+[notebook](https://github.com/OpenMined/PySyft/blob/master/examples/tutorials/advanced/privacy_attacks/Tutorial%201%20-%20Black%20box%20model%20inversion.ipynb%20Sy)
 found in the [PySyft](https://github.com/OpenMined/PySyft) repository. We then experiment with different levels of
 $\epsilon$-privacy, exploring impact on reconstruction success. This second part will make use of TensorFlow Privacy,
 introduced in a [previous blog post](https://blogs.rstudio.com/ai/posts/2019-12-20-differential-privacy/).
@@ -66,11 +65,10 @@ similar as possible to the original training data assumed. Thinking of images, f
 of successive layers representing successively coarse-grained features, we want that the surrogate data to share as many
 representation spaces with the real data as possible -- up to the very highest layers before final classification, ideally.
 
-If we wanted to use classical MNIST as an example, one thing we could do is
-to only use some of the digits for training the "real" model; and the rest, for training the adversary. Let's try something
-different though, something that might make the undertaking harder as well as easier at the same time. Harder, because the
-dataset features exemplars more complex than MNIST digits; easier because of the same reason: More could possibly be learned,
-by the adversary, from a complex task.
+If we wanted to use classical MNIST as an example, one thing we could do is to only use some of the digits for training the
+"real" model; and the rest, for training the adversary. Let's try something different though, something that might make the
+undertaking harder as well as easier at the same time. Harder, because the dataset features exemplars more complex than MNIST
+digits; easier because of the same reason: More could possibly be learned, by the adversary, from a complex task.
 
 Originally designed to develop a machine model of concept learning and generalization [@Lake1332], the
 [OmniGlot](https://github.com/brendenlake/omniglot/) dataset incorporates characters from fifty alphabets, split into two
@@ -223,8 +221,8 @@ model <- target_model()
 ```
 
 The overall model is a Keras custom model, so we train it [TensorFlow 2.x -
-style](https://tensorflow.rstudio.com/tutorials/advanced/). After ten epochs, training and validation accuracy are at
-~0.84\ and~ 0.73, respectively -- not bad at all for a 20-class discrimination task.
+style](https://tensorflow.rstudio.com/tutorials/advanced/). After ten epochs, training and validation accuracy are at \~0.84
+and \~0.73, respectively -- not bad at all for a 20-class discrimination task.
 
 ```{r}
 loss <- loss_sparse_categorical_crossentropy
@@ -298,12 +296,12 @@ Now, we train the adversary.
 
 The adversary's general strategy will be:
 
--   Feed its small, surrogate dataset to the on-device model. The output received can be regarded as a (highly) *compressed*
-    version of the original images.
--   Pass that "compressed" version as input to its own model, which tries to reconstruct the original images from the sparse
-    code.
--   Compare original images (those from the surrogate dataset) to the reconstruction pixel-wise. The goal is to minimize the
-    mean (squared, say) error.
+-   **Feed its small, surrogate dataset to the on-device model.** The output received can be regarded as a (highly)
+    *compressed* version of the original images.
+-   P**ass that "compressed" version as input to its own model,** which tries to reconstruct the original images from the
+    sparse code.
+-   **Compare original images (those from the surrogate dataset) to the reconstruction pixel-wise.** The goal is to minimize
+    the mean (squared, say) error.
 
 Doesn't this sound a lot like the decoding side of an autoencoder? No wonder the attacker model is a deconvolutional network.
 Its input -- equivalently, the on-device model's output -- is of size `batch_size x 1 x 1 x 32`. That is, the information is

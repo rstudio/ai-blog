@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+  <title>Hacking deep learning: model inversion attack by example</title>
+
+  <meta property="description" itemprop="description" content="Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under &quot;model inversion&quot; allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy."/>
+
+
+  <!--  https://schema.org/Article -->
+  <meta property="article:published" itemprop="datePublished" content="2020-05-15"/>
+  <meta property="article:created" itemprop="dateCreated" content="2020-05-15"/>
+  <meta name="article:author" content="Sigrid Keydana"/>
+
+  <!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+  <meta property="og:title" content="Hacking deep learning: model inversion attack by example"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:description" content="Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under &quot;model inversion&quot; allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy."/>
+  <meta property="og:locale" content="en_US"/>
+
+  <!--  https://dev.twitter.com/cards/types/summary -->
+  <meta property="twitter:card" content="summary"/>
+  <meta property="twitter:title" content="Hacking deep learning: model inversion attack by example"/>
+  <meta property="twitter:description" content="Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under &quot;model inversion&quot; allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy."/>
+
+  <!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Human-level concept learning through probabilistic program induction;citation_publication_date=2015;citation_publisher=American Association for the Advancement of Science;citation_volume=350;citation_doi=10.1126/science.aab3050;citation_issn=0036-8075;citation_author=Brenden M. Lake;citation_author=Ruslan Salakhutdinov;citation_author=Joshua B. Tenenbaum"/>
+  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_publication_date=2016;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
+  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publication_date=2006;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
+  <meta name="citation_reference" content="citation_title=A methodology for formalizing model-inversion attacks;citation_publication_date=2016;citation_author=X. Wu;citation_author=M. Fredrikson;citation_author=S. Jha;citation_author=J. F. Naughton"/>
+  <meta name="citation_reference" content="citation_title=Privacy in pharmacogenetics: An end-to-end case study of personalized warfarin dosing;citation_publication_date=2014;citation_publisher=USENIX Association;citation_author=Matthew Fredrikson;citation_author=Eric Lantz;citation_author=Somesh Jha;citation_author=Simon Lin;citation_author=David Page;citation_author=Thomas Ristenpart"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+  <script type="text/json" id="radix-rmarkdown-metadata">
+  {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["title","description","author","slug","bibliography","date","categories","output","preview"]}},"value":[{"type":"character","attributes":{},"value":["Hacking deep learning: model inversion attack by example"]},{"type":"character","attributes":{},"value":["Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under \"model inversion\" allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy. \n"]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydanamodelinversion"]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["05-15-2020"]},{"type":"character","attributes":{},"value":["R","Privacy & Security","TensorFlow/Keras"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/results.png"]}]}
+  </script>
+  <!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","images/actual_test_images.png","images/attacker_ds.png","images/intercepted_eps_12.5.png","images/intercepted_eps_4.0.png","images/intercepted_eps_84.7.png","images/recon_noeps_dropout.png","images/results.png","images/training_set_images.png","model_inversion_differential_privacy_files/bowser-1.9.3/bowser.min.js","model_inversion_differential_privacy_files/distill-2.2.21/template.v2.js","model_inversion_differential_privacy_files/header-attrs-2.1/header-attrs.js","model_inversion_differential_privacy_files/jquery-1.11.3/jquery.min.js","model_inversion_differential_privacy_files/webcomponents-2.0.0/webcomponents.js"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+  <!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+  <style type="text/css">
+
+  body {
+    background-color: white;
+  }
+
+  .pandoc-table {
+    width: 100%;
+  }
+
+  .pandoc-table>caption {
+    margin-bottom: 10px;
+  }
+
+  .pandoc-table th:not([align]) {
+    text-align: left;
+  }
+
+  .pagedtable-footer {
+    font-size: 15px;
+  }
+
+  .html-widget {
+    margin-bottom: 2.0em;
+  }
+
+  .l-screen-inset {
+    padding-right: 16px;
+  }
+
+  .l-screen .caption {
+    margin-left: 10px;
+  }
+
+  .shaded {
+    background: rgb(247, 247, 247);
+    padding-top: 20px;
+    padding-bottom: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .shaded .html-widget {
+    margin-bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .shaded .shaded-content {
+    background: white;
+  }
+
+  .text-output {
+    margin-top: 0;
+    line-height: 1.5em;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  d-article {
+    padding-bottom: 30px;
+  }
+
+  d-appendix {
+    padding-top: 30px;
+  }
+
+  d-article>p>img {
+    width: 100%;
+  }
+
+  d-article iframe {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 2.0em;
+    width: 100%;
+  }
+
+  figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+
+  /* CSS for table of contents */
+
+  .d-toc {
+    color: rgba(0,0,0,0.8);
+    font-size: 0.8em;
+    line-height: 1em;
+  }
+
+  .d-toc-header {
+    font-size: 0.6rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    margin-top: 0;
+    margin-bottom: 1.3em;
+  }
+
+  .d-toc a {
+    border-bottom: none;
+  }
+
+  .d-toc ul {
+    padding-left: 0;
+  }
+
+  .d-toc li>ul {
+    padding-top: 0.8em;
+    padding-left: 16px;
+    margin-bottom: 0.6em;
+  }
+
+  .d-toc ul,
+  .d-toc li {
+    list-style-type: none;
+  }
+
+  .d-toc li {
+    margin-bottom: 0.9em;
+  }
+
+  .d-toc-separator {
+    margin-top: 20px;
+    margin-bottom: 2em;
+  }
+
+  .d-article-with-toc {
+    border-top: none;
+    padding-top: 0;
+  }
+
+
+
+  /* Tweak code blocks (note that this CSS is repeated above in an injection
+     into the d-code shadow dom) */
+
+  d-code {
+    overflow-x: auto !important;
+  }
+
+  pre.d-code code.d-code {
+    padding-left: 10px;
+    font-size: 12px;
+    border-left: 2px solid rgba(0,0,0,0.1);
+  }
+
+  pre.text-output {
+
+    font-size: 12px;
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+
+  @media(min-width: 768px) {
+
+  d-code {
+    overflow-x: visible !important;
+  }
+
+  pre.d-code code.d-code  {
+      padding-left: 18px;
+      font-size: 14px;
+  }
+  pre.text-output {
+    font-size: 14px;
+  }
+  }
+
+  /* Figure */
+
+  .figure {
+    position: relative;
+    margin-bottom: 2.5em;
+    margin-top: 1.5em;
+  }
+
+  .figure img {
+    width: 100%;
+  }
+
+  .figure .caption {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    line-height: 1.5em;
+  }
+
+  .figure img.external {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+
+  .figure .caption a {
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .figure .caption b,
+  .figure .caption strong, {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 1.0);
+  }
+
+
+
+  /* Tweak 1000px media break to show more text */
+
+  @media(min-width: 1000px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 16px;
+    }
+
+    .grid {
+      grid-column-gap: 16px;
+    }
+
+    d-article {
+      font-size: 1.06rem;
+      line-height: 1.7em;
+    }
+    figure .caption, .figure .caption, figure figcaption {
+      font-size: 13px;
+    }
+  }
+
+  @media(min-width: 1180px) {
+    .base-grid,
+    distill-header,
+    d-title,
+    d-abstract,
+    d-article,
+    d-appendix,
+    distill-appendix,
+    d-byline,
+    d-footnote-list,
+    d-citation-list,
+    distill-footer {
+      grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+      grid-column-gap: 32px;
+    }
+
+    .grid {
+      grid-column-gap: 32px;
+    }
+  }
+
+
+  /* Get the citation styles for the appendix (not auto-injected on render since
+     we do our own rendering of the citation appendix) */
+
+  d-appendix .citation-appendix,
+  .d-appendix .citation-appendix {
+    font-size: 11px;
+    line-height: 15px;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    padding-left: 18px;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.02);
+    padding: 10px 18px;
+    border-radius: 3px;
+    color: rgba(150, 150, 150, 1);
+    overflow: hidden;
+    margin-top: -12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+
+  /* Social footer */
+
+  .social_footer {
+    margin-top: 30px;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.67);
+  }
+
+  .disqus-comments {
+    margin-right: 30px;
+  }
+
+  .disqus-comment-count {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+
+  #disqus_thread {
+    margin-top: 30px;
+  }
+
+  .article-sharing a {
+    border-bottom: none;
+    margin-right: 8px;
+  }
+
+  .article-sharing a:hover {
+    border-bottom: none;
+  }
+
+  .sidebar-section.subscribe {
+    font-size: 12px;
+    line-height: 1.6em;
+  }
+
+  .subscribe p {
+    margin-bottom: 0.5em;
+  }
+
+
+  .article-footer .subscribe {
+    font-size: 15px;
+    margin-top: 45px;
+  }
+
+
+  /* Improve display for browsers without grid (IE/Edge <= 15) */
+
+  .downlevel {
+    line-height: 1.6em;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+  }
+
+  .downlevel .d-title {
+    padding-top: 6rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .downlevel .d-title h1 {
+    font-size: 50px;
+    font-weight: 700;
+    line-height: 1.1em;
+    margin: 0 0 0.5rem;
+  }
+
+  .downlevel .d-title p {
+    font-weight: 300;
+    font-size: 1.2rem;
+    line-height: 1.55em;
+    margin-top: 0;
+  }
+
+  .downlevel .d-byline {
+    padding-top: 0.8em;
+    padding-bottom: 0.8em;
+    font-size: 0.8rem;
+    line-height: 1.8em;
+  }
+
+  .downlevel .section-separator {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .downlevel .d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+
+
+  .downlevel .d-appendix {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    font-size: 0.8em;
+    line-height: 1.7em;
+    margin-bottom: 0;
+    color: rgba(0,0,0,0.5);
+    padding-top: 40px;
+    padding-bottom: 48px;
+  }
+
+  .downlevel .footnotes ol {
+    padding-left: 13px;
+  }
+
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  @media(min-width: 768px) {
+    .downlevel .base-grid,
+    .downlevel .distill-header,
+    .downlevel .d-title,
+    .downlevel .d-abstract,
+    .downlevel .d-article,
+    .downlevel .d-appendix,
+    .downlevel .distill-appendix,
+    .downlevel .d-byline,
+    .downlevel .d-footnote-list,
+    .downlevel .d-citation-list,
+    .downlevel .distill-footer,
+    .downlevel .appendix-bottom,
+    .downlevel .posts-container {
+    padding-left: 150px;
+    padding-right: 150px;
+    max-width: 900px;
+  }
+  }
+
+  .downlevel pre code {
+    display: block;
+    border-left: 2px solid rgba(0, 0, 0, .1);
+    padding: 0 0 0 20px;
+    font-size: 14px;
+  }
+
+  .downlevel code, .downlevel pre {
+    color: black;
+    background: none;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    text-align: left;
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    word-wrap: normal;
+    line-height: 1.5;
+
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    tab-size: 4;
+
+    -webkit-hyphens: none;
+    -moz-hyphens: none;
+    -ms-hyphens: none;
+    hyphens: none;
+  }
+
+  </style>
+
+  <script type="application/javascript">
+
+  function is_downlevel_browser() {
+    if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                   window.navigator.userAgent)) {
+      return true;
+    } else {
+      return window.load_distill_framework === undefined;
+    }
+  }
+
+  // show body when load is complete
+  function on_load_complete() {
+
+    // set body to visible
+    document.body.style.visibility = 'visible';
+
+    // force redraw for leaflet widgets
+    if (window.HTMLWidgets) {
+      var maps = window.HTMLWidgets.findAll(".leaflet");
+      $.each(maps, function(i, el) {
+        var map = this.getMap();
+        map.invalidateSize();
+        map.eachLayer(function(layer) {
+          if (layer instanceof L.TileLayer)
+            layer.redraw();
+        });
+      });
+    }
+
+    // trigger 'shown' so htmlwidgets resize
+    $('d-article').trigger('shown');
+  }
+
+  function init_distill() {
+
+    init_common();
+
+    // create front matter
+    var front_matter = $('<d-front-matter></d-front-matter>');
+    $('#distill-front-matter').wrap(front_matter);
+
+    // create d-title
+    $('.d-title').changeElementType('d-title');
+
+    // create d-byline
+    var byline = $('<d-byline></d-byline>');
+    $('.d-byline').replaceWith(byline);
+
+    // create d-article
+    var article = $('<d-article></d-article>');
+    $('.d-article').wrap(article).children().unwrap();
+
+    // move posts container into article
+    $('.posts-container').appendTo($('d-article'));
+
+    // create d-appendix
+    $('.d-appendix').changeElementType('d-appendix');
+
+    // create d-bibliography
+    var bibliography = $('<d-bibliography></d-bibliography>');
+    $('#distill-bibliography').wrap(bibliography);
+
+    // flag indicating that we have appendix items
+    var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+    // replace citations with <d-cite>
+    $('.citation').each(function(i, val) {
+      appendix = true;
+      var cites = $(this).attr('data-cites').split(" ");
+      var dt_cite = $('<d-cite></d-cite>');
+      dt_cite.attr('key', cites.join());
+      $(this).replaceWith(dt_cite);
+    });
+    // remove refs
+    $('#refs').remove();
+
+    // replace footnotes with <d-footnote>
+    $('.footnote-ref').each(function(i, val) {
+      appendix = true;
+      var href = $(this).attr('href');
+      var id = href.replace('#', '');
+      var fn = $('#' + id);
+      var fn_p = $('#' + id + '>p');
+      fn_p.find('.footnote-back').remove();
+      var text = fn_p.html();
+      var dtfn = $('<d-footnote></d-footnote>');
+      dtfn.html(text);
+      $(this).replaceWith(dtfn);
+    });
+    // remove footnotes
+    $('.footnotes').remove();
+
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      var id = $(this).attr('id');
+      $('.d-toc a[href="#' + id + '"]').parent().remove();
+      appendix = true;
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+    });
+
+    // show d-appendix if we have appendix content
+    $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+    // replace code blocks with d-code
+    $('pre>code').each(function(i, val) {
+      var code = $(this);
+      var pre = code.parent();
+      var clz = "";
+      var language = pre.attr('class');
+      if (language) {
+        // map unknown languages to "clike" (without this they just dissapear)
+        if ($.inArray(language, ["bash", "clike", "css", "go", "html",
+                                 "javascript", "js", "julia", "lua", "markdown",
+                                 "markup", "mathml", "python", "svg", "xml"]) == -1)
+          language = "clike";
+        language = ' language="' + language + '"';
+        var dt_code = $('<d-code block' + language + clz + '></d-code>');
+        dt_code.text(code.text());
+        pre.replaceWith(dt_code);
+      } else {
+        code.addClass('text-output').unwrap().changeElementType('pre');
+      }
+    });
+
+    // localize layout chunks to just output
+    $('.layout-chunk').each(function(i, val) {
+
+      // capture layout
+      var layout = $(this).attr('data-layout');
+
+      // apply layout to markdown level block elements
+      var elements = $(this).children().not('d-code, pre.text-output, script');
+      elements.each(function(i, el) {
+        var layout_div = $('<div class="' + layout + '"></div>');
+        if (layout_div.hasClass('shaded')) {
+          var shaded_content = $('<div class="shaded-content"></div>');
+          $(this).wrap(shaded_content);
+          $(this).parent().wrap(layout_div);
+        } else {
+          $(this).wrap(layout_div);
+        }
+      });
+
+
+      // unwrap the layout-chunk div
+      $(this).children().unwrap();
+    });
+
+    // load distill framework
+    load_distill_framework();
+
+    // wait for window.distillRunlevel == 4 to do post processing
+    function distill_post_process() {
+
+      if (!window.distillRunlevel || window.distillRunlevel < 4)
+        return;
+
+      // hide author/affiliations entirely if we have no authors
+      var front_matter = JSON.parse($("#distill-front-matter").html());
+      var have_authors = front_matter.authors && front_matter.authors.length > 0;
+      if (!have_authors)
+        $('d-byline').addClass('hidden');
+
+      // table of contents
+      if (have_authors) // adjust border if we are in authors
+        $('.d-toc').parent().addClass('d-article-with-toc');
+
+      // strip links that point to #
+      $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+      // hide elements of author/affiliations grid that have no value
+      function hide_byline_column(caption) {
+        $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+      }
+
+      // affiliations
+      var have_affiliations = false;
+      for (var i = 0; i<front_matter.authors.length; ++i) {
+        var author = front_matter.authors[i];
+        if (author.affiliation !== "&nbsp;") {
+          have_affiliations = true;
+          break;
+        }
+      }
+      if (!have_affiliations)
+        $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+      // published date
+      if (!front_matter.publishedDate)
+        hide_byline_column("Published");
+
+      // document object identifier
+      var doi = $('d-byline').find('h3:contains("DOI")');
+      var doi_p = doi.next().empty();
+      if (!front_matter.doi) {
+        // if we have a citation and valid citationText then link to that
+        if ($('#citation').length > 0 && front_matter.citationText) {
+          doi.html('Citation');
+          $('<a href="#citation"></a>')
+            .text(front_matter.citationText)
+            .appendTo(doi_p);
+        } else {
+          hide_byline_column("DOI");
+        }
+      } else {
+        $('<a></a>')
+           .attr('href', "https://doi.org/" + front_matter.doi)
+           .html(front_matter.doi)
+           .appendTo(doi_p);
+      }
+
+       // change plural form of authors/affiliations
+      if (front_matter.authors.length === 1) {
+        var grid = $('.authors-affiliations');
+        grid.children('h3:contains("Authors")').text('Author');
+        grid.children('h3:contains("Affiliations")').text('Affiliation');
+      }
+
+      // inject pre code styles (can't do this with a global stylesheet b/c a shadow root is used)
+      $('d-code').each(function(i, val) {
+        var style = document.createElement('style');
+        style.innerHTML = 'pre code { padding-left: 10px; font-size: 12px; border-left: 2px solid rgba(0,0,0,0.1); } ' +
+                          '@media(min-width: 768px) { pre code { padding-left: 18px; font-size: 14px; } }';
+        if (this.shadowRoot)
+          this.shadowRoot.appendChild(style);
+      });
+
+      // move appendix-bottom entries to the bottom
+      $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+      $('.appendix-bottom').remove();
+
+      // clear polling timer
+      clearInterval(tid);
+
+      // show body now that everything is ready
+      on_load_complete();
+    }
+
+    var tid = setInterval(distill_post_process, 50);
+    distill_post_process();
+
+  }
+
+  function init_downlevel() {
+
+    init_common();
+
+     // insert hr after d-title
+    $('.d-title').after($('<hr class="section-separator"/>'));
+
+    // check if we have authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+    // manage byline/border
+    if (!have_authors)
+      $('.d-byline').remove();
+    $('.d-byline').after($('<hr class="section-separator"/>'));
+    $('.d-byline a').remove();
+
+    // remove toc
+    $('.d-toc-header').remove();
+    $('.d-toc').remove();
+    $('.d-toc-separator').remove();
+
+    // move appendix elements
+    $('h1.appendix, h2.appendix').each(function(i, val) {
+      $(this).changeElementType('h3');
+    });
+    $('h3.appendix').each(function(i, val) {
+      $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+    });
+
+
+    // inject headers into references and footnotes
+    var refs_header = $('<h3></h3>');
+    refs_header.text('References');
+    $('#refs').prepend(refs_header);
+
+    var footnotes_header = $('<h3></h3');
+    footnotes_header.text('Footnotes');
+    $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // remove appendix if it's empty
+    if ($('.d-appendix').children().length === 0)
+      $('.d-appendix').remove();
+
+    // prepend separator above appendix
+    $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+    // trim code
+    $('pre>code').each(function(i, val) {
+      $(this).html($.trim($(this).html()));
+    });
+
+    // move posts-container right before article
+    $('.posts-container').insertBefore($('.d-article'));
+
+    $('body').addClass('downlevel');
+
+    on_load_complete();
+  }
+
+
+  function init_common() {
+
+    // jquery plugin to change element types
+    (function($) {
+      $.fn.changeElementType = function(newType) {
+        var attrs = {};
+
+        $.each(this[0].attributes, function(idx, attr) {
+          attrs[attr.nodeName] = attr.nodeValue;
+        });
+
+        this.replaceWith(function() {
+          return $("<" + newType + "/>", attrs).append($(this).contents());
+        });
+      };
+    })(jQuery);
+
+    // prevent underline for linked images
+    $('a > img').parent().css({'border-bottom' : 'none'});
+
+    // mark non-body figures created by knitr chunks as 100% width
+    $('.layout-chunk').each(function(i, val) {
+      var figures = $(this).find('img, .html-widget');
+      if ($(this).attr('data-layout') !== "l-body") {
+        figures.css('width', '100%');
+      } else {
+        figures.css('max-width', '100%');
+        figures.filter("[width]").each(function(i, val) {
+          var fig = $(this);
+          fig.css('width', fig.attr('width') + 'px');
+        });
+
+      }
+    });
+
+    // auto-append index.html to post-preview links in file: protocol
+    // and in rstudio ide preview
+    $('.post-preview').each(function(i, val) {
+      if (window.location.protocol === "file:")
+        $(this).attr('href', $(this).attr('href') + "index.html");
+    });
+
+    // get rid of index.html references in header
+    if (window.location.protocol !== "file:") {
+      $('.distill-site-header a[href]').each(function(i,val) {
+        $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+      });
+    }
+
+    // add class to pandoc style tables
+    $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+    $('.kable-table').children('table').addClass('pandoc-table');
+
+    // add figcaption style to table captions
+    $('caption').parent('table').addClass("figcaption");
+
+    // initialize posts list
+    if (window.init_posts_list)
+      window.init_posts_list();
+
+    // implmement disqus comment link
+    $('.disqus-comment-count').click(function() {
+      window.headroom_prevent_pin = true;
+      $('#disqus_thread').toggleClass('hidden');
+      if (!$('#disqus_thread').hasClass('hidden')) {
+        var offset = $(this).offset();
+        $(window).resize();
+        $('html, body').animate({
+          scrollTop: offset.top - 35
+        });
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (is_downlevel_browser())
+      init_downlevel();
+    else
+      window.addEventListener('WebComponentsReady', init_distill);
+  });
+
+  </script>
+
+  <!--/radix_placeholder_distill-->
+  <script src="model_inversion_differential_privacy_files/header-attrs-2.1/header-attrs.js"></script>
+  <script src="model_inversion_differential_privacy_files/jquery-1.11.3/jquery.min.js"></script>
+  <script src="model_inversion_differential_privacy_files/bowser-1.9.3/bowser.min.js"></script>
+  <script src="model_inversion_differential_privacy_files/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="model_inversion_differential_privacy_files/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+  <!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Hacking deep learning: model inversion attack by example","description":"Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under \"model inversion\" allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/"}],"publishedDate":"2020-05-15T00:00:00.000+02:00","citationText":"Keydana, 2020"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Hacking deep learning: model inversion attack by example</h1>
+<p><p>Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under “model inversion” allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy.</p></p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>05-15-2020
+</div>
+
+<div class="d-article">
+<p>How private are individual data in the context of machine learning models? The data used to train the model, say. There are types of models where the answer is simple. Take k-nearest-neighbors, for example. There <em>is not</em> even a model without the complete dataset. Or support vector machines. There is no model without the support vectors. But neural networks? They’re just some composition of functions, – no data included.</p>
+<p>The same is true for data fed to a deployed deep-learning model. It’s pretty unlikely one could invert the final softmax output from a big ResNet and get back the raw input data.</p>
+<p>In theory, then, “hacking” a standard neural net to spy on input data sounds illusory. In practice, however, there is always some real-world <em>context</em>. The context may be other datasets, publicly available, that can be linked to the “private” data in question. This is a popular showcase used in advocating for differential privacy<span class="citation" data-cites="Dwork2006">(Dwork et al. <a href="#ref-Dwork2006" role="doc-biblioref">2006</a>)</span>: Take an “anonymized” dataset, dig up complementary information from public sources, and de-anonymize records ad libitum. Some context in that sense will often be used in “black-box” attacks, ones that presuppose no insider information about the model to be hacked.</p>
+<p>But context can also be structural, such as in the scenario demonstrated in this post. For example, assume a distributed model, where sets of layers run on different devices – embedded devices or mobile phones, for example. (A scenario like that is sometimes seen as “white-box”<span class="citation" data-cites="7536387">(Wu et al. <a href="#ref-7536387" role="doc-biblioref">2016</a>)</span>, but in common understanding, white-box attacks probably presuppose some more insider knowledge, such as access to model architecture or even, weights. I’d therefore prefer calling this white-ish at most.) — Now assume that in this context, it is possible to intercept, and interact with, a system that executes the deeper layers of the model. Based on that system’s intermediate-level output, it is possible to perform <em>model inversion</em><span class="citation" data-cites="Fred">(Fredrikson et al. <a href="#ref-Fred" role="doc-biblioref">2014</a>)</span>, that is, to reconstruct the input data fed into the system.</p>
+<p>In this post, we’ll demonstrate such a model inversion attack, basically porting the approach given in a <a href="https://github.com/OpenMined/PySyft/blob/master/examples/tutorials/advanced/privacy_attacks/Tutorial%201%20-%20Black%20box%20model%20inversion.ipynb%20Sy">notebook</a> found in the <a href="https://github.com/OpenMined/PySyft">PySyft</a> repository. We then experiment with different levels of <span class="math inline">\(\epsilon\)</span>-privacy, exploring impact on reconstruction success. This second part will make use of TensorFlow Privacy, introduced in a <a href="https://blogs.rstudio.com/ai/posts/2019-12-20-differential-privacy/">previous blog post</a>.</p>
+<h2 id="part-1-model-inversion-in-action">Part 1: Model inversion in action</h2>
+<h3 id="example-dataset-all-the-worlds-letters1">Example dataset: All the world’s letters<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></h3>
+<p>The overall process of model inversion used here is the following. With no, or scarcely any, insider knowledge about a model, – but given opportunities to repeatedly query it –, I want to learn how to reconstruct unknown inputs based on just model outputs . Independently of original model training, this, too, is a training process; however, in general it will not involve the original data, as those won’t be publicly available. Still, for best success, the attacker model is trained with data as similar as possible to the original training data assumed. Thinking of images, for example, and presupposing the popular view of successive layers representing successively coarse-grained features, we want that the surrogate data to share as many representation spaces with the real data as possible – up to the very highest layers before final classification, ideally.</p>
+<p>If we wanted to use classical MNIST as an example, one thing we could do is to only use some of the digits for training the “real” model; and the rest, for training the adversary. Let’s try something different though, something that might make the undertaking harder as well as easier at the same time. Harder, because the dataset features exemplars more complex than MNIST digits; easier because of the same reason: More could possibly be learned, by the adversary, from a complex task.</p>
+<p>Originally designed to develop a machine model of concept learning and generalization <span class="citation" data-cites="Lake1332">(Lake, Salakhutdinov, and Tenenbaum <a href="#ref-Lake1332" role="doc-biblioref">2015</a>)</span>, the <a href="https://github.com/brendenlake/omniglot/">OmniGlot</a> dataset incorporates characters from fifty alphabets, split into two disjoint groups of thirty and twenty alphabets each. We’ll use the group of twenty to train our target model. Here is a sample:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-1"></span>
+<img src="images/training_set_images.png" alt="Sample from the twenty-alphabet set used to train the target model (originally: 'evaluation set')" width="398" />
+<p class="caption">
+Figure 1: Sample from the twenty-alphabet set used to train the target model (originally: ‘evaluation set’)
+</p>
+</div>
+</div>
+<p>The group of thirty we don’t use; instead, we’ll employ two small five-alphabet collections to train the adversary and to test reconstruction, respectively. (These small subsets of the original “big” thirty-alphabet set are again disjoint.)</p>
+<p>Here first is a sample from the set used to train the adversary.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-2"></span>
+<img src="images/attacker_ds.png" alt="Sample from the five-alphabet set used to train the adversary (originally: 'background small 1')" width="404" />
+<p class="caption">
+Figure 2: Sample from the five-alphabet set used to train the adversary (originally: ‘background small 1’)
+</p>
+</div>
+</div>
+<p>The other small subset will be used to test the adversary’s spying capabilities after training. Let’s peek at this one, too:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-3"></span>
+<img src="images/actual_test_images.png" alt="Sample from the five-alphabet set used to test the adversary after training(originally: 'background small 2')" width="386" />
+<p class="caption">
+Figure 3: Sample from the five-alphabet set used to test the adversary after training(originally: ‘background small 2’)
+</p>
+</div>
+</div>
+<p>Conveniently, we can use <a href="https://github.com/rstudio/tfds">tfds</a>, the R wrapper to TensorFlow Datasets, to load those subsets:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(reticulate)
+library(keras)
+library(tfdatasets)
+library(tfautograph)
+library(tfds)
+
+library(purrr)
+
+# we&#39;ll use this to train the target model
+# n = 13180
+omni_train &lt;- tfds$load(&quot;omniglot&quot;, split = &quot;test&quot;)
+
+# this is used to train the adversary
+# n = 2720
+omni_spy &lt;- tfds$load(&quot;omniglot&quot;, split = &quot;small1&quot;)
+
+# this we&#39;ll use for testing
+# n = 3120
+omni_test &lt;- tfds$load(&quot;omniglot&quot;, split = &quot;small2&quot;)</code></pre>
+</div>
+<p>Now first, we train the target model.</p>
+<h3 id="train-target-model">Train target model</h3>
+<p>The dataset originally has four columns: the image, of size 105 x 105; an alphabet id and a within-dataset character id; and a label. For our use case, we’re not really interested in the task the target model was/is used for; we just want to get at the data. Basically, whatever task we choose, it is not much more than a dummy task. So, let’s just say we train the target to classify characters <em>by alphabet</em>.</p>
+<p>We thus throw out all unneeded features, keeping just the alphabet id and the image itself:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# normalize and work with a single channel (images are black-and-white anyway)
+preprocess_image &lt;- function(image) {
+  image %&gt;%
+    tf$cast(dtype = tf$float32) %&gt;%
+    tf$truediv(y = 255) %&gt;%
+    tf$image$rgb_to_grayscale()
+}
+
+# use the first 11000 images for training
+train_ds &lt;- omni_train %&gt;% 
+  dataset_take(11000) %&gt;%
+  dataset_map(function(record) {
+    record$image &lt;- preprocess_image(record$image)
+    list(record$image, record$alphabet)}) %&gt;%
+  dataset_shuffle(1000) %&gt;% 
+  dataset_batch(32)
+
+# use the remaining 2180 records for validation
+val_ds &lt;- omni_train %&gt;% 
+  dataset_skip(11000) %&gt;%
+  dataset_map(function(record) {
+    record$image &lt;- preprocess_image(record$image)
+    list(record$image, record$alphabet)}) %&gt;%
+  dataset_batch(32)</code></pre>
+</div>
+<p>The model consists of two parts. The first is imagined to run in a distributed fashion; for example, on mobile devices (stage one). These devices then send model outputs to a central server, where final results are computed (stage two). Sure, you will be thinking, this is a convenient setup for our scenario: If we intercept stage one results, we – most probably – gain access to richer information than what is contained in a model’s final output layer. — That is correct, but the scenario is less contrived than one might assume. Just like federated learning <span class="citation" data-cites="McMahanMRA16">(McMahan et al. <a href="#ref-McMahanMRA16" role="doc-biblioref">2016</a>)</span>, it fulfills important desiderata: Actual training data never leaves the devices, thus staying (in theory!) private; at the same time, ingoing traffic to the server is significantly reduced.</p>
+<p>In our example setup, the on-device model is a convnet, while the server model is a simple feedforward network.</p>
+<p>We link both together as a <em>TargetModel</em> that when called normally, will run both steps in succession. However, we’ll be able to call <code>target_model$mobile_step()</code> separately, thereby intercepting intermediate results.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+on_device_model &lt;- keras_model_sequential() %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(7, 7),
+                input_shape = c(105, 105, 1), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(3, 3), strides = 3) %&gt;%
+  layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(7, 7), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(3, 3), strides = 2) %&gt;%
+  layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(5, 5), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = 2) %&gt;%
+  layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = 2) %&gt;%
+  layer_dropout(0.2) 
+
+server_model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 256, activation = &quot;relu&quot;) %&gt;%
+  layer_flatten() %&gt;%
+  layer_dropout(0.2) %&gt;% 
+  # we have just 20 different ids, but they are not in lexicographic order
+  layer_dense(units = 50, activation = &quot;softmax&quot;)
+
+target_model &lt;- function() {
+  keras_model_custom(name = &quot;TargetModel&quot;, function(self) {
+    
+    self$on_device_model &lt;-on_device_model
+    self$server_model &lt;- server_model
+    self$mobile_step &lt;- function(inputs) 
+      self$on_device_model(inputs)
+    self$server_step &lt;- function(inputs)
+      self$server_model(inputs)
+
+    function(inputs, mask = NULL) {
+      inputs %&gt;% 
+        self$mobile_step() %&gt;%
+        self$server_step()
+    }
+  })
+  
+}
+
+model &lt;- target_model()</code></pre>
+</div>
+<p>The overall model is a Keras custom model, so we train it <a href="https://tensorflow.rstudio.com/tutorials/advanced/">TensorFlow 2.x - style</a>. After ten epochs, training and validation accuracy are at ~0.84 and ~0.73, respectively – not bad at all for a 20-class discrimination task.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+loss &lt;- loss_sparse_categorical_crossentropy
+optimizer &lt;- optimizer_adam()
+
+train_loss &lt;- tf$keras$metrics$Mean(name=&#39;train_loss&#39;)
+train_accuracy &lt;-  tf$keras$metrics$SparseCategoricalAccuracy(name=&#39;train_accuracy&#39;)
+
+val_loss &lt;- tf$keras$metrics$Mean(name=&#39;val_loss&#39;)
+val_accuracy &lt;-  tf$keras$metrics$SparseCategoricalAccuracy(name=&#39;val_accuracy&#39;)
+
+train_step &lt;- function(images, labels) {
+  with (tf$GradientTape() %as% tape, {
+    predictions &lt;- model(images)
+    l &lt;- loss(labels, predictions)
+  })
+  gradients &lt;- tape$gradient(l, model$trainable_variables)
+  optimizer$apply_gradients(purrr::transpose(list(
+    gradients, model$trainable_variables
+  )))
+  train_loss(l)
+  train_accuracy(labels, predictions)
+}
+
+val_step &lt;- function(images, labels) {
+  predictions &lt;- model(images)
+  l &lt;- loss(labels, predictions)
+  val_loss(l)
+  val_accuracy(labels, predictions)
+}
+
+
+training_loop &lt;- tf_function(autograph(function(train_ds, val_ds) {
+  for (b1 in train_ds) {
+    train_step(b1[[1]], b1[[2]])
+  }
+  for (b2 in val_ds) {
+    val_step(b2[[1]], b2[[2]])
+  }
+  
+  tf$print(&quot;Train accuracy&quot;, train_accuracy$result(),
+           &quot;    Validation Accuracy&quot;, val_accuracy$result())
+  
+  train_loss$reset_states()
+  train_accuracy$reset_states()
+  val_loss$reset_states()
+  val_accuracy$reset_states()
+}))
+
+
+for (epoch in 1:10) {
+  cat(&quot;Epoch: &quot;, epoch, &quot; -----------\n&quot;)
+  training_loop(train_ds, val_ds)  
+}</code></pre>
+</div>
+<pre><code>
+Epoch:  1  -----------
+Train accuracy 0.195090905     Validation Accuracy 0.376605511
+Epoch:  2  -----------
+Train accuracy 0.472272724     Validation Accuracy 0.5243119
+...
+...
+Epoch:  9  -----------
+Train accuracy 0.821454525     Validation Accuracy 0.720183492
+Epoch:  10  -----------
+Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
+<p>Now, we train the adversary.</p>
+<h3 id="train-adversary">Train adversary</h3>
+<p>The adversary’s general strategy will be:</p>
+<ul>
+<li><strong>Feed its small, surrogate dataset to the on-device model.</strong> The output received can be regarded as a (highly) <em>compressed</em> version of the original images.</li>
+<li>P<strong>ass that “compressed” version as input to its own model,</strong> which tries to reconstruct the original images from the sparse code.</li>
+<li><strong>Compare original images (those from the surrogate dataset) to the reconstruction pixel-wise.</strong> The goal is to minimize the mean (squared, say) error.</li>
+</ul>
+<p>Doesn’t this sound a lot like the decoding side of an autoencoder? No wonder the attacker model is a deconvolutional network. Its input – equivalently, the on-device model’s output – is of size <code>batch_size x 1 x 1 x 32</code>. That is, the information is encoded in 32 channels, but the spatial resolution is 1. Just like in an autoencoder operating on images, we need to <em>upsample</em> until we arrive at the original resolution of 105 x 105.</p>
+<p>This is exactly what’s happening in the attacker model:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+attack_model &lt;- function() {
+  
+  keras_model_custom(name = &quot;AttackModel&quot;, function(self) {
+    
+    self$conv1 &lt;-layer_conv_2d_transpose(filters = 32, kernel_size = 9,
+                                         padding = &quot;valid&quot;,
+                                         strides = 1, activation = &quot;relu&quot;)
+    self$conv2 &lt;- layer_conv_2d_transpose(filters = 32, kernel_size = 7,
+                                          padding = &quot;valid&quot;,
+                                          strides = 2, activation = &quot;relu&quot;) 
+    self$conv3 &lt;- layer_conv_2d_transpose(filters = 1, kernel_size = 7,
+                                          padding = &quot;valid&quot;,
+                                          strides = 2, activation = &quot;relu&quot;)  
+    self$conv4 &lt;- layer_conv_2d_transpose(filters = 1, kernel_size = 5,
+                                          padding = &quot;valid&quot;,
+                                          strides = 2, activation = &quot;relu&quot;)
+    
+    function(inputs, mask = NULL) {
+      inputs %&gt;% 
+        # bs * 9 * 9 * 32
+        # output = strides * (input - 1) + kernel_size - 2 * padding
+        self$conv1() %&gt;%
+        # bs * 23 * 23 * 32
+        self$conv2() %&gt;%
+        # bs * 51 * 51 * 1
+        self$conv3() %&gt;%
+        # bs * 105 * 105 * 1
+        self$conv4()
+    }
+  })
+  
+}
+
+attacker = attack_model()</code></pre>
+</div>
+<p>To train the adversary, we use one of the small (five-alphabet) subsets. To reiterate what was said above, there is no overlap with the data used to train the target model.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+attacker_ds &lt;- omni_spy %&gt;% 
+dataset_map(function(record) {
+    record$image &lt;- preprocess_image(record$image)
+    list(record$image, record$alphabet)}) %&gt;%
+  dataset_batch(32)</code></pre>
+</div>
+<p>Here, then, is the attacker training loop, striving to refine the decoding process over a hundred – short – epochs:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+attacker_criterion &lt;- loss_mean_squared_error
+attacker_optimizer &lt;- optimizer_adam()
+attacker_loss &lt;- tf$keras$metrics$Mean(name=&#39;attacker_loss&#39;)
+attacker_mse &lt;-  tf$keras$metrics$MeanSquaredError(name=&#39;attacker_mse&#39;)
+
+attacker_step &lt;- function(images) {
+  
+  attack_input &lt;- model$mobile_step(images)
+  
+  with (tf$GradientTape() %as% tape, {
+    generated &lt;- attacker(attack_input)
+    l &lt;- attacker_criterion(images, generated)
+  })
+  gradients &lt;- tape$gradient(l, attacker$trainable_variables)
+  attacker_optimizer$apply_gradients(purrr::transpose(list(
+    gradients, attacker$trainable_variables
+  )))
+  attacker_loss(l)
+  attacker_mse(images, generated)
+}
+
+
+attacker_training_loop &lt;- tf_function(autograph(function(attacker_ds) {
+  for (b in attacker_ds) {
+    attacker_step(b[[1]])
+  }
+  
+  tf$print(&quot;mse: &quot;, attacker_mse$result())
+  
+  attacker_loss$reset_states()
+  attacker_mse$reset_states()
+}))
+
+for (epoch in 1:100) {
+  cat(&quot;Epoch: &quot;, epoch, &quot; -----------\n&quot;)
+  attacker_training_loop(attacker_ds)  
+}</code></pre>
+</div>
+<pre><code>
+Epoch:  1  -----------
+  mse:  0.530902684
+Epoch:  2  -----------
+  mse:  0.201351956
+...
+...
+Epoch:  99  -----------
+  mse:  0.0413453057
+Epoch:  100  -----------
+  mse:  0.0413028933</code></pre>
+<p>The question now is, – does it work? Has the attacker really learned to infer actual data from (stage one) model output?</p>
+<h3 id="test-adversary">Test adversary</h3>
+<p>To test the adversary, we use the third dataset we downloaded, containing images from five yet-unseen alphabets. For display, we select just the first sixteen records – a completely arbitrary decision, of course.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+test_ds &lt;- omni_test %&gt;% 
+  dataset_map(function(record) {
+    record$image &lt;- preprocess_image(record$image)
+    list(record$image, record$alphabet)}) %&gt;%
+  dataset_take(16) %&gt;%
+  dataset_batch(16)
+
+batch &lt;- as_iterator(test_ds) %&gt;% iterator_get_next()
+images &lt;- batch[[1]]
+
+attack_input &lt;- model$mobile_step(images)
+generated &lt;- attacker(attack_input) %&gt;% as.array()
+
+generated[generated &gt; 1] &lt;- 1
+generated &lt;- generated[ , , , 1]
+generated %&gt;%
+  purrr::array_tree(1) %&gt;%
+  purrr::map(as.raster) %&gt;%
+  purrr::iwalk(~{plot(.x)})</code></pre>
+</div>
+<p>Just like during the training process, the adversary queries the target model (stage one), obtains the compressed representation, and attempts to reconstruct the original image. (Of course, in the real world, the setup would be different in that the attacker would <em>not</em> be able to simply inspect the images, as is the case here. There would thus have to be some way to intercept, and make sense of, network traffic.)</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+attack_input &lt;- model$mobile_step(images)
+generated &lt;- attacker(attack_input) %&gt;% as.array()
+
+generated[generated &gt; 1] &lt;- 1
+generated &lt;- generated[ , , , 1]
+generated %&gt;%
+  purrr::array_tree(1) %&gt;%
+  purrr::map(as.raster) %&gt;%
+  purrr::iwalk(~{plot(.x)})</code></pre>
+</div>
+<p>To allow for easier comparison (and increase suspense …!), here again are the actual images, which we displayed already when introducing the dataset:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-13"></span>
+<img src="images/actual_test_images.png" alt="First images from the test set, the way they really look." width="386" />
+<p class="caption">
+Figure 4: First images from the test set, the way they really look.
+</p>
+</div>
+</div>
+<p>And here is the reconstruction:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-14"></span>
+<img src="images/recon_noeps_dropout.png" alt="First images from the test set, as reconstructed by the adversary." width="386" />
+<p class="caption">
+Figure 5: First images from the test set, as reconstructed by the adversary.
+</p>
+</div>
+</div>
+<p>Of course, it is hard to say how revealing these “guesses” are. There definitely seems to be a connection to character complexity; overall, it seems like the Greek and Roman letters, which are the least complex, are also the ones most easily reconstructed. Still, in the end, how much privacy is lost will very much depend on contextual factors.</p>
+<p>First and foremost, do the exemplars in the dataset represent <em>individuals</em> or <em>classes</em> of individuals? If – as in reality – the character <code>X</code> represents a class, it might not be so grave if we were able to reconstruct “some X” here: There are many <code>X</code>s in the dataset, all pretty similar to each other; we’re unlikely to exactly to have reconstructed one special, individual <code>X</code>. If, however, this was a dataset of individual people, with all <code>X</code>s being photographs of Alex, then in reconstructing an <code>X</code> we have effectively reconstructed Alex.</p>
+<p>Second, in less obvious scenarios, evaluating the degree of privacy breach will likely surpass computation of quantitative metrics, and involve the judgment of domain experts.</p>
+<p>Speaking of quantitative metrics though – our example seems like a perfect use case to experiment with <em>differential privacy.</em> Differential privacy is measured by <span class="math inline">\(\epsilon\)</span> (lower is better), the main idea being that answers to queries to a system should depend as little as possible on the presence or absence of a single (<em>any</em> single) datapoint.</p>
+<p>So, we will repeat the above experiment, using TensorFlow Privacy (TFP) to add noise, as well as clip gradients, during optimization of the target model. We’ll try three different conditions, resulting in three different values for <span class="math inline">\(\epsilon\)</span>s, and for each condition, inspect the images reconstructed by the adversary.</p>
+<h2 id="part-2-differential-privacy-to-the-rescue">Part 2: Differential privacy to the rescue</h2>
+<p>Unfortunately, the setup for this part of the experiment requires a little workaround. Making use of the flexibility afforded by TensorFlow 2.x, our target model has been a custom model, joining two distinct stages (“mobile” and “server”) that could be called independently.</p>
+<p>TFP, however, does still not work with TensorFlow 2.x, meaning we have to use old-style, non-eager model definitions and training. Luckily, the workaround will be easy.</p>
+<p>First, load (and possibly, install) libraries, taking care to disable TensorFlow V2 behavior.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+library(tensorflow)
+# still necessary when working with TensorFlow Privacy, as of this writing
+tf$compat$v1$disable_v2_behavior()
+
+# if you don&#39;t have it installed:
+# reticulate::py_install(&quot;tensorflow_privacy&quot;)
+tfp &lt;- import(&quot;tensorflow_privacy&quot;)
+
+library(tfdatasets)
+library(tfds)
+
+library(purrr)</code></pre>
+</div>
+<p>The training set is loaded, preprocessed and batched (nearly) as before.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+omni_train &lt;- tfds$load(&quot;omniglot&quot;, split = &quot;test&quot;)
+
+batch_size &lt;- 32
+
+train_ds &lt;- omni_train %&gt;%
+  dataset_take(11000) %&gt;%
+  dataset_map(function(record) {
+    record$image &lt;- preprocess_image(record$image)
+    list(record$image, record$alphabet)}) %&gt;%
+  dataset_shuffle(1000) %&gt;%
+  # need dataset_repeat() when not eager
+  dataset_repeat() %&gt;%
+  dataset_batch(batch_size)</code></pre>
+</div>
+<h3 id="train-target-model-with-tensorflow-privacy">Train target model – with TensorFlow Privacy</h3>
+<p>To train the target, we put the layers from both stages – “mobile” and “server” – into one sequential model. Note how we remove the dropout. This is because noise will be added during optimization anyway.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+complete_model &lt;- keras_model_sequential() %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(7, 7),
+                input_shape = c(105, 105, 1),
+                activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(3, 3), strides = 3) %&gt;%
+  #layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(7, 7), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(3, 3), strides = 2) %&gt;%
+  #layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(5, 5), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = 2) %&gt;%
+  #layer_dropout(0.2) %&gt;%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = &quot;relu&quot;) %&gt;%
+  layer_batch_normalization() %&gt;%
+  layer_max_pooling_2d(pool_size = c(2, 2), strides = 2, name = &quot;mobile_output&quot;) %&gt;%
+  #layer_dropout(0.2) %&gt;%
+  layer_dense(units = 256, activation = &quot;relu&quot;) %&gt;%
+  layer_flatten() %&gt;%
+  #layer_dropout(0.2) %&gt;%
+  layer_dense(units = 50, activation = &quot;softmax&quot;)</code></pre>
+</div>
+<p>Using TFP mainly means using a TFP optimizer, one that clips gradients according to some defined magnitude and adds noise of defined size. <code>noise_multiplier</code> is the parameter we are going to vary to arrive at different <span class="math inline">\(\epsilon\)</span>s:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+l2_norm_clip &lt;- 1
+
+# ratio of the standard deviation to the clipping norm
+# we run training for each of the three values
+noise_multiplier &lt;- 0.7
+noise_multiplier &lt;- 0.5
+noise_multiplier &lt;- 0.3
+
+# same as batch size
+num_microbatches &lt;- k_cast(batch_size, &quot;int32&quot;)
+learning_rate &lt;- 0.005
+
+optimizer &lt;- tfp$DPAdamGaussianOptimizer(
+  l2_norm_clip = l2_norm_clip,
+  noise_multiplier = noise_multiplier,
+  num_microbatches = num_microbatches,
+  learning_rate = learning_rate
+)</code></pre>
+</div>
+<p>In training the model, the second important change for TFP we need to make is to have loss and gradients computed on the individual level.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# need to add noise to every individual contribution
+loss &lt;- tf$keras$losses$SparseCategoricalCrossentropy(reduction =   tf$keras$losses$Reduction$NONE)
+
+complete_model %&gt;% compile(loss = loss, optimizer = optimizer, metrics = &quot;sparse_categorical_accuracy&quot;)
+
+num_epochs &lt;- 20
+
+n_train &lt;- 13180
+
+history &lt;- complete_model %&gt;% fit(
+  train_ds,
+  # need steps_per_epoch when not in eager mode
+  steps_per_epoch = n_train/batch_size,
+  epochs = num_epochs)</code></pre>
+</div>
+<p>To test three different <span class="math inline">\(\epsilon\)</span>s, we run this thrice, each time with a different <code>noise_multiplier</code>. Each time we arrive at a different final accuracy.</p>
+<p>Here is a synopsis, where <span class="math inline">\(\epsilon\)</span> was computed like so:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+compute_priv &lt;- tfp$privacy$analysis$compute_dp_sgd_privacy
+
+compute_priv$compute_dp_sgd_privacy(
+  # number of records in training set
+  n_train,
+  batch_size,
+  # noise_multiplier
+  0.7, # or 0.5, or 0.3
+  # number of epochs
+  20,
+  # delta - should not exceed 1/number of examples in training set
+  1e-5)</code></pre>
+</div>
+<table>
+<thead>
+<tr class="header">
+<th>noise multiplier</th>
+<th>epsilon</th>
+<th>final acc. (training set)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0.7</td>
+<td>4.0</td>
+<td>0.37</td>
+</tr>
+<tr class="even">
+<td>0.5</td>
+<td>12.5</td>
+<td>0.45</td>
+</tr>
+<tr class="odd">
+<td>0.3</td>
+<td>84.7</td>
+<td>0.56</td>
+</tr>
+</tbody>
+</table>
+<p>Now, as the adversary won’t call the complete model, we need to “cut off” the second-stage layers. This leaves us with a model that executes stage-one logic only. We save its weights, so we can later call it from the adversary:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+intercepted &lt;- keras_model(
+  complete_model$input,
+  complete_model$get_layer(&quot;mobile_output&quot;)$output
+)
+
+intercepted %&gt;% save_model_hdf5(&quot;./intercepted.hdf5&quot;)</code></pre>
+</div>
+<h3 id="train-adversary-against-differentially-private-target">Train adversary (against differentially private target)</h3>
+<p>In training the adversary, we can keep most of the original code – meaning, we’re back to TF-2 style. Even the definition of the target model is the same as before:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+on_device_model &lt;- keras_model_sequential() %&gt;%
+  [...]
+
+server_model &lt;- keras_model_sequential() %&gt;%
+  [...]
+
+target_model &lt;- function() {
+  keras_model_custom(name = &quot;TargetModel&quot;, function(self) {
+    
+    self$on_device_model &lt;-on_device_model
+    self$server_model &lt;- server_model
+    self$mobile_step &lt;- function(inputs) 
+      self$on_device_model(inputs)
+    self$server_step &lt;- function(inputs)
+      self$server_model(inputs)
+    
+    function(inputs, mask = NULL) {
+      inputs %&gt;% 
+        self$mobile_step() %&gt;%
+        self$server_step()
+    }
+  })
+}
+
+intercepted &lt;- target_model()</code></pre>
+</div>
+<p>But now, we load the trained target’s weights into the freshly defined model’s “mobile stage”:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+intercepted$on_device_model$load_weights(&quot;intercepted.hdf5&quot;)</code></pre>
+</div>
+<p>And now, we’re back to the old training routine. Testing setup is the same as before, as well.</p>
+<p>So how well does the adversary perform with differential privacy added to the picture?</p>
+<h3 id="test-adversary-against-differentially-private-target">Test adversary (against differentially private target)</h3>
+<p>Here, ordered by decreasing <span class="math inline">\(\epsilon\)</span>, are the reconstructions. Again, we refrain from judging the results, for the same reasons as before: In real-world applications, whether privacy is preserved “well enough” will depend on the context.</p>
+<p>Here, first, are reconstructions from the run where the least noise was added.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-24"></span>
+<img src="images/intercepted_eps_84.7.png" alt="Reconstruction attempts from a setup where the target model was trained with an epsilon of 84.7." width="384" />
+<p class="caption">
+Figure 6: Reconstruction attempts from a setup where the target model was trained with an epsilon of 84.7.
+</p>
+</div>
+</div>
+<p>On to the next level of privacy protection:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-25"></span>
+<img src="images/intercepted_eps_12.5.png" alt="Reconstruction attempts from a setup where the target model was trained with an epsilon of 12.5." width="385" />
+<p class="caption">
+Figure 7: Reconstruction attempts from a setup where the target model was trained with an epsilon of 12.5.
+</p>
+</div>
+</div>
+<p>And the highest-<span class="math inline">\(\epsilon\)</span> one:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="figure"><span id="fig:unnamed-chunk-26"></span>
+<img src="images/intercepted_eps_4.0.png" alt="Reconstruction attempts from a setup where the target model was trained with an epsilon of 4.0." width="386" />
+<p class="caption">
+Figure 8: Reconstruction attempts from a setup where the target model was trained with an epsilon of 4.0.
+</p>
+</div>
+</div>
+<h2 id="conclusion">Conclusion</h2>
+<p>Throughout this post, we’ve refrained from “over-commenting” on results, and focused on the why-and-how instead. This is because in an artificial setup, chosen to facilitate exposition of concepts and methods, there really is no objective frame of reference. What is a good reconstruction? What is a good <span class="math inline">\(\epsilon\)</span>? What constitutes a data breach? No-one knows.</p>
+<p>In the real world, there is a context to everything – there are people involved, the people whose data we’re talking about. There are organizations, regulations, laws. There are abstract principles, and there are implementations; different implementations of the same “idea” can differ.</p>
+<p>As in machine learning overall, research papers on privacy-, ethics- or otherwise society-related topics are full of LaTeX formulae. Amid the math, let’s not forget the people.</p>
+<p>Thanks for reading!</p>
+<div id="refs" class="references hanging-indent" role="doc-bibliography">
+<div id="ref-Dwork2006">
+<p>Dwork, Cynthia, Frank McSherry, Kobbi Nissim, and Adam Smith. 2006. “Calibrating Noise to Sensitivity in Private Data Analysis.” In <em>Proceedings of the Third Conference on Theory of Cryptography</em>, 265–84. TCC’06. Berlin, Heidelberg: Springer-Verlag. <a href="https://doi.org/10.1007/11681878_14">https://doi.org/10.1007/11681878_14</a>.</p>
+</div>
+<div id="ref-Fred">
+<p>Fredrikson, Matthew, Eric Lantz, Somesh Jha, Simon Lin, David Page, and Thomas Ristenpart. 2014. “Privacy in Pharmacogenetics: An End-to-End Case Study of Personalized Warfarin Dosing.” In <em>Proceedings of the 23rd Usenix Conference on Security Symposium</em>, 17–32. SEC’14. USA: USENIX Association.</p>
+</div>
+<div id="ref-Lake1332">
+<p>Lake, Brenden M., Ruslan Salakhutdinov, and Joshua B. Tenenbaum. 2015. “Human-Level Concept Learning Through Probabilistic Program Induction.” <em>Science</em> 350 (6266): 1332–8. <a href="https://doi.org/10.1126/science.aab3050">https://doi.org/10.1126/science.aab3050</a>.</p>
+</div>
+<div id="ref-McMahanMRA16">
+<p>McMahan, H. Brendan, Eider Moore, Daniel Ramage, and Blaise Agüera y Arcas. 2016. “Federated Learning of Deep Networks Using Model Averaging.” <em>CoRR</em> abs/1602.05629. <a href="http://arxiv.org/abs/1602.05629">http://arxiv.org/abs/1602.05629</a>.</p>
+</div>
+<div id="ref-7536387">
+<p>Wu, X., M. Fredrikson, S. Jha, and J. F. Naughton. 2016. “A Methodology for Formalizing Model-Inversion Attacks.” In <em>2016 Ieee 29th Computer Security Foundations Symposium (Csf)</em>, 355–70.</p>
+</div>
+</div>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>Don’t take <em>all</em> literally please; it’s just a nice phrase.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom"></div>
+<script id="distill-bibliography" type="text/bibtex">
+@article {Lake1332,
+        author = {Lake, Brenden M. and Salakhutdinov, Ruslan and Tenenbaum, Joshua B.},
+        title = {Human-level concept learning through probabilistic program induction},
+        volume = {350},
+        number = {6266},
+        pages = {1332--1338},
+        year = {2015},
+        doi = {10.1126/science.aab3050},
+        publisher = {American Association for the Advancement of Science},
+        issn = {0036-8075},
+        URL = {https://science.sciencemag.org/content/350/6266/1332},
+        eprint = {https://science.sciencemag.org/content/350/6266/1332.full.pdf},
+        journal = {Science}
+}
+
+@article{McMahanMRA16,
+  author    = {H. Brendan McMahan and
+               Eider Moore and
+               Daniel Ramage and
+               Blaise Agüera y Arcas},
+  title     = {Federated Learning of Deep Networks using Model Averaging},
+  journal   = {CoRR},
+  volume    = {abs/1602.05629},
+  year      = {2016},
+  url       = {http://arxiv.org/abs/1602.05629},
+  archivePrefix = {arXiv},
+  eprint    = {1602.05629},
+  timestamp = {Mon, 13 Aug 2018 16:48:01 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/McMahanMRA16.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{Dwork2006,
+ author = {Dwork, Cynthia and McSherry, Frank and Nissim, Kobbi and Smith, Adam},
+ title = {Calibrating Noise to Sensitivity in Private Data Analysis},
+ booktitle = {Proceedings of the Third Conference on Theory of Cryptography},
+ series = {TCC'06},
+ year = {2006},
+ isbn = {3-540-32731-2, 978-3-540-32731-8},
+ location = {New York, NY},
+ pages = {265--284},
+ numpages = {20},
+ url = {http://dx.doi.org/10.1007/11681878_14},
+ doi = {10.1007/11681878_14},
+ acmid = {2180305},
+ publisher = {Springer-Verlag},
+ address = {Berlin, Heidelberg},
+} 
+
+@INPROCEEDINGS{7536387,
+  author={X. {Wu} and M. {Fredrikson} and S. {Jha} and J. F. {Naughton}},
+  booktitle={2016 IEEE 29th Computer Security Foundations Symposium (CSF)}, 
+  title={A Methodology for Formalizing Model-Inversion Attacks}, 
+  year={2016},
+  volume={},
+  number={},
+  pages={355-370},}
+  
+@inproceedings{Fred,
+author = {Fredrikson, Matthew and Lantz, Eric and Jha, Somesh and Lin, Simon and Page, David and Ristenpart, Thomas},
+title = {Privacy in Pharmacogenetics: An End-to-End Case Study of Personalized Warfarin Dosing},
+year = {2014},
+isbn = {9781931971157},
+publisher = {USENIX Association},
+address = {USA},
+booktitle = {Proceedings of the 23rd USENIX Conference on Security Symposium},
+pages = {17–32},
+numpages = {16},
+location = {San Diego, CA},
+series = {SEC’14}
+}
+
+
+</script>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

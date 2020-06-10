@@ -1,7 +1,7 @@
 ---
 title: "sparklyr 1.3: Higher-order Functions, Avro, and much more"
 description: |
-  Sparklyr 1.3 is now available, featuring exciting new functionalities such as integration of Spark higher-order functions, data import/export in Avro and in user-defined serialization formats!
+  Sparklyr 1.3 is now available, featuring exciting new functionalities such as integration of Spark higher-order functions and data import/export in Avro and in user-defined serialization formats!
 author:
   - name: Yitao Li
     url: https://github.com/yl790
@@ -26,9 +26,10 @@ knitr::opts_chunk$set(echo = FALSE)
 What would be even better than [sparklyr](https://sparklyr.ai) 1.2? Many brilliant minds from RStudio, Databricks, and the broader open-source community have contemplated this question for months. Now they have an answer -- sparklyr 1.3 is on CRAN today!
 
 This new version adds the following major features:
-- [Higher-order Functions](#higher-order-functions) to easily manipulate arrays and structs. 
-- Support for Apache [Avro](#avro), a row-oriented data serialization framework.
-- [Custom Serialization](#custom-serialization) using R functions to read and write any data format.
+
+ * [Higher-order Functions](#higher-order-functions) to easily manipulate arrays and structs.
+ * Support for Apache [Avro](#avro), a row-oriented data serialization framework.
+ * [Custom Serialization](#custom-serialization) using R functions to read and write any data format.
 
 To install `sparklyr` 1.3 from CRAN run,
 
@@ -43,50 +44,57 @@ In this post, we shall highlight some major new features introduced in sparklyr 
 
 [Higher order functions](https://issues.apache.org/jira/browse/SPARK-19480) are built-in Spark SQL constructs that allow user-defined lambda expressions to be applied efficiently to complex data types such as arrays and structs. As a quick demo to see why higher-order functions are useful, let's say one day Scrooge Mcduck dived into his huge vault of money and found large quantities of pennies, nickels, dimes, and quarters. Having an impeccable taste in data structure, he decided to store the quantities and face values of everything into 2 Spark SQL array columns:
 
-```{bash echo=TRUE, eval=FALSE}
-$SPARK_HOME/bin/spark-sql
-spark-sql> CREATE TABLE `coins` (`quantities` ARRAY<INT>, `values` ARRAY<INT>) USING ORC;
-spark-sql> INSERT INTO `coins` VALUES (ARRAY(4000, 3000, 2000, 1000), ARRAY(1, 5, 10, 25));
-```
-
-thus declaring his net worth of 4k pennies, 3k nickels, 2k dimes, and 1k quarters. In Spark 2.4 or above, we can use a higher-order function named `ZIP_WITH` to help Scrooge Mcduck calculate the total value of each type of coin, and store the results in an array of length 4:
-
-```{bash echo=TRUE, eval=FALSE}
-spark-sql> SELECT ZIP_WITH(`quantities`, `values`, (quantity, value) -> quantity * value)
-         > AS `total_values` FROM `coins`;
-```
-```
-[4000,15000,20000,25000]
-```
-
-So the query result `[4000,15000,20000,25000]` indicates there are in total 40 dollars worth of pennies, 150 dollars worth of nickels, 200 dollars worth of dimes, and 250 dollars worth of quarters, as expected.
-
-With sparklyr 1.3, the same computation can be performed on a Spark data frame using `hof_zip_with()` with lambda expression above replaced by a [one-sided formula](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tilde.html) of `.x` and `.y` in R, as shown below:
-
 ```{r echo=TRUE, eval=FALSE}
 library(sparklyr)
 
 sc <- spark_connect(master = "local", version = "2.4")
 coins_tbl <- copy_to(
   sc,
-  tibble::tibble(quantities = list(c(4000, 3000, 2000, 1000)), values = list(c(1, 5, 10, 25)))
+  tibble::tibble(
+    quantities = list(c(4000, 3000, 2000, 1000)),
+    values = list(c(1, 5, 10, 25))
+  )
 )
+```
 
-result <- coins %>%
+thus declaring his net worth of 4k pennies, 3k nickels, 2k dimes, and 1k quarters. To help Scrooge Mcduck calculate the total value of each type of coin in Spark 2.4 or higher, we can apply `hof_zip_with`, the sparklyr equivalent of [ZIP_WITH](https://spark.apache.org/docs/latest/api/sql/index.html#zip_with), to `quantities` column and `values` column, combining pairs of elements from arrays in both columns. As you might have guessed, we also need to specify how to combine those elements, and what better way to accomplish that than a concise one-sided formula `~ .x * .y` in R, which says we want (quantity * value) for each type of coin? So, we have the following:
+
+```{r echo=TRUE, eval=FALSE}
+result_tbl <- coins_tbl %>%
   hof_zip_with(~ .x * .y, dest_col = total_values) %>%
-  dplyr::select(total_values) %>%
-  collect()
+  dplyr::select(total_values)
 
+result <- collect(result_tbl)
 result$total_values
-
 ```
 ```
 [[1]]
 [1]  4000 15000 20000 25000
 ```
 
-Other higher-order functions supported by Spark SQL so far include `transform`, `filter`, `aggregate`, and `exists`, as documented in [here](https://spark.apache.org/docs/latest/api/sql/index.html), and similar to the example above, their counterparts (namely, `hof_transform`, `hof_filter`, `hof_aggregate`, and `hof_exists`) all exist in sparklyr 1.3, so that they can be integrated with other `dplyr` verbs in an idiomatic manner in R.
+with the result `4000 15000 20000 25000` telling us there are in total 40 dollars worth of pennies, 150 dollars worth of nickels, 200 dollars worth of dimes, and 250 dollars worth of quarters, as expected.
 
+Using another sparklyr function named `hof_aggregate`, which performs an [AGGREGATE](https://spark.apache.org/docs/latest/api/sql/index.html#aggregate) operation in Spark, we can then compute the net worth of Scrooge Mcduck based on `result_tbl`, storing the result in a new column named `total`:
+
+```{r echo=TRUE, eval=FALSE}
+net_worth_tbl <- result_tbl %>%
+  dplyr::mutate(zero = dplyr::sql("CAST (0 AS BIGINT)")) %>%
+  # ^^ because the starting value for our aggregate operation must have the correct
+  #    data type of BIGINT
+  hof_aggregate(start = zero, ~ .x + .y, expr = total_values, dest_col = total) %>%
+  dplyr::select(total)
+
+net_worth <- collect(net_worth_tbl)
+net_worth$total
+```
+
+```
+64000
+```
+
+So Scrooge Mcduck's net worth is 640 dollars.
+
+Other higher-order functions supported by Spark SQL so far include `transform`, `filter`, and `exists`, as documented in [here](https://spark.apache.org/docs/latest/api/sql/index.html), and similar to the example above, their counterparts (namely, `hof_transform`, `hof_filter`, and `hof_exists`) all exist in sparklyr 1.3, so that they can be integrated with other `dplyr` verbs in an idiomatic manner in R.
 
 ## Avro
 
@@ -109,7 +117,7 @@ sdf <- sdf_copy_to(
 
 # This example Avro schema is a JSON string that essentially says all columns
 # ("a", "b", "c") of `sdf` are nullable.
-avro_schema <- rjson::toJSON(list(
+avro_schema <- jsonlite::toJSON(list(
   type = "record",
   name = "topLevelRecord",
   fields = list(
@@ -117,17 +125,29 @@ avro_schema <- rjson::toJSON(list(
     list(name = "b", type = list("int", "null")),
     list(name = "c", type = list("string", "null"))
   )
-))
+), auto_unbox = TRUE)
 
 # persist the Spark data frame from above in Avro format
-spark_write_avro(sdf, "/tmp/data.avro", avro_schema)
+spark_write_avro(sdf, "/tmp/data.avro", as.character(avro_schema))
 
 # and then read the same data frame back
-sdf <- spark_read_avro(sc, "/tmp/data.avro")
+spark_read_avro(sc, "/tmp/data.avro")
 
 ```
 
-## spark_{read,write}
+```
+# Source: spark<data> [?? x 3]
+      a     b c
+  <dbl> <int> <chr>
+  1     1    -2 "a"
+  2   NaN     0 "b"
+  3     3     1 "c"
+  4     4     3 ""
+  5   NaN     2 "d"
+
+```
+
+## Custom Serialization
 
 In addition to commonly used data serialization formats such as CSV, JSON, Parquet, and Avro, starting from sparklyr 1.3, customized data frame serialization and deserialization procedures implemented in R can also be run on Spark workers via the newly implemented `spark_read` and `spark_write` methods. We can see both of them in action through a quick example below, where `saveRDS` is called from a user-defined writer function to save all rows within a Spark data frame into 2 RDS files on disk, and `readRDS` is called from a user-defined reader function to read the data from the RDS files back to Spark:
 

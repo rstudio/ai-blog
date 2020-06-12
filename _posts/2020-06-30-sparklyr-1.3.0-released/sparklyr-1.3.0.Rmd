@@ -64,32 +64,26 @@ result_tbl <- coins_tbl %>%
   hof_zip_with(~ .x * .y, dest_col = total_values) %>%
   dplyr::select(total_values)
 
-result <- collect(result_tbl)
-result$total_values
+result_tbl %>% dplyr::pull(total_values)
 ```
 ```
-[[1]]
 [1]  4000 15000 20000 25000
 ```
 
 with the result `4000 15000 20000 25000` telling us there are in total 40 dollars worth of pennies, 150 dollars worth of nickels, 200 dollars worth of dimes, and 250 dollars worth of quarters, as expected.
 
-Using another sparklyr function named `hof_aggregate`, which performs an [AGGREGATE](https://spark.apache.org/docs/latest/api/sql/index.html#aggregate) operation in Spark, we can then compute the net worth of Scrooge Mcduck based on `result_tbl`, storing the result in a new column named `total`:
+Using another sparklyr function named `hof_aggregate`, which performs an [AGGREGATE](https://spark.apache.org/docs/latest/api/sql/index.html#aggregate) operation in Spark, we can then compute the net worth of Scrooge Mcduck based on `result_tbl`, storing the result in a new column named `total`. Notice for this aggregate operation to work, we need to ensure the starting value of aggregation has data type (namely, `BIGINT`) that is consistent with the data type of `total_values` (which is `ARRAY<BIGINT>`), as shown below:
 
 ```{r echo=TRUE, eval=FALSE}
-net_worth_tbl <- result_tbl %>%
+result_tbl %>%
   dplyr::mutate(zero = dplyr::sql("CAST (0 AS BIGINT)")) %>%
-  # ^^ because the starting value for our aggregate operation must have the correct
-  #    data type of BIGINT
   hof_aggregate(start = zero, ~ .x + .y, expr = total_values, dest_col = total) %>%
-  dplyr::select(total)
-
-net_worth <- collect(net_worth_tbl)
-net_worth$total
+  dplyr::select(total) %>%
+  dplyr::pull(total)
 ```
 
 ```
-64000
+[1] 64000
 ```
 
 So Scrooge Mcduck's net worth is 640 dollars.

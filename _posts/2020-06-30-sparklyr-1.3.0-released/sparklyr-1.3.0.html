@@ -997,28 +997,22 @@ result_tbl &lt;- coins_tbl %&gt;%
   hof_zip_with(~ .x * .y, dest_col = total_values) %&gt;%
   dplyr::select(total_values)
 
-result &lt;- collect(result_tbl)
-result$total_values</code></pre>
+result_tbl %&gt;% dplyr::pull(total_values)</code></pre>
 </div>
 <pre><code>
-[[1]]
 [1]  4000 15000 20000 25000</code></pre>
 <p>with the result <code>4000 15000 20000 25000</code> telling us there are in total 40 dollars worth of pennies, 150 dollars worth of nickels, 200 dollars worth of dimes, and 250 dollars worth of quarters, as expected.</p>
-<p>Using another sparklyr function named <code>hof_aggregate</code>, which performs an <a href="https://spark.apache.org/docs/latest/api/sql/index.html#aggregate">AGGREGATE</a> operation in Spark, we can then compute the net worth of Scrooge Mcduck based on <code>result_tbl</code>, storing the result in a new column named <code>total</code>:</p>
+<p>Using another sparklyr function named <code>hof_aggregate</code>, which performs an <a href="https://spark.apache.org/docs/latest/api/sql/index.html#aggregate">AGGREGATE</a> operation in Spark, we can then compute the net worth of Scrooge Mcduck based on <code>result_tbl</code>, storing the result in a new column named <code>total</code>. Notice for this aggregate operation to work, we need to ensure the starting value of aggregation has data type (namely, <code>BIGINT</code>) that is consistent with the data type of <code>total_values</code> (which is <code>ARRAY&lt;BIGINT&gt;</code>), as shown below:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
-net_worth_tbl &lt;- result_tbl %&gt;%
+result_tbl %&gt;%
   dplyr::mutate(zero = dplyr::sql(&quot;CAST (0 AS BIGINT)&quot;)) %&gt;%
-  # ^^ because the starting value for our aggregate operation must have the correct
-  #    data type of BIGINT
   hof_aggregate(start = zero, ~ .x + .y, expr = total_values, dest_col = total) %&gt;%
-  dplyr::select(total)
-
-net_worth &lt;- collect(net_worth_tbl)
-net_worth$total</code></pre>
+  dplyr::select(total) %&gt;%
+  dplyr::pull(total)</code></pre>
 </div>
 <pre><code>
-64000</code></pre>
+[1] 64000</code></pre>
 <p>So Scrooge Mcduck’s net worth is 640 dollars.</p>
 <p>Other higher-order functions supported by Spark SQL so far include <code>transform</code>, <code>filter</code>, and <code>exists</code>, as documented in <a href="https://spark.apache.org/docs/latest/api/sql/index.html">here</a>, and similar to the example above, their counterparts (namely, <code>hof_transform</code>, <code>hof_filter</code>, and <code>hof_exists</code>) all exist in sparklyr 1.3, so that they can be integrated with other <code>dplyr</code> verbs in an idiomatic manner in R.</p>
 <h2 id="avro">Avro</h2>

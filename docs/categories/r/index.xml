@@ -12,11 +12,11 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Tue, 21 Apr 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 22 Jun 2020 00:00:00 +0000</lastBuildDate>
     <item>
-      <title>sparklyr 1.2: Foreach, Spark 3.0 and Databricks Connect</title>
-      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-21-sparklyr-1.2.0-released</link>
+      <title>Deep attractors: Where deep learning meets chaos</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-06-23-deep-attractors</link>
       <description>
 
 
@@ -33,127 +33,52 @@
 &lt;/div&gt;
 
 
-&lt;p&gt;Behold the glory that is &lt;a href="https://sparklyr.ai"&gt;sparklyr&lt;/a&gt; 1.2! In this release, the following new hotnesses have emerged into spotlight:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;A &lt;code&gt;registerDoSpark&lt;/code&gt; method to create a &lt;a href="#foreach"&gt;foreach&lt;/a&gt; parallel backend powered by Spark that enables hundreds of existing R packages to run in Spark.&lt;/li&gt;
-&lt;li&gt;Support for &lt;a href="#databricks-connect"&gt;Databricks Connect&lt;/a&gt;, allowing &lt;code&gt;sparklyr&lt;/code&gt; to connect to remote Databricks clusters.&lt;/li&gt;
-&lt;li&gt;Improved support for Spark &lt;a href="#structures"&gt;structures&lt;/a&gt; when collecting and querying their nested attributes with &lt;code&gt;dplyr&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;A number of inter-op issues observed with &lt;code&gt;sparklyr&lt;/code&gt; and Spark 3.0 preview were also addressed recently, in hope that by the time Spark 3.0 officially graces us with its presence, &lt;code&gt;sparklyr&lt;/code&gt; will be fully ready to work with it. Most notably, key features such as &lt;code&gt;spark_submit&lt;/code&gt;, &lt;code&gt;sdf_bind_rows&lt;/code&gt;, and standalone connections are now finally working with Spark 3.0 preview.&lt;/p&gt;
-&lt;p&gt;To install &lt;code&gt;sparklyr&lt;/code&gt; 1.2 from CRAN run,&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;install.packages(&amp;quot;sparklyr&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The full list of changes are available in the sparklyr &lt;a href="https://github.com/sparklyr/sparklyr/blob/master/NEWS.md"&gt;NEWS&lt;/a&gt; file.&lt;/p&gt;
-&lt;div id="foreach" class="section level2"&gt;
-&lt;h2&gt;Foreach&lt;/h2&gt;
-&lt;p&gt;The &lt;code&gt;foreach&lt;/code&gt; package provides the &lt;code&gt;%dopar%&lt;/code&gt; operator to iterate over elements in a collection in parallel. Using &lt;code&gt;sparklyr&lt;/code&gt; 1.2, you can now register Spark as a backend using &lt;code&gt;registerDoSpark()&lt;/code&gt; and then easily iterate over R objects using Spark:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
-library(foreach)
-
-sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;2.4&amp;quot;)
-
-registerDoSpark(sc)
-foreach(i = 1:3, .combine = &amp;#39;c&amp;#39;) %dopar% {
-  sqrt(i)
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 1.000000 1.414214 1.732051&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Since many R packages are based on &lt;code&gt;foreach&lt;/code&gt; to perform parallel computation, we can now make use of all those great packages in Spark as well!&lt;/p&gt;
-&lt;p&gt;For instance, we can use &lt;a href="https://tidymodels.github.io/parsnip/"&gt;parsnip&lt;/a&gt; and the &lt;a href="https://tidymodels.github.io/tune/"&gt;tune&lt;/a&gt; package with data from &lt;a href="https://CRAN.R-project.org/package=mlbench"&gt;mlbench&lt;/a&gt; to perform hyperparameter tuning in Spark with ease:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(tune)
-library(parsnip)
-library(mlbench)
-
-data(Ionosphere)
-svm_rbf(cost = tune(), rbf_sigma = tune()) %&amp;gt;%
-  set_mode(&amp;quot;classification&amp;quot;) %&amp;gt;%
-  set_engine(&amp;quot;kernlab&amp;quot;) %&amp;gt;%
-  tune_grid(Class ~ .,
-    resamples = rsample::bootstraps(dplyr::select(Ionosphere, -V2), times = 30),
-    control = control_grid(verbose = FALSE))&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;# Bootstrap sampling
-# A tibble: 30 x 4
-   splits            id          .metrics          .notes
- * &amp;lt;list&amp;gt;            &amp;lt;chr&amp;gt;       &amp;lt;list&amp;gt;            &amp;lt;list&amp;gt;
- 1 &amp;lt;split [351/124]&amp;gt; Bootstrap01 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 2 &amp;lt;split [351/126]&amp;gt; Bootstrap02 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 3 &amp;lt;split [351/125]&amp;gt; Bootstrap03 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 4 &amp;lt;split [351/135]&amp;gt; Bootstrap04 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 5 &amp;lt;split [351/127]&amp;gt; Bootstrap05 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 6 &amp;lt;split [351/131]&amp;gt; Bootstrap06 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 7 &amp;lt;split [351/141]&amp;gt; Bootstrap07 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 8 &amp;lt;split [351/123]&amp;gt; Bootstrap08 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
- 9 &amp;lt;split [351/118]&amp;gt; Bootstrap09 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
-10 &amp;lt;split [351/136]&amp;gt; Bootstrap10 &amp;lt;tibble [10 × 5]&amp;gt; &amp;lt;tibble [0 × 1]&amp;gt;
-# … with 20 more rows&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The Spark connection was already registered, so the code ran in Spark without any additional changes. We can verify this was the case by navigating to the Spark web interface:&lt;/p&gt;
-&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-04-21-sparklyr-1.2.0-released/images/spark-backend-foreach-package.png" /&gt;&lt;/p&gt;
+&lt;p&gt;") training_loop(ds_train)&lt;br /&gt;
+}&lt;/p&gt;
+&lt;p&gt;```&lt;/p&gt;
+&lt;p&gt;After two hundred epochs, overall loss is at 2.67, with the MSE component at 1.8 and FNN at 0.09.&lt;/p&gt;
+&lt;div id="obtaining-the-attractor-from-the-test-set" class="section level3"&gt;
+&lt;h3&gt;Obtaining the attractor from the test set&lt;/h3&gt;
+&lt;p&gt;We use the test set to inspect the latent code:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# A tibble: 6,242 x 10
+      V1    V2         V3        V4        V5         V6        V7        V8       V9       V10
+   &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;      &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;      &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;    &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;
+ 1 0.439 0.401 -0.000614  -0.0258   -0.00176  -0.0000276  0.000276  0.00677  -0.0239   0.00906 
+ 2 0.415 0.504  0.0000481 -0.0279   -0.00435  -0.0000970  0.000921  0.00509  -0.0214   0.00921 
+ 3 0.389 0.619  0.000848  -0.0240   -0.00661  -0.000171   0.00106   0.00454  -0.0150   0.00794 
+ 4 0.363 0.729  0.00137   -0.0143   -0.00652  -0.000244   0.000523  0.00450  -0.00594  0.00476 
+ 5 0.335 0.809  0.00128   -0.000450 -0.00338  -0.000307  -0.000561  0.00407   0.00394 -0.000127
+ 6 0.304 0.828  0.000631   0.0126    0.000889 -0.000351  -0.00167   0.00250   0.0115  -0.00487 
+ 7 0.274 0.769 -0.000202   0.0195    0.00403  -0.000367  -0.00220  -0.000308  0.0145  -0.00726 
+ 8 0.246 0.657 -0.000865   0.0196    0.00558  -0.000359  -0.00208  -0.00376   0.0134  -0.00709 
+ 9 0.224 0.535 -0.00121    0.0162    0.00608  -0.000335  -0.00169  -0.00697   0.0106  -0.00576 
+10 0.211 0.434 -0.00129    0.0129    0.00606  -0.000306  -0.00134  -0.00927   0.00820 -0.00447 
+# … with 6,232 more rows&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As a result of the FNN regularizer, the latent code units should be ordered roughly by decreasing variance, with a sharp drop appearing some place (if the FNN weight has been chosen adequately).&lt;/p&gt;
+&lt;p&gt;For a &lt;code&gt;knn_weight&lt;/code&gt; of 10, we do see a drop after the first two units:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# A tibble: 1 x 10
+      V1     V2      V3      V4      V5      V6      V7      V8      V9     V10
+   &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;
+1 0.0739 0.0582 1.12e-6 3.13e-4 1.43e-5 1.52e-8 1.35e-6 1.86e-4 1.67e-4 4.39e-5&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;So the model indicates that the Lorenz attractor can be represented in two dimensions. If we nonetheless want to plot the complete (reconstructed) state space of three dimensions, we should reorder the remaining variables by magnitude of variance&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. Here, this results in three projections of the set &lt;code&gt;V1&lt;/code&gt;, &lt;code&gt;V2&lt;/code&gt; and &lt;code&gt;V4&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-06-23-deep-attractors/images/predicted_attractors.png" alt="Attractors as predicted from the latent code (test set). The three highest-variance variables were chosen." width="500" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-3)Attractors as predicted from the latent code (test set). The three highest-variance variables were chosen.
+&lt;/p&gt;
 &lt;/div&gt;
-&lt;div id="databricks-connect" class="section level2"&gt;
-&lt;h2&gt;Databricks Connect&lt;/h2&gt;
-&lt;p&gt;&lt;a href="https://docs.databricks.com/dev-tools/databricks-connect.html"&gt;Databricks Connect&lt;/a&gt; allows you to connect your favorite IDE (like &lt;a href="https://rstudio.com/products/rstudio/download/"&gt;RStudio&lt;/a&gt;!) to a Spark &lt;a href="https://databricks.com/"&gt;Databricks&lt;/a&gt; cluster.&lt;/p&gt;
-&lt;p&gt;You will first have to install the &lt;code&gt;databricks-connect&lt;/code&gt; package as described in our &lt;a href="https://github.com/sparklyr/sparklyr#connecting-through-databricks-connect"&gt;README&lt;/a&gt; and start a Databricks cluster, but once that’s ready, connecting to the remote cluster is as easy as running:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;sc &amp;lt;- spark_connect(
-  method = &amp;quot;databricks&amp;quot;,
-  spark_home = system2(&amp;quot;databricks-connect&amp;quot;, &amp;quot;get-spark-home&amp;quot;, stdout = TRUE))&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-04-21-sparklyr-1.2.0-released/images/spark-databricks-connect-rstudio.png" /&gt;&lt;/p&gt;
-&lt;p&gt;That’s about it, you are now remotely connected to a Databricks cluster from your local R session.&lt;/p&gt;
 &lt;/div&gt;
-&lt;div id="structures" class="section level2"&gt;
-&lt;h2&gt;Structures&lt;/h2&gt;
-&lt;p&gt;If you previously used &lt;code&gt;collect&lt;/code&gt; to deserialize structurally complex Spark dataframes into their equivalents in R, you likely have noticed Spark SQL struct columns were only mapped into JSON strings in R, which was non-ideal. You might also have run into a much dreaded &lt;code&gt;java.lang.IllegalArgumentException: Invalid type list&lt;/code&gt; error when using &lt;code&gt;dplyr&lt;/code&gt; to query nested attributes from any struct column of a Spark dataframe in sparklyr.&lt;/p&gt;
-&lt;p&gt;Unfortunately, often times in real-world Spark use cases, data describing entities comprising of sub-entities (e.g., a product catalog of all hardware components of some computers) needs to be denormalized / shaped in an object-oriented manner in the form of Spark SQL structs to allow efficient read queries. When sparklyr had the limitations mentioned above, users often had to invent their own workarounds when querying Spark struct columns, which explained why there was a mass popular demand for sparklyr to have better support for such use cases.&lt;/p&gt;
-&lt;p&gt;The good news is with &lt;code&gt;sparklyr&lt;/code&gt; 1.2, those limitations no longer exist any more when working running with Spark 2.4 or above.&lt;/p&gt;
-&lt;p&gt;As a concrete example, consider the following catalog of computers:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(dplyr)
-
-computers &amp;lt;- tibble::tibble(
-  id = seq(1, 2),
-  attributes = list(
-    list(
-      processor = list(freq = 2.4, num_cores = 256),
-      price = 100
-   ),
-   list(
-     processor = list(freq = 1.6, num_cores = 512),
-     price = 133
-   )
-  )
-)
-
-computers &amp;lt;- copy_to(sc, computers, overwrite = TRUE)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;A typical &lt;code&gt;dplyr&lt;/code&gt; use case involving &lt;code&gt;computers&lt;/code&gt; would be the following:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;high_freq_computers &amp;lt;- computers %&amp;gt;%
-                       filter(attributes.processor.freq &amp;gt;= 2) %&amp;gt;%
-                       collect()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;As previously mentioned, before &lt;code&gt;sparklyr&lt;/code&gt; 1.2, such query would fail with &lt;code&gt;Error: java.lang.IllegalArgumentException: Invalid type list&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;Whereas with &lt;code&gt;sparklyr&lt;/code&gt; 1.2, the expected result is returned in the following form:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;# A tibble: 1 x 2
-     id attributes
-  &amp;lt;int&amp;gt; &amp;lt;list&amp;gt;
-1     1 &amp;lt;named list [2]&amp;gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;where &lt;code&gt;high_freq_computers$attributes&lt;/code&gt; is what we would expect:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-[[1]]$price
-[1] 100
-
-[[1]]$processor
-[[1]]$processor$freq
-[1] 2.4
-
-[[1]]$processor$num_cores
-[1] 256&lt;/code&gt;&lt;/pre&gt;
+&lt;div id="wrapping-up-for-this-time" class="section level2"&gt;
+&lt;h2&gt;Wrapping up (for this time)&lt;/h2&gt;
+&lt;p&gt;At this point, we’ve seen how to reconstruct the Lorenz attractor from data we did not train on (the test set), using an autoencoder regularized by a custom &lt;em&gt;false nearest neighbors&lt;/em&gt; loss. It is important to stress that at no point was the network presented with the expected solution (attractor) – training was purely unsupervised.&lt;/p&gt;
+&lt;p&gt;This is a fascinating result. Of course, thinking practically, the next step is to obtain predictions on heldout data. Given how long this text has become already, we reserve that for a follow-up post. And again &lt;em&gt;of course&lt;/em&gt;, we’re thinking about other datasets, especially ones where the true state space is not known beforehand. What about measurement noise? What about datasets that are not completely deterministic&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;? There is a lot to explore, stay tuned – and as always, thanks for reading!&lt;/p&gt;
 &lt;/div&gt;
-&lt;div id="and-more" class="section level2"&gt;
-&lt;h2&gt;And More!&lt;/h2&gt;
-&lt;p&gt;Last but not least, we heard about a number of pain points &lt;code&gt;sparklyr&lt;/code&gt; users have run into, and have addressed many of them in this release as well. For example:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Date type in R is now correctly serialized into Spark SQL date type by &lt;code&gt;copy_to&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;&amp;lt;spark dataframe&amp;gt; %&amp;gt;% print(n = 20)&lt;/code&gt; now actually prints 20 rows as expected instead of 10&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;spark_connect(master = "local")&lt;/code&gt; will emit a more informative error message if it’s failing because the loopback interface is not up&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;… to just name a few. We want to thank the open source community for their continuous feedback on &lt;code&gt;sparklyr&lt;/code&gt;, and are looking forward to incorporating more of that feedback to make &lt;code&gt;sparklyr&lt;/code&gt; even better in the future.&lt;/p&gt;
-&lt;p&gt;Finally, in chronological order, we wish to thank the following individuals for contributing to &lt;code&gt;sparklyr&lt;/code&gt; 1.2: &lt;a href="https://github.com/zero323"&gt;zero323&lt;/a&gt;, &lt;a href="https://github.com/Loquats"&gt;Andy Zhang&lt;/a&gt;, &lt;a href="https://github.com/yl790"&gt;Yitao Li&lt;/a&gt;, &lt;a href="https://github.com/javierluraschi"&gt;Javier Luraschi&lt;/a&gt;, &lt;a href="https://github.com/falaki"&gt;Hossein Falaki&lt;/a&gt;, &lt;a href="https://github.com/lu-wang-dl"&gt;Lu Wang&lt;/a&gt;, and &lt;a href="https://github.com/samuelmacedo83"&gt;Samuel Macedo&lt;/a&gt;. Great job everyone!&lt;/p&gt;
-&lt;p&gt;If you need to catch up on &lt;code&gt;sparklyr&lt;/code&gt;, please visit &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, or some of the previous release posts: &lt;a href="https://blog.rstudio.com/2020/01/29/sparklyr-1-1/"&gt;sparklyr 1.1&lt;/a&gt; and &lt;a href="https://blog.rstudio.com/2019/03/15/sparklyr-1-0/"&gt;sparklyr 1.0&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;Thank you for reading this post.&lt;/p&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;As per author recommendation (e-mail).&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;See &lt;span class="citation"&gt;[@Kantz]&lt;/span&gt; for detailed discussions on using methodology from nonlinear deterministic systems analysis for noisy and/or partly-stochastic data.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
 &lt;/div&gt;
 
 
@@ -202,7 +127,58 @@ $(document).ready(function () {
 &lt;/script&gt;
 
 </description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">0b64678686a51ab5985c0e352bd0f2b7</distill:md5>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">9ada2ee301c05ae8986359b0aa05b2b1</distill:md5>
+      <category>R</category>
+      <category>TensorFlow/Keras</category>
+      <category>Time Series</category>
+      <category>Unsupervised Learning</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-06-23-deep-attractors</guid>
+      <pubDate>Mon, 22 Jun 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-06-23-deep-attractors/images/x_z.gif" medium="image" type="image/gif"/>
+    </item>
+    <item>
+      <title>Easy PixelCNN with tfprobability</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn</link>
+      <description>PixelCNN is a deep learning architecture - or bundle of architectures - designed to generate highly realistic-looking images. To use it, no reverse-engineering of arXiv papers or search for reference implementations is required: TensorFlow Probability and its R wrapper, tfprobability, now include a PixelCNN distribution that can be used to train a straightforwardly-defined neural network in a parameterizable way.</description>
+      <category>R</category>
+      <category>Image Recognition &amp; Image Processing</category>
+      <category>TensorFlow/Keras</category>
+      <category>Probabilistic ML/DL</category>
+      <category>Unsupervised Learning</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn</guid>
+      <pubDate>Fri, 29 May 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn/images/thumb.png" medium="image" type="image/png" width="2250" height="1140"/>
+    </item>
+    <item>
+      <title>Hacking deep learning: model inversion attack by example</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks</link>
+      <description>Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under "model inversion" allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy.</description>
+      <category>R</category>
+      <category>Privacy &amp; Security</category>
+      <category>TensorFlow/Keras</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks</guid>
+      <pubDate>Fri, 15 May 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks/images/results.png" medium="image" type="image/png" width="2378" height="1563"/>
+    </item>
+    <item>
+      <title>Towards privacy: Encrypted deep learning with Syft and Keras</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft</link>
+      <description>Deep learning need not be irreconcilable with privacy protection. Federated learning enables on-device, distributed model training; encryption keeps model and gradient updates private; differential privacy prevents the training data from leaking. As of today, private and secure deep learning is an emerging technology. In this post, we introduce Syft, an open-source framework that integrates with PyTorch as well as TensorFlow. In an example use case, we obtain private predictions from a Keras model.</description>
+      <category>R</category>
+      <category>Privacy &amp; Security</category>
+      <category>TensorFlow/Keras</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft</guid>
+      <pubDate>Wed, 29 Apr 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft/images/thumb.jpg" medium="image" type="image/jpeg"/>
+    </item>
+    <item>
+      <title>sparklyr 1.2: Foreach, Spark 3.0 and Databricks Connect</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-21-sparklyr-1.2.0-released</link>
+      <description>A new sparklyr release is now available. This sparklyr 1.2 release features new functionalities such as support for Databricks Connect, a Spark backend for the 'foreach' package, inter-op improvements for working with Spark 3.0 preview, as well as a number of bug fixes and improvements addressing user-visible pain points.</description>
       <category>R</category>
       <category>Packages/Releases</category>
       <category>Distributed Computing</category>

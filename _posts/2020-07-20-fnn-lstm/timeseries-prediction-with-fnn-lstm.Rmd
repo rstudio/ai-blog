@@ -568,13 +568,18 @@ calc_mse <- function(df, y_true, y_pred) {
 }
 
 get_mse <- function(test_batch, prediction) {
-  comp_df <- data.frame(test_batch[[2]][, , 1] %>%
-                          as.array()) %>%
-    rename_with(function(name)
-      paste0(name, "_true")) %>%
-    bind_cols(data.frame(prediction[, , 1] %>% as.array()) %>%
-                rename_with(function(name)
-                  paste0(name, "_pred")))
+  
+  comp_df <- 
+    data.frame(
+      test_batch[[2]][, , 1] %>%
+        as.array()) %>%
+        rename_with(function(name) paste0(name, "_true")) %>%
+    bind_cols(
+      data.frame(
+        prediction[, , 1] %>%
+          as.array()) %>%
+          rename_with(function(name) paste0(name, "_pred")))
+  
   mse <- purrr::map(1:dim(prediction)[2],
                         function(varno)
                           calc_mse(comp_df,
@@ -593,6 +598,7 @@ mse_lstm <- get_mse(test_batch, prediction_lstm)
 
 mses <- data.frame(timestep = 1:n_timesteps, fnn = mse_fnn, lstm = mse_lstm) %>%
   gather(key = "type", value = "mse", -timestep)
+
 ggplot(mses, aes(timestep, mse, color = type)) +
   geom_point() +
   scale_color_manual(values = c("#00008B", "#3CB371")) +
@@ -636,14 +642,15 @@ lstm <- data.frame(as.array(prediction_lstm[, , 1]) %>%
 
 compare_preds_df <- bind_rows(given, lstm, fnn)
 
-plots <- purrr::map(sample(1:dim(compare_preds_df)[2], 16),
-                    function(v)
-                      ggplot(compare_preds_df, aes(num, .data[[paste0("X", v)]], color = type)) +
-                      geom_line() +
-                      theme_classic() +
-                      theme(legend.position = "none", axis.title = element_blank()) +
-                      scale_color_manual(values = c("#00008B", "#DB7093", "#3CB371")))
-
+plots <- 
+  purrr::map(sample(1:dim(compare_preds_df)[2], 16),
+             function(v) {
+               ggplot(compare_preds_df, aes(num, .data[[paste0("X", v)]], color = type)) +
+                 geom_line() +
+                 theme_classic() +
+                 theme(legend.position = "none", axis.title = element_blank()) +
+                 scale_color_manual(values = c("#00008B", "#DB7093", "#3CB371")))
+             }
 
 plot_grid(plotlist = plots, ncol = 4)
 ```

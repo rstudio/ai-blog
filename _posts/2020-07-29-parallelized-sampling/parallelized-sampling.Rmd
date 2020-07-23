@@ -1,0 +1,73 @@
+---
+title: "Parallelized sampling using exponential variates"
+description: > 
+  How can the seemingly iterative process of weighted sampling without replacement be transformed into something highly parallelizable? Turns out a well-known technique based on exponential variates accomplshes exactly that.
+author:
+  - name: Yitao Li
+    affiliation: RStudio
+    affiliation_url: https://www.rstudio.com/
+# bibliography: bibliography.bib  TODO
+date: 07-29-2020
+categories:
+  - Probabilistic ML/DL
+  - Concepts
+output:
+  distill::distill_article:
+    self_contained: false
+preview: images/dice.jpg
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+As part of my recent work to support weighted sampling of Spark dataframes in `sparklyr`, I embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.
+
+In the interest of brevity, "weighted sampling without replacement" shall be shorted into `SWOR` for the remainder of this blog post.
+
+In the following sections, I will explain and illustrate what `SWOR` means probability-wise, briefly outline some solutions I have considered but was not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.
+
+## How it all started?
+
+My journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
+
+```{r}
+dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)
+```
+
+will randomly select one-fourth of all rows from a R dataframe named "mtcars" without replacement, using `mtcars$gear` as weights. I was unable to find any function implementing the weighted versions of `dplyr::sample_frac` among [Spark SQL built-in functions](https://spark.apache.org/docs/3.0.0/api/sql/index.html) in Spark 3.0 or in earlier versions, which means a future version of `sparklyr` will need to run its own weighted sampling algorithm to support such use cases.
+
+## What exactly is `SWOR`?
+
+Readers already having a crystal-clear mental picture of what `SWOR` entails should probably skip most of this section. The key take-away here is given $N$ rows $r_1$, ..., $r_N$ and their weights $w_1$, ..., $w_N$ and a desired sample size $n$, `SWOR` is conceptually equivalent to a $n$-step process of selecting 1 out of $n - j + 1$ remaining rows in the $j$-th step for $j \in \{1, ..., n\}$, with each remaining row's likelihood of getting selected being linearly proportional to its weight in any of the steps. Therefore the probability of `SWOR` selecting a given sequence of $n$ rows $(r_1, ..., r_n)$ is simply $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$.
+
+Notice the outcome of a `SWOR` process is in fact order-significant, which is why in this post it will always be represented as a tuple of elements.
+
+For example, suppose we are given 5 rows, $r_1$, $r_2$, ..., $r_5$ with weights $w_1$, $w_2$, ..., $w_5$ where all weights are positive real numbers, and run `SWOR` to randomly select 3 rows, what is the probability of selecting $(r_1, r_2, r_3)$? 
+
+A helpful way to visualize this `SWOR` process is the following:
+
+- Imagine $r_1$, $r_2$, ..., $r_5$ as 5 rectangular tiles laid out consecutively on a wall with widths $w_1$, $w_2$, ..., $w_5$, with $r_1$ covering $[0, w_1)$, $r_2$ covering $[w_1, w_1 + w_2)$, ..., and $r_5$ covering $\left[\sum\limits_{j = 1}^{4} w_j, \sum\limits_{j = 1}^{5} w_j\right)$
+  
+- Equate drawing a random sample in each step to throwing a dart uniformly randomly within the interval covered by all tiles that are not hit yet, taking out whichever tile that is hit, and also re-arranging remaining tiles to make them cover a consecutive interval without overlapping.
+
+In step $j = 1$, we would have the dart hitting $r_1$ with probability $\left. w_1 \middle/ \left(\sum\limits_{k = 1}^{N}w_k\right) \right.$
+
+![step 1](images/d1.jpg){#id .class width=50% height=50%} .
+
+After $r_1$ gets hit by a dart and taken out, we have $(r_1)$ as elements selected so far, and step $j = 2$ looking like this:
+
+![step 2](images/d2.jpg){#id .class width=48% height=45%} ,
+
+and the probability of the dart hitting $r_2$ in step 2 is $\left. w_2 \middle/ \left(\sum\limits_{k = 2}^{N}w_k\right) \right.$ .
+
+After the dart has hit $r_2$, $(r_1, r_2)$ becomes the tuple of elements selected so far.
+
+Finally, moving on to step $j = 3$, we have:
+
+![step 3](images/d3.jpg){#id .class width=40% height=20%} ,
+
+with the probability of the dart hitting $r_3$ being $\left. w_3 \middle/ \left(\sum\limits_{k = 3}^{N}w_k\right) \right.$.
+
+So, combining all of the above, the overall probability of selecting  $(r_1, r_2, r_3)$ is $\prod\limits_{j = 1}^{3} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$.
+

@@ -41,7 +41,7 @@ will randomly select one-fourth of all rows from a R dataframe named "mtcars" wi
 
 ## What exactly is `SWOR`?
 
-Readers already having a crystal-clear mental picture of what `SWOR` entails should probably skip most of this section. The key take-away here is given $N$ rows $r_1$, ..., $r_N$ and their weights $w_1$, ..., $w_N$ and a desired sample size $n$, `SWOR` is conceptually equivalent to a $n$-step process of selecting 1 out of $n - j + 1$ remaining rows in the $j$-th step for $j \in \{1, ..., n\}$, with each remaining row's likelihood of getting selected being linearly proportional to its weight in any of the steps, i.e.,
+Readers already having a crystal-clear mental picture of what `SWOR` entails should probably skip most of this section. The key take-away here is given $N$ rows $r_1, \dotsc, r_N$ and their weights $w_1, \dotsc, w_N$ and a desired sample size $n$, `SWOR` is conceptually equivalent to a $n$-step process of selecting 1 out of $n - j + 1$ remaining rows in the $j$-th step for $j \in \{1, \dotsc, n\}$, with each remaining row's likelihood of getting selected being linearly proportional to its weight in any of the steps, i.e.,
 
 ```
 samples := {}
@@ -54,19 +54,19 @@ for j = 1 to n
   population := population - {r[x]}
 ```
 
-Therefore the probability of `SWOR` selecting a given sequence of $n$ rows $(r_1, ..., r_n)$ is simply $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$.
+Therefore the probability of `SWOR` selecting a given sequence of $n$ rows $(r_1, \dotsc, r_n)$ is simply $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$.
 
 Notice the outcome of a `SWOR` process is in fact order-significant, which is why in this post it will always be represented as an ordered tuple of elements.
 
 `SWOR` can also be explained in term of dart-throwing:
 
-- Imagine $r_1$, $r_2$, ..., $r_5$ as 5 rectangular tiles laid out consecutively on a wall with widths $w_1$, $w_2$, ..., $w_5$, with $r_1$ covering $[0, w_1)$, $r_2$ covering $[w_1, w_1 + w_2)$, ..., and $r_5$ covering $\left[\sum\limits_{j = 1}^{4} w_j, \sum\limits_{j = 1}^{5} w_j\right)$
+- Imagine $r_1, r_2, \dotsc, r_5$ as 5 rectangular tiles laid out consecutively on a wall with widths $w_1, w_2, \dotsc, w_5$, with $r_1$ covering $[0, w_1)$, $r_2$ covering $[w_1, w_1 + w_2)$, ..., and $r_5$ covering $\left[\sum\limits_{j = 1}^{4} w_j, \sum\limits_{j = 1}^{5} w_j\right)$
   
 - Equate drawing a random sample in each step to throwing a dart uniformly randomly within the interval covered by all tiles that are not hit yet
   
 - After a tile is hit, it gets taken out and remaining tiles are re-arranged so that they continue to cover a contiguous interval without overlapping
 
-For example, suppose we are given 5 rows, $r_1$, $r_2$, ..., $r_5$ with weights $w_1$, $w_2$, ..., $w_5$ where all weights are positive real numbers, and run `SWOR` to randomly select 3 rows, what is the probability of selecting $(r_1, r_2, r_3)$? 
+For example, suppose we are given 5 rows, $r_1, r_2, \dotsc, r_5$ with weights $w_1, w_2, \dotsc, w_5$ where all weights are positive real numbers, and run `SWOR` to randomly select 3 rows, what is the probability of selecting $(r_1, r_2, r_3)$? 
 
 In step $j = 1$, the dart will hit $r_1$ with probability $\left. w_1 \middle/ \left(\sum\limits_{k = 1}^{N}w_k\right) \right.$
 
@@ -98,7 +98,7 @@ Continuing with the dart-throwing analogy from the previous section, let us say 
 
 ![.](images/tree.jpg){ width=60% height=40%}
 
-To find the tile that was hit given the dart's position $x$, we simply need to traverse down the tree, going through the box containing $x$ in each level, incurring a $O(log(N))$ cost in time complexity for each sample. To take a tile out of the picture, we update the width of the tile to $0$ and propagate this change upwards from leaf level to root of the tree, again incurring a $O(log(N))$ cost in time complexity, making the overall time complexity of selecting $n$ samples $O(n \cdot log(N))$, which is not so great for large data sets, and also, not parallelizable across multiple partitions of a Spark dataframe. 
+To find the tile that was hit given the dart's position $x$, we simply need to traverse down the tree, going through the box containing $x$ in each level, incurring a $O(\log(N))$ cost in time complexity for each sample. To take a tile out of the picture, we update the width of the tile to $0$ and propagate this change upwards from leaf level to root of the tree, again incurring a $O(\log(N))$ cost in time complexity, making the overall time complexity of selecting $n$ samples $O(n \cdot \log(N))$, which is not so great for large data sets, and also, not parallelizable across multiple partitions of a Spark dataframe. 
 
 ### Rejection sampling
 
@@ -116,7 +116,7 @@ A version of this sampling algorithm implemented by `sparklyr` does the followin
 There are at least 4 reasons why this solution is highly appealing and was chosen to be implemented in `sparklyr`:
 
 - It is a one-pass algorithm (i.e., only need to iterate through all rows of a dataframe exactly once).
-- Its computational overhead is quite low (as selecting top $n$ rows at any stage only requires a bounded priority queue of max size $n$, which costs $O(log(n))$ per update in time complexity).
+- Its computational overhead is quite low (as selecting top $n$ rows at any stage only requires a bounded priority queue of max size $n$, which costs $O(\log(n))$ per update in time complexity).
 - More importantly, most of its required computations can be performed in parallel. In fact, the only non-parallelizable step is the very last stage of combining top candidates from all partitions and choosing the top $n$ rows among those candidates. So, it fits very well into the world of Spark / MapReduce, and has drastically better horizontal scalability compared to the naive approaches.
 - Bonus: it is also suitable for weighted reservoir sampling (i.e., can sample $n$ out of a possibly infinite stream of rows according to their weights such that at any moment the $n$ samples will be a weighted representation of all rows that have been processed so far).
 
@@ -126,13 +126,13 @@ As an interesting aside, some readers have probably seen this technique presente
 
 In this section, I will also present a proof of correctness for this algorithm based on elementary properties of [probability density function](https://en.wikipedia.org/wiki/Probability_density_function) (shortened as PDF from now on), [cumulative distribution function](https://en.wikipedia.org/wiki/Cumulative_distribution_function) (shortened as CDF from now on), and basic calculus.
 
-First of all, to make sense of all the $\ln(u_j) / w_j$ calculations in this algorithm, one has to understand [inverse transform sampling](https://en.wikipedia.org/wiki/Inverse_transform_sampling). For each $j \in \{1, ..., N\}$, consider the probability distribution defined on $(-\infty, 0)$ with CDF $F_j(x) = e^{w_j \cdot x}$. In order to sample a value $y$ from this distribution, we first choose a random value $u_j$ uniformly randomly out of $(0, 1)$ that tells us the percentile of $y$ (i.e., how it ranks relative to the "overall population" from this distribution), and then apply $F_j^{-1}$ to it, so, $y = F_j^{-1}(u_j) = \ln(u_j) / w_j$.
+First of all, to make sense of all the $\ln(u_j) / w_j$ calculations in this algorithm, one has to understand [inverse transform sampling](https://en.wikipedia.org/wiki/Inverse_transform_sampling). For each $j \in \{1, \dotsc, N\}$, consider the probability distribution defined on $(-\infty, 0)$ with CDF $F_j(x) = e^{w_j \cdot x}$. In order to sample a value $y$ from this distribution, we first choose a random value $u_j$ uniformly randomly out of $(0, 1)$ that tells us the percentile of $y$ (i.e., how it ranks relative to the "overall population" from this distribution), and then apply $F_j^{-1}$ to it, so, $y = F_j^{-1}(u_j) = \ln(u_j) / w_j$.
 
-Secondly, after defining all the required CDF functions $F_j(x) = e^{w_j \cdot x}$ for $j \ in {1, ..., N}$, we can also easily derive their corresponding PDF functions $f_j$: $$f_j(x) = \frac{d F_j(x)}{dx} = w_j e^{w_j \cdot x}$$.
+Secondly, after defining all the required CDF functions $F_j(x) = e^{w_j \cdot x}$ for $j \ in {1, \dotsc, N}$, we can also easily derive their corresponding PDF functions $f_j$: $$f_j(x) = \frac{d F_j(x)}{dx} = w_j e^{w_j \cdot x}$$.
 
-Finally, with a clear understanding of the family of proability distributions this algorithm is working with, it is a non-difficult calculus exercise to show the probability of selecting any tuple of rows (say $(r_1, ..., r_n)$) will be $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$, which implies the possible outcomes of this algorithm will have exactly the same probability distribution as that of a $n$-step `SWOR`.
+Finally, with a clear understanding of the family of proability distributions this algorithm is working with, it is a non-difficult calculus exercise to show the probability of selecting any tuple of rows (say $(r_1, \dotsc, r_n)$) will be $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$, which implies the possible outcomes of this algorithm will have exactly the same probability distribution as that of a $n$-step `SWOR`.
 
-In order to not deprive our dear readers the pleasure of completing this proof by themselves, I decided to not include any further detail here, and make everything available in [this file]() instead.
+In order to not deprive our dear readers the pleasure of completing this proof by themselves, I decided to not include any further detail here, and make everything available in [this file](proof.pdf) instead.
 
 That's all. I hope you enjoyed this blog post! If you wish to learn more about `sparklyr`, we recommend visiting [sparklyr.ai](https://sparklyr.ai), [spark.rstudio.com](https://spark.rstudio.com), and some of the previous release posts such as [sparklyr 1.3](https://blog.rstudio.com/2020/07/16/sparklyr-1-3/) and [sparklyr 1.2](https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/). Also, your contributions to `sparklyr` are more than welcome. Please send your pull requests through [here](https://github.com/sparklyr/sparklyr/pulls) and file any bug report or feature request in [here](https://github.com/sparklyr/sparklyr).
 

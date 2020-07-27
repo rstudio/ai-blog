@@ -23,21 +23,21 @@ header-includes:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-As part of my recent work to support weighted sampling of Spark dataframes in `sparklyr`, I embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.
+As part of our recent work to support weighted sampling of Spark dataframes in `sparklyr`, we embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.
 
 In the interest of brevity, "weighted sampling without replacement" shall be shortened into `SWoR` for the remainder of this blog post.
 
-In the following sections, I will explain and illustrate what `SWoR` means probability-wise, briefly outline some alternative solutions I have considered but was not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.
+In the following sections, we will explain and illustrate what `SWoR` means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.
 
 ## How it all started?
 
-My journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
+The journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
 
 ```{r}
 dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)
 ```
 
-will randomly select one-fourth of all rows from a R dataframe named "mtcars" without replacement, using `mtcars$gear` as weights. I was unable to find any function implementing the weighted versions of `dplyr::sample_frac` among [Spark SQL built-in functions](https://spark.apache.org/docs/3.0.0/api/sql/index.html) in Spark 3.0 or in earlier versions, which means a future version of `sparklyr` will need to run its own weighted sampling algorithm to support such use cases.
+will randomly select one-fourth of all rows from a R dataframe named "mtcars" without replacement, using `mtcars$gear` as weights. We were unable to find any function implementing the weighted versions of `dplyr::sample_frac` among [Spark SQL built-in functions](https://spark.apache.org/docs/3.0.0/api/sql/index.html) in Spark 3.0 or in earlier versions, which means a future version of `sparklyr` will need to run its own weighted sampling algorithm to support such use cases.
 
 ## What exactly is `SWoR`?
 
@@ -88,7 +88,7 @@ So, combining all of the above, the overall probability of selecting  $(r_1, r_2
 
 ## Naive approaches for implementing `SWoR`
 
-This section contains some possible naive approaches that were briefly under consideration. Because none of them scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, I decided to avoid all of those approaches in `sparklyr`.
+This section contains some possible naive approaches that were briefly under consideration. Because none of them scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, we decided to avoid all of those approaches in `sparklyr`.
 
 ### A tree-base approach
 
@@ -124,7 +124,7 @@ There are at least 4 reasons why this solution is highly appealing and was chose
 
 As an interesting aside, some readers have probably seen this technique presented in a slightly different form under another name. It is in fact equivalent to a generalized version of the [Gumbel-max trick](https://lips.cs.princeton.edu/the-gumbel-max-trick-for-discrete-distributions) which is commonly referred to as the Gumbel-top-k trick. Readers familiar with properties of the Gumbel distribution will no doubt have an easy time convincing themselves the algorithm above works as expected.
 
-In this section, I will also present a proof of correctness for this algorithm based on elementary properties of [probability density function](https://en.wikipedia.org/wiki/Probability_density_function) (shortened as PDF from now on), [cumulative distribution function](https://en.wikipedia.org/wiki/Cumulative_distribution_function) (shortened as CDF from now on), and basic calculus.
+In this section, we will also present a proof of correctness for this algorithm based on elementary properties of [probability density function](https://en.wikipedia.org/wiki/Probability_density_function) (shortened as PDF from now on), [cumulative distribution function](https://en.wikipedia.org/wiki/Cumulative_distribution_function) (shortened as CDF from now on), and basic calculus.
 
 First of all, to make sense of all the $\ln(u_j) / w_j$ calculations in this algorithm, one has to understand [inverse transform sampling](https://en.wikipedia.org/wiki/Inverse_transform_sampling). For each $j \in \{1, \dotsc, N\}$, consider the probability distribution defined on $(-\infty, 0)$ with CDF $F_j(x) = e^{w_j \cdot x}$. In order to pluck out a value $y$ from this distribution, we first sample a value $u_j$ uniformly randomly out of $(0, 1)$ that determines the percentile of $y$ (i.e., how our $y$ value ranks relative to all possible $y$ values, a.k.a, the "overall population", from this distribution), and then apply $F_j^{-1}$ to $u_j$ to find $y$, so, $y = F_j^{-1}(u_j) = \ln(u_j) / w_j$.
 
@@ -132,7 +132,7 @@ Secondly, after defining all the required CDF functions $F_j(x) = e^{w_j \cdot x
 
 Finally, with a clear understanding of the family of proability distributions this algorithm is working with, it is a non-difficult calculus exercise to show the probability of selecting any tuple of rows (say $(r_1, \dotsc, r_n)$) will be $\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)$, which implies the possible outcomes of this algorithm will have exactly the same probability distribution as that of a $n$-step `SWoR`.
 
-In order to not deprive our dear readers the pleasure of completing this proof by themselves, I decided not to inline the rest of the proof within this blog post, and make everything available in [this file](proof.pdf) instead.
+In order to not deprive our dear readers the pleasure of completing this proof by themselves, we decided not to inline the rest of the proof within this blog post, and make everything available in [this file](proof.pdf) instead.
 
 # Testing
 
@@ -176,11 +176,11 @@ The code snippet below is an example implementation in which each partition of t
   def sampleWithoutReplacement(
     rdd: RDD[Row],
     weightColumn: String,
-    k: Int,
+    sampleSize: Int,
     seed: Long
   ): RDD[Row] = {
     val sc = rdd.context
-    if (0 == k) {
+    if (0 == sampleSize) {
       sc.emptyRDD
     } else {
       val mapRDDs = rdd.mapPartitionsWithIndex { (index, iter) =>
@@ -202,7 +202,12 @@ The code snippet below is an example implementation in which each partition of t
 
 An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from `dplyr::slice_sample` with that from `sparklyr::sdf_weighted_sample` is shown in [this file](test_plan). Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.
 
+# Acknowledgement
 
-That's all. I hope you enjoyed this blog post! If you wish to learn more about `sparklyr`, we recommend visiting [sparklyr.ai](https://sparklyr.ai), [spark.rstudio.com](https://spark.rstudio.com), and some of the previous release posts such as [sparklyr 1.3](https://blog.rstudio.com/2020/07/16/sparklyr-1-3/) and [sparklyr 1.2](https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/). Also, your contributions to `sparklyr` are more than welcome. Please send your pull requests through [here](https://github.com/sparklyr/sparklyr/pulls) and file any bug report or feature request in [here](https://github.com/sparklyr/sparklyr).
+First and foremost, the author wishes to thank [\@ajing](https://github.com/ajing) for reporting in this [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) that the weighted sampling use cases were not properly supported yet in `sparklyr` 1.3 and suggesting it should be part of some future version of `sparklyr`.
+
+Special thanks also goes to Javier ([\@javierluraschi](https://github.com/javierluraschi)) for reviewing the [implementation](https://github.com/sparklyr/sparklyr/pull/2606) of all exponential-variate based sampling algorithms in `sparklyr`, and to both and Mara ([\@batpigandme](https://github.com/batpigandme)) and Javier ([\@javierluraschi](https://github.com/javierluraschi)) their valuable editorial suggestions.
+
+We hope you have enjoyed reading this blog post! If you wish to learn more about `sparklyr`, we recommend visiting [sparklyr.ai](https://sparklyr.ai), [spark.rstudio.com](https://spark.rstudio.com), and some of the previous release posts such as [sparklyr 1.3](https://blog.rstudio.com/2020/07/16/sparklyr-1-3/) and [sparklyr 1.2](https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/). Also, your contributions to `sparklyr` are more than welcome. Please send your pull requests through [here](https://github.com/sparklyr/sparklyr/pulls) and file any bug report or feature request in [here](https://github.com/sparklyr/sparklyr).
 
 Thanks for reading!

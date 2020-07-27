@@ -29,14 +29,26 @@ In the interest of brevity, "weighted sampling without replacement" shall be sho
 
 In the following sections, we will explain and illustrate what `SWoR` means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.
 
-If you cannot wait to jump into action, there is also a [section](#examples) in which we showcase example usages of `sdf_weighted_sample()` in `sparklyr`.
+If you cannot wait to jump into action, there is also a [section](#examples) in which we showcase example usages of `sdf_weighted_sample()` in `sparklyr`. In addition, you can go to this [pull request](https://github.com/sparklyr/sparklyr/pull/2606) to examine all implementation details of `sparklyr::sdf_weighted_sample()`.
 
 ## How it all started?
 
-The journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
+Our journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
 
 ```{r}
 dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)
+```
+
+```
+##                    mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+## Merc 280C         17.8   6 167.6 123 3.92 3.440 18.90  1  0    4    4
+## Chrysler Imperial 14.7   8 440.0 230 3.23 5.345 17.42  0  0    3    4
+## Fiat X1-9         27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+## Hornet Sportabout 18.7   8 360.0 175 3.15 3.440 17.02  0  0    3    2
+## Valiant           18.1   6 225.0 105 2.76 3.460 20.22  1  0    3    1
+## Porsche 914-2     26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+## Maserati Bora     15.0   8 301.0 335 3.54 3.570 14.60  0  1    5    8
+## Ferrari Dino      19.7   6 145.0 175 3.62 2.770 15.50  0  1    5    6
 ```
 
 will randomly select one-fourth of all rows from a R dataframe named "mtcars" without replacement, using `mtcars$gear` as weights. We were unable to find any function implementing the weighted versions of `dplyr::sample_frac` among [Spark SQL built-in functions](https://spark.apache.org/docs/3.0.0/api/sql/index.html) in Spark 3.0 or in earlier versions, which means a future version of `sparklyr` will need to run its own weighted sampling algorithm to support such use cases.
@@ -68,13 +80,13 @@ Notice the outcome of a `SWoR` process is in fact order-significant, which is wh
   
 - After a tile is hit, it gets taken out and remaining tiles are re-arranged so that they continue to cover a contiguous interval without overlapping
 
-We shall ask ourselves what is the probability of the dart hitting $(r_1, r_2, r_3)$ in that order? 
+If our sample size is 3, then we shall ask ourselves what is the probability of the dart hitting $(r_1, r_2, r_3)$ in that order? 
 
 In step $j = 1$, the dart will hit $r_1$ with probability $\left. w_1 \middle/ \left(\sum\limits_{k = 1}^{N}w_k\right) \right.$
 
 ![step 1](images/d1.jpg){ width=50% height=50% } .
 
-After updating `samples` to $(r_1)$ and deleting $r_1$ from the sample space, step $j = 2$ will look like this:
+After deleting $r_1$ from the sample space after it's hit, step $j = 2$ will look like this:
 
 ![step 2](images/d2.jpg){ width=48% height=45% } ,
 
@@ -90,7 +102,7 @@ So, combining all of the above, the overall probability of selecting  $(r_1, r_2
 
 ## Naive approaches for implementing `SWoR`
 
-This section contains some possible naive approaches that were briefly under consideration. Because none of them scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, we decided to avoid all of those approaches in `sparklyr`.
+This section outlines some possible approaches that were briefly under consideration. Because none of these approaches scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, we decided to avoid all of them in `sparklyr`.
 
 ### A tree-base approach
 

@@ -51,7 +51,7 @@
   <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["bibliography.bib","derby.log","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","logs/log4j.spark.log","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","test_plan"]}
+  {"type":"character","attributes":{},"value":["bibliography.bib","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","test_plan"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
   <!--/radix_placeholder_navigation_in_header-->
@@ -979,13 +979,23 @@
 <p>As part of our recent work to support weighted sampling of Spark dataframes in <code>sparklyr</code>, we embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.</p>
 <p>In the interest of brevity, “weighted sampling without replacement” shall be shortened into <code>SWoR</code> for the remainder of this blog post.</p>
 <p>In the following sections, we will explain and illustrate what <code>SWoR</code> means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.</p>
-<p>If you cannot wait to jump into action, there is also a <a href="#examples">section</a> in which we showcase example usages of <code>sdf_weighted_sample()</code> in <code>sparklyr</code>.</p>
+<p>If you cannot wait to jump into action, there is also a <a href="#examples">section</a> in which we showcase example usages of <code>sdf_weighted_sample()</code> in <code>sparklyr</code>. In addition, you can go to this <a href="https://github.com/sparklyr/sparklyr/pull/2606">pull request</a> to examine all implementation details of <code>sparklyr::sdf_weighted_sample()</code>.</p>
 <h2 id="how-it-all-started">How it all started?</h2>
-<p>The journey started from a <a href="https://github.com/sparklyr/sparklyr/issues/2592">Github issue</a> inquiring about the possibility of supporting the equivalent of <code>dplyr::sample_frac(..., weight = &lt;weight_column&gt;)</code> for Spark dataframes in <code>sparklyr</code>. For example,</p>
+<p>Our journey started from a <a href="https://github.com/sparklyr/sparklyr/issues/2592">Github issue</a> inquiring about the possibility of supporting the equivalent of <code>dplyr::sample_frac(..., weight = &lt;weight_column&gt;)</code> for Spark dataframes in <code>sparklyr</code>. For example,</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)</code></pre>
 </div>
+<pre><code>
+##                    mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+## Merc 280C         17.8   6 167.6 123 3.92 3.440 18.90  1  0    4    4
+## Chrysler Imperial 14.7   8 440.0 230 3.23 5.345 17.42  0  0    3    4
+## Fiat X1-9         27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+## Hornet Sportabout 18.7   8 360.0 175 3.15 3.440 17.02  0  0    3    2
+## Valiant           18.1   6 225.0 105 2.76 3.460 20.22  1  0    3    1
+## Porsche 914-2     26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+## Maserati Bora     15.0   8 301.0 335 3.54 3.570 14.60  0  1    5    8
+## Ferrari Dino      19.7   6 145.0 175 3.62 2.770 15.50  0  1    5    6</code></pre>
 <p>will randomly select one-fourth of all rows from a R dataframe named “mtcars” without replacement, using <code>mtcars$gear</code> as weights. We were unable to find any function implementing the weighted versions of <code>dplyr::sample_frac</code> among <a href="https://spark.apache.org/docs/3.0.0/api/sql/index.html">Spark SQL built-in functions</a> in Spark 3.0 or in earlier versions, which means a future version of <code>sparklyr</code> will need to run its own weighted sampling algorithm to support such use cases.</p>
 <h2 id="what-exactly-is-swor">What exactly is <code>SWoR</code>?</h2>
 <p>Readers already having a crystal-clear mental picture of what <code>SWoR</code> entails should probably skip most of this section. The key take-away here is given <span class="math inline">\(N\)</span> rows <span class="math inline">\(r_1, \dotsc, r_N\)</span> and their weights <span class="math inline">\(w_1, \dotsc, w_N\)</span> and a desired sample size <span class="math inline">\(n\)</span>, <code>SWoR</code> is conceptually equivalent to a <span class="math inline">\(n\)</span>-step process of selecting 1 out of <span class="math inline">\(n - j + 1\)</span> remaining rows in the <span class="math inline">\(j\)</span>-th step for <span class="math inline">\(j \in \{1, \dotsc, n\}\)</span>, with each remaining row’s likelihood of getting selected being linearly proportional to its weight in any of the steps, i.e.,</p>
@@ -1006,10 +1016,10 @@ for j = 1 to n
 <li><p>Equate drawing a random sample in each step to throwing a dart uniformly randomly within the interval covered by all tiles that are not hit yet</p></li>
 <li><p>After a tile is hit, it gets taken out and remaining tiles are re-arranged so that they continue to cover a contiguous interval without overlapping</p></li>
 </ul>
-<p>We shall ask ourselves what is the probability of the dart hitting <span class="math inline">\((r_1, r_2, r_3)\)</span> in that order?</p>
+<p>If our sample size is 3, then we shall ask ourselves what is the probability of the dart hitting <span class="math inline">\((r_1, r_2, r_3)\)</span> in that order?</p>
 <p>In step <span class="math inline">\(j = 1\)</span>, the dart will hit <span class="math inline">\(r_1\)</span> with probability <span class="math inline">\(\left. w_1 \middle/ \left(\sum\limits_{k = 1}^{N}w_k\right) \right.\)</span></p>
 <p><img src="images/d1.jpg" style="width:50.0%;height:50.0%" alt="step 1" /> .</p>
-<p>After updating <code>samples</code> to <span class="math inline">\((r_1)\)</span> and deleting <span class="math inline">\(r_1\)</span> from the sample space, step <span class="math inline">\(j = 2\)</span> will look like this:</p>
+<p>After deleting <span class="math inline">\(r_1\)</span> from the sample space after it’s hit, step <span class="math inline">\(j = 2\)</span> will look like this:</p>
 <p><img src="images/d2.jpg" style="width:48.0%;height:45.0%" alt="step 2" /> ,</p>
 <p>and the probability of the dart hitting <span class="math inline">\(r_2\)</span> in step 2 is <span class="math inline">\(\left. w_2 \middle/ \left(\sum\limits_{k = 2}^{N}w_k\right) \right.\)</span> .</p>
 <p>Finally, moving on to step <span class="math inline">\(j = 3\)</span>, we have:</p>
@@ -1017,7 +1027,7 @@ for j = 1 to n
 <p>with the probability of the dart hitting <span class="math inline">\(r_3\)</span> being <span class="math inline">\(\left. w_3 \middle/ \left(\sum\limits_{k = 3}^{N}w_k\right) \right.\)</span>.</p>
 <p>So, combining all of the above, the overall probability of selecting <span class="math inline">\((r_1, r_2, r_3)\)</span> is <span class="math inline">\(\prod\limits_{j = 1}^{3} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)\)</span>.</p>
 <h2 id="naive-approaches-for-implementing-swor">Naive approaches for implementing <code>SWoR</code></h2>
-<p>This section contains some possible naive approaches that were briefly under consideration. Because none of them scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, we decided to avoid all of those approaches in <code>sparklyr</code>.</p>
+<p>This section outlines some possible approaches that were briefly under consideration. Because none of these approaches scales well to a large number of rows or a non-trivial number of partitions in a Spark dataframe, we decided to avoid all of them in <code>sparklyr</code>.</p>
 <h3 id="a-tree-base-approach">A tree-base approach</h3>
 <p>One possible way to accomplish <code>SWoR</code> is to have a mutable data structure keeping track of the sample space at each step.</p>
 <p>Continuing with the dart-throwing analogy from the previous section, let us say initially, none of the tiles has been taken out yet, and a dart has landed at some point <span class="math inline">\(x \in \left[0, \sum\limits_{k = 1}^{N} w_k\right)\)</span>. Which tile did it hit? This can be answered efficiently if we have a binary tree, pictured as the following (or in general, some <span class="math inline">\(b\)</span>-ary tree for integer <span class="math inline">\(b \ge 2\)</span>)</p>

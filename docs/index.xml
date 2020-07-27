@@ -113,9 +113,66 @@ for j = 1 to n
 &lt;p&gt;Secondly, after defining all the required CDF functions &lt;span class="math inline"&gt;\(F_j(x) = e^{w_j \cdot x}\)&lt;/span&gt; for &lt;span class="math inline"&gt;\(j \in \{1, \dotsc, N\}\)&lt;/span&gt;, we can also easily derive their corresponding PDF functions &lt;span class="math inline"&gt;\(f_j\)&lt;/span&gt;: &lt;span class="math display"&gt;\[f_j(x) = \frac{d F_j(x)}{dx} = w_j e^{w_j \cdot x}\]&lt;/span&gt;.&lt;/p&gt;
 &lt;p&gt;Finally, with a clear understanding of the family of proability distributions this algorithm is working with, it is a non-difficult calculus exercise to show the probability of selecting any tuple of rows (say &lt;span class="math inline"&gt;\((r_1, \dotsc, r_n)\)&lt;/span&gt;) will be &lt;span class="math inline"&gt;\(\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)\)&lt;/span&gt;, which implies the possible outcomes of this algorithm will have exactly the same probability distribution as that of a &lt;span class="math inline"&gt;\(n\)&lt;/span&gt;-step &lt;code&gt;SWoR&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;In order to not deprive our dear readers the pleasure of completing this proof by themselves, I decided not to inline the rest of the proof within this blog post, and make everything available in &lt;a href="proof.pdf"&gt;this file&lt;/a&gt; instead.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div id="testing" class="section level1"&gt;
+&lt;h1&gt;Testing&lt;/h1&gt;
+&lt;p&gt;While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.&lt;/p&gt;
+&lt;p&gt;For instance, numerical instability issue from floating point numbers arises if &lt;span class="math inline"&gt;\(\ln(u_j) / w_j\)&lt;/span&gt; were replaced by &lt;span class="math inline"&gt;\(u_j ^ {1 / w_j}\)&lt;/span&gt; in the aforementioned computations.&lt;/p&gt;
+&lt;p&gt;Another more subtle source of error is the usage of PRNG seeds. For example, consider the following:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
+    rdd: RDD[Row],
+    weightColumn: String,
+    sampleSize: Int,
+    seed: Long
+  ): RDD[Row] = {
+    val sc = rdd.context
+    if (0 == sampleSize) {
+      sc.emptyRDD
+    } else {
+      val random = new Random(seed)
+      val mapRDDs = rdd.mapPartitions { iter =&amp;gt;
+        for (row &amp;lt;- iter) {
+          val weight = row.getAs[Double](weightColumn)
+          val key = scala.math.log(random.nextDouble) / weight
+          &amp;lt;and then make sampling decision for `row` based on its `key`,
+           as described in the previous section&amp;gt;
+        }
+        ...
+      }
+      ...
+    }
+  }&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Even though it might look OK upon first glance, careful readers must have noticed &lt;code&gt;rdd.mapPartitions(...)&lt;/code&gt; from the above will cause the same sequence of pseudorandom numbers to be used in potentially multiple places, which will cause undesired bias in the sampling outcome if the input Spark dataframe has multiple partitions (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).&lt;/p&gt;
+&lt;p&gt;The code snippet below is an example implementation in which each partition of the input Spark dataframe is sampled using a different sequence of pseudorandom numbers:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
+    rdd: RDD[Row],
+    weightColumn: String,
+    k: Int,
+    seed: Long
+  ): RDD[Row] = {
+    val sc = rdd.context
+    if (0 == k) {
+      sc.emptyRDD
+    } else {
+      val mapRDDs = rdd.mapPartitionsWithIndex { (index, iter) =&amp;gt;
+        val random = new Random(seed + index)
+
+        for (row &amp;lt;- iter) {
+          val weight = row.getAs[Double](weightColumn)
+          val key = scala.math.log(random.nextDouble) / weight
+          &amp;lt;and then make sampling decision for `row` based on its `key`,
+           as described in the previous section&amp;gt;
+        }
+
+        ...
+      }
+    ...
+  }
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from &lt;code&gt;dplyr::slice_sample&lt;/code&gt; with that from &lt;code&gt;sparklyr::sdf_weighted_sample&lt;/code&gt; is shown in &lt;a href="test_plan"&gt;this file&lt;/a&gt;. Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.&lt;/p&gt;
 &lt;p&gt;That’s all. I hope you enjoyed this blog post! If you wish to learn more about &lt;code&gt;sparklyr&lt;/code&gt;, we recommend visiting &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, and some of the previous release posts such as &lt;a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/"&gt;sparklyr 1.3&lt;/a&gt; and &lt;a href="https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/"&gt;sparklyr 1.2&lt;/a&gt;. Also, your contributions to &lt;code&gt;sparklyr&lt;/code&gt; are more than welcome. Please send your pull requests through &lt;a href="https://github.com/sparklyr/sparklyr/pulls"&gt;here&lt;/a&gt; and file any bug report or feature request in &lt;a href="https://github.com/sparklyr/sparklyr"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Thanks for reading!&lt;/p&gt;
-&lt;/div&gt;
 &lt;/div&gt;
 
 

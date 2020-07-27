@@ -36,6 +36,7 @@
 &lt;p&gt;As part of our recent work to support weighted sampling of Spark dataframes in &lt;code&gt;sparklyr&lt;/code&gt;, we embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.&lt;/p&gt;
 &lt;p&gt;In the interest of brevity, “weighted sampling without replacement” shall be shortened into &lt;code&gt;SWoR&lt;/code&gt; for the remainder of this blog post.&lt;/p&gt;
 &lt;p&gt;In the following sections, we will explain and illustrate what &lt;code&gt;SWoR&lt;/code&gt; means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.&lt;/p&gt;
+&lt;p&gt;If you cannot wait to jump into action, there is also a &lt;a href="#examples"&gt;section&lt;/a&gt; in which we showcase example usages of &lt;code&gt;sdf_weighted_sample()&lt;/code&gt; in &lt;code&gt;sparklyr&lt;/code&gt;.&lt;/p&gt;
 &lt;div id="how-it-all-started" class="section level2"&gt;
 &lt;h2&gt;How it all started?&lt;/h2&gt;
 &lt;p&gt;The journey started from a &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt; inquiring about the possibility of supporting the equivalent of &lt;code&gt;dplyr::sample_frac(..., weight = &amp;lt;weight_column&amp;gt;)&lt;/code&gt; for Spark dataframes in &lt;code&gt;sparklyr&lt;/code&gt;. For example,&lt;/p&gt;
@@ -171,6 +172,46 @@ for j = 1 to n
   }
 }&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from &lt;code&gt;dplyr::slice_sample&lt;/code&gt; with that from &lt;code&gt;sparklyr::sdf_weighted_sample&lt;/code&gt; is shown in &lt;a href="test_plan"&gt;this file&lt;/a&gt;. Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="examples" class="section level1"&gt;
+&lt;h1&gt;Example Usages&lt;/h1&gt;
+&lt;p&gt;Please note the &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; functionality is not included in any official release of &lt;code&gt;sparklyr&lt;/code&gt; yet. We are aiming to ship it as part of &lt;code&gt;sparklyr&lt;/code&gt; 1.4 in about 2 to 3 months from now.&lt;/p&gt;
+&lt;p&gt;In the meanwhile, you can try it out with the following steps:&lt;/p&gt;
+&lt;p&gt;First, make sure &lt;code&gt;devtools&lt;/code&gt; is installed, and then run&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;devtools::install_github(&amp;quot;sparklyr/sparklyr&amp;quot;, ref = &amp;quot;master&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;to install &lt;code&gt;sparklyr&lt;/code&gt; from source&lt;/p&gt;
+&lt;p&gt;Next, create a test dataframe with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+example_df &amp;lt;- data.frame(
+  x = seq(100),
+  weight = c(
+    rep(1, 50),
+    rep(2, 25),
+    rep(4, 10),
+    rep(8, 10),
+    rep(16, 5)
+  )
+)
+example_sdf &amp;lt;- copy_to(sc, example_df, repartition = 5, overwrite = TRUE)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Finally, run &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; on &lt;code&gt;example_sdf&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;sample_size &amp;lt;- 20
+
+samples_without_replacement &amp;lt;- example_sdf %&amp;gt;%
+  sdf_weighted_sample(
+    weight_col = &amp;quot;weight&amp;quot;,
+    k = sample_size,
+    replacement = FALSE
+  )
+
+samples_with_replacement &amp;lt;- example_sdf %&amp;gt;%
+  sdf_weighted_sample(
+    weight_col = &amp;quot;weight&amp;quot;,
+    k = sample_size,
+    replacement = TRUE
+  )&lt;/code&gt;&lt;/pre&gt;
 &lt;/div&gt;
 &lt;div id="acknowledgement" class="section level1"&gt;
 &lt;h1&gt;Acknowledgement&lt;/h1&gt;

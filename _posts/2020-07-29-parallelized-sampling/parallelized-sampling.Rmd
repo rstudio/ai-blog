@@ -29,6 +29,8 @@ In the interest of brevity, "weighted sampling without replacement" shall be sho
 
 In the following sections, we will explain and illustrate what `SWoR` means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.
 
+If you cannot wait to jump into action, there is also a [section](#examples) in which we showcase example usages of `sdf_weighted_sample()` in `sparklyr`.
+
 ## How it all started?
 
 The journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
@@ -201,6 +203,59 @@ The code snippet below is an example implementation in which each partition of t
 ```
 
 An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from `dplyr::slice_sample` with that from `sparklyr::sdf_weighted_sample` is shown in [this file](test_plan). Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.
+
+# Example Usages {#examples}
+
+Please note the `sparklyr::sdf_weighted_sample()` functionality is not included in any official release of `sparklyr` yet. We are aiming to ship it as part of `sparklyr` 1.4 in about 2 to 3 months from now.
+
+In the meanwhile, you can try it out with the following steps:
+
+First, make sure `devtools` is installed, and then run
+
+```
+devtools::install_github("sparklyr/sparklyr", ref = "master")
+```
+to install `sparklyr` from source
+
+Next, create a test dataframe with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):
+
+```
+library(sparklyr)
+
+sc <- spark_connect(master = "local")
+
+example_df <- data.frame(
+  x = seq(100),
+  weight = c(
+    rep(1, 50),
+    rep(2, 25),
+    rep(4, 10),
+    rep(8, 10),
+    rep(16, 5)
+  )
+)
+example_sdf <- copy_to(sc, example_df, repartition = 5, overwrite = TRUE)
+```
+
+Finally, run `sparklyr::sdf_weighted_sample()` on `example_sdf`:
+
+```
+sample_size <- 20
+
+samples_without_replacement <- example_sdf %>%
+  sdf_weighted_sample(
+    weight_col = "weight",
+    k = sample_size,
+    replacement = FALSE
+  )
+
+samples_with_replacement <- example_sdf %>%
+  sdf_weighted_sample(
+    weight_col = "weight",
+    k = sample_size,
+    replacement = TRUE
+  )
+```
 
 # Acknowledgement
 

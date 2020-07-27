@@ -67,7 +67,7 @@
 <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["bibliography.bib","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","test_plan"]}
+  {"type":"character","attributes":{},"value":["bibliography.bib","derby.log","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","logs/log4j.spark.log","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","test_plan"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
 
@@ -1359,6 +1359,7 @@ gtag('config', 'UA-20375833-3');
 <p>As part of our recent work to support weighted sampling of Spark dataframes in <code>sparklyr</code>, we embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework such as Apache Spark.</p>
 <p>In the interest of brevity, “weighted sampling without replacement” shall be shortened into <code>SWoR</code> for the remainder of this blog post.</p>
 <p>In the following sections, we will explain and illustrate what <code>SWoR</code> means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.</p>
+<p>If you cannot wait to jump into action, there is also a <a href="#examples">section</a> in which we showcase example usages of <code>sdf_weighted_sample()</code> in <code>sparklyr</code>.</p>
 <h2 id="how-it-all-started">How it all started?</h2>
 <p>The journey started from a <a href="https://github.com/sparklyr/sparklyr/issues/2592">Github issue</a> inquiring about the possibility of supporting the equivalent of <code>dplyr::sample_frac(..., weight = &lt;weight_column&gt;)</code> for Spark dataframes in <code>sparklyr</code>. For example,</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1484,6 +1485,47 @@ for j = 1 to n
   }
 }</code></pre>
 <p>An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from <code>dplyr::slice_sample</code> with that from <code>sparklyr::sdf_weighted_sample</code> is shown in <a href="test_plan">this file</a>. Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.</p>
+<h1 id="examples">Example Usages</h1>
+<p>Please note the <code>sparklyr::sdf_weighted_sample()</code> functionality is not included in any official release of <code>sparklyr</code> yet. We are aiming to ship it as part of <code>sparklyr</code> 1.4 in about 2 to 3 months from now.</p>
+<p>In the meanwhile, you can try it out with the following steps:</p>
+<p>First, make sure <code>devtools</code> is installed, and then run</p>
+<pre><code>
+devtools::install_github(&quot;sparklyr/sparklyr&quot;, ref = &quot;master&quot;)</code></pre>
+<p>to install <code>sparklyr</code> from source</p>
+<p>Next, create a test dataframe with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):</p>
+<pre><code>
+library(sparklyr)
+
+sc &lt;- spark_connect(master = &quot;local&quot;)
+
+example_df &lt;- data.frame(
+  x = seq(100),
+  weight = c(
+    rep(1, 50),
+    rep(2, 25),
+    rep(4, 10),
+    rep(8, 10),
+    rep(16, 5)
+  )
+)
+example_sdf &lt;- copy_to(sc, example_df, repartition = 5, overwrite = TRUE)</code></pre>
+<p>Finally, run <code>sparklyr::sdf_weighted_sample()</code> on <code>example_sdf</code>:</p>
+<pre><code>
+sample_size &lt;- 20
+
+samples_without_replacement &lt;- example_sdf %&gt;%
+  sdf_weighted_sample(
+    weight_col = &quot;weight&quot;,
+    k = sample_size,
+    replacement = FALSE
+  )
+
+samples_with_replacement &lt;- example_sdf %&gt;%
+  sdf_weighted_sample(
+    weight_col = &quot;weight&quot;,
+    k = sample_size,
+    replacement = TRUE
+  )</code></pre>
 <h1 id="acknowledgement">Acknowledgement</h1>
 <p>First and foremost, the author wishes to thank <a href="https://github.com/ajing">@ajing</a> for reporting in this <a href="https://github.com/sparklyr/sparklyr/issues/2592">Github issue</a> that the weighted sampling use cases were not properly supported yet in <code>sparklyr</code> 1.3 and suggesting it should be part of some future version of <code>sparklyr</code>.</p>
 <p>Special thanks also goes to Javier (<a href="https://github.com/javierluraschi">@javierluraschi</a>) for reviewing the <a href="https://github.com/sparklyr/sparklyr/pull/2606">implementation</a> of all exponential-variate based sampling algorithms in <code>sparklyr</code>, and to both and Mara (<a href="https://github.com/batpigandme">@batpigandme</a>) and Javier (<a href="https://github.com/javierluraschi">@javierluraschi</a>) their valuable editorial suggestions.</p>

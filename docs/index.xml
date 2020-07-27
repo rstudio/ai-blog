@@ -38,7 +38,7 @@
 &lt;p&gt;In the following sections, we will explain and illustrate what &lt;code&gt;SWoR&lt;/code&gt; means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.&lt;/p&gt;
 &lt;p&gt;If you cannot wait to jump into action, there is also a &lt;a href="#examples"&gt;section&lt;/a&gt; in which we showcase example usages of &lt;code&gt;sdf_weighted_sample()&lt;/code&gt; in &lt;code&gt;sparklyr&lt;/code&gt;. In addition, you can go to this &lt;a href="https://github.com/sparklyr/sparklyr/pull/2606"&gt;pull request&lt;/a&gt; to examine all implementation details of &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt;.&lt;/p&gt;
 &lt;div id="how-it-all-started" class="section level2"&gt;
-&lt;h2&gt;How it all started?&lt;/h2&gt;
+&lt;h2&gt;How it all started&lt;/h2&gt;
 &lt;p&gt;Our journey started from a &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt; inquiring about the possibility of supporting the equivalent of &lt;code&gt;dplyr::sample_frac(..., weight = &amp;lt;weight_column&amp;gt;)&lt;/code&gt; for Spark dataframes in &lt;code&gt;sparklyr&lt;/code&gt;. For example,&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)&lt;/code&gt;&lt;/pre&gt;
 &lt;pre&gt;&lt;code&gt;##                    mpg cyl  disp  hp drat    wt  qsec vs am gear carb
@@ -128,7 +128,7 @@ for j = 1 to n
 &lt;div id="testing" class="section level1"&gt;
 &lt;h1&gt;Testing&lt;/h1&gt;
 &lt;p&gt;While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.&lt;/p&gt;
-&lt;p&gt;For instance, numerical instability issue from floating point numbers arises if &lt;span class="math inline"&gt;\(\ln(u_j) / w_j\)&lt;/span&gt; were replaced by &lt;span class="math inline"&gt;\(u_j ^ {1 / w_j}\)&lt;/span&gt; in the aforementioned computations.&lt;/p&gt;
+&lt;p&gt;For instance, numerical instability issues from floating point numbers arise if &lt;span class="math inline"&gt;\(\ln(u_j) / w_j\)&lt;/span&gt; were replaced by &lt;span class="math inline"&gt;\(u_j ^ {1 / w_j}\)&lt;/span&gt; in the aforementioned computations.&lt;/p&gt;
 &lt;p&gt;Another more subtle source of error is the usage of PRNG seeds. For example, consider the following:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
     rdd: RDD[Row],
@@ -153,7 +153,7 @@ for j = 1 to n
       ...
     }
   }&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Even though it might look OK upon first glance, careful readers must have noticed &lt;code&gt;rdd.mapPartitions(...)&lt;/code&gt; from the above will cause the same sequence of pseudorandom numbers to be used in potentially multiple places, which will cause undesired bias in the sampling outcome if the input Spark dataframe has multiple partitions (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).&lt;/p&gt;
+&lt;p&gt;Even though it might look OK upon first glance, &lt;code&gt;rdd.mapPartitions(...)&lt;/code&gt; from the above will cause the same sequence of pseudorandom numbers to be applied to multiple partitions of the input Spark dataframe, which will cause undesired bias (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).&lt;/p&gt;
 &lt;p&gt;The code snippet below is an example implementation in which each partition of the input Spark dataframe is sampled using a different sequence of pseudorandom numbers:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
     rdd: RDD[Row],
@@ -180,7 +180,7 @@ for j = 1 to n
     ...
   }
 }&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from &lt;code&gt;dplyr::slice_sample&lt;/code&gt; with that from &lt;code&gt;sparklyr::sdf_weighted_sample&lt;/code&gt; is shown in &lt;a href="test_plan"&gt;this file&lt;/a&gt;. Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.&lt;/p&gt;
+&lt;p&gt;An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from &lt;code&gt;dplyr::slice_sample&lt;/code&gt; with that from &lt;code&gt;sparklyr::sdf_weighted_sample&lt;/code&gt; is shown in &lt;a href="test_plan"&gt;this file&lt;/a&gt;. Such tests have proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.&lt;/p&gt;
 &lt;/div&gt;
 &lt;div id="examples" class="section level1"&gt;
 &lt;h1&gt;Example Usages&lt;/h1&gt;
@@ -224,7 +224,7 @@ samples_with_replacement &amp;lt;- example_sdf %&amp;gt;%
 &lt;/div&gt;
 &lt;div id="acknowledgement" class="section level1"&gt;
 &lt;h1&gt;Acknowledgement&lt;/h1&gt;
-&lt;p&gt;First and foremost, the author wishes to thank &lt;a href="https://github.com/ajing"&gt;@ajing&lt;/a&gt; for reporting in this &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt; that the weighted sampling use cases were not properly supported yet in &lt;code&gt;sparklyr&lt;/code&gt; 1.3 and suggesting it should be part of some future version of &lt;code&gt;sparklyr&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;First and foremost, the author wishes to thank &lt;a href="https://github.com/ajing"&gt;@ajing&lt;/a&gt; for reporting the weighted sampling use cases were not properly supported yet in &lt;code&gt;sparklyr&lt;/code&gt; 1.3 and suggesting it should be part of some future version of &lt;code&gt;sparklyr&lt;/code&gt; in this &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Special thanks also goes to Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for reviewing the &lt;a href="https://github.com/sparklyr/sparklyr/pull/2606"&gt;implementation&lt;/a&gt; of all exponential-variate based sampling algorithms in &lt;code&gt;sparklyr&lt;/code&gt;, and to Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@Sigrid&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) their valuable editorial suggestions.&lt;/p&gt;
 &lt;p&gt;We hope you have enjoyed reading this blog post! If you wish to learn more about &lt;code&gt;sparklyr&lt;/code&gt;, we recommend visiting &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, and some of the previous release posts such as &lt;a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/"&gt;sparklyr 1.3&lt;/a&gt; and &lt;a href="https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/"&gt;sparklyr 1.2&lt;/a&gt;. Also, your contributions to &lt;code&gt;sparklyr&lt;/code&gt; are more than welcome. Please send your pull requests through &lt;a href="https://github.com/sparklyr/sparklyr/pulls"&gt;here&lt;/a&gt; and file any bug report or feature request in &lt;a href="https://github.com/sparklyr/sparklyr"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Thanks for reading!&lt;/p&gt;
@@ -277,8 +277,8 @@ $(document).ready(function () {
 
 </description>
       <distill:md5>a3abcd4c3dd27c48cf377de788bb1da2</distill:md5>
-      <category>Probabilistic ML/DL</category>
       <category>Concepts</category>
+      <category>Distributed Computing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling</guid>
       <pubDate>Wed, 29 Jul 2020 00:00:00 +0000</pubDate>
       <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling/images/dice.jpg" medium="image" type="image/jpeg"/>

@@ -1,7 +1,7 @@
 ---
 title: "Parallelized sampling using exponential variates"
 description: > 
-  How can the seemingly iterative process of weighted sampling without replacement be transformed into something highly parallelizable? Turns out a well-known technique based on exponential variates accomplshes exactly that.
+  How can the seemingly iterative process of weighted sampling without replacement be transformed into something highly parallelizable? Turns out a well-known technique based on exponential variates accomplishes exactly that.
 author:
   - name: Yitao Li
     affiliation: RStudio
@@ -9,8 +9,8 @@ author:
 bibliography: bibliography.bib
 date: 07-29-2020
 categories:
-  - Probabilistic ML/DL
   - Concepts
+  - Distributed Computing
 output:
   distill::distill_article:
     self_contained: false
@@ -31,7 +31,7 @@ In the following sections, we will explain and illustrate what `SWoR` means prob
 
 If you cannot wait to jump into action, there is also a [section](#examples) in which we showcase example usages of `sdf_weighted_sample()` in `sparklyr`. In addition, you can go to this [pull request](https://github.com/sparklyr/sparklyr/pull/2606) to examine all implementation details of `sparklyr::sdf_weighted_sample()`.
 
-## How it all started?
+## How it all started
 
 Our journey started from a [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) inquiring about the possibility of supporting the equivalent of `dplyr::sample_frac(..., weight = <weight_column>)` for Spark dataframes in `sparklyr`. For example,
 
@@ -152,7 +152,7 @@ In order to not deprive our dear readers the pleasure of completing this proof b
 
 While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.
 
-For instance, numerical instability issue from floating point numbers arises if $\ln(u_j) / w_j$ were replaced by $u_j ^ {1 / w_j}$ in the aforementioned computations.
+For instance, numerical instability issues from floating point numbers arise if $\ln(u_j) / w_j$ were replaced by $u_j ^ {1 / w_j}$ in the aforementioned computations.
 
 Another more subtle source of error is the usage of PRNG seeds. For example, consider the following:
 
@@ -182,7 +182,7 @@ Another more subtle source of error is the usage of PRNG seeds. For example, con
   }
 ```
 
-Even though it might look OK upon first glance, careful readers must have noticed `rdd.mapPartitions(...)` from the above will cause the same sequence of pseudorandom numbers to be used in potentially multiple places, which will cause undesired bias in the sampling outcome if the input Spark dataframe has multiple partitions (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).
+Even though it might look OK upon first glance, `rdd.mapPartitions(...)` from the above will cause the same sequence of pseudorandom numbers to be applied to multiple partitions of the input Spark dataframe, which will cause undesired bias (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).
 
 The code snippet below is an example implementation in which each partition of the input Spark dataframe is sampled using a different sequence of pseudorandom numbers:
 
@@ -214,7 +214,7 @@ The code snippet below is an example implementation in which each partition of t
 }
 ```
 
-An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from `dplyr::slice_sample` with that from `sparklyr::sdf_weighted_sample` is shown in [this file](test_plan). Such test has proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.
+An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from `dplyr::slice_sample` with that from `sparklyr::sdf_weighted_sample` is shown in [this file](test_plan). Such tests have proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.
 
 # Example Usages {#examples}
 
@@ -271,7 +271,7 @@ samples_with_replacement <- example_sdf %>%
 
 # Acknowledgement
 
-First and foremost, the author wishes to thank [\@ajing](https://github.com/ajing) for reporting in this [Github issue](https://github.com/sparklyr/sparklyr/issues/2592) that the weighted sampling use cases were not properly supported yet in `sparklyr` 1.3 and suggesting it should be part of some future version of `sparklyr`.
+First and foremost, the author wishes to thank [\@ajing](https://github.com/ajing) for reporting the weighted sampling use cases were not properly supported yet in `sparklyr` 1.3 and suggesting it should be part of some future version of `sparklyr` in this [Github issue](https://github.com/sparklyr/sparklyr/issues/2592).
 
 Special thanks also goes to Javier ([\@javierluraschi](https://github.com/javierluraschi)) for reviewing the [implementation](https://github.com/sparklyr/sparklyr/pull/2606) of all exponential-variate based sampling algorithms in `sparklyr`, and to Mara ([\@batpigandme](https://github.com/batpigandme)), Sigrid ([\@Sigrid](https://github.com/skeydan)), and Javier ([\@javierluraschi](https://github.com/javierluraschi)) their valuable editorial suggestions.
 

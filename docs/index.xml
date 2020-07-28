@@ -12,7 +12,240 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Sun, 19 Jul 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 27 Jul 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>State-of-the-art NLP models from R</title>
+      <dc:creator>Turgut Abdullayev</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r</link>
+      <description>
+
+
+&lt;div class="container-fluid main-container"&gt;
+
+
+
+
+&lt;div class="fluid-row" id="header"&gt;
+
+
+
+
+&lt;/div&gt;
+
+
+&lt;div id="introduction" class="section level2"&gt;
+&lt;h2&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Transformers repository from &lt;a href="https://github.com/huggingface/transformers"&gt;“Hugging Face”&lt;/a&gt; contains a lot of ready to use state-of-the-art models which is very straightforward to download and fine-tune with Tensorflow &amp;amp; Keras.&lt;/p&gt;
+&lt;p&gt;For this purpose the users usually need to get:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The model itself (e.g. Bert, Albert, RoBerta, GPT-2 and etc.)&lt;/li&gt;
+&lt;li&gt;The tokenizer object&lt;/li&gt;
+&lt;li&gt;The weights of the model&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;In this post, we will work on classic binary classification task and train our data set on 3 models:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://blog.openai.com/better-language-models/"&gt;GPT-2&lt;/a&gt; from Open AI&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://arxiv.org/abs/1907.11692"&gt;RoBERTa&lt;/a&gt; from Facebook&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://arxiv.org/abs/2003.10555"&gt;Electra&lt;/a&gt; from Google Research/Stanford University&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;However, readers should know that one can work with transformers on a variety type down-stream tasks, such as:&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;feature-extraction&lt;/li&gt;
+&lt;li&gt;sentiment-analysis&lt;/li&gt;
+&lt;li&gt;text-classification&lt;/li&gt;
+&lt;li&gt;question-answering&lt;/li&gt;
+&lt;li&gt;summarization&lt;/li&gt;
+&lt;li&gt;translation and many more.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;
+&lt;div id="prerequisites" class="section level2"&gt;
+&lt;h2&gt;Prerequisites&lt;/h2&gt;
+&lt;p&gt;Our first job is to install &lt;em&gt;transformers&lt;/em&gt; package via &lt;code&gt;reticulate&lt;/code&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;reticulate::py_install(&amp;#39;transformers&amp;#39;, pip = TRUE)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Then as usual call standard ‘Keras’, ‘TensorFlow’ &amp;gt;= 2.0 and some classic libraries from R.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(keras)
+library(tensorflow)
+library(dplyr)
+library(tfdatasets)
+
+transformer = reticulate::import(&amp;#39;transformers&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Note, that for &lt;em&gt;GPU TensorFlow&lt;/em&gt; one could specify the following parameters in order to avoid any memory issues.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;physical_devices = tf$config$list_physical_devices(&amp;#39;GPU&amp;#39;)
+tf$config$experimental$set_memory_growth(physical_devices[[1]],TRUE)
+
+tf$keras$backend$set_floatx(&amp;#39;float32&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div id="template" class="section level2"&gt;
+&lt;h2&gt;Template&lt;/h2&gt;
+&lt;p&gt;We already mentioned that to train a data on the specific model, users should download the model, its tokenizer object and weights. For example, to get a RoBERTa model one has to do the following:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# get Tokenizer
+transformer$RobertaTokenizer$from_pretrained(&amp;#39;roberta-base&amp;#39;, do_lower_case=TRUE)
+
+# get Model with weights
+transformer$TFRobertaModel$from_pretrained(&amp;#39;roberta-base&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div id="data-preparation" class="section level2"&gt;
+&lt;h2&gt;Data preparation&lt;/h2&gt;
+&lt;p&gt;There is a ready data for binary classification in &lt;a href="http://text2vec.org/"&gt;text2vec&lt;/a&gt; package. Let’s upload the data set and take a sample for fast model training.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(text2vec)
+data(&amp;quot;movie_review&amp;quot;)
+df = movie_review %&amp;gt;% rename(target = sentiment, comment_text = review) %&amp;gt;% 
+  sample_n(2000) %&amp;gt;% 
+  data.table::as.data.table()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Split our data into 2 parts:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;idx_train = sample.int(nrow(df)*0.8)
+
+train = df[idx_train,]
+test = df[!idx_train,]&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div id="data-input-for-keras" class="section level2"&gt;
+&lt;h2&gt;Data input for Keras&lt;/h2&gt;
+&lt;p&gt;Till now, we just covered data importing and splitting part. To feed input to network we have to turn our raw text into indices via imported tokenizer. And then adapt the model to binary classification model by adding a dense layer with 1 unit at the end.&lt;/p&gt;
+&lt;p&gt;However, we want to train our data for 3 models GPT-2, RoBERTa, and Electra. We need to write a loop for that.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Note: one model in general requires 500-700 MB&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# parameters
+max_len = 50L
+epochs = 2
+batch_size = 10
+
+# create a list for model results
+gather_history = list()
+
+for (i in 1:length(ai_m)) {
+  
+  # tokenizer
+  tokenizer = glue::glue(&amp;quot;transformer${ai_m[[i]][2]}$from_pretrained(&amp;#39;{ai_m[[i]][3]}&amp;#39;,
+                         do_lower_case=TRUE)&amp;quot;) %&amp;gt;% 
+    rlang::parse_expr() %&amp;gt;% eval()
+  
+  # model
+  model_ = glue::glue(&amp;quot;transformer${ai_m[[i]][1]}$from_pretrained(&amp;#39;{ai_m[[i]][3]}&amp;#39;)&amp;quot;) %&amp;gt;% 
+    rlang::parse_expr() %&amp;gt;% eval()
+  
+  # inputs
+  text = list()
+  # outputs
+  label = list()
+  
+  data_prep = function(data) {
+    for (i in 1:nrow(data)) {
+      
+      txt = tokenizer$encode(data[[&amp;#39;comment_text&amp;#39;]][i],max_length = max_len, 
+                             truncation=T) %&amp;gt;% 
+        t() %&amp;gt;% 
+        as.matrix() %&amp;gt;% list()
+      lbl = data[[&amp;#39;target&amp;#39;]][i] %&amp;gt;% t()
+      
+      text = text %&amp;gt;% append(txt)
+      label = label %&amp;gt;% append(lbl)
+    }
+    list(do.call(plyr::rbind.fill.matrix,text), do.call(plyr::rbind.fill.matrix,label))
+  }
+  
+  train_ = data_prep(train)
+  test_ = data_prep(test)
+  
+  # slice dataset
+  tf_train = tensor_slices_dataset(list(train_[[1]],train_[[2]])) %&amp;gt;% 
+    dataset_batch(batch_size = batch_size, drop_remainder = TRUE) %&amp;gt;% 
+    dataset_shuffle(128) %&amp;gt;% dataset_repeat(epochs) %&amp;gt;% 
+    dataset_prefetch(tf$data$experimental$AUTOTUNE)
+  
+  tf_test = tensor_slices_dataset(list(test_[[1]],test_[[2]])) %&amp;gt;% 
+    dataset_batch(batch_size = batch_size)
+  
+  # create an input layer
+  input = layer_input(shape=c(max_len), dtype=&amp;#39;int32&amp;#39;)
+  hidden_mean = tf$reduce_mean(model_(input)[[1]], axis=1L) %&amp;gt;% 
+    layer_dense(64,activation = &amp;#39;relu&amp;#39;)
+  # create an output layer for binary classification
+  output = hidden_mean %&amp;gt;% layer_dense(units=1, activation=&amp;#39;sigmoid&amp;#39;)
+  model = keras_model(inputs=input, outputs = output)
+  
+  # compile with AUC score
+  model %&amp;gt;% compile(optimizer= tf$keras$optimizers$Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0),
+                    loss = tf$losses$BinaryCrossentropy(from_logits=F),
+                    metrics = tf$metrics$AUC())
+  
+  print(glue::glue(&amp;#39;{ai_m[[i]][1]}&amp;#39;))
+  # train the model
+  history = model %&amp;gt;% keras::fit(tf_train, epochs=epochs, #steps_per_epoch=len/batch_size,
+                validation_data=tf_test)
+  gather_history[[i]]&amp;lt;- history
+  names(gather_history)[i] = ai_m[[i]][1]
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Extract results to see the benchmarks:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;res = sapply(1:3, function(x) {
+  do.call(rbind,gather_history[[x]][[&amp;quot;metrics&amp;quot;]]) %&amp;gt;% 
+    as.data.frame() %&amp;gt;% 
+    tibble::rownames_to_column() %&amp;gt;% 
+    mutate(model_names = names(gather_history[x])) 
+}, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
+  mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
+  rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
+&lt;div id="htmlwidget-4dd6c7e9c7ef152c7947" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-4dd6c7e9c7ef152c7947"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.89,0.87,0.84],[0.89,0.86,0.85],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;p&gt;RoBERTa and Electra models have some improvements after 2 epochs what cannot be said for GPT-2 model. In this case, it is clear that it can be enough to train state-of-the-art model even for 1 epoch.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="conclusion" class="section level2"&gt;
+&lt;h2&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;In this post, we showed the possibility of application of the state-of-the-art NLP models from R. To understand more complex tasks, it is highly recommended to review &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt; and see vignettes of &lt;a href="https://github.com/rstudio/keras/tree/master/vignettes/examples"&gt;Keras GitHub&lt;/a&gt; page.&lt;/p&gt;
+&lt;/div&gt;
+
+
+
+
+&lt;/div&gt;
+
+&lt;script&gt;
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+&lt;/script&gt;
+
+&lt;!-- tabsets --&gt;
+
+&lt;script&gt;
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+&lt;/script&gt;
+
+&lt;!-- code folding --&gt;
+
+
+&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
+&lt;script&gt;
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+&lt;/script&gt;
+
+</description>
+      <distill:md5>48f34b427b60817a37754379dd13524a</distill:md5>
+      <category>Natural Language Processing</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r</guid>
+      <pubDate>Mon, 27 Jul 2020 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r/files/dino.gif" medium="image" type="image/gif"/>
+    </item>
     <item>
       <title>Time series prediction with FNN-LSTM</title>
       <dc:creator>Sigrid Keydana</dc:creator>
@@ -288,13 +521,13 @@ $(document).ready(function () {
 &lt;/script&gt;
 
 </description>
-      <distill:md5>8d37c761acc955611b363badda6e4f13</distill:md5>
+      <distill:md5>f032bca01115194a15e0d2845bde9625</distill:md5>
       <category>R</category>
       <category>TensorFlow/Keras</category>
       <category>Time Series</category>
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</guid>
-      <pubDate>Sun, 19 Jul 2020 00:00:00 +0000</pubDate>
+      <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
       <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
@@ -504,7 +737,7 @@ $(document).ready(function () {
 &lt;/script&gt;
 
 </description>
-      <distill:md5>f09bf30a236d3ea28d192b979d2953db</distill:md5>
+      <distill:md5>ebc9ff9c41ea7b0e6890cab0b724ea7a</distill:md5>
       <category>Packages/Releases</category>
       <category>Distributed Computing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released</guid>

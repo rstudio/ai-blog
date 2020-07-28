@@ -1,0 +1,242 @@
+---
+title: "State-of-the-art NLP models from R"
+description: |
+  Nowadays, Microsoft, Google, Facebook, and OpenAI share lots of state-of-the-art models in the field of Natural Language Processing. However, there are fewer materials for the practical application of these models for the R community. In this post, we will show how the R users can access and benefit these models as well.
+author:
+  - name: Turgut Abdullayev 
+    url: https://github.com/henry090
+    affiliation: QSS Analytics
+    affiliation_url: http://www.qss.az/
+date: 07-28-2020
+categories:
+  - Natural Language Processing
+creative_commons: CC BY
+repository_url: https://github.com/henry090/transformers
+output: 
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: files/dino.gif
+---
+
+```{r setup, include=FALSE, eval=F,echo=T}
+knitr::opts_chunk$set(echo = FALSE, eval = F, echo = T)
+```
+
+
+## Introduction
+
+Transformers repository from ["Hugging Face"](https://github.com/huggingface/transformers) contains a lot of ready to use state-of-the-art models which is very straightforward to download and fine-tune with Tensorflow & Keras. 
+
+For this purpose the users usually need to get:
+
+* The model itself (e.g. Bert, Albert, RoBerta, GPT-2 and etc.)
+* The tokenizer object
+* The weights of the model
+
+In this post, we will work on classic binary classification task and train our data set on 3 models: 
+
+* [GPT-2](https://blog.openai.com/better-language-models/) from Open AI
+* [RoBERTa](https://arxiv.org/abs/1907.11692) from Facebook
+* [Electra](https://arxiv.org/abs/2003.10555) from Google Research/Stanford University
+
+However, readers should know that one can work with transformers on a variety type down-stream tasks, such as:
+
+1) feature-extraction
+2) sentiment-analysis
+3) text-classification
+4) question-answering
+5) summarization
+6) translation and many more.
+
+## Prerequisites
+
+Our first job is to install _transformers_ package via ```reticulate```.
+
+```{r eval = F, echo = T}
+reticulate::py_install('transformers', pip = TRUE)
+```
+
+Then as usual call standard 'Keras', 'TensorFlow' >= 2.0 and some classic libraries from R.
+
+```{r eval = F, echo = T}
+library(keras)
+library(tensorflow)
+library(dplyr)
+library(tfdatasets)
+
+transformer = reticulate::import('transformers')
+```
+
+Note, that for _GPU TensorFlow_ one could specify the following parameters in order to avoid any memory issues.
+
+```{r eval = F, echo = T}
+
+physical_devices = tf$config$list_physical_devices('GPU')
+tf$config$experimental$set_memory_growth(physical_devices[[1]],TRUE)
+
+tf$keras$backend$set_floatx('float32')
+
+```
+
+## Template
+
+We already mentioned that to train a data on the specific model, users should download the model, its tokenizer object and weights. For example, to get a RoBERTa model one has to do the following:
+
+```{r eval = F, echo = T}
+# get Tokenizer
+transformer$RobertaTokenizer$from_pretrained('roberta-base', do_lower_case=TRUE)
+
+# get Model with weights
+transformer$TFRobertaModel$from_pretrained('roberta-base')
+```
+
+
+## Data preparation
+
+There is a ready data for binary classification in [text2vec](http://text2vec.org/) package. Let's upload the data set and take a sample for fast model training.
+
+```{r eval = F, echo = T}
+library(text2vec)
+data("movie_review")
+df = movie_review %>% rename(target = sentiment, comment_text = review) %>% 
+  sample_n(2000) %>% 
+  data.table::as.data.table()
+```
+
+Split our data into 2 parts:
+
+```{r eval = F, echo = T}
+idx_train = sample.int(nrow(df)*0.8)
+
+train = df[idx_train,]
+test = df[!idx_train,]
+```
+
+## Data input for Keras
+
+Till now, we just covered data importing and splitting part. To feed input to network we have to turn our raw text into indices via imported tokenizer. And then adapt the model to binary classification model by adding a dense layer with 1 unit at the end.
+
+However, we want to train our data for 3 models GPT-2, RoBERTa, and Electra. We need to write a loop for that.
+
+> Note: one model in general requires 500-700 MB
+
+```{r eval = F, echo = T}
+
+# parameters
+max_len = 50L
+epochs = 2
+batch_size = 10
+
+# create a list for model results
+gather_history = list()
+
+for (i in 1:length(ai_m)) {
+  
+  # tokenizer
+  tokenizer = glue::glue("transformer${ai_m[[i]][2]}$from_pretrained('{ai_m[[i]][3]}',
+                         do_lower_case=TRUE)") %>% 
+    rlang::parse_expr() %>% eval()
+  
+  # model
+  model_ = glue::glue("transformer${ai_m[[i]][1]}$from_pretrained('{ai_m[[i]][3]}')") %>% 
+    rlang::parse_expr() %>% eval()
+  
+  # inputs
+  text = list()
+  # outputs
+  label = list()
+  
+  data_prep = function(data) {
+    for (i in 1:nrow(data)) {
+      
+      txt = tokenizer$encode(data[['comment_text']][i],max_length = max_len, 
+                             truncation=T) %>% 
+        t() %>% 
+        as.matrix() %>% list()
+      lbl = data[['target']][i] %>% t()
+      
+      text = text %>% append(txt)
+      label = label %>% append(lbl)
+    }
+    list(do.call(plyr::rbind.fill.matrix,text), do.call(plyr::rbind.fill.matrix,label))
+  }
+  
+  train_ = data_prep(train)
+  test_ = data_prep(test)
+  
+  # slice dataset
+  tf_train = tensor_slices_dataset(list(train_[[1]],train_[[2]])) %>% 
+    dataset_batch(batch_size = batch_size, drop_remainder = TRUE) %>% 
+    dataset_shuffle(128) %>% dataset_repeat(epochs) %>% 
+    dataset_prefetch(tf$data$experimental$AUTOTUNE)
+  
+  tf_test = tensor_slices_dataset(list(test_[[1]],test_[[2]])) %>% 
+    dataset_batch(batch_size = batch_size)
+  
+  # create an input layer
+  input = layer_input(shape=c(max_len), dtype='int32')
+  hidden_mean = tf$reduce_mean(model_(input)[[1]], axis=1L) %>% 
+    layer_dense(64,activation = 'relu')
+  # create an output layer for binary classification
+  output = hidden_mean %>% layer_dense(units=1, activation='sigmoid')
+  model = keras_model(inputs=input, outputs = output)
+  
+  # compile with AUC score
+  model %>% compile(optimizer= tf$keras$optimizers$Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0),
+                    loss = tf$losses$BinaryCrossentropy(from_logits=F),
+                    metrics = tf$metrics$AUC())
+  
+  print(glue::glue('{ai_m[[i]][1]}'))
+  # train the model
+  history = model %>% keras::fit(tf_train, epochs=epochs, #steps_per_epoch=len/batch_size,
+                validation_data=tf_test)
+  gather_history[[i]]<- history
+  names(gather_history)[i] = ai_m[[i]][1]
+}
+
+```
+
+Extract results to see the benchmarks:
+
+```{r eval = F, echo = T}
+res = sapply(1:3, function(x) {
+  do.call(rbind,gather_history[[x]][["metrics"]]) %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column() %>% 
+    mutate(model_names = names(gather_history[x])) 
+}, simplify = F) %>% do.call(plyr::rbind.fill,.) %>% 
+  mutate(rowname = stringr::str_extract(rowname, 'loss|val_loss|auc|val_auc')) %>% 
+  rename(epoch_1 = V1, epoch_2 = V2)
+```
+
+```{r eval=T,echo=F}
+library(dplyr)
+res = data.table::fread('files/res.csv') %>% 
+  filter(rowname %in% 'val_auc') %>% arrange(desc(V2)) %>% 
+   rename(epoch_1 = V1, epoch_2 = V2, metric = rowname) %>% 
+  mutate(epoch_1 = round(epoch_1,2),epoch_2 = round(epoch_2,2))
+DT::datatable(res, options = list(dom = 't'))
+```
+
+RoBERTa and Electra models have some improvements after 2 epochs what cannot be said for GPT-2 model. In this case, it is clear that it can be enough to train state-of-the-art model even for 1 epoch.
+
+
+## Conclusion
+
+In this post, we showed the possibility of application of the state-of-the-art NLP models from R. 
+To understand more complex tasks, it is highly recommended to review [transformers tutorial](https://github.com/huggingface/transformers/tree/master/examples) and see vignettes of [Keras GitHub](https://github.com/rstudio/keras/tree/master/vignettes/examples) page.
+
+
+
+
+
+
+
+
+
+
+
+
+

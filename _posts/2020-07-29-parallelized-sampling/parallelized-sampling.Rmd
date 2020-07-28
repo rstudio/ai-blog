@@ -148,6 +148,16 @@ Finally, with a clear understanding of the family of proability distributions th
 
 In order to not deprive our dear readers the pleasure of completing this proof by themselves, we decided not to inline the rest of the proof within this blog post, and make everything available in [this file](proof.pdf) instead.
 
+# Weighted sampling with replacement
+
+While all previous sections were solely focused on weighted sampling without replacement, this section will briefly discuss how the exponential-variate approach can also benefit the weighted-sampling-with-replacement use case (which will be shortened as `SWR` from now on).
+
+Although `SWR` with sample size $n$ can obviously be carried out by $n$ independent processes each selecting $1$ sample, parallelizing a `SWR` workload across all partitions of a Spark dataframe (let's call it $X$) will still be more performant if the number of partitions is much larger than $n$ and more than $n$ executors are available in a Spark cluster.
+
+An initial solution we had in mind was to run `SWR` with sample size $n$ in parallel on each partition of $X$, and then re-sample the results based on relative total weights of each partition. Despite sounding deceptively simple when summarized in words, implementing such a solution in practice would be a moderately complicated task. First, one has to apply the [alias method](https://en.wikipedia.org/wiki/Alias_method) or similar in order to perform weighted sampling efficiently on each partition of $X$, and on top of that, implementing the re-sampling logic across all partitions correctly and verifying the correctness of such procedure will also require considerable effort.
+
+In comparison,  with the help of exponential variates, a `SWR` carried out as $n$ independent `SWoR` processes each selecting $1$ sample is much simpler to implement, while still being comparable to our initial solution in terms of efficiency and scalability. An example implementation of it (which takes fewer than 60 lines of Scala) is presented in [samplingutils.scala](samplingutils.scala).
+
 # Testing
 
 While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.

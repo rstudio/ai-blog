@@ -67,7 +67,7 @@
 <!--/radix_placeholder_rmarkdown_metadata-->
   
   <script type="text/json" id="radix-resource-manifest">
-  {"type":"character","attributes":{},"value":["bibliography.bib","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","samplingutils.scala","test_plan"]}
+  {"type":"character","attributes":{},"value":["bibliography.bib","images/d1.jpg","images/d2.jpg","images/d3.jpg","images/dice.jpg","images/tree.jpg","images/viz.png","parallelized-sampling_files/bowser-1.9.3/bowser.min.js","parallelized-sampling_files/distill-2.2.21/template.v2.js","parallelized-sampling_files/header-attrs-2.3/header-attrs.js","parallelized-sampling_files/jquery-1.11.3/jquery.min.js","parallelized-sampling_files/webcomponents-2.0.0/webcomponents.js","proof.pdf","proof.tex","samplingutils.scala","test_plan"]}
   </script>
   <!--radix_placeholder_navigation_in_header-->
 
@@ -1443,6 +1443,64 @@ for j = 1 to n
 <p>Although <code>SWR</code> with sample size <span class="math inline">\(n\)</span> can be carried out by <span class="math inline">\(n\)</span> independent processes each selecting <span class="math inline">\(1\)</span> sample, parallelizing a <code>SWR</code> workload across all partitions of a Spark data frame (let’s call it <span class="math inline">\(X\)</span>) will still be more performant if the number of partitions is much larger than <span class="math inline">\(n\)</span> and more than <span class="math inline">\(n\)</span> executors are available in a Spark cluster.</p>
 <p>An initial solution we had in mind was to run <code>SWR</code> with sample size <span class="math inline">\(n\)</span> in parallel on each partition of <span class="math inline">\(X\)</span>, and then re-sample the results based on relative total weights of each partition. Despite sounding deceptively simple when summarized in words, implementing such a solution in practice would be a moderately complicated task. First, one has to apply the <a href="https://en.wikipedia.org/wiki/Alias_method">alias method</a> or similar in order to perform weighted sampling efficiently on each partition of <span class="math inline">\(X\)</span>, and on top of that, implementing the re-sampling logic across all partitions correctly and verifying the correctness of such procedure will also require considerable effort.</p>
 <p>In comparison, with the help of exponential variates, a <code>SWR</code> carried out as <span class="math inline">\(n\)</span> independent <strong>SWoR</strong> processes each selecting <span class="math inline">\(1\)</span> sample is much simpler to implement, while still being comparable to our initial solution in terms of efficiency and scalability. An example implementation of it (which takes fewer than 60 lines of Scala) is presented in <a href="samplingutils.scala">samplingutils.scala</a>.</p>
+<h1 id="visualization">Visualization</h1>
+<p>How do we know <code>sparklyr::sdf_weighted_sample()</code> is working as expected? While the rigorous answer to this question is presented in full in the <a href="#testing">testing</a> section, we thought it would also be useful to first show some histograms that will help readers visualize what that test plan is. Therefore in this section, we will do the following:</p>
+<ul>
+<li>Run <code>dplyr::slice_sample()</code> multiple times on a small sample space, with each run using a different PRNG seed (sample size will be reduced to <span class="math inline">\(2\)</span> here so that there will fewer than 100 possible outcomes and visualization will be easier)</li>
+<li>Do the same for <code>sdf_weighted_sample()</code></li>
+<li>Use histograms to visualize the distribution of sampling outcomes</li>
+</ul>
+<p>Throughout this section, we will sample <span class="math inline">\(2\)</span> elements out of <span class="math inline">\(\{0, \dotsc, 7\}\)</span> without replacement according to some weights, so, the first step is to set up the following in R:</p>
+<pre><code>
+library(sparklyr)
+
+sc &lt;- spark_connect(master = &quot;local&quot;)
+
+# `octs` will be our sample space
+octs &lt;- data.frame(
+  x = seq(0, 7),
+  weight = c(1, 4, 2, 8, 5, 7, 1, 4)
+)
+# `octs_sdf` will be our sample space copied into a Spark data frame
+octs_sdf &lt;- copy_to(sc, octs)
+
+sample_size &lt;- 2</code></pre>
+<p>In order to tally up and visualize the sampling outcomes efficiently, we shall map each possible outcome to an octal number (e.g., <code>(6, 7)</code> gets mapped to <span class="math inline">\(6 \cdot 8^0 + 7 \cdot 8^1\)</span>) using a helper function <code>to_oct</code> in R:</p>
+<pre><code>
+to_oct &lt;- function(sample) sum(8 ^ seq(0, sample_sz - 1) * sample$x)</code></pre>
+<p>We also need to tally up sampling outcomes from <code>dplyr::slice_sample()</code> and <code>sparklyr::sdf_weighted_sample()</code> in 2 separate arrays:</p>
+<pre><code>
+max_possible_outcome &lt;- to_oct(list(x = seq(8 - sample_sz, 7)))
+
+sdf_weighted_sample_outcomes &lt;- rep(0, max_possible_outcome)
+dplyr_slice_sample_outcomes &lt;- rep(0, max_possible_outcome)</code></pre>
+<p>Finally, we can run both <code>dplyr::slice_sample()</code> and <code>sparklyr::sdf_weighted_sample()</code> for arbitrary number of iterations and compare tallied outcomes from both:</p>
+<pre><code>
+num_sampling_iters &lt;- 1000  # actually we will vary this value from 500 to 5000
+
+for (x in seq(num_sampling_iters)) {
+  sample1 &lt;- octs_sdf %&gt;%
+    sdf_weighted_sample(
+      k = sample_size, weight_col = &quot;weight&quot;, replacement = FALSE, seed = seed
+    ) %&gt;%
+    collect() %&gt;%
+    to_oct()
+  sdf_weighted_sample_outcomes[[sample1]] &lt;-
+      sdf_weighted_sample_outcomes[[sample1]] + 1
+
+  seed &lt;- x * 97
+  set.seed(seed) # set random seed for dplyr::sample_slice()
+  sample2 &lt;- octs %&gt;%
+    dplyr::slice_sample(
+      n = sample_size, weight_by = weight, replace = FALSE
+    ) %&gt;%
+    to_oct()
+  dplyr_slice_sample_outcomes[[sample2]] &lt;-
+      dplyr_slice_sample_outcomes[[sample2]] + 1
+}</code></pre>
+<p>After all the hard work above, we can now enjoy plotting the sampling outcomes from <code>dplyr::slice_sample()</code> and those from <code>sparklyr::sdf_weighted_sample()</code> after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.</p>
+<p>Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:</p>
+<p><img src="images/viz.png" /> (you will most probably need to <a href="images/viz.png">view it in a separate tab</a> to see everything clearly)</p>
 <h1 id="testing">Testing</h1>
 <p>While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.</p>
 <p>For instance, numerical instability issues from floating point numbers arise if <span class="math inline">\(\ln(u_j) / w_j\)</span> were replaced by <span class="math inline">\(u_j ^ {1 / w_j}\)</span> in the aforementioned computations.</p>
@@ -1503,9 +1561,9 @@ for j = 1 to n
 <h1 id="examples">Example Usages</h1>
 <p>Please note the <code>sparklyr::sdf_weighted_sample()</code> functionality is not included in any official release of <code>sparklyr</code> yet. We are aiming to ship it as part of <code>sparklyr</code> 1.4 in about 2 to 3 months from now.</p>
 <p>In the meanwhile, you can try it out with the following steps:</p>
-<p>First, make sure <code>devtools</code> is installed, and then run</p>
+<p>First, make sure <code>remotes</code> is installed, and then run</p>
 <pre><code>
-devtools::install_github(&quot;sparklyr/sparklyr&quot;, ref = &quot;master&quot;)</code></pre>
+remotes::install_github(&quot;sparklyr/sparklyr&quot;, ref = &quot;master&quot;)</code></pre>
 <p>to install <code>sparklyr</code> from source.</p>
 <p>Next, create a test data frame with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):</p>
 <pre><code>

@@ -158,7 +158,82 @@ An initial solution we had in mind was to run `SWR` with sample size $n$ in para
 
 In comparison,  with the help of exponential variates, a `SWR` carried out as $n$ independent **SWoR** processes each selecting $1$ sample is much simpler to implement, while still being comparable to our initial solution in terms of efficiency and scalability. An example implementation of it (which takes fewer than 60 lines of Scala) is presented in [samplingutils.scala](samplingutils.scala).
 
-# Testing
+# Visualization
+
+How do we know `sparklyr::sdf_weighted_sample()` is working as expected? While the rigorous answer to this question is presented in full in the [testing](#testing) section, we thought it would also be useful to first show some histograms that will help readers visualize what that test plan is. Therefore in this section, we will do the following:
+
+- Run `dplyr::slice_sample()` multiple times on a small sample space, with each run using a different PRNG seed (sample size will be reduced to $2$ here so that there will fewer than 100 possible outcomes and visualization will be easier)
+- Do the same for `sdf_weighted_sample()`
+- Use histograms to visualize the distribution of sampling outcomes
+
+Throughout this section, we will sample $2$ elements out of $\{0, \dotsc, 7\}$ without replacement according to some weights, so, the first step is to set up the following in R:
+
+```
+library(sparklyr)
+
+sc <- spark_connect(master = "local")
+
+# `octs` will be our sample space
+octs <- data.frame(
+  x = seq(0, 7),
+  weight = c(1, 4, 2, 8, 5, 7, 1, 4)
+)
+# `octs_sdf` will be our sample space copied into a Spark data frame
+octs_sdf <- copy_to(sc, octs)
+
+sample_size <- 2
+```
+
+In order to tally up and visualize the sampling outcomes efficiently, we shall map each possible outcome to an octal number (e.g., `(6, 7)` gets mapped to $6 \cdot 8^0 + 7 \cdot 8^1$) using a helper function `to_oct` in R:
+
+```
+to_oct <- function(sample) sum(8 ^ seq(0, sample_sz - 1) * sample$x)
+```
+
+We also need to tally up sampling outcomes from `dplyr::slice_sample()` and `sparklyr::sdf_weighted_sample()` in 2 separate arrays:
+
+```
+max_possible_outcome <- to_oct(list(x = seq(8 - sample_sz, 7)))
+
+sdf_weighted_sample_outcomes <- rep(0, max_possible_outcome)
+dplyr_slice_sample_outcomes <- rep(0, max_possible_outcome)
+```
+
+Finally, we can run both `dplyr::slice_sample()` and `sparklyr::sdf_weighted_sample()` for arbitrary number of iterations and compare tallied outcomes from both:
+
+```
+num_sampling_iters <- 1000  # actually we will vary this value from 500 to 5000
+
+for (x in seq(num_sampling_iters)) {
+  sample1 <- octs_sdf %>%
+    sdf_weighted_sample(
+      k = sample_size, weight_col = "weight", replacement = FALSE, seed = seed
+    ) %>%
+    collect() %>%
+    to_oct()
+  sdf_weighted_sample_outcomes[[sample1]] <-
+      sdf_weighted_sample_outcomes[[sample1]] + 1
+
+  seed <- x * 97
+  set.seed(seed) # set random seed for dplyr::sample_slice()
+  sample2 <- octs %>%
+    dplyr::slice_sample(
+      n = sample_size, weight_by = weight, replace = FALSE
+    ) %>%
+    to_oct()
+  dplyr_slice_sample_outcomes[[sample2]] <-
+      dplyr_slice_sample_outcomes[[sample2]] + 1
+}
+```
+
+After all the hard work above, we can now enjoy plotting the sampling outcomes from `dplyr::slice_sample()` and those from `sparklyr::sdf_weighted_sample()` after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.
+
+Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:
+
+![](images/viz.png)
+(you will most probably need to [view it in a separate tab](images/viz.png) to see everything clearly)
+
+# Testing {#testing}
 
 While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.
 
@@ -232,10 +307,10 @@ Please note the `sparklyr::sdf_weighted_sample()` functionality is not included 
 
 In the meanwhile, you can try it out with the following steps:
 
-First, make sure `devtools` is installed, and then run
+First, make sure `remotes` is installed, and then run
 
 ```
-devtools::install_github("sparklyr/sparklyr", ref = "master")
+remotes::install_github("sparklyr/sparklyr", ref = "master")
 ```
 to install `sparklyr` from source.
 

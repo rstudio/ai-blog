@@ -132,6 +132,62 @@ for j = 1 to n
 &lt;p&gt;An initial solution we had in mind was to run &lt;code&gt;SWR&lt;/code&gt; with sample size &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; in parallel on each partition of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;, and then re-sample the results based on relative total weights of each partition. Despite sounding deceptively simple when summarized in words, implementing such a solution in practice would be a moderately complicated task. First, one has to apply the &lt;a href="https://en.wikipedia.org/wiki/Alias_method"&gt;alias method&lt;/a&gt; or similar in order to perform weighted sampling efficiently on each partition of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;, and on top of that, implementing the re-sampling logic across all partitions correctly and verifying the correctness of such procedure will also require considerable effort.&lt;/p&gt;
 &lt;p&gt;In comparison, with the help of exponential variates, a &lt;code&gt;SWR&lt;/code&gt; carried out as &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; independent &lt;strong&gt;SWoR&lt;/strong&gt; processes each selecting &lt;span class="math inline"&gt;\(1\)&lt;/span&gt; sample is much simpler to implement, while still being comparable to our initial solution in terms of efficiency and scalability. An example implementation of it (which takes fewer than 60 lines of Scala) is presented in &lt;a href="samplingutils.scala"&gt;samplingutils.scala&lt;/a&gt;.&lt;/p&gt;
 &lt;/div&gt;
+&lt;div id="visualization" class="section level1"&gt;
+&lt;h1&gt;Visualization&lt;/h1&gt;
+&lt;p&gt;How do we know &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; is working as expected? While the rigorous answer to this question is presented in full in the &lt;a href="#testing"&gt;testing&lt;/a&gt; section, we thought it would also be useful to first show some histograms that will help readers visualize what that test plan is. Therefore in this section, we will do the following:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Run &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; multiple times on a small sample space, with each run using a different PRNG seed (sample size will be reduced to &lt;span class="math inline"&gt;\(2\)&lt;/span&gt; here so that there will fewer than 100 possible outcomes and visualization will be easier)&lt;/li&gt;
+&lt;li&gt;Do the same for &lt;code&gt;sdf_weighted_sample()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Use histograms to visualize the distribution of sampling outcomes&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Throughout this section, we will sample &lt;span class="math inline"&gt;\(2\)&lt;/span&gt; elements out of &lt;span class="math inline"&gt;\(\{0, \dotsc, 7\}\)&lt;/span&gt; without replacement according to some weights, so, the first step is to set up the following in R:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+# `octs` will be our sample space
+octs &amp;lt;- data.frame(
+  x = seq(0, 7),
+  weight = c(1, 4, 2, 8, 5, 7, 1, 4)
+)
+# `octs_sdf` will be our sample space copied into a Spark data frame
+octs_sdf &amp;lt;- copy_to(sc, octs)
+
+sample_size &amp;lt;- 2&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In order to tally up and visualize the sampling outcomes efficiently, we shall map each possible outcome to an octal number (e.g., &lt;code&gt;(6, 7)&lt;/code&gt; gets mapped to &lt;span class="math inline"&gt;\(6 \cdot 8^0 + 7 \cdot 8^1\)&lt;/span&gt;) using a helper function &lt;code&gt;to_oct&lt;/code&gt; in R:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;to_oct &amp;lt;- function(sample) sum(8 ^ seq(0, sample_sz - 1) * sample$x)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We also need to tally up sampling outcomes from &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; in 2 separate arrays:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;max_possible_outcome &amp;lt;- to_oct(list(x = seq(8 - sample_sz, 7)))
+
+sdf_weighted_sample_outcomes &amp;lt;- rep(0, max_possible_outcome)
+dplyr_slice_sample_outcomes &amp;lt;- rep(0, max_possible_outcome)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Finally, we can run both &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; for arbitrary number of iterations and compare tallied outcomes from both:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;num_sampling_iters &amp;lt;- 1000  # actually we will vary this value from 500 to 5000
+
+for (x in seq(num_sampling_iters)) {
+  sample1 &amp;lt;- octs_sdf %&amp;gt;%
+    sdf_weighted_sample(
+      k = sample_size, weight_col = &amp;quot;weight&amp;quot;, replacement = FALSE, seed = seed
+    ) %&amp;gt;%
+    collect() %&amp;gt;%
+    to_oct()
+  sdf_weighted_sample_outcomes[[sample1]] &amp;lt;-
+      sdf_weighted_sample_outcomes[[sample1]] + 1
+
+  seed &amp;lt;- x * 97
+  set.seed(seed) # set random seed for dplyr::sample_slice()
+  sample2 &amp;lt;- octs %&amp;gt;%
+    dplyr::slice_sample(
+      n = sample_size, weight_by = weight, replace = FALSE
+    ) %&amp;gt;%
+    to_oct()
+  dplyr_slice_sample_outcomes[[sample2]] &amp;lt;-
+      dplyr_slice_sample_outcomes[[sample2]] + 1
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After all the hard work above, we can now enjoy plotting the sampling outcomes from &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and those from &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.&lt;/p&gt;
+&lt;p&gt;Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/viz.png" /&gt; (you will most probably need to &lt;a href="images/viz.png"&gt;view it in a separate tab&lt;/a&gt; to see everything clearly)&lt;/p&gt;
+&lt;/div&gt;
 &lt;div id="testing" class="section level1"&gt;
 &lt;h1&gt;Testing&lt;/h1&gt;
 &lt;p&gt;While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.&lt;/p&gt;
@@ -193,8 +249,8 @@ for j = 1 to n
 &lt;h1&gt;Example Usages&lt;/h1&gt;
 &lt;p&gt;Please note the &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; functionality is not included in any official release of &lt;code&gt;sparklyr&lt;/code&gt; yet. We are aiming to ship it as part of &lt;code&gt;sparklyr&lt;/code&gt; 1.4 in about 2 to 3 months from now.&lt;/p&gt;
 &lt;p&gt;In the meanwhile, you can try it out with the following steps:&lt;/p&gt;
-&lt;p&gt;First, make sure &lt;code&gt;devtools&lt;/code&gt; is installed, and then run&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;devtools::install_github(&amp;quot;sparklyr/sparklyr&amp;quot;, ref = &amp;quot;master&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;First, make sure &lt;code&gt;remotes&lt;/code&gt; is installed, and then run&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;remotes::install_github(&amp;quot;sparklyr/sparklyr&amp;quot;, ref = &amp;quot;master&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;to install &lt;code&gt;sparklyr&lt;/code&gt; from source.&lt;/p&gt;
 &lt;p&gt;Next, create a test data frame with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;library(sparklyr)

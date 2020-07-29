@@ -62,41 +62,41 @@ span.colab-span {
 &lt;/style&gt;
 &lt;div id="introduction" class="section level2"&gt;
 &lt;h2&gt;Introduction&lt;/h2&gt;
-&lt;p&gt;Transformers repository from &lt;a href="https://github.com/huggingface/transformers"&gt;“Hugging Face”&lt;/a&gt; contains a lot of ready to use state-of-the-art models which is very straightforward to download and fine-tune with Tensorflow &amp;amp; Keras.&lt;/p&gt;
+&lt;p&gt;The &lt;em&gt;Transformers&lt;/em&gt; repository from &lt;a href="https://github.com/huggingface/transformers"&gt;“Hugging Face”&lt;/a&gt; contains a lot of ready to use, state-of-the-art models, which are straightforward to download and fine-tune with Tensorflow &amp;amp; Keras.&lt;/p&gt;
 &lt;p&gt;For this purpose the users usually need to get:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;The model itself (e.g. Bert, Albert, RoBerta, GPT-2 and etc.)&lt;/li&gt;
 &lt;li&gt;The tokenizer object&lt;/li&gt;
 &lt;li&gt;The weights of the model&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;In this post, we will work on classic binary classification task and train our data set on 3 models:&lt;/p&gt;
+&lt;p&gt;In this post, we will work on a classic binary classification task and train our dataset on 3 models:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="https://blog.openai.com/better-language-models/"&gt;GPT-2&lt;/a&gt; from Open AI&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://arxiv.org/abs/1907.11692"&gt;RoBERTa&lt;/a&gt; from Facebook&lt;/li&gt;
 &lt;li&gt;&lt;a href="https://arxiv.org/abs/2003.10555"&gt;Electra&lt;/a&gt; from Google Research/Stanford University&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;However, readers should know that one can work with transformers on a variety type down-stream tasks, such as:&lt;/p&gt;
+&lt;p&gt;However, readers should know that one can work with transformers on a variety of down-stream tasks, such as:&lt;/p&gt;
 &lt;ol style="list-style-type: decimal"&gt;
 &lt;li&gt;feature-extraction&lt;/li&gt;
 &lt;li&gt;sentiment-analysis&lt;/li&gt;
-&lt;li&gt;text-classification&lt;/li&gt;
-&lt;li&gt;question-answering&lt;/li&gt;
-&lt;li&gt;summarization&lt;/li&gt;
-&lt;li&gt;translation and many more.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/huggingface/transformers/tree/master/examples/text-classification"&gt;text-classification&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/huggingface/transformers/tree/master/examples/question-answering"&gt;question-answering&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/huggingface/transformers/tree/master/examples/seq2seq"&gt;summarization&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/huggingface/transformers/tree/master/examples/seq2seq"&gt;translation&lt;/a&gt; and &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;many more&lt;/a&gt;.&lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;
 &lt;div id="prerequisites" class="section level2"&gt;
 &lt;h2&gt;Prerequisites&lt;/h2&gt;
-&lt;p&gt;Our first job is to install &lt;em&gt;transformers&lt;/em&gt; package via &lt;code&gt;reticulate&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Our first job is to install the &lt;em&gt;transformers&lt;/em&gt; package via &lt;code&gt;reticulate&lt;/code&gt;.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;reticulate::py_install(&amp;#39;transformers&amp;#39;, pip = TRUE)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Then as usual call standard ‘Keras’, ‘TensorFlow’ &amp;gt;= 2.0 and some classic libraries from R.&lt;/p&gt;
+&lt;p&gt;Then, as usual, load standard ‘Keras’, ‘TensorFlow’ &amp;gt;= 2.0 and some classic libraries from R.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;library(keras)
 library(tensorflow)
 library(dplyr)
 library(tfdatasets)
 
 transformer = reticulate::import(&amp;#39;transformers&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Note, that for &lt;em&gt;GPU TensorFlow&lt;/em&gt; one could specify the following parameters in order to avoid any memory issues.&lt;/p&gt;
+&lt;p&gt;Note that if running TensorFlow on GPU one could specify the following parameters in order to avoid memory issues.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;physical_devices = tf$config$list_physical_devices(&amp;#39;GPU&amp;#39;)
 tf$config$experimental$set_memory_growth(physical_devices[[1]],TRUE)
 
@@ -113,7 +113,7 @@ transformer$TFRobertaModel$from_pretrained(&amp;#39;roberta-base&amp;#39;)&lt;/c
 &lt;/div&gt;
 &lt;div id="data-preparation" class="section level2"&gt;
 &lt;h2&gt;Data preparation&lt;/h2&gt;
-&lt;p&gt;There is a ready data for binary classification in &lt;a href="http://text2vec.org/"&gt;text2vec&lt;/a&gt; package. Let’s upload the data set and take a sample for fast model training.&lt;/p&gt;
+&lt;p&gt;A dataset for binary classification is provided in &lt;a href="http://text2vec.org/"&gt;text2vec&lt;/a&gt; package. Let’s load the dataset and take a sample for fast model training.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;library(text2vec)
 data(&amp;quot;movie_review&amp;quot;)
 df = movie_review %&amp;gt;% rename(target = sentiment, comment_text = review) %&amp;gt;% 
@@ -127,7 +127,7 @@ test = df[!idx_train,]&lt;/code&gt;&lt;/pre&gt;
 &lt;/div&gt;
 &lt;div id="data-input-for-keras" class="section level2"&gt;
 &lt;h2&gt;Data input for Keras&lt;/h2&gt;
-&lt;p&gt;Till now, we just covered data importing and splitting part. To feed input to network we have to turn our raw text into indices via imported tokenizer. And then adapt the model to binary classification model by adding a dense layer with 1 unit at the end.&lt;/p&gt;
+&lt;p&gt;Until now, we’ve just covered data import and train-test split. To feed input to the network we have to turn our raw text into indices via the imported tokenizer. And then adapt the model to do binary classification by adding a dense layer with a single unit at the end.&lt;/p&gt;
 &lt;p&gt;However, we want to train our data for 3 models GPT-2, RoBERTa, and Electra. We need to write a loop for that.&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;Note: one model in general requires 500-700 MB&lt;/p&gt;
@@ -223,13 +223,14 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-8681be16d7cf35499beb" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-8681be16d7cf35499beb"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.89,0.87,0.84],[0.89,0.86,0.85],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
-&lt;p&gt;RoBERTa and Electra models have some improvements after 2 epochs what cannot be said for GPT-2 model. In this case, it is clear that it can be enough to train state-of-the-art model even for 1 epoch.&lt;/p&gt;
+&lt;div id="htmlwidget-d927ea61282e5bae8b25" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-d927ea61282e5bae8b25"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.89,0.87,0.84],[0.89,0.86,0.85],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;/div&gt;
 &lt;div id="conclusion" class="section level2"&gt;
 &lt;h2&gt;Conclusion&lt;/h2&gt;
-&lt;p&gt;In this post, we showed the possibility of application of the state-of-the-art NLP models from R. To understand more complex tasks, it is highly recommended to review &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt; and see vignettes of &lt;a href="https://github.com/rstudio/keras/tree/master/vignettes/examples"&gt;Keras GitHub&lt;/a&gt; page.&lt;/p&gt;
+&lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;We encourage readers to try out these models and share the benchmarks below in the comments section!&lt;/p&gt;
 &lt;/div&gt;
 
 
@@ -282,7 +283,7 @@ $(document).ready(function () {
       <category>Natural Language Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r</guid>
       <pubDate>Mon, 27 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r/files/dino.gif" medium="image" type="image/gif"/>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-28-state-of-the-art-nlp-models-from-r/files/dino.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Time series prediction with FNN-LSTM</title>

@@ -12,11 +12,11 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Sun, 19 Jul 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Wed, 29 Jul 2020 00:00:00 +0000</lastBuildDate>
     <item>
-      <title>Time series prediction with FNN-LSTM</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</link>
+      <title>Parallelized sampling using exponential variates</title>
+      <dc:creator>Yitao Li</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling</link>
       <description>
 
 
@@ -33,213 +33,283 @@
 &lt;/div&gt;
 
 
-&lt;p&gt;") training_loop(ds_train)&lt;/p&gt;
-&lt;p&gt;test_batch &amp;lt;- as_iterator(ds_test) %&amp;gt;% iter_next() encoded &amp;lt;- encoder(test_batch[[1]]) test_var &amp;lt;- tf&lt;span class="math inline"&gt;\(math\)&lt;/span&gt;reduce_variance(encoded, axis = 0L) print(test_var %&amp;gt;% as.numeric() %&amp;gt;% round(5)) }&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;
-On to what we&amp;#39;ll use as a baseline for comparison.
-
-#### Vanilla LSTM
-
-Here is the vanilla LSTM, stacking two layers, each, again, of size 32. Dropout and recurrent dropout were chosen individually
-per dataset, as was the learning rate.
-
-
-
-### Data preparation
-
-For all experiments, data were prepared in the same way.
-
-In every case, we used the first 10000 measurements available in the respective `.pkl` files [provided by Gilpin in his GitHub
-repository](https://github.com/williamgilpin/fnn/tree/master/datasets). To save on file size and not depend on an external
-data source, we extracted those first 10000 entries to `.csv` files downloadable directly from this blog&amp;#39;s repo:
-
-
-
-Should you want to access the complete time series (of considerably greater lengths), just download them from Gilpin&amp;#39;s repo
-and load them using `reticulate`:
-
-
-
-Here is the data preparation code for the first dataset, `geyser` - all other datasets were treated the same way.
-
-
-
-Now we&amp;#39;re ready to look at how forecasting goes on our four datasets.
-
-## Experiments
-
-### Geyser dataset
-
-People working with time series may have heard of [Old Faithful](https://en.wikipedia.org/wiki/Old_Faithful), a geyser in
-Wyoming, US that has continually been erupting every 44 minutes to two hours since the year 2004. For the subset of data
-Gilpin extracted[^3],
-
-[^3]: see dataset descriptions in the [repository\&amp;#39;s README](https://github.com/williamgilpin/fnn)
-
-&amp;gt; `geyser_train_test.pkl` corresponds to detrended temperature readings from the main runoff pool of the Old Faithful geyser
-&amp;gt; in Yellowstone National Park, downloaded from the [GeyserTimes database](https://geysertimes.org/). Temperature measurements
-&amp;gt; start on April 13, 2015 and occur in one-minute increments.
-
-Like we said above, `geyser.csv` is a subset of these measurements, comprising the first 10000 data points. To choose an
-adequate timestep for the LSTMs, we inspect the series at various resolutions:
-
-&amp;lt;div class=&amp;quot;figure&amp;quot;&amp;gt;
-&amp;lt;img src=&amp;quot;images/geyser_ts.png&amp;quot; alt=&amp;quot;Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the first 200.&amp;quot; width=&amp;quot;600&amp;quot; /&amp;gt;
-&amp;lt;p class=&amp;quot;caption&amp;quot;&amp;gt;(\#fig:unnamed-chunk-5)Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the first 200.&amp;lt;/p&amp;gt;
-&amp;lt;/div&amp;gt;
-
-It seems like the behavior is periodic with a period of about 40-50; a timestep of 60 thus seemed like a good try.
-
-Having trained both FNN-LSTM and the vanilla LSTM for 200 epochs, we first inspect the variances of the latent variables on
-the test set. The value of `fnn_multiplier` corresponding to this run was `0.7`.
-
-
-
-```{}
-   V1     V2        V3          V4       V5       V6       V7       V8       V9      V10
-0.258 0.0262 0.0000627 0.000000600 0.000533 0.000362 0.000238 0.000121 0.000518 0.000365&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;There is a drop in importance between the first two variables and the rest; however, unlike in the Lorenz system, &lt;code&gt;V1&lt;/code&gt; and &lt;code&gt;V2&lt;/code&gt; variances also differ by an order of magnitude.&lt;/p&gt;
-&lt;p&gt;Now, it’s interesting to compare prediction errors for both models. We are going to make an observation that will carry through to all three datasets to come.&lt;/p&gt;
-&lt;p&gt;Keeping up the suspense for a while, here is the code used to compute per-timestep prediction errors from both models. The same code will be used for all other datasets.&lt;/p&gt;
-&lt;p&gt;And here is the actual comparison. One thing especially jumps to the eye: FNN-LSTM forecast error is significantly lower for initial timesteps, first and foremost, for the very first prediction, which from this graph we expect to be pretty good!&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/geyser_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-8)Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
-&lt;/p&gt;
+&lt;p&gt;As part of our recent work to support weighted sampling of Spark data frames in &lt;code&gt;sparklyr&lt;/code&gt;, we embarked on a journey searching for algorithms that can perform weighted sampling, especially sampling without replacement, in efficient and scalable ways within a distributed cluster-computing framework, such as Apache Spark.&lt;/p&gt;
+&lt;p&gt;In the interest of brevity, “weighted sampling without replacement” shall be shortened into &lt;strong&gt;SWoR&lt;/strong&gt; for the remainder of this blog post.&lt;/p&gt;
+&lt;p&gt;In the following sections, we will explain and illustrate what &lt;strong&gt;SWoR&lt;/strong&gt; means probability-wise, briefly outline some alternative solutions we have considered but were not completely satisfied with, and then deep-dive into exponential variates, a simple mathematical construct that made the ideal solution for this problem possible.&lt;/p&gt;
+&lt;p&gt;If you cannot wait to jump into action, there is also a &lt;a href="#examples"&gt;section&lt;/a&gt; in which we showcase example usages of &lt;code&gt;sdf_weighted_sample()&lt;/code&gt; in &lt;code&gt;sparklyr&lt;/code&gt;. In addition, you can examine the implementation detail of &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; in this &lt;a href="https://github.com/sparklyr/sparklyr/pull/2606"&gt;pull request&lt;/a&gt;.&lt;/p&gt;
+&lt;div id="how-it-all-started" class="section level2"&gt;
+&lt;h2&gt;How it all started&lt;/h2&gt;
+&lt;p&gt;Our journey started from a &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt; inquiring about the possibility of supporting the equivalent of &lt;code&gt;dplyr::sample_frac(..., weight = &amp;lt;weight_column&amp;gt;)&lt;/code&gt; for Spark data frames in &lt;code&gt;sparklyr&lt;/code&gt;. For example,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dplyr::sample_frac(mtcars, 0.25, weight = gear, replace = FALSE)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;##                    mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+## Merc 280C         17.8   6 167.6 123 3.92 3.440 18.90  1  0    4    4
+## Chrysler Imperial 14.7   8 440.0 230 3.23 5.345 17.42  0  0    3    4
+## Fiat X1-9         27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+## Hornet Sportabout 18.7   8 360.0 175 3.15 3.440 17.02  0  0    3    2
+## Valiant           18.1   6 225.0 105 2.76 3.460 20.22  1  0    3    1
+## Porsche 914-2     26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+## Maserati Bora     15.0   8 301.0 335 3.54 3.570 14.60  0  1    5    8
+## Ferrari Dino      19.7   6 145.0 175 3.62 2.770 15.50  0  1    5    6&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;will randomly select one-fourth of all rows from a R data frame named “mtcars” without replacement, using &lt;code&gt;mtcars$gear&lt;/code&gt; as weights. We were unable to find any function implementing the weighted versions of &lt;code&gt;dplyr::sample_frac&lt;/code&gt; among &lt;a href="https://spark.apache.org/docs/3.0.0/api/sql/index.html"&gt;Spark SQL built-in functions&lt;/a&gt; in Spark 3.0 or in earlier versions, which means a future version of &lt;code&gt;sparklyr&lt;/code&gt; will need to run its own weighted sampling algorithm to support such use cases.&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;Interestingly, we see “jumps” in prediction error, for FNN-LSTM, between the very first forecast and the second, and then between the second and the ensuing ones, reminding of the similar jumps in variable importance for the latent code! After the first ten timesteps, vanilla LSTM has caught up with FNN-LSTM, and we won’t interpret further development of the losses based on just a single run’s output.&lt;/p&gt;
-&lt;p&gt;Instead, let’s inspect actual predictions. We randomly pick sequences from the test set, and ask both FNN-LSTM and vanilla LSTM for a forecast. The same procedure will be followed for the other datasets.&lt;/p&gt;
-&lt;p&gt;Here are sixteen random picks of predictions on the test set. The ground truth is displayed in pink; blue forecasts are from FNN-LSTM, green ones from vanilla LSTM.&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/geyser_preds.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-10)60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;What we expect from the error inspection comes true: FNN-LSTM yields significantly better predictions for immediate continuations of a given sequence.&lt;/p&gt;
-&lt;p&gt;Let’s move on to the second dataset on our list.&lt;/p&gt;
-&lt;div id="electricity-dataset" class="section level3"&gt;
-&lt;h3&gt;Electricity dataset&lt;/h3&gt;
-&lt;p&gt;This is a dataset on power consumption, aggregated over 321 different households and fifteen-minute-intervals.&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;&lt;code&gt;electricity_train_test.pkl&lt;/code&gt; corresponds to average power consumption by 321 Portuguese households between 2012 and 2014, in units of kilowatts consumed in fifteen minute increments. This dataset is from the &lt;a href="http://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014"&gt;UCI machine learning database&lt;/a&gt;. &lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;Here, we see a very regular pattern:&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/electricity_ts.png" alt="Electricity dataset. Top: First 2000 observations. Bottom: Zooming in on 500 observations, skipping the very beginning of the series." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-11)Electricity dataset. Top: First 2000 observations. Bottom: Zooming in on 500 observations, skipping the very beginning of the series.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;With such regular behavior, we immediately tried to predict a higher number of timesteps (&lt;code&gt;120&lt;/code&gt;) – and didn’t have to retract behind that aspiration.&lt;/p&gt;
-&lt;p&gt;For an &lt;code&gt;fnn_multiplier&lt;/code&gt; of &lt;code&gt;0.5&lt;/code&gt;, latent variable variances look like this:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;V1          V2            V3       V4       V5            V6       V7         V8      V9     V10
-0.390 0.000637 0.00000000288 1.48e-10 2.10e-11 0.00000000119 6.61e-11 0.00000115 1.11e-4 1.40e-4&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We definitely see a sharp drop already after the first variable.&lt;/p&gt;
-&lt;p&gt;How do prediction errors compare on the two architectures?&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/electricity_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-12)Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Here, FNN-LSTM performs better over a long range of timesteps, but again, the difference is most visible for immediate predictions. Will an inspection of actual predictions confirm this view?&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/electricity_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-13)60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;It does! In fact, forecasts from FNN-LSTM are very impressive on all time scales.&lt;/p&gt;
-&lt;p&gt;Now that we’ve seen the easy and predictable, let’s approach the weird and difficult.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="ecg-dataset" class="section level3"&gt;
-&lt;h3&gt;ECG dataset&lt;/h3&gt;
-&lt;p&gt;Says Gilpin,&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;&lt;code&gt;ecg_train.pkl&lt;/code&gt; and &lt;code&gt;ecg_test.pkl&lt;/code&gt; correspond to ECG measurements for two different patients, taken from the &lt;a href="https://physionet.org/content/qtdb/1.0.0/"&gt;PhysioNet QT database&lt;/a&gt;. &lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;How do these look?&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/ecg_ts.png" alt="ECG dataset. Top: First 1000 observations. Bottom: Zooming in on the first 400 observations." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-14)ECG dataset. Top: First 1000 observations. Bottom: Zooming in on the first 400 observations.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;To the layperson that I am, these do not look nearly as regular as expected. First experiments showed that both architectures are not capable of dealing with a high number of timesteps. In every try, FNN-LSTM performed better for the very first timestep.&lt;/p&gt;
-&lt;p&gt;This is also the case for &lt;code&gt;n_timesteps = 12&lt;/code&gt;, the final try (after &lt;code&gt;120&lt;/code&gt;, &lt;code&gt;60&lt;/code&gt; and &lt;code&gt;30&lt;/code&gt;). With an &lt;code&gt;fnn_multiplier&lt;/code&gt; of &lt;code&gt;1&lt;/code&gt;, the latent variances obtained amounted to the following:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;     V1        V2          V3        V4         V5       V6       V7         V8         V9       V10
-  0.110  1.16e-11     3.78e-9 0.0000992    9.63e-9  4.65e-5  1.21e-4    9.91e-9    3.81e-9   2.71e-8&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;There &lt;em&gt;is&lt;/em&gt; a gap between the first variable and all other ones; but not much variance is explained by &lt;code&gt;V1&lt;/code&gt; either.&lt;/p&gt;
-&lt;p&gt;Apart from the very first prediction, vanilla LSTM shows lower forecast errors this time; however, we have to add that this was not consistently observed when experimenting with other timestep settings.&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/ecg_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-15)Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Looking at actual predictions, both architectures perform best when a persistence forecast is adequate – in fact, they produce one even when it is &lt;em&gt;not&lt;/em&gt;.&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/ecg_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-16)60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;On this dataset, we certainly would want to explore other architectures better able to capture the presence of high &lt;em&gt;and&lt;/em&gt; low frequencies in the data, such as mixture models. But – were we forced to stay with one of these, and could do a one-step-ahead, rolling forecast, we’d go with FNN-LSTM.&lt;/p&gt;
-&lt;p&gt;Speaking of mixed frequencies – we haven’t seen the extremes yet …&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="mouse-dataset" class="section level3"&gt;
-&lt;h3&gt;Mouse dataset&lt;/h3&gt;
-&lt;p&gt;“Mouse”, that’s spike rates recorded from a mouse thalamus.&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;&lt;code&gt;mouse.pkl&lt;/code&gt; A time series of spiking rates for a neuron in a mouse thalamus. Raw spike data was obtained from &lt;a href="http://crcns.org/data-sets/thalamus/th-1/about-th-1"&gt;CRCNS&lt;/a&gt; and processed with the authors' code in order to generate a spike rate time series. &lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/mouse_ts.png" alt="Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on the first 500 observations." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-17)Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on the first 500 observations.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Obviously, this dataset will be very hard to predict. How, after “long” silence, do you know that a neuron is going to fire?&lt;/p&gt;
-&lt;p&gt;As usual, we inspect latent code variances (&lt;code&gt;fnn_multiplier&lt;/code&gt; was set to &lt;code&gt;0.4&lt;/code&gt;):&lt;/p&gt;
-&lt;p&gt;Again, we don’t see the first variable explaining much variance. Still, interestingly, when inspecting forecast errors we get a picture very similar to the one obtained on our first, &lt;code&gt;geyser&lt;/code&gt;, dataset:&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/mouse_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-19)Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;So here, the latent code definitely seems to help! With every timestep “more” that we try to predict, prediction performance goes down &lt;em&gt;continuously&lt;/em&gt; – or put the other way round, short-time predictions are expected to be pretty good!&lt;/p&gt;
-&lt;p&gt;Let’s see:&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-20-fnn-lstm/images/mouse_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-20)60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to happen”, vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track” as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an obvious decision with this dataset.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="discussion" class="section level2"&gt;
-&lt;h2&gt;Discussion&lt;/h2&gt;
-&lt;p&gt;When, in timeseries forecasting, would we consider FNN-LSTM? Judging by the above experiments, conducted on four very different datasets: Whenever we consider a deep learning approach. Of course, this has been a casual exploration – and it was meant to be, as – hopefully – was evident from the nonchalant and bloomy (sometimes) writing style.&lt;/p&gt;
-&lt;p&gt;Throughout the text, we’ve emphasized &lt;em&gt;utility&lt;/em&gt; – how could this technique be used to improve predictions? But, looking at the above results, a number of interesting questions come to mind. We already speculated (though in an indirect way) whether the number of high-variance variables in the latent code was relatable to how far we could sensibly forecast into the future. However, even more intriguing is the question of how characteristics of the &lt;em&gt;dataset itself&lt;/em&gt; affect FNN efficiency.&lt;/p&gt;
-&lt;p&gt;Such characteristics could be:&lt;/p&gt;
+&lt;div id="swor" class="section level2"&gt;
+&lt;h2&gt;What exactly is &lt;strong&gt;SWoR&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;The purpose of this section is to mathematically describe the probability distribution generated by &lt;strong&gt;SWoR&lt;/strong&gt; in terms of &lt;span class="math inline"&gt;\(w_1, \dotsc, w_N\)&lt;/span&gt;, so that readers can clearly see that the exponential-variate based algorithm presented in a subsequent section in fact samples from precisely the same probability distribution. Readers already having a crystal-clear mental picture of what &lt;strong&gt;SWoR&lt;/strong&gt; entails should probably skip most of this section. The key take-away here is given &lt;span class="math inline"&gt;\(N\)&lt;/span&gt; rows &lt;span class="math inline"&gt;\(r_1, \dotsc, r_N\)&lt;/span&gt; and their weights &lt;span class="math inline"&gt;\(w_1, \dotsc, w_N\)&lt;/span&gt; and a desired sample size &lt;span class="math inline"&gt;\(n\)&lt;/span&gt;, the probability of &lt;strong&gt;SWoR&lt;/strong&gt; selecting &lt;span class="math inline"&gt;\((r_1, \dotsc, r_n)\)&lt;/span&gt; is &lt;span class="math inline"&gt;\(\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)\)&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;SWOR&lt;/code&gt; is conceptually equivalent to a &lt;span class="math inline"&gt;\(n\)&lt;/span&gt;-step process of selecting 1 out of &lt;span class="math inline"&gt;\((n - j + 1)\)&lt;/span&gt; remaining rows in the &lt;span class="math inline"&gt;\(j\)&lt;/span&gt;-th step for &lt;span class="math inline"&gt;\(j \in \{1, \dotsc, n\}\)&lt;/span&gt;, with each remaining row’s likelihood of getting selected being linearly proportional to its weight in any of the steps, i.e.,&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;samples := {}
+population := {r[1], ..., r[N]}
+
+for j = 1 to n
+  select r[x] from population with probability
+    (w[x] / TotalWeight(population))
+  samples := samples + {r[x]}
+  population := population - {r[x]}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Notice the outcome of a &lt;strong&gt;SWoR&lt;/strong&gt; process is in fact order-significant, which is why in this post it will always be represented as an ordered tuple of elements.&lt;/p&gt;
+&lt;p&gt;Intuitively, &lt;strong&gt;SWoR&lt;/strong&gt; is analogous to throwing darts at a bunch of tiles. For example, let’s say the size of our sample space is 5:&lt;/p&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;p&gt;How nonlinear is the dataset? (Put differently, how incompatible, as indicated by some form of test algorithm, is it with the hypothesis that the data generation mechanism was a linear one?)&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;To what degree does the system appear to be sensitively dependent on initial conditions? In other words, what is the value of its (estimated, from the observations) highest &lt;a href="https://en.wikipedia.org/wiki/Lyapunov_exponent"&gt;Lyapunov exponent&lt;/a&gt;?&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;What is its (estimated) dimensionality, for example, in terms of &lt;a href="https://en.wikipedia.org/wiki/Correlation_dimension"&gt;correlation dimension&lt;/a&gt;?&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Imagine &lt;span class="math inline"&gt;\(r_1, r_2, \dotsc, r_5\)&lt;/span&gt; as 5 rectangular tiles laid out contiguously on a wall with widths &lt;span class="math inline"&gt;\(w_1, w_2, \dotsc, w_5\)&lt;/span&gt;, with &lt;span class="math inline"&gt;\(r_1\)&lt;/span&gt; covering &lt;span class="math inline"&gt;\([0, w_1)\)&lt;/span&gt;, &lt;span class="math inline"&gt;\(r_2\)&lt;/span&gt; covering &lt;span class="math inline"&gt;\([w_1, w_1 + w_2)\)&lt;/span&gt;, …, and &lt;span class="math inline"&gt;\(r_5\)&lt;/span&gt; covering &lt;span class="math inline"&gt;\(\left[\sum\limits_{j = 1}^{4} w_j, \sum\limits_{j = 1}^{5} w_j\right)\)&lt;/span&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Equate drawing a random sample in each step to throwing a dart uniformly randomly within the interval covered by all tiles that are not hit yet&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;After a tile is hit, it gets taken out and remaining tiles are re-arranged so that they continue to cover a contiguous interval without overlapping&lt;/p&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;While it is easy to obtain those estimates, using, for instance, the &lt;a href="https://cran.r-project.org/web/packages/nonlinearTseries/"&gt;nonlinearTseries&lt;/a&gt; package explicitly modeled after practices described in Kantz &amp;amp; Schreiber’s classic &lt;span class="citation"&gt;[@Kantz]&lt;/span&gt;, we don’t want to extrapolate from our tiny sample of datasets, and leave such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its conceptual attractivity.&lt;/p&gt;
-&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;p&gt;If our sample size is 3, then we shall ask ourselves what is the probability of the dart hitting &lt;span class="math inline"&gt;\((r_1, r_2, r_3)\)&lt;/span&gt; in that order?&lt;/p&gt;
+&lt;p&gt;In step &lt;span class="math inline"&gt;\(j = 1\)&lt;/span&gt;, the dart will hit &lt;span class="math inline"&gt;\(r_1\)&lt;/span&gt; with probability &lt;span class="math inline"&gt;\(\left. w_1 \middle/ \left(\sum\limits_{k = 1}^{N}w_k\right) \right.\)&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/d1.jpg" style="width:50.0%;height:50.0%" alt="step 1" /&gt; .&lt;/p&gt;
+&lt;p&gt;After deleting &lt;span class="math inline"&gt;\(r_1\)&lt;/span&gt; from the sample space after it’s hit, step &lt;span class="math inline"&gt;\(j = 2\)&lt;/span&gt; will look like this:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/d2.jpg" style="width:48.0%;height:45.0%" alt="step 2" /&gt; ,&lt;/p&gt;
+&lt;p&gt;and the probability of the dart hitting &lt;span class="math inline"&gt;\(r_2\)&lt;/span&gt; in step 2 is &lt;span class="math inline"&gt;\(\left. w_2 \middle/ \left(\sum\limits_{k = 2}^{N}w_k\right) \right.\)&lt;/span&gt; .&lt;/p&gt;
+&lt;p&gt;Finally, moving on to step &lt;span class="math inline"&gt;\(j = 3\)&lt;/span&gt;, we have:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/d3.jpg" style="width:40.0%;height:30.0%" alt="step 3" /&gt; ,&lt;/p&gt;
+&lt;p&gt;with the probability of the dart hitting &lt;span class="math inline"&gt;\(r_3\)&lt;/span&gt; being &lt;span class="math inline"&gt;\(\left. w_3 \middle/ \left(\sum\limits_{k = 3}^{N}w_k\right) \right.\)&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;So, combining all of the above, the overall probability of selecting &lt;span class="math inline"&gt;\((r_1, r_2, r_3)\)&lt;/span&gt; is &lt;span class="math inline"&gt;\(\prod\limits_{j = 1}^{3} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)\)&lt;/span&gt;.&lt;/p&gt;
 &lt;/div&gt;
-&lt;div class="footnotes"&gt;
-&lt;hr /&gt;
-&lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;again, citing from Gilpin’s repository’s &lt;a href="https://github.com/williamgilpin/fnn"&gt;README&lt;/a&gt;.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn2"&gt;&lt;p&gt;again, citing from Gilpin’s repository’s &lt;a href="https://github.com/williamgilpin/fnn"&gt;README&lt;/a&gt;.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn3"&gt;&lt;p&gt;again, citing from Gilpin’s repository’s &lt;a href="https://github.com/williamgilpin/fnn"&gt;README&lt;/a&gt;.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
+&lt;div id="naive-approaches-for-implementing-swor" class="section level2"&gt;
+&lt;h2&gt;Naive approaches for implementing &lt;strong&gt;SWoR&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;This section outlines some possible approaches that were briefly under consideration. Because none of these approaches scales well to a large number of rows or a non-trivial number of partitions in a Spark data frame, we decided to avoid all of them in &lt;code&gt;sparklyr&lt;/code&gt;.&lt;/p&gt;
+&lt;div id="a-tree-base-approach" class="section level3"&gt;
+&lt;h3&gt;A tree-base approach&lt;/h3&gt;
+&lt;p&gt;One possible way to accomplish &lt;strong&gt;SWoR&lt;/strong&gt; is to have a mutable data structure keeping track of the sample space at each step.&lt;/p&gt;
+&lt;p&gt;Continuing with the dart-throwing analogy from the previous section, let us say initially, none of the tiles has been taken out yet, and a dart has landed at some point &lt;span class="math inline"&gt;\(x \in \left[0, \sum\limits_{k = 1}^{N} w_k\right)\)&lt;/span&gt;. Which tile did it hit? This can be answered efficiently if we have a binary tree, pictured as the following (or in general, some &lt;span class="math inline"&gt;\(b\)&lt;/span&gt;-ary tree for integer &lt;span class="math inline"&gt;\(b \ge 2\)&lt;/span&gt;)&lt;/p&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/tree.jpg" style="width:60.0%;height:40.0%" alt="" /&gt;
+&lt;p class="caption"&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;To find the tile that was hit given the dart’s position &lt;span class="math inline"&gt;\(x\)&lt;/span&gt;, we simply need to traverse down the tree, going through the box containing &lt;span class="math inline"&gt;\(x\)&lt;/span&gt; in each level, incurring a &lt;span class="math inline"&gt;\(O(\log(N))\)&lt;/span&gt; cost in time complexity for each sample. To take a tile out of the picture, we update the width of the tile to &lt;span class="math inline"&gt;\(0\)&lt;/span&gt; and propagate this change upwards from leaf level to root of the tree, again incurring a &lt;span class="math inline"&gt;\(O(\log(N))\)&lt;/span&gt; cost in time complexity, making the overall time complexity of selecting &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; samples &lt;span class="math inline"&gt;\(O(n \cdot \log(N))\)&lt;/span&gt;, which is not so great for large data sets, and also, not parallelizable across multiple partitions of a Spark data frame.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="rejection-sampling" class="section level3"&gt;
+&lt;h3&gt;Rejection sampling&lt;/h3&gt;
+&lt;p&gt;Another possible approach is to use rejection sampling. In term of the previously mentioned dart-throwing analogy, that means not removing any tile that is hit, hence avoiding the performance cost of keeping the sample space up-to-date, but then having to re-throw the dart in each of the subsequent rounds until the dart lands on a tile that was not hit previously. This approach, just like the previous one, would not be performant, and would not be parallelizable across multiple partitions of a Spark data frame either.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div id="exponential-variates-to-the-rescue" class="section level1"&gt;
+&lt;h1&gt;Exponential variates to the rescue&lt;/h1&gt;
+&lt;p&gt;A solution that has proven to be much better than any of the naive approaches turns out to be a numerical stable variant of the algorithm described in “Weighted Random Sampling” &lt;span class="citation"&gt;[@Efraimidis2016]&lt;/span&gt; by Pavlos S. Efraimidis and Paul G. Spirakis.&lt;/p&gt;
+&lt;p&gt;A version of this sampling algorithm implemented by &lt;code&gt;sparklyr&lt;/code&gt; does the following to sample &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; out of &lt;span class="math inline"&gt;\(N\)&lt;/span&gt; rows from a Spark data frame &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;For each row &lt;span class="math inline"&gt;\(r_j \in X\)&lt;/span&gt;, draw a random number &lt;span class="math inline"&gt;\(u_j\)&lt;/span&gt; independently and uniformly randomly from &lt;span class="math inline"&gt;\((0, 1)\)&lt;/span&gt; and compute the key of &lt;span class="math inline"&gt;\(r_j\)&lt;/span&gt; as &lt;span class="math inline"&gt;\(k_j = \ln(u_j) / w_j\)&lt;/span&gt;, where &lt;span class="math inline"&gt;\(w_j\)&lt;/span&gt; is the weight of &lt;span class="math inline"&gt;\(r_j\)&lt;/span&gt;. Perform this calulation in parallel across all partitions of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;.&lt;/li&gt;
+&lt;li&gt;Select &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; rows with largest keys and return them as the result. This step is also mostly parallelizable: for each partition of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;, one can select up to &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; rows having largest keys within that partition as candidates, and after selecting candidates from all partitions in parallel, simply extract the top &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; rows among all candidates, and return them as the &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; chosen samples.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;There are at least 4 reasons why this solution is highly appealing and was chosen to be implemented in &lt;code&gt;sparklyr&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;It is a one-pass algorithm (i.e., only need to iterate through all rows of a data frame exactly once).&lt;/li&gt;
+&lt;li&gt;Its computational overhead is quite low (as selecting top &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; rows at any stage only requires a bounded priority queue of max size &lt;span class="math inline"&gt;\(n\)&lt;/span&gt;, which costs &lt;span class="math inline"&gt;\(O(\log(n))\)&lt;/span&gt; per update in time complexity).&lt;/li&gt;
+&lt;li&gt;More importantly, most of its required computations can be performed in parallel. In fact, the only non-parallelizable step is the very last stage of combining top candidates from all partitions and choosing the top &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; rows among those candidates. So, it fits very well into the world of Spark / MapReduce, and has drastically better horizontal scalability compared to the naive approaches.&lt;/li&gt;
+&lt;li&gt;Bonus: It is also suitable for weighted reservoir sampling (i.e., can sample &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; out of a possibly infinite stream of rows according to their weights such that at any moment the &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; samples will be a weighted representation of all rows that have been processed so far).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div id="why-does-this-algorithm-work" class="section level2"&gt;
+&lt;h2&gt;Why does this algorithm work&lt;/h2&gt;
+&lt;p&gt;As an interesting aside, some readers have probably seen this technique presented in a slightly different form under another name. It is in fact equivalent to a generalized version of the &lt;a href="https://lips.cs.princeton.edu/the-gumbel-max-trick-for-discrete-distributions"&gt;Gumbel-max trick&lt;/a&gt; which is commonly referred to as the Gumbel-top-k trick. Readers familiar with properties of the Gumbel distribution will no doubt have an easy time convincing themselves the algorithm above works as expected.&lt;/p&gt;
+&lt;p&gt;In this section, we will also present a proof of correctness for this algorithm based on elementary properties of &lt;a href="https://en.wikipedia.org/wiki/Probability_density_function"&gt;probability density function&lt;/a&gt; (shortened as PDF from now on), &lt;a href="https://en.wikipedia.org/wiki/Cumulative_distribution_function"&gt;cumulative distribution function&lt;/a&gt; (shortened as CDF from now on), and basic calculus.&lt;/p&gt;
+&lt;p&gt;First of all, to make sense of all the &lt;span class="math inline"&gt;\(\ln(u_j) / w_j\)&lt;/span&gt; calculations in this algorithm, one has to understand &lt;a href="https://en.wikipedia.org/wiki/Inverse_transform_sampling"&gt;inverse transform sampling&lt;/a&gt;. For each &lt;span class="math inline"&gt;\(j \in \{1, \dotsc, N\}\)&lt;/span&gt;, consider the probability distribution defined on &lt;span class="math inline"&gt;\((-\infty, 0)\)&lt;/span&gt; with CDF &lt;span class="math inline"&gt;\(F_j(x) = e^{w_j \cdot x}\)&lt;/span&gt;. In order to pluck out a value &lt;span class="math inline"&gt;\(y\)&lt;/span&gt; from this distribution, we first sample a value &lt;span class="math inline"&gt;\(u_j\)&lt;/span&gt; uniformly randomly out of &lt;span class="math inline"&gt;\((0, 1)\)&lt;/span&gt; that determines the percentile of &lt;span class="math inline"&gt;\(y\)&lt;/span&gt; (i.e., how our &lt;span class="math inline"&gt;\(y\)&lt;/span&gt; value ranks relative to all possible &lt;span class="math inline"&gt;\(y\)&lt;/span&gt; values, a.k.a, the “overall population”, from this distribution), and then apply &lt;span class="math inline"&gt;\(F_j^{-1}\)&lt;/span&gt; to &lt;span class="math inline"&gt;\(u_j\)&lt;/span&gt; to find &lt;span class="math inline"&gt;\(y\)&lt;/span&gt;, so, &lt;span class="math inline"&gt;\(y = F_j^{-1}(u_j) = \ln(u_j) / w_j\)&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;Secondly, after defining all the required CDF functions &lt;span class="math inline"&gt;\(F_j(x) = e^{w_j \cdot x}\)&lt;/span&gt; for &lt;span class="math inline"&gt;\(j \in \{1, \dotsc, N\}\)&lt;/span&gt;, we can also easily derive their corresponding PDF functions &lt;span class="math inline"&gt;\(f_j\)&lt;/span&gt;: &lt;span class="math display"&gt;\[f_j(x) = \frac{d F_j(x)}{dx} = w_j e^{w_j \cdot x}\]&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;Finally, with a clear understanding of the family of probability distributions involved, one can prove the probability of this algorithm selecting a given sequence of rows &lt;span class="math inline"&gt;\((r_1, \dotsc, r_n)\)&lt;/span&gt; is equal to &lt;span class="math inline"&gt;\(\prod\limits_{j = 1}^{n} \left( {w_j} \middle/ {\sum\limits_{k = j}^{N}{w_k}} \right)\)&lt;/span&gt;, identical to the probability previously mentioned in the &lt;a href="#swor"&gt;“What exactly is &lt;strong&gt;SWoR&lt;/strong&gt;”&lt;/a&gt; section, which implies the possible outcomes of this algorithm will follow exactly the same probability distribution as that of a &lt;span class="math inline"&gt;\(n\)&lt;/span&gt;-step &lt;strong&gt;SWoR&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;In order to not deprive our dear readers the pleasure of completing this proof by themselves, we have decided to not inline the rest of the proof (which boils down to a calculus exercise) within this blog post, but it is available in &lt;a href="proof.pdf"&gt;this file&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div id="weighted-sampling-with-replacement" class="section level1"&gt;
+&lt;h1&gt;Weighted sampling with replacement&lt;/h1&gt;
+&lt;p&gt;While all previous sections focused entirely on weighted sampling without replacement, this section will briefly discuss how the exponential-variate approach can also benefit the weighted-sampling-with-replacement use case (which will be shortened as &lt;code&gt;SWR&lt;/code&gt; from now on).&lt;/p&gt;
+&lt;p&gt;Although &lt;code&gt;SWR&lt;/code&gt; with sample size &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; can be carried out by &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; independent processes each selecting &lt;span class="math inline"&gt;\(1\)&lt;/span&gt; sample, parallelizing a &lt;code&gt;SWR&lt;/code&gt; workload across all partitions of a Spark data frame (let’s call it &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;) will still be more performant if the number of partitions is much larger than &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; and more than &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; executors are available in a Spark cluster.&lt;/p&gt;
+&lt;p&gt;An initial solution we had in mind was to run &lt;code&gt;SWR&lt;/code&gt; with sample size &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; in parallel on each partition of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;, and then re-sample the results based on relative total weights of each partition. Despite sounding deceptively simple when summarized in words, implementing such a solution in practice would be a moderately complicated task. First, one has to apply the &lt;a href="https://en.wikipedia.org/wiki/Alias_method"&gt;alias method&lt;/a&gt; or similar in order to perform weighted sampling efficiently on each partition of &lt;span class="math inline"&gt;\(X\)&lt;/span&gt;, and on top of that, implementing the re-sampling logic across all partitions correctly and verifying the correctness of such procedure will also require considerable effort.&lt;/p&gt;
+&lt;p&gt;In comparison, with the help of exponential variates, a &lt;code&gt;SWR&lt;/code&gt; carried out as &lt;span class="math inline"&gt;\(n\)&lt;/span&gt; independent &lt;strong&gt;SWoR&lt;/strong&gt; processes each selecting &lt;span class="math inline"&gt;\(1\)&lt;/span&gt; sample is much simpler to implement, while still being comparable to our initial solution in terms of efficiency and scalability. An example implementation of it (which takes fewer than 60 lines of Scala) is presented in &lt;a href="samplingutils.scala"&gt;samplingutils.scala&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="visualization" class="section level1"&gt;
+&lt;h1&gt;Visualization&lt;/h1&gt;
+&lt;p&gt;How do we know &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; is working as expected? While the rigorous answer to this question is presented in full in the &lt;a href="#testing"&gt;testing&lt;/a&gt; section, we thought it would also be useful to first show some histograms that will help readers visualize what that test plan is. Therefore in this section, we will do the following:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Run &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; multiple times on a small sample space, with each run using a different PRNG seed (sample size will be reduced to &lt;span class="math inline"&gt;\(2\)&lt;/span&gt; here so that there will fewer than 100 possible outcomes and visualization will be easier)&lt;/li&gt;
+&lt;li&gt;Do the same for &lt;code&gt;sdf_weighted_sample()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Use histograms to visualize the distribution of sampling outcomes&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Throughout this section, we will sample &lt;span class="math inline"&gt;\(2\)&lt;/span&gt; elements out of &lt;span class="math inline"&gt;\(\{0, \dotsc, 7\}\)&lt;/span&gt; without replacement according to some weights, so, the first step is to set up the following in R:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+# `octs` will be our sample space
+octs &amp;lt;- data.frame(
+  x = seq(0, 7),
+  weight = c(1, 4, 2, 8, 5, 7, 1, 4)
+)
+# `octs_sdf` will be our sample space copied into a Spark data frame
+octs_sdf &amp;lt;- copy_to(sc, octs)
+
+sample_size &amp;lt;- 2&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In order to tally up and visualize the sampling outcomes efficiently, we shall map each possible outcome to an octal number (e.g., &lt;code&gt;(6, 7)&lt;/code&gt; gets mapped to &lt;span class="math inline"&gt;\(6 \cdot 8^0 + 7 \cdot 8^1\)&lt;/span&gt;) using a helper function &lt;code&gt;to_oct&lt;/code&gt; in R:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;to_oct &amp;lt;- function(sample) sum(8 ^ seq(0, sample_sz - 1) * sample$x)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We also need to tally up sampling outcomes from &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; in 2 separate arrays:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;max_possible_outcome &amp;lt;- to_oct(list(x = seq(8 - sample_sz, 7)))
+
+sdf_weighted_sample_outcomes &amp;lt;- rep(0, max_possible_outcome)
+dplyr_slice_sample_outcomes &amp;lt;- rep(0, max_possible_outcome)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Finally, we can run both &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; for arbitrary number of iterations and compare tallied outcomes from both:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;num_sampling_iters &amp;lt;- 1000  # actually we will vary this value from 500 to 5000
+
+for (x in seq(num_sampling_iters)) {
+  sample1 &amp;lt;- octs_sdf %&amp;gt;%
+    sdf_weighted_sample(
+      k = sample_size, weight_col = &amp;quot;weight&amp;quot;, replacement = FALSE, seed = seed
+    ) %&amp;gt;%
+    collect() %&amp;gt;%
+    to_oct()
+  sdf_weighted_sample_outcomes[[sample1]] &amp;lt;-
+      sdf_weighted_sample_outcomes[[sample1]] + 1
+
+  seed &amp;lt;- x * 97
+  set.seed(seed) # set random seed for dplyr::sample_slice()
+  sample2 &amp;lt;- octs %&amp;gt;%
+    dplyr::slice_sample(
+      n = sample_size, weight_by = weight, replace = FALSE
+    ) %&amp;gt;%
+    to_oct()
+  dplyr_slice_sample_outcomes[[sample2]] &amp;lt;-
+      dplyr_slice_sample_outcomes[[sample2]] + 1
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After all the hard work above, we can now enjoy plotting the sampling outcomes from &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; and those from &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.&lt;/p&gt;
+&lt;p&gt;Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-07-29-parallelized-sampling/images/viz.png" /&gt; (you will most probably need to &lt;a href="images/viz.png"&gt;view it in a separate tab&lt;/a&gt; to see everything clearly)&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="testing" class="section level1"&gt;
+&lt;h1&gt;Testing&lt;/h1&gt;
+&lt;p&gt;While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.&lt;/p&gt;
+&lt;p&gt;For instance, numerical instability issues from floating point numbers arise if &lt;span class="math inline"&gt;\(\ln(u_j) / w_j\)&lt;/span&gt; were replaced by &lt;span class="math inline"&gt;\(u_j ^ {1 / w_j}\)&lt;/span&gt; in the aforementioned computations.&lt;/p&gt;
+&lt;p&gt;Another more subtle source of error is the usage of PRNG seeds. For example, consider the following:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
+    rdd: RDD[Row],
+    weightColumn: String,
+    sampleSize: Int,
+    seed: Long
+  ): RDD[Row] = {
+    val sc = rdd.context
+    if (0 == sampleSize) {
+      sc.emptyRDD
+    } else {
+      val random = new Random(seed)
+      val mapRDDs = rdd.mapPartitions { iter =&amp;gt;
+        for (row &amp;lt;- iter) {
+          val weight = row.getAs[Double](weightColumn)
+          val key = scala.math.log(random.nextDouble) / weight
+          &amp;lt;and then make sampling decision for `row` based on its `key`,
+           as described in the previous section&amp;gt;
+        }
+        ...
+      }
+      ...
+    }
+  }&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Even though it might look OK upon first glance, &lt;code&gt;rdd.mapPartitions(...)&lt;/code&gt; from the above will cause the same sequence of pseudorandom numbers to be applied to multiple partitions of the input Spark data frame, which will cause undesired bias (i.e., sampling outcomes from one partition will have non-trivial correlation with those from another partition when such correlation should be negligible in a correct implementation).&lt;/p&gt;
+&lt;p&gt;The code snippet below is an example implementation in which each partition of the input Spark data frame is sampled using a different sequence of pseudorandom numbers:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  def sampleWithoutReplacement(
+    rdd: RDD[Row],
+    weightColumn: String,
+    sampleSize: Int,
+    seed: Long
+  ): RDD[Row] = {
+    val sc = rdd.context
+    if (0 == sampleSize) {
+      sc.emptyRDD
+    } else {
+      val mapRDDs = rdd.mapPartitionsWithIndex { (index, iter) =&amp;gt;
+        val random = new Random(seed + index)
+
+        for (row &amp;lt;- iter) {
+          val weight = row.getAs[Double](weightColumn)
+          val key = scala.math.log(random.nextDouble) / weight
+          &amp;lt;and then make sampling decision for `row` based on its `key`,
+           as described in the previous section&amp;gt;
+        }
+
+        ...
+      }
+    ...
+  }
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;An example test case in which a two-sided Kolmogorov-Smirnov test is used to compare distribution of sampling outcomes from &lt;code&gt;dplyr::slice_sample()&lt;/code&gt; with that from &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; is shown in &lt;a href="test_plan"&gt;this file&lt;/a&gt;. Such tests have proven to be effective in surfacing non-obvious implementation errors such as the ones mentioned above.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="examples" class="section level1"&gt;
+&lt;h1&gt;Example Usages&lt;/h1&gt;
+&lt;p&gt;Please note the &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; functionality is not included in any official release of &lt;code&gt;sparklyr&lt;/code&gt; yet. We are aiming to ship it as part of &lt;code&gt;sparklyr&lt;/code&gt; 1.4 in about 2 to 3 months from now.&lt;/p&gt;
+&lt;p&gt;In the meanwhile, you can try it out with the following steps:&lt;/p&gt;
+&lt;p&gt;First, make sure &lt;code&gt;remotes&lt;/code&gt; is installed, and then run&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;remotes::install_github(&amp;quot;sparklyr/sparklyr&amp;quot;, ref = &amp;quot;master&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;to install &lt;code&gt;sparklyr&lt;/code&gt; from source.&lt;/p&gt;
+&lt;p&gt;Next, create a test data frame with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+example_df &amp;lt;- data.frame(
+  x = seq(100),
+  weight = c(
+    rep(1, 50),
+    rep(2, 25),
+    rep(4, 10),
+    rep(8, 10),
+    rep(16, 5)
+  )
+)
+example_sdf &amp;lt;- copy_to(sc, example_df, repartition = 5, overwrite = TRUE)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Finally, run &lt;code&gt;sparklyr::sdf_weighted_sample()&lt;/code&gt; on &lt;code&gt;example_sdf&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sample_size &amp;lt;- 5
+
+samples_without_replacement &amp;lt;- example_sdf %&amp;gt;%
+  sdf_weighted_sample(
+    weight_col = &amp;quot;weight&amp;quot;,
+    k = sample_size,
+    replacement = FALSE
+  )
+
+samples_without_replacement %&amp;gt;% print(n = sample_size)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 2]
+##       x weight
+##   &amp;lt;int&amp;gt;  &amp;lt;dbl&amp;gt;
+## 1    48      1
+## 2    22      1
+## 3    78      4
+## 4    56      2
+## 5   100     16&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;samples_with_replacement &amp;lt;- example_sdf %&amp;gt;%
+  sdf_weighted_sample(
+    weight_col = &amp;quot;weight&amp;quot;,
+    k = sample_size,
+    replacement = TRUE
+  )
+
+samples_with_replacement %&amp;gt;% print(n = sample_size)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 2]
+##       x weight
+##   &amp;lt;int&amp;gt;  &amp;lt;dbl&amp;gt;
+## 1    86      8
+## 2    97     16
+## 3    91      8
+## 4   100     16
+## 5    65      2&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div id="acknowledgement" class="section level1"&gt;
+&lt;h1&gt;Acknowledgement&lt;/h1&gt;
+&lt;p&gt;First and foremost, the author wishes to thank &lt;a href="https://github.com/ajing"&gt;@ajing&lt;/a&gt; for reporting the weighted sampling use cases were not properly supported yet in &lt;code&gt;sparklyr&lt;/code&gt; 1.3 and suggesting it should be part of some future version of &lt;code&gt;sparklyr&lt;/code&gt; in this &lt;a href="https://github.com/sparklyr/sparklyr/issues/2592"&gt;Github issue&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Special thanks also goes to Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for reviewing the &lt;a href="https://github.com/sparklyr/sparklyr/pull/2606"&gt;implementation&lt;/a&gt; of all exponential-variate based sampling algorithms in &lt;code&gt;sparklyr&lt;/code&gt;, and to Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@Sigrid&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for their valuable editorial suggestions.&lt;/p&gt;
+&lt;p&gt;We hope you have enjoyed reading this blog post! If you wish to learn more about &lt;code&gt;sparklyr&lt;/code&gt;, we recommend visiting &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, and some of the previous release posts such as &lt;a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/"&gt;sparklyr 1.3&lt;/a&gt; and &lt;a href="https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/"&gt;sparklyr 1.2&lt;/a&gt;. Also, your contributions to &lt;code&gt;sparklyr&lt;/code&gt; are more than welcome. Please send your pull requests through &lt;a href="https://github.com/sparklyr/sparklyr/pulls"&gt;here&lt;/a&gt; and file any bug report or feature request in &lt;a href="https://github.com/sparklyr/sparklyr"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
 &lt;/div&gt;
 
 
@@ -288,223 +358,31 @@ $(document).ready(function () {
 &lt;/script&gt;
 
 </description>
-      <distill:md5>8d37c761acc955611b363badda6e4f13</distill:md5>
+      <distill:md5>a3abcd4c3dd27c48cf377de788bb1da2</distill:md5>
+      <category>Concepts</category>
+      <category>Distributed Computing</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling</guid>
+      <pubDate>Wed, 29 Jul 2020 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling/images/dice.jpg" medium="image" type="image/jpeg"/>
+    </item>
+    <item>
+      <title>Time series prediction with FNN-LSTM</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</link>
+      <description>In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, "vanilla LSTM", FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.</description>
       <category>R</category>
       <category>TensorFlow/Keras</category>
       <category>Time Series</category>
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</guid>
-      <pubDate>Sun, 19 Jul 2020 00:00:00 +0000</pubDate>
+      <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
       <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>sparklyr 1.3: Higher-order Functions, Avro and Custom Serializers</title>
       <dc:creator>Yitao Li</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released</link>
-      <description>
-
-
-&lt;div class="container-fluid main-container"&gt;
-
-
-
-
-&lt;div class="fluid-row" id="header"&gt;
-
-
-
-
-&lt;/div&gt;
-
-
-&lt;p&gt;&lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; 1.3 is now available on &lt;a href="https://cran.r-project.org/web/packages/sparklyr/index.html"&gt;CRAN&lt;/a&gt;, with the following major new features:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href="#higher-order-functions"&gt;Higher-order Functions&lt;/a&gt; to easily manipulate arrays and structs&lt;/li&gt;
-&lt;li&gt;Support for Apache &lt;a href="#avro"&gt;Avro&lt;/a&gt;, a row-oriented data serialization framework&lt;/li&gt;
-&lt;li&gt;&lt;a href="#custom-serialization"&gt;Custom Serialization&lt;/a&gt; using R functions to read and write any data format&lt;/li&gt;
-&lt;li&gt;&lt;a href="#other-improvements"&gt;Other Improvements&lt;/a&gt; such as compatibility with EMR 6.0 &amp;amp; Spark 3.0, and initial support for Flint time series library&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;To install &lt;code&gt;sparklyr&lt;/code&gt; 1.3 from CRAN, run&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;install.packages(&amp;quot;sparklyr&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In this post, we shall highlight some major new features introduced in sparklyr 1.3, and showcase scenarios where such features come in handy. While a number of enhancements and bug fixes (especially those related to &lt;code&gt;spark_apply()&lt;/code&gt;, &lt;a href="https://arrow.apache.org/"&gt;Apache Arrow&lt;/a&gt;, and secondary Spark connections) were also an important part of this release, they will not be the topic of this post, and it will be an easy exercise for the reader to find out more about them from the sparklyr &lt;a href="https://github.com/sparklyr/sparklyr/blob/master/NEWS.md"&gt;NEWS&lt;/a&gt; file.&lt;/p&gt;
-&lt;div id="higher-order-functions" class="section level2"&gt;
-&lt;h2&gt;Higher-order Functions&lt;/h2&gt;
-&lt;p&gt;&lt;a href="https://issues.apache.org/jira/browse/SPARK-19480"&gt;Higher-order functions&lt;/a&gt; are built-in Spark SQL constructs that allow user-defined lambda expressions to be applied efficiently to complex data types such as arrays and structs. As a quick demo to see why higher-order functions are useful, let’s say one day Scrooge McDuck dove into his huge vault of money and found large quantities of pennies, nickels, dimes, and quarters. Having an impeccable taste in data structures, he decided to store the quantities and face values of everything into two Spark SQL array columns:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
-
-sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;2.4.5&amp;quot;)
-coins_tbl &amp;lt;- copy_to(
-  sc,
-  tibble::tibble(
-    quantities = list(c(4000, 3000, 2000, 1000)),
-    values = list(c(1, 5, 10, 25))
-  )
-)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Thus declaring his net worth of 4k pennies, 3k nickels, 2k dimes, and 1k quarters. To help Scrooge McDuck calculate the total value of each type of coin in sparklyr 1.3 or above, we can apply &lt;code&gt;hof_zip_with()&lt;/code&gt;, the sparklyr equivalent of &lt;a href="https://spark.apache.org/docs/latest/api/sql/index.html#zip_with"&gt;ZIP_WITH&lt;/a&gt;, to &lt;code&gt;quantities&lt;/code&gt; column and &lt;code&gt;values&lt;/code&gt; column, combining pairs of elements from arrays in both columns. As you might have guessed, we also need to specify how to combine those elements, and what better way to accomplish that than a concise one-sided formula   &lt;code&gt;~ .x * .y&lt;/code&gt;   in R, which says we want (quantity * value) for each type of coin? So, we have the following:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;result_tbl &amp;lt;- coins_tbl %&amp;gt;%
-  hof_zip_with(~ .x * .y, dest_col = total_values) %&amp;gt;%
-  dplyr::select(total_values)
-
-result_tbl %&amp;gt;% dplyr::pull(total_values)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1]  4000 15000 20000 25000&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;With the result &lt;code&gt;4000 15000 20000 25000&lt;/code&gt; telling us there are in total $40 dollars worth of pennies, $150 dollars worth of nickels, $200 dollars worth of dimes, and $250 dollars worth of quarters, as expected.&lt;/p&gt;
-&lt;p&gt;Using another sparklyr function named &lt;code&gt;hof_aggregate()&lt;/code&gt;, which performs an &lt;a href="https://spark.apache.org/docs/latest/api/sql/index.html#aggregate"&gt;AGGREGATE&lt;/a&gt; operation in Spark, we can then compute the net worth of Scrooge McDuck based on &lt;code&gt;result_tbl&lt;/code&gt;, storing the result in a new column named &lt;code&gt;total&lt;/code&gt;. Notice for this aggregate operation to work, we need to ensure the starting value of aggregation has data type (namely, &lt;code&gt;BIGINT&lt;/code&gt;) that is consistent with the data type of &lt;code&gt;total_values&lt;/code&gt; (which is &lt;code&gt;ARRAY&amp;lt;BIGINT&amp;gt;&lt;/code&gt;), as shown below:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;result_tbl %&amp;gt;%
-  dplyr::mutate(zero = dplyr::sql(&amp;quot;CAST (0 AS BIGINT)&amp;quot;)) %&amp;gt;%
-  hof_aggregate(start = zero, ~ .x + .y, expr = total_values, dest_col = total) %&amp;gt;%
-  dplyr::select(total) %&amp;gt;%
-  dplyr::pull(total)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 64000&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;So Scrooge McDuck’s net worth is $640 dollars.&lt;/p&gt;
-&lt;p&gt;Other higher-order functions supported by Spark SQL so far include &lt;code&gt;transform&lt;/code&gt;, &lt;code&gt;filter&lt;/code&gt;, and &lt;code&gt;exists&lt;/code&gt;, as documented in &lt;a href="https://spark.apache.org/docs/latest/api/sql/index.html"&gt;here&lt;/a&gt;, and similar to the example above, their counterparts (namely, &lt;code&gt;hof_transform()&lt;/code&gt;, &lt;code&gt;hof_filter()&lt;/code&gt;, and &lt;code&gt;hof_exists()&lt;/code&gt;) all exist in sparklyr 1.3, so that they can be integrated with other &lt;code&gt;dplyr&lt;/code&gt; verbs in an idiomatic manner in R.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="avro" class="section level2"&gt;
-&lt;h2&gt;Avro&lt;/h2&gt;
-&lt;p&gt;Another highlight of the sparklyr 1.3 release is its built-in support for Avro data sources. Apache Avro is a widely used data serialization protocol that combines the efficiency of a binary data format with the flexibility of JSON schema definitions. To make working with Avro data sources simpler, in sparklyr 1.3, as soon as a Spark connection is instantiated with &lt;code&gt;spark_connect(..., package = "avro")&lt;/code&gt;, sparklyr will automatically figure out which version of &lt;code&gt;spark-avro&lt;/code&gt; package to use with that connection, saving a lot of potential headaches for sparklyr users trying to determine the correct version of &lt;code&gt;spark-avro&lt;/code&gt; by themselves. Similar to how &lt;code&gt;spark_read_csv()&lt;/code&gt; and &lt;code&gt;spark_write_csv()&lt;/code&gt; are in place to work with CSV data, &lt;code&gt;spark_read_avro()&lt;/code&gt; and &lt;code&gt;spark_write_avro()&lt;/code&gt; methods were implemented in sparklyr 1.3 to facilitate reading and writing Avro files through an Avro-capable Spark connection, as illustrated in the example below:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
-
-# The `package = &amp;quot;avro&amp;quot;` option is only supported in Spark 2.4 or higher
-sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;2.4.5&amp;quot;, package = &amp;quot;avro&amp;quot;)
-
-sdf &amp;lt;- sdf_copy_to(
-  sc,
-  tibble::tibble(
-    a = c(1, NaN, 3, 4, NaN),
-    b = c(-2L, 0L, 1L, 3L, 2L),
-    c = c(&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;, &amp;quot;c&amp;quot;, &amp;quot;&amp;quot;, &amp;quot;d&amp;quot;)
-  )
-)
-
-# This example Avro schema is a JSON string that essentially says all columns
-# (&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;, &amp;quot;c&amp;quot;) of `sdf` are nullable.
-avro_schema &amp;lt;- jsonlite::toJSON(list(
-  type = &amp;quot;record&amp;quot;,
-  name = &amp;quot;topLevelRecord&amp;quot;,
-  fields = list(
-    list(name = &amp;quot;a&amp;quot;, type = list(&amp;quot;double&amp;quot;, &amp;quot;null&amp;quot;)),
-    list(name = &amp;quot;b&amp;quot;, type = list(&amp;quot;int&amp;quot;, &amp;quot;null&amp;quot;)),
-    list(name = &amp;quot;c&amp;quot;, type = list(&amp;quot;string&amp;quot;, &amp;quot;null&amp;quot;))
-  )
-), auto_unbox = TRUE)
-
-# persist the Spark data frame from above in Avro format
-spark_write_avro(sdf, &amp;quot;/tmp/data.avro&amp;quot;, as.character(avro_schema))
-
-# and then read the same data frame back
-spark_read_avro(sc, &amp;quot;/tmp/data.avro&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;# Source: spark&amp;lt;data&amp;gt; [?? x 3]
-      a     b c
-  &amp;lt;dbl&amp;gt; &amp;lt;int&amp;gt; &amp;lt;chr&amp;gt;
-  1     1    -2 &amp;quot;a&amp;quot;
-  2   NaN     0 &amp;quot;b&amp;quot;
-  3     3     1 &amp;quot;c&amp;quot;
-  4     4     3 &amp;quot;&amp;quot;
-  5   NaN     2 &amp;quot;d&amp;quot;
-&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
-&lt;div id="custom-serialization" class="section level2"&gt;
-&lt;h2&gt;Custom Serialization&lt;/h2&gt;
-&lt;p&gt;In addition to commonly used data serialization formats such as CSV, JSON, Parquet, and Avro, starting from sparklyr 1.3, customized data frame serialization and deserialization procedures implemented in R can also be run on Spark workers via the newly implemented &lt;code&gt;spark_read()&lt;/code&gt; and &lt;code&gt;spark_write()&lt;/code&gt; methods. We can see both of them in action through a quick example below, where &lt;code&gt;saveRDS()&lt;/code&gt; is called from a user-defined writer function to save all rows within a Spark data frame into 2 RDS files on disk, and &lt;code&gt;readRDS()&lt;/code&gt; is called from a user-defined reader function to read the data from the RDS files back to Spark:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
-
-sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
-sdf &amp;lt;- sdf_len(sc, 7)
-paths &amp;lt;- c(&amp;quot;/tmp/file1.RDS&amp;quot;, &amp;quot;/tmp/file2.RDS&amp;quot;)
-
-spark_write(sdf, writer = function(df, path) saveRDS(df, path), paths = paths)
-spark_read(sc, paths, reader = function(path) readRDS(path), columns = c(id = &amp;quot;integer&amp;quot;))&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;# Source: spark&amp;lt;?&amp;gt; [?? x 1]
-     id
-  &amp;lt;int&amp;gt;
-1     1
-2     2
-3     3
-4     4
-5     5
-6     6
-7     7&lt;/code&gt;&lt;/pre&gt;
-&lt;/div&gt;
-&lt;div id="other-improvements" class="section level2"&gt;
-&lt;h2&gt;Other Improvements&lt;/h2&gt;
-&lt;div id="sparklyr.flint" class="section level3"&gt;
-&lt;h3&gt;Sparklyr.flint&lt;/h3&gt;
-&lt;p&gt;&lt;a href="https://github.com/r-spark/sparklyr.flint"&gt;Sparklyr.flint&lt;/a&gt; is a sparklyr extension that aims to make functionalities from the &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; time-series library easily accessible from R. It is currently under active development. One piece of good news is that, while the original &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; library was designed to work with Spark 2.x, a slightly modified &lt;a href="https://github.com/yl790/flint"&gt;fork&lt;/a&gt; of it will work well with Spark 3.0, and within the existing sparklyr extension framework. &lt;code&gt;sparklyr.flint&lt;/code&gt; can automatically determine which version of the Flint library to load based on the version of Spark it’s connected to. Another bit of good news is, as previously mentioned, &lt;code&gt;sparklyr.flint&lt;/code&gt; doesn’t know too much about its own destiny yet. Maybe you can play an active part in shaping its future!&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="emr-6.0" class="section level3"&gt;
-&lt;h3&gt;EMR 6.0&lt;/h3&gt;
-&lt;p&gt;This release also features a small but important change that allows sparklyr to correctly connect to the version of Spark 2.4 that is included in Amazon EMR 6.0.&lt;/p&gt;
-&lt;p&gt;Previously, sparklyr automatically assumed any Spark 2.x it was connecting to was built with Scala 2.11 and attempted to load any required Scala artifacts built with Scala 2.11 as well. This became problematic when connecting to Spark 2.4 from Amazon EMR 6.0, which is built with Scala 2.12. Starting from sparklyr 1.3, such problem can be fixed by simply specifying &lt;code&gt;scala_version = "2.12"&lt;/code&gt; when calling &lt;code&gt;spark_connect()&lt;/code&gt; (e.g., &lt;code&gt;spark_connect(master = "yarn-client", scala_version = "2.12")&lt;/code&gt;).&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="spark-3.0" class="section level3"&gt;
-&lt;h3&gt;Spark 3.0&lt;/h3&gt;
-&lt;p&gt;Last but not least, it is worthwhile to mention sparklyr 1.3.0 is known to be fully compatible with the recently released Spark 3.0. We highly recommend upgrading your copy of sparklyr to 1.3.0 if you plan to have Spark 3.0 as part of your data workflow in future.&lt;/p&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;div id="acknowledgement" class="section level2"&gt;
-&lt;h2&gt;Acknowledgement&lt;/h2&gt;
-&lt;p&gt;In chronological order, we want to thank the following individuals for submitting pull requests towards sparklyr 1.3:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href="https://github.com/jozefhajnala"&gt;Jozef Hajnala&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/falaki"&gt;Hossein Falaki&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/samuelmacedo83"&gt;Samuel Macêdo&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/yl790"&gt;Yitao Li&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/Loquats"&gt;Andy Zhang&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/javierluraschi"&gt;Javier Luraschi&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="https://github.com/nealrichardson"&gt;Neal Richardson&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;We are also grateful for valuable input on the sparklyr 1.3 roadmap, &lt;a href="https://github.com/sparklyr/sparklyr/pull/2434"&gt;#2434&lt;/a&gt;, and &lt;a href="https://github.com/sparklyr/sparklyr/pull/2551"&gt;#2551&lt;/a&gt; from &lt;span class="citation"&gt;[@javierluraschi]&lt;/span&gt;(&lt;a href="https://github.com/javierluraschi" class="uri"&gt;https://github.com/javierluraschi&lt;/a&gt;), and great spiritual advice on &lt;a href="https://github.com/sparklyr/sparklyr/issues/1773"&gt;#1773&lt;/a&gt; and &lt;a href="https://github.com/sparklyr/sparklyr/issues/2514"&gt;#2514&lt;/a&gt; from &lt;a href="https://github.com/mattpollock"&gt;@mattpollock&lt;/a&gt; and &lt;a href="https://github.com/benmwhite"&gt;@benmwhite&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;Please note if you believe you are missing from the acknowledgement above, it may be because your contribution has been considered part of the next sparklyr release rather than part of the current release. We do make every effort to ensure all contributors are mentioned in this section. In case you believe there is a mistake, please feel free to contact the author of this blog post via e-mail (yitao at rstudio dot com) and request a correction.&lt;/p&gt;
-&lt;p&gt;If you wish to learn more about &lt;code&gt;sparklyr&lt;/code&gt;, we recommend visiting &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, and some of the previous release posts such as &lt;a href="https://blogs.rstudio.com/ai/posts/2020-04-21-sparklyr-1.2.0-released/"&gt;sparklyr 1.2&lt;/a&gt; and &lt;a href="https://blog.rstudio.com/2020/01/29/sparklyr-1-1/"&gt;sparklyr 1.1&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;Thanks for reading!&lt;/p&gt;
-&lt;/div&gt;
-
-
-
-
-&lt;/div&gt;
-
-&lt;script&gt;
-
-// add bootstrap table styles to pandoc tables
-function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
-}
-$(document).ready(function () {
-  bootstrapStylePandocTables();
-});
-
-
-&lt;/script&gt;
-
-&lt;!-- tabsets --&gt;
-
-&lt;script&gt;
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-&lt;/script&gt;
-
-&lt;!-- code folding --&gt;
-
-
-&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
-&lt;script&gt;
-  (function () {
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
-    document.getElementsByTagName("head")[0].appendChild(script);
-  })();
-&lt;/script&gt;
-
-</description>
-      <distill:md5>f09bf30a236d3ea28d192b979d2953db</distill:md5>
+      <description>Sparklyr 1.3 is now available, featuring exciting new functionalities such as integration of Spark higher-order functions and data import/export in Avro and in user-defined serialization formats.</description>
       <category>Packages/Releases</category>
       <category>Distributed Computing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released</guid>

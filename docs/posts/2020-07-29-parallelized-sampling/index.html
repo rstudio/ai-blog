@@ -1451,7 +1451,8 @@ for j = 1 to n
 <li>Use histograms to visualize the distribution of sampling outcomes</li>
 </ul>
 <p>Throughout this section, we will sample <span class="math inline">\(2\)</span> elements out of <span class="math inline">\(\{0, \dotsc, 7\}\)</span> without replacement according to some weights, so, the first step is to set up the following in R:</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 library(sparklyr)
 
 sc &lt;- spark_connect(master = &quot;local&quot;)
@@ -1465,17 +1466,23 @@ octs &lt;- data.frame(
 octs_sdf &lt;- copy_to(sc, octs)
 
 sample_size &lt;- 2</code></pre>
+</div>
 <p>In order to tally up and visualize the sampling outcomes efficiently, we shall map each possible outcome to an octal number (e.g., <code>(6, 7)</code> gets mapped to <span class="math inline">\(6 \cdot 8^0 + 7 \cdot 8^1\)</span>) using a helper function <code>to_oct</code> in R:</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 to_oct &lt;- function(sample) sum(8 ^ seq(0, sample_sz - 1) * sample$x)</code></pre>
+</div>
 <p>We also need to tally up sampling outcomes from <code>dplyr::slice_sample()</code> and <code>sparklyr::sdf_weighted_sample()</code> in 2 separate arrays:</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 max_possible_outcome &lt;- to_oct(list(x = seq(8 - sample_sz, 7)))
 
 sdf_weighted_sample_outcomes &lt;- rep(0, max_possible_outcome)
 dplyr_slice_sample_outcomes &lt;- rep(0, max_possible_outcome)</code></pre>
+</div>
 <p>Finally, we can run both <code>dplyr::slice_sample()</code> and <code>sparklyr::sdf_weighted_sample()</code> for arbitrary number of iterations and compare tallied outcomes from both:</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 num_sampling_iters &lt;- 1000  # actually we will vary this value from 500 to 5000
 
 for (x in seq(num_sampling_iters)) {
@@ -1498,6 +1505,7 @@ for (x in seq(num_sampling_iters)) {
   dplyr_slice_sample_outcomes[[sample2]] &lt;-
       dplyr_slice_sample_outcomes[[sample2]] + 1
 }</code></pre>
+</div>
 <p>After all the hard work above, we can now enjoy plotting the sampling outcomes from <code>dplyr::slice_sample()</code> and those from <code>sparklyr::sdf_weighted_sample()</code> after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.</p>
 <p>Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:</p>
 <p><img src="images/viz.png" /> (you will most probably need to <a href="images/viz.png">view it in a separate tab</a> to see everything clearly)</p>
@@ -1562,11 +1570,14 @@ for (x in seq(num_sampling_iters)) {
 <p>Please note the <code>sparklyr::sdf_weighted_sample()</code> functionality is not included in any official release of <code>sparklyr</code> yet. We are aiming to ship it as part of <code>sparklyr</code> 1.4 in about 2 to 3 months from now.</p>
 <p>In the meanwhile, you can try it out with the following steps:</p>
 <p>First, make sure <code>remotes</code> is installed, and then run</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 remotes::install_github(&quot;sparklyr/sparklyr&quot;, ref = &quot;master&quot;)</code></pre>
+</div>
 <p>to install <code>sparklyr</code> from source.</p>
 <p>Next, create a test data frame with numeric weight column consisting of non-negative weight for each row, and then copy it to Spark (see code snippet below as an example):</p>
-<pre><code>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 library(sparklyr)
 
 sc &lt;- spark_connect(master = &quot;local&quot;)
@@ -1582,9 +1593,11 @@ example_df &lt;- data.frame(
   )
 )
 example_sdf &lt;- copy_to(sc, example_df, repartition = 5, overwrite = TRUE)</code></pre>
+</div>
 <p>Finally, run <code>sparklyr::sdf_weighted_sample()</code> on <code>example_sdf</code>:</p>
-<pre><code>
-sample_size &lt;- 20
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+sample_size &lt;- 5
 
 samples_without_replacement &lt;- example_sdf %&gt;%
   sdf_weighted_sample(
@@ -1593,12 +1606,37 @@ samples_without_replacement &lt;- example_sdf %&gt;%
     replacement = FALSE
   )
 
+samples_without_replacement %&gt;% print(n = sample_size)</code></pre>
+</div>
+<pre><code>
+## # Source: spark&lt;?&gt; [?? x 2]
+##       x weight
+##   &lt;int&gt;  &lt;dbl&gt;
+## 1    48      1
+## 2    22      1
+## 3    78      4
+## 4    56      2
+## 5   100     16</code></pre>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
 samples_with_replacement &lt;- example_sdf %&gt;%
   sdf_weighted_sample(
     weight_col = &quot;weight&quot;,
     k = sample_size,
     replacement = TRUE
-  )</code></pre>
+  )
+
+samples_with_replacement %&gt;% print(n = sample_size)</code></pre>
+</div>
+<pre><code>
+## # Source: spark&lt;?&gt; [?? x 2]
+##       x weight
+##   &lt;int&gt;  &lt;dbl&gt;
+## 1    86      8
+## 2    97     16
+## 3    91      8
+## 4   100     16
+## 5    65      2</code></pre>
 <h1 id="acknowledgement">Acknowledgement</h1>
 <p>First and foremost, the author wishes to thank <a href="https://github.com/ajing">@ajing</a> for reporting the weighted sampling use cases were not properly supported yet in <code>sparklyr</code> 1.3 and suggesting it should be part of some future version of <code>sparklyr</code> in this <a href="https://github.com/sparklyr/sparklyr/issues/2592">Github issue</a>.</p>
 <p>Special thanks also goes to Javier (<a href="https://github.com/javierluraschi">@javierluraschi</a>) for reviewing the <a href="https://github.com/sparklyr/sparklyr/pull/2606">implementation</a> of all exponential-variate based sampling algorithms in <code>sparklyr</code>, and to Mara (<a href="https://github.com/batpigandme">@batpigandme</a>), Sigrid (<a href="https://github.com/skeydan">@Sigrid</a>), and Javier (<a href="https://github.com/javierluraschi">@javierluraschi</a>) for their valuable editorial suggestions.</p>

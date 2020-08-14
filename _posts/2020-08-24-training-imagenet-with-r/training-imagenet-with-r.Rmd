@@ -23,17 +23,17 @@ output:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-[ImageNet](http://www.image-net.org/) [@deng2009imagenet] is an image database organized according to the [WordNet](http://wordnet.princeton.edu/) [@miller1995wordnet] hierarchy which, historically, has been used in Computer Vision benchmarks and research. However, it was not until AlexNet [@krizhevsky2012imagenet] introduced Deep Learning concepts like Convolutional Neural Networks and GPUs, that the Computer Vision discipline turned to Deep Learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, we want to use this post to introduce the tools annd techniques that we can consider when training ImageNet and other large-scale datasets from R.
+[ImageNet](http://www.image-net.org/) [@deng2009imagenet] is an image database organized according to the [WordNet](http://wordnet.princeton.edu/) [@miller1995wordnet] hierarchy which, historically, has been used in computer vision benchmarks and research. However, it was not until AlexNet [@krizhevsky2012imagenet] introduced deep learning concepts like convolutional-neural-networks and GPUs, that the computer vision discipline turned to Deep Learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, we want to use this post to introduce the tools and techniques that we can consider when training ImageNet and other large-scale datasets from R.
 
-Now, in order to process the ImageNet dataset, we will first have to -- divide and conquer -- by paratitioning into several manegeable subsets. Afterwards, we will train ImageNet using AlexNet across multiple GPUs and compute instances. [Preprocessing ImageNet](#preprocessing-imagenet) and [distributed training](#distributed-training) are the two topics that this post will present and discuss, strating with preprocessing ImageNet.
+Now, in order to process the ImageNet dataset, we will first have to -- divide and conquer -- by partitioning into several manageable subsets. Afterwards, we will train ImageNet using AlexNet across multiple GPUs and compute instances. [Preprocessing ImageNet](#preprocessing-imagenet) and [distributed training](#distributed-training) are the two topics that this post will present and discuss, starting with preprocessing ImageNet.
 
 ## Preprocessing ImageNet
 
-When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure we have at least 600GB of free space to leave some room for download and decompression. I personally don't have 600GB to spare, not even a 600GB disk drive at all! But no worries, you can always borrow a reasonable machine with a huge disk drive from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use exact configuration we used, take a look at the [mlverse/imagenet](https://github.com/mlverse/imagenet) repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. Now, we don't want to put too much emphasis into this resource-allocation step since you are likely to use a different cloud provider, or be lucky enough to have access to similar resources already. In summary, make sure you have access to sufficient compute resources.
+When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure we have at least 600GB of free space to leave some room for download and decompression. I personally don't have 600GB to spare, not even a 600GB disk drive at all! But no worries, you can always borrow a reasonable machine with a huge disk drive from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use the exact configuration we used, take a look at the [mlverse/imagenet](https://github.com/mlverse/imagenet) repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. Now, we don't want to put too much emphasis into this resource-allocation step since you are likely to use a different cloud provider, or be lucky enough to have access to similar resources already. In summary, make sure you have access to sufficient compute resources.
 
 Now that we have resources capable of working with ImageNet, we need to find a place to download ImageNet from. Long story short, the easiest way is to use a variation of ImageNet used in the ImageNet Large Scale Visual Recognition Challenge (ILSVRC), which contains a subset of about 250GB of data and can be easily downloaded from their [Kaggle](https://kaggle.com) competition.
 
-If you've read some of our previous posts, you might be thinking of using -- the [pins](https://pins.rstudio.com) package! The pins package enables you to cache, discover and share resources from many services, including Kaggle. You can learn more about data retrieval from Kaggle in the [Using Kaggle Boards](http://pins.rstudio.com/articles/boards-kaggle.html) article; in the meantime, lets assume we are familiar with this package.
+If you've read some of our previous posts, you might be thinking of using -- the [pins](https://pins.rstudio.com) package! The pins package enables you to cache, discover and share resources from many services, including Kaggle. You can learn more about data retrieval from Kaggle in the [Using Kaggle Boards](http://pins.rstudio.com/articles/boards-kaggle.html) article; in the meantime, let's assume we are familiar with this package.
 
 All we need to do now is register the Kaggle board, retrieve ImageNet as a pin, and uncompress this file. Warning, the following code requires you to stare at a progress bar for, potentially, over an hour!
 
@@ -49,9 +49,9 @@ If we are going to be training this model over-and-over using multiple GPUs and 
 
 The first improvement to consider is getting a faster hard drive. In our case, we locally-mounted an array of SSDs into the `/localssd` path. We then used `/localssd` to extract ImageNet and configured R's temp paths and pins cache to use the SSDs as well. Consult your cloud provider documentation to configure SSDs or take a look at [mlverse/imagenet](https://github.com/mlverse/imagenet).
 
-Next, a well-known approach we can follow is to, partition ImageNet into chunks that can be individually downloaded to perform distributed training later on. 
+Next, a well-known approach we can follow is to partition ImageNet into chunks that can be individually downloaded to perform distributed training later on. 
 
-In addition, is also faster to download ImageNet from a near-by location, ideally from a URL stored within the same datacenter where our cloud instance is located. For this, we can also use pins to register a board with our cloud-provider and then re-upload each partition. Since ImageNet is already partitioned by category, we can easily split ImageNet into multiple zip files and re-upload to your closest datacenter as follows. Make sure the storage bucket is created in the same region as your compute instances!
+In addition, it is also faster to download ImageNet from a near-by location, ideally from a URL stored within the same datacenter where our cloud instance is located. For this, we can also use pins to register a board with our cloud-provider and then re-upload each partition. Since ImageNet is already partitioned by category, we can easily split ImageNet into multiple zip files and re-upload to your closest datacenter as follows. Make sure the storage bucket is created in the same region as your computing instances!
 
 ```{r}
 board_register("<board>", name = "imagenet", bucket = "r-imagenet")
@@ -125,7 +125,7 @@ Great! We are halfway there training ImageNet. The next section will focus on in
 
 ## Distributed Training
 
-Now that we have broken down ImageNet into manegeable parts, we can forget for a second about the size of ImageNet and focus on training a Deep Learning model for this dataset. However, any model we choose is likely to require a GPU, even for a 1/16 subset of ImageNet. So make sure your GPUs are properly configured by running `is_gpu_available()`. If you need help getting a GPU configured, the [Using GPUs with TensorFlow and Docker](https://www.youtube.com/watch?v=i5Bjm3jG_d8) video can help you get up to speed.
+Now that we have broken down ImageNet into manageable parts, we can forget for a second about the size of ImageNet and focus on training a deep learning model for this dataset. However, any model we choose is likely to require a GPU, even for a 1/16 subset of ImageNet. So make sure your GPUs are properly configured by running `is_gpu_available()`. If you need help getting a GPU configured, the [Using GPUs with TensorFlow and Docker](https://www.youtube.com/watch?v=i5Bjm3jG_d8) video can help you get up to speed.
 
 ```{r}
 library(tensorflow)
@@ -135,9 +135,9 @@ tf$test$is_gpu_available()
 [1] TRUE
 ```
 
-We can now choose which Deep Learning model would be best suited for ImageNet classification tasks. Instead, for this post, we will go back in time to the glory days of AlexNet and use the [r-tensorflow/alexnet](https://github.com/r-tensorflow/alexnet) repo instead. This repo contains a port of AlexNet to R, but please notice that this port has not been tested and is not ready for any real use cases. In fact, we would appreciate PRs to improve it if someone feels inclined to do so. Regardless, the focus of this post is on workflows and tools, not about achieving state-of-the-art image classification scores. So by all means, feel free to use more appropriate models.
+We can now choose which deep learning model would be best suited for ImageNet classification tasks. Instead, for this post, we will go back in time to the glory days of AlexNet and use the [r-tensorflow/alexnet](https://github.com/r-tensorflow/alexnet) repo instead. This repo contains a port of AlexNet to R, but please notice that this port has not been tested and is not ready for any real use cases. In fact, we would appreciate PRs to improve it if someone feels inclined to do so. Regardless, the focus of this post is on workflows and tools, not about achieving state-of-the-art image classification scores. So by all means, feel free to use more appropriate models.
 
-Once we've choosen a model, we will want to me make sure that it properly trains on a subset of ImageNet:
+Once we've chosen a model, we will want to me make sure that it properly trains on a subset of ImageNet:
 
 ```{r}
 remotes::install_github("r-tensorflow/alexnet")
@@ -212,9 +212,9 @@ nvidia-smi
 +-----------------------------------------------------------------------------+
 ```
 
-The `MirroredStrategy` can help us scale up to about 8 GPUs per compute instance; however, we are likely to need 16 instances with 8 GPUs each to train ImageNet in a resonable time, see Jeremy Howard's post on [Training Imagenet in 18 Minutes](https://www.fast.ai/2018/08/10/fastai-diu-imagenet/). So where do we go from here?
+The `MirroredStrategy` can help us scale up to about 8 GPUs per compute instance; however, we are likely to need 16 instances with 8 GPUs each to train ImageNet in a reasonable time, see Jeremy Howard's post on [Training Imagenet in 18 Minutes](https://www.fast.ai/2018/08/10/fastai-diu-imagenet/). So where do we go from here?
 
-Welcome to `MultiWorkerMirroredStrategy`, this strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is specify to TensorFlow a `TF_CONFIG` of addresses and run the exact same code in each computer.
+Welcome to `MultiWorkerMirroredStrategy`, this strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is define a `TF_CONFIG` environment variable of addresses and run the exact same code in each computer.
 
 ```{r eval=FALSE}
 library(tensorflow)

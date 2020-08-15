@@ -1,7 +1,7 @@
 ---
 title: "Training ImageNet with R"
 description: >
-  This post explores how to train large datasets with TensorFlow and R. Specifically, we present how to download and repartition ImageNet, followed by training ImageNet across multiple GPUs in distributed environments
+  This post explores how to train large datasets with TensorFlow and R. Specifically, we present how to download and repartition ImageNet, followed by training ImageNet across multiple GPUs in distributed environments using TensorFlow and Apache Spark.
 author:
   - name: Javier Luraschi
     affiliation: RStudio
@@ -29,7 +29,7 @@ Now, in order to process the ImageNet dataset, we will first have to -- divide a
 
 ## Preprocessing ImageNet
 
-When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure we have at least 600GB of free space to leave some room for download and decompression. But no worries, you can always borrow a reasonable machine with a huge disk drive from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use the exact configuration we used, take a look at the [mlverse/imagenet](https://github.com/mlverse/imagenet) repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. In summary, make sure you have access to sufficient compute resources.
+When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure we have at least 600GB of free space to leave some room for download and decompression. But no worries, you can always borrow computers with huge disk drives from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use the exact configuration we used, take a look at the [mlverse/imagenet](https://github.com/mlverse/imagenet) repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. In summary, make sure you have access to sufficient compute resources.
 
 Now that we have resources capable of working with ImageNet, we need to find a place to download ImageNet from. Long story short, the easiest way is to use a variation of ImageNet used in the [ImageNet Large Scale Visual Recognition Challenge (ILSVRC)](http://www.image-net.org/challenges/LSVRC/), which contains a subset of about 250GB of data and can be easily downloaded from many [Kaggle](https://kaggle.com) competitions, like the [ImageNet Object Localization Challenge](https://www.kaggle.com/c/imagenet-object-localization-challenge).
 
@@ -107,7 +107,7 @@ procs <- lapply(categories, function(cat)
 while (any(sapply(procs, function(p) p$is_alive()))) Sys.sleep(1)
 ```
 
-Last but not least, we can wrap up this particular partition, which we will later use in our AlexNet model through [tfdatasets](https://tensorflow.rstudio.com/guide/tfdatasets/introduction/).
+We can wrap this up partition under a list containing a map of images and categories, which we will later use in our AlexNet model through [tfdatasets](https://tensorflow.rstudio.com/guide/tfdatasets/introduction/).
 
 ```{r}
 data <- list(
@@ -214,26 +214,57 @@ nvidia-smi
 
 The `MirroredStrategy` can help us scale up to about 8 GPUs per compute instance; however, we are likely to need 16 instances with 8 GPUs each to train ImageNet in a reasonable time, see Jeremy Howard's post on [Training Imagenet in 18 Minutes](https://www.fast.ai/2018/08/10/fastai-diu-imagenet/). So where do we go from here?
 
-Welcome to `MultiWorkerMirroredStrategy`, this strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is define a `TF_CONFIG` environment variable of addresses and run the exact same code in each computer.
+Welcome to `MultiWorkerMirroredStrategy`, this strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is define a `TF_CONFIG` environment variable with the right addresses and run the exact same code in each compute instance.
 
 ```{r eval=FALSE}
 library(tensorflow)
 
+partition <- 0
 Sys.setenv(TF_CONFIG = jsonlite::toJSON(list(
     cluster = list(
-        worker = c("10.100.10.100:10090", "10.100.10.101:10091")
+        worker = c("10.100.10.100:10090", "10.100.10.101:10090")
     ),
-    task = list(type = 'worker', index = 0)
+    task = list(type = 'worker', index = partition)
 ), auto_unbox = TRUE))
 
 strategy <- tf$distribute$MultiWorkerMirroredStrategy(
   cross_device_ops = tf$distribute$ReductionToOneDevice())
 
-alexnet::alexnet_train(data = data, strategy = strategy, parallel = 6)
+alexnet::imagenet_partition(partition = partition) %>%
+  alexnet::alexnet_train(strategy = strategy, parallel = 6)
 ```
 
-Please note that `index = 0` must change for each compute instance to uniquely identify it. In addition, `data` should point to a different partition of ImageNet, which we can easily retrieve with `pins`. Other than that, the code is exactly the same when running this distributed.
+Please note that `partition` must change for each compute instance to uniquely identify it and the IP addresses need also to be adjusted. In addition, `data` should point to a different partition of ImageNet, which we can retrieve with `pins`; although, for convenience, `alexnet` contains similar code under `alexnet::imagenet_partition()`. Other than that, the code that you need to run in each compute instance is exactly the same.
 
-However, it can be quite time-consuming and error-prone to manually run code in each R session. So instead, we should think of making use of tools like Apache Spark and [Barrier Execution](https://blog.rstudio.com/2020/01/29/sparklyr-1-1/#barrier-execution) to easily run the same code across multiple nodes -- without having to manually run code across multiple R instances. This would require that we also set up Apache Spark, which goes beyond the scope of this post, but feel free to watch the [Deep Learning with Spark, TensorFlow and R](https://www.youtube.com/watch?v=Zm20P3ADa14) video to learn more about this.
+However, if we were use 16 machines with 8 GPUs each to train ImageNet, it would be quite time-consuming and error-prone to manually run code in each R session. So instead, we should think of making use of cluster-computing frameworks, like Apache Spark with [barrier execution](https://blog.rstudio.com/2020/01/29/sparklyr-1-1/#barrier-execution). If you are new to Spark, there are many resources available at [sparklyr.ai](https://sparklyr.ai). To learn just about running Spark and TensorFlow together, watch our [Deep Learning with Spark, TensorFlow and R](https://www.youtube.com/watch?v=Zm20P3ADa14) video.
 
-We hope this post gave you a complete overview of what training large-datasets in R looks like -- Thanks for reading along!
+Putting it all together, training ImageNet in R with TensorFlow and Spark looks as follows:
+
+```{r eval=FALSE}
+library(sparklyr)
+sc <- spark_connect("yarn|mesos|etc", config = list("sparklyr.shell.num-executors" = 16))
+
+sdf_len(sc, 16, repartition = 16) %>%
+  spark_apply(function(df, barrier) {
+      library(tensorflow)
+
+      Sys.setenv(TF_CONFIG = jsonlite::toJSON(list(
+        cluster = list(
+          worker = paste(
+            gsub(":[0-9]+$", "", barrier$address),
+            8000 + seq_along(barrier$address), sep = ":")),
+        task = list(type = 'worker', index = barrier$partition)
+      ), auto_unbox = TRUE))
+      
+      if (is.null(tf_version())) install_tensorflow()
+      
+      strategy <- tf$distribute$MultiWorkerMirroredStrategy()
+    
+      result <- alexnet::imagenet_partition(partition = barrier$partition) %>%
+        alexnet::alexnet_train(strategy = strategy, epochs = 10, parallel = 6)
+      
+      result$metrics$accuracy
+  }, barrier = TRUE, columns = c(accuracy = "numeric"))
+```
+
+We hope this post gave you a reasonable overview of what training large-datasets in R looks like -- Thanks for reading along!

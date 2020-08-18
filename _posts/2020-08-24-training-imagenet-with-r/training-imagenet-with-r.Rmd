@@ -23,7 +23,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-[ImageNet](http://www.image-net.org/) [@deng2009imagenet] is an image database organized according to the [WordNet](http://wordnet.princeton.edu/) [@miller1995wordnet] hierarchy which, historically, has been used in computer vision benchmarks and research. However, it was not until AlexNet [@krizhevsky2012imagenet] demonstrated the efficiency of deep learning using convolutional neural networks on GPUs that the computer vision discipline turned to deep learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, this post introduces tools and techniques to consider when training ImageNet and other large-scale datasets with R.
+[ImageNet](http://www.image-net.org/) [@deng2009imagenet] is an image database organized according to the [WordNet](http://wordnet.princeton.edu/) [@miller1995wordnet] hierarchy which, historically, has been used in computer vision benchmarks and research. However, it was not until AlexNet [@krizhevsky2012imagenet] demonstrated the efficiency of deep learning using convolutional neural networks on GPUs that the computer-vision discipline turned to deep learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, this post introduces tools and techniques to consider when training ImageNet and other large-scale datasets with R.
 
 Now, in order to process ImageNet, we will first have to _divide and conquer_, partitioning the dataset into several manageable subsets. Afterwards, we will train ImageNet using AlexNet across multiple GPUs and compute instances. [Preprocessing ImageNet](#preprocessing-imagenet) and [distributed training](#distributed-training) are the two topics that this post will present and discuss, starting with preprocessing ImageNet.
 
@@ -33,9 +33,9 @@ When dealing with large datasets, even simple tasks like downloading or reading 
 
 Now that we have resources capable of working with ImageNet, we need to find a place to download ImageNet from. The easiest way is to use a variation of ImageNet used in the [ImageNet Large Scale Visual Recognition Challenge (ILSVRC)](http://www.image-net.org/challenges/LSVRC/), which contains a subset of about 250GB of data and can be easily downloaded from many [Kaggle](https://kaggle.com) competitions, like the [ImageNet Object Localization Challenge](https://www.kaggle.com/c/imagenet-object-localization-challenge).
 
-If you've read some of our previous posts, you might be thinking of using the [pins](https://pins.rstudio.com) package. The pins package enables you to cache, discover and share resources from many services, including Kaggle. You can learn more about data retrieval from Kaggle in the [Using Kaggle Boards](http://pins.rstudio.com/articles/boards-kaggle.html) article; in the meantime, let's assume you are already familiar with this package.
+If you've read some of our previous posts, you might be already thinking of using the [pins](https://pins.rstudio.com) package, which you can use to: cache, discover and share resources from many services, including Kaggle. You can learn more about data retrieval from Kaggle in the [Using Kaggle Boards](http://pins.rstudio.com/articles/boards-kaggle.html) article; in the meantime, let's assume you are already familiar with this package.
 
-All we need to do now is register the Kaggle board, retrieve ImageNet as a pin, and uncompress this file. Warning, the following code requires you to stare at a progress bar for, potentially, over an hour.
+All we need to do now is register the Kaggle board, retrieve ImageNet as a pin, and decompress this file. Warning, the following code requires you to stare at a progress bar for, potentially, over an hour.
 
 ```{r}
 library(pins)
@@ -47,11 +47,11 @@ pin_get("c/imagenet-object-localization-challenge", board = "kaggle")[1] %>%
 
 If we are going to be training this model over and over using multiple GPUs and even multiple compute instances, we want to make sure we don't waste too much time downloading ImageNet every single time.
 
-The first improvement to consider is getting a faster hard drive. In our case, we locally-mounted an array of SSDs into the `/localssd` path. We then used `/localssd` to extract ImageNet and configured R's temp paths and pins cache to use the SSDs as well. Consult your cloud provider's documentation to configure SSDs or take a look at [mlverse/imagenet](https://github.com/mlverse/imagenet).
+The first improvement to consider is getting a faster hard drive. In our case, we locally-mounted an array of SSDs into the `/localssd` path. We then used `/localssd` to extract ImageNet and configured R's temp path and pins cache to use the SSDs as well. Consult your cloud provider's documentation to configure SSDs, or take a look at [mlverse/imagenet](https://github.com/mlverse/imagenet).
 
 Next, a well-known approach we can follow is to partition ImageNet into chunks that can be individually downloaded to perform distributed training later on. 
 
-In addition, it is also faster to download ImageNet from a nearby location, ideally from a URL stored within the same data center where our cloud instance is located. For this, we can also use pins to register a board with our cloud provider and then re-upload each partition. Since ImageNet is already partitioned by category, we can easily split ImageNet into multiple zip files and re-upload to our closest datacenter as follows. Make sure the storage bucket is created in the same region as your computing instances.
+In addition, it is also faster to download ImageNet from a nearby location, ideally from a URL stored within the same data center where our cloud instance is located. For this, we can also use pins to register a board with our cloud provider and then re-upload each partition. Since ImageNet is already partitioned by category, we can easily split ImageNet into multiple zip files and re-upload to our closest data center as follows. Make sure the storage bucket is created in the same region as your computing instances.
 
 ```{r}
 board_register("<board>", name = "imagenet", bucket = "r-imagenet")

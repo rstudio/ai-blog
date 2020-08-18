@@ -31,7 +31,7 @@ Now, in order to process ImageNet, we will first have to _divide and conquer_, p
 
 When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure to have at least 600GB of free space to leave some room for download and decompression. But no worries, you can always borrow computers with huge disk drives from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use the exact configuration we used, take a look at the [mlverse/imagenet](https://github.com/mlverse/imagenet) repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. In summary, make sure you have access to sufficient compute resources.
 
-Now that we have resources capable of working with ImageNet, we need to find a place to download ImageNet from. Long story short, the easiest way is to use a variation of ImageNet used in the [ImageNet Large Scale Visual Recognition Challenge (ILSVRC)](http://www.image-net.org/challenges/LSVRC/), which contains a subset of about 250GB of data and can be easily downloaded from many [Kaggle](https://kaggle.com) competitions, like the [ImageNet Object Localization Challenge](https://www.kaggle.com/c/imagenet-object-localization-challenge).
+Now that we have resources capable of working with ImageNet, we need to find a place to download ImageNet from. The easiest way is to use a variation of ImageNet used in the [ImageNet Large Scale Visual Recognition Challenge (ILSVRC)](http://www.image-net.org/challenges/LSVRC/), which contains a subset of about 250GB of data and can be easily downloaded from many [Kaggle](https://kaggle.com) competitions, like the [ImageNet Object Localization Challenge](https://www.kaggle.com/c/imagenet-object-localization-challenge).
 
 If you've read some of our previous posts, you might be thinking of using the [pins](https://pins.rstudio.com) package. The pins package enables you to cache, discover and share resources from many services, including Kaggle. You can learn more about data retrieval from Kaggle in the [Using Kaggle Boards](http://pins.rstudio.com/articles/boards-kaggle.html) article; in the meantime, let's assume you are already familiar with this package.
 
@@ -135,7 +135,7 @@ tf$test$is_gpu_available()
 [1] TRUE
 ```
 
-We can now choose which deep learning model would be best suited for ImageNet classification tasks. Instead, for this post, we will go back in time to the glory days of AlexNet and use the [r-tensorflow/alexnet](https://github.com/r-tensorflow/alexnet) repo instead. This repo contains a port of AlexNet to R, but please notice that this port has not been tested and is not ready for any real use cases. In fact, we would appreciate PRs to improve it if someone feels inclined to do so. Regardless, the focus of this post is on workflows and tools, not about achieving state-of-the-art image classification scores. So by all means, feel free to use more appropriate models.
+We can now decide which deep learning model would best be suited for ImageNet classification tasks. Instead, for this post, we will go back in time to the glory days of AlexNet and use the [r-tensorflow/alexnet](https://github.com/r-tensorflow/alexnet) repo instead. This repo contains a port of AlexNet to R, but please notice that this port has not been tested and is not ready for any real use cases. In fact, we would appreciate PRs to improve it if someone feels inclined to do so. Regardless, the focus of this post is on workflows and tools, not about achieving state-of-the-art image classification scores. So by all means, feel free to use more appropriate models.
 
 Once we've chosen a model, we will want to me make sure that it properly trains on a subset of ImageNet:
 
@@ -214,7 +214,7 @@ nvidia-smi
 
 The `MirroredStrategy` can help us scale up to about 8 GPUs per compute instance; however, we are likely to need 16 instances with 8 GPUs each to train ImageNet in a reasonable time (see Jeremy Howard's post on [Training Imagenet in 18 Minutes](https://www.fast.ai/2018/08/10/fastai-diu-imagenet/)). So where do we go from here?
 
-Welcome to `MultiWorkerMirroredStrategy`, this strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is define a `TF_CONFIG` environment variable with the right addresses and run the exact same code in each compute instance.
+Welcome to `MultiWorkerMirroredStrategy`: This strategy can use not only multiple GPUs, but also multiple GPUs across multiple computers. To configure them, all we have to do is define a `TF_CONFIG` environment variable with the right addresses and run the exact same code in each compute instance.
 
 ```{r eval=FALSE}
 library(tensorflow)
@@ -234,9 +234,9 @@ alexnet::imagenet_partition(partition = partition) %>%
   alexnet::alexnet_train(strategy = strategy, parallel = 6)
 ```
 
-Please note that `partition` must change for each compute instance to uniquely identify it and the IP addresses need also to be adjusted. In addition, `data` should point to a different partition of ImageNet, which we can retrieve with `pins`; although, for convenience, `alexnet` contains similar code under `alexnet::imagenet_partition()`. Other than that, the code that you need to run in each compute instance is exactly the same.
+Please note that `partition` must change for each compute instance to uniquely identify it, and that the IP addresses  also need to be adjusted. In addition, `data` should point to a different partition of ImageNet, which we can retrieve with `pins`; although, for convenience, `alexnet` contains similar code under `alexnet::imagenet_partition()`. Other than that, the code that you need to run in each compute instance is exactly the same.
 
-However, if we were use 16 machines with 8 GPUs each to train ImageNet, it would be quite time-consuming and error-prone to manually run code in each R session. So instead, we should think of making use of cluster-computing frameworks, like Apache Spark with [barrier execution](https://blog.rstudio.com/2020/01/29/sparklyr-1-1/#barrier-execution). If you are new to Spark, there are many resources available at [sparklyr.ai](https://sparklyr.ai). To learn just about running Spark and TensorFlow together, watch our [Deep Learning with Spark, TensorFlow and R](https://www.youtube.com/watch?v=Zm20P3ADa14) video.
+However, if we were to use 16 machines with 8 GPUs each to train ImageNet, it would be quite time-consuming and error-prone to manually run code in each R session. So instead, we should think of making use of cluster-computing frameworks, like Apache Spark with [barrier execution](https://blog.rstudio.com/2020/01/29/sparklyr-1-1/#barrier-execution). If you are new to Spark, there are many resources available at [sparklyr.ai](https://sparklyr.ai). To learn just about running Spark and TensorFlow together, watch our [Deep Learning with Spark, TensorFlow and R](https://www.youtube.com/watch?v=Zm20P3ADa14) video.
 
 Putting it all together, training ImageNet in R with TensorFlow and Spark looks as follows:
 
@@ -267,4 +267,4 @@ sdf_len(sc, 16, repartition = 16) %>%
   }, barrier = TRUE, columns = c(accuracy = "numeric"))
 ```
 
-We hope this post gave you a reasonable overview of what training large-datasets in R looks like -- Thanks for reading along!
+We hope this post gave you a reasonable overview of what training large-datasets in R looks like -- thanks for reading along!

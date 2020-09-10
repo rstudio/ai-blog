@@ -976,9 +976,9 @@
 </div>
 
 <div class="d-article">
-<p>Last January at <em>rstudio::conf</em>, in that distant past when conferences still used to take place at some physical location, my colleague Daniel gave a talk introducing new features and ongoing development in the <code>tensorflow</code> ecosystem. In the Q&amp;A part, he was asked something unexpected: Were we going to build support for PyTorch? He hesitated; that was in fact the plan, and he had already played around with natively implementing <code>torch</code> tensors at a prior time, but he was not completely certain how well “it” would work.</p>
+<p>Last January at <a href="https://rstudio.com/conference/">rstudio::conf</a>, in that distant past when conferences still used to take place at some physical location, my colleague <a href="https://twitter.com/dfalbel">Daniel</a> gave a talk introducing new features and ongoing development in the <code>tensorflow</code> ecosystem. In the Q&amp;A part, he was asked something unexpected: Were we going to build support for <a href="https://pytorch.org/">PyTorch</a>? He hesitated; that was in fact the plan, and he had already played around with natively implementing <code>torch</code> tensors at a prior time, but he was not completely certain how well “it” would work.</p>
 <p>“It”, that is an implementation which does not bind to Python Torch, meaning, we don’t install the PyTorch wheel and import it via <code>reticulate</code>. Instead, we delegate to the underlying C++ library <code>libtorch</code> for tensor computations and automatic differentiation, while neural network features – layers, activations, optimizers – are implemented directly in R. Removing the intermediary has at least two benefits: For one, the leaner software stack means fewer possible problems in installation and fewer places to look when troubleshooting. Secondly, through its non-dependence on Python, <code>torch</code> does not require users to install and maintain a suitable Python environment. Depending on operating system and context, this can make an enormous difference: For example, in many organizations employees are not allowed to manipulate privileged software installations on their laptops.</p>
-<p>So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against <code>libtorch</code> would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable; at some point, my colleague and <code>torch</code>-coauthor Javier might want to tell you about it.)<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> On the other, the sheer amount of work involved in re-implementing – not all, but a big amount of – PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we’ll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that <code>torch</code> can be useful to the R community. Thus, without further ado, let’s train a neural network.</p>
+<p>So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against <code>libtorch</code> would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable.)<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> On the other, the sheer amount of work involved in re-implementing – not all, but a big amount of – PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we’ll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that <code>torch</code> can be useful to the R community. Thus, without further ado, let’s train a neural network.</p>
 <p>You’re not at your laptop now? Just follow along in the <a href="https://colab.research.google.com/drive/1NdiN9n_a7NEvFpvjPDvxKTshrSWgxZK5?usp=sharing">companion notebook on Colaboratory</a>.</p>
 <h2 id="installation">Installation</h2>
 <h4 id="torch"><code>torch</code></h4>
@@ -992,7 +992,7 @@ install.packages(&quot;torch&quot;)</code></pre>
 <pre class="r"><code>
 devtools::install_github(&quot;mlverse/torch&quot;)</code></pre>
 </div>
-<p>To quickly check the installation, and whether GPU support works fine (assuming that there <em>is</em> a GPU), create a tensor <em>on the CUDA device</em>:</p>
+<p>To quickly check the installation, and whether GPU support works fine (assuming that there <em>is</em> a CUDA-capable NVidia GPU), create a tensor <em>on the CUDA device</em>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
 torch_tensor(1, device = &quot;cuda&quot;)</code></pre>
@@ -1012,7 +1012,6 @@ torch_tensor
 <pre class="r"><code>
 install.packages(&quot;torchvision&quot;)</code></pre>
 </div>
-<p>Note: As <code>torchvision</code> relies on <a href="https://cran.r-project.org/web/packages/magick/vignettes/intro.html">magick</a>, which itself needs <a href="https://imagemagick.org/">ImageMagick</a> installed, you need to ensure the latter is available on your system. <a href="https://cran.r-project.org/web/packages/magick/vignettes/intro.html">The magick vignette</a> has an excellent description on how to do this on different operating systems.</p>
 <p>And we’re ready to load the data.</p>
 <h2 id="data-loading-and-pre-processing">Data loading and pre-processing</h2>
 <div class="layout-chunk" data-layout="l-body">
@@ -1035,29 +1034,21 @@ Figure 1: Kuzushiji MNIST.
 <p>The following code will download the data, separately for training and test sets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
-dir &lt;- &quot;.&quot;
-
 train_ds &lt;- kmnist_dataset(
-  dir,
+  &quot;.&quot;,
   download = TRUE,
   train = TRUE,
-  transform = function(x) {
-    x &lt;- x$to(dtype = torch_float())/256
-    x[newaxis,..]
-  }
+  transform = transform_to_tensor
 )
 
 test_ds &lt;- kmnist_dataset(
-  dir,
+  &quot;.&quot;,
   download = TRUE,
   train = FALSE,
-  transform = function(x) {
-    x &lt;- x$to(dtype = torch_float())/256
-    x[newaxis,..]
-  }
+  transform = transform_to_tensor
 )</code></pre>
 </div>
-<p>Note the <code>transform</code> argument. The passed-in function applies two transformations: First, it normalizes the pixels to the range between 0 and 1. Then, it adds another dimension in front. Why?</p>
+<p>Note the <code>transform</code> argument. <code>transform_to_tensor</code> takes an image and applies two transformations: First, it normalizes the pixels to the range between 0 and 1. Then, it adds another dimension in front. Why?</p>
 <p>Contrary to what you might expect – if until now, you’ve been using <code>keras</code> – the additional dimension is <em>not</em> the batch dimension. Batching will be taken care of by the <code>dataloader</code>, to be introduced next. Instead, this is the <em>channels</em> dimension that in <code>torch</code>, is found <em>before</em> the width and height dimensions by default.</p>
 <p>One thing I’ve found to be extremely useful about <code>torch</code> is how easy it is to inspect objects. Even though we’re dealing with a <code>dataset</code>, a custom object, and not an R array or even a <code>torch</code> tensor, we can easily peek at what’s inside. Indexing in <code>torch</code> is 1-based, conforming to the R user’s intuitions. Consequently,</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -1175,7 +1166,8 @@ conv2 &lt;- nn_conv2d(32, 64, 3)
 <p>Back to the main thread. We instantiate the model, and we ask <code>torch</code> to allocate its weights (parameters) on the GPU:</p>
 <div class="layout-chunk" data-layout="l-body">
 <pre class="r"><code>
-model &lt;- net()$to(device = &quot;cuda&quot;)</code></pre>
+model &lt;- net()
+model$to(device = &quot;cuda&quot;)</code></pre>
 </div>
 <p>We’ll do the same for the input and output data – that is, we’ll move them to the GPU. This is done in the training loop, which we’ll inspect next.</p>
 <h2 id="training">Training</h2>
@@ -1303,7 +1295,7 @@ test_accuracy</code></pre>
 <section class="footnotes" role="doc-endnotes">
 <hr />
 <ol>
-<li id="fn1" role="doc-endnote"><p>Lest there be any misunderstandings – coauthor not to yours truly, but to Daniel, creator and main author of the package.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1" role="doc-endnote"><p>In a nutshell, <a href="https://twitter.com/javierluraschi">Javier</a> had the idea of wrapping <code>libtorch</code> into <a href="https://github.com/mlverse/lantern">lantern</a>, a C interface to <code>libtorch</code>, thus avoiding cross-compiler issues between MinGW and Visual Studio.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

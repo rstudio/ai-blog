@@ -28,9 +28,9 @@ Last January at [rstudio::conf](https://rstudio.com/conference/), in that distan
 
 "It", that is an implementation which does not bind to Python Torch, meaning, we don't install the PyTorch wheel and import it via `reticulate`. Instead, we delegate to the underlying C++ library `libtorch` for tensor computations and automatic differentiation, while neural network features -- layers, activations, optimizers -- are implemented directly in R. Removing the intermediary has at least two benefits: For one, the leaner software stack means fewer possible problems in installation and fewer places to look when troubleshooting. Secondly, through its non-dependence on Python, `torch` does not require users to install and maintain a suitable Python environment. Depending on operating system and context, this can make an enormous difference: For example, in many organizations employees are not allowed to manipulate privileged software installations on their laptops.
 
-So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against `libtorch` would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable; at some point, my colleague and `torch`-coauthor Javier might want to tell you about it.)[^1] On the other, the sheer amount of work involved in re-implementing -- not all, but a big amount of -- PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we'll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that `torch` can be useful to the R community. Thus, without further ado, let's train a neural network.
+So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against `libtorch` would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable.)[^1] On the other, the sheer amount of work involved in re-implementing -- not all, but a big amount of -- PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we'll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that `torch` can be useful to the R community. Thus, without further ado, let's train a neural network.
 
-[^1]: Lest there be any misunderstandings -- coauthor not to yours truly, but to Daniel, creator and main author of the package.
+[^1]:  In a nutshell, [Javier](https://twitter.com/javierluraschi) had the idea of wrapping `libtorch` into [lantern](https://github.com/mlverse/lantern), a C interface to `libtorch`, thus avoiding cross-compiler issues between MinGW and Visual Studio.
 
 You're not at your laptop now? Just follow along in the [companion notebook on Colaboratory](https://colab.research.google.com/drive/1NdiN9n_a7NEvFpvjPDvxKTshrSWgxZK5?usp=sharing).
 
@@ -50,7 +50,7 @@ This will detect whether you have CUDA installed, and either download the CPU or
 devtools::install_github("mlverse/torch")
 ```
 
-To quickly check the installation, and whether GPU support works fine (assuming that there *is* a GPU), create a tensor *on the CUDA device*:
+To quickly check the installation, and whether GPU support works fine (assuming that there *is* a CUDA-capable NVidia GPU), create a tensor *on the CUDA device*:
 
 ```{r}
 torch_tensor(1, device = "cuda")
@@ -74,8 +74,6 @@ As of this writing, PyTorch has dedicated libraries for three domain areas: visi
 ```{r}
 install.packages("torchvision")
 ```
-
-Note: As `torchvision` relies on [magick](https://cran.r-project.org/web/packages/magick/vignettes/intro.html), which itself needs [ImageMagick](https://imagemagick.org/) installed, you need to ensure the latter is available on your system. [The magick vignette](https://cran.r-project.org/web/packages/magick/vignettes/intro.html) has an excellent description on how to do this on different operating systems.
 
 And we're ready to load the data.
 
@@ -105,25 +103,19 @@ train_ds <- kmnist_dataset(
   ".",
   download = TRUE,
   train = TRUE,
-  transform = function(x) {
-    x <- x$to(dtype = torch_float())/256
-    x[newaxis,..]
-  }
+  transform = transform_to_tensor
 )
 
 test_ds <- kmnist_dataset(
   ".",
   download = TRUE,
   train = FALSE,
-  transform = function(x) {
-    x <- x$to(dtype = torch_float())/256
-    x[newaxis,..]
-  }
+  transform = transform_to_tensor
 )
 
 ```
 
-Note the `transform` argument. The passed-in function applies two transformations: First, it normalizes the pixels to the range between 0 and 1. Then, it adds another dimension in front. Why?
+Note the `transform` argument. `transform_to_tensor` takes an image and applies two transformations: First, it normalizes the pixels to the range between 0 and 1. Then, it adds another dimension in front. Why?
 
 Contrary to what you might expect -- if until now, you've been using `keras` -- the additional dimension is *not* the batch dimension. Batching will be taken care of by the `dataloader`, to be introduced next. Instead, this is the *channels* dimension that in `torch`, is found *before* the width and height dimensions by default.
 
@@ -273,7 +265,8 @@ And so on. This is just one example illustrating how `torch`s flexibility makes 
 Back to the main thread. We instantiate the model, and we ask `torch` to allocate its weights (parameters) on the GPU:
 
 ```{r}
-model <- net()$to(device = "cuda")
+model <- net()
+model$to(device = "cuda")
 ```
 
 We'll do the same for the input and output data -- that is, we'll move them to the GPU. This is done in the training loop, which we'll inspect next.

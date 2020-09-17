@@ -197,133 +197,7 @@ $(document).ready(function () {
       <title>Introducing sparklyr.flint: A time-series extension for sparklyr</title>
       <dc:creator>Yitao Li</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint</link>
-      <description>
-
-
-&lt;div class="container-fluid main-container"&gt;
-
-
-
-
-&lt;div class="fluid-row" id="header"&gt;
-
-
-
-
-&lt;/div&gt;
-
-
-&lt;ul&gt;
-&lt;li&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code&gt;
-|      In other words, given a timestamp `t` and a row in the result having `time` equal to `t`, one can notice the `value_sum` column of that row contains sum of `value`s within the time window of `[t - 2, t]` from `ts_rdd`.
-
-# Intro to `sparklyr.flint`
-
-The purpose of `sparklyr.flint` is to make time-series functionalities of `Flint` easily accessible from `sparklyr`. To see `sparklyr.flint` in action, one can skim through the example in the previous section, go through the following to produce the exact R-equivalent of each step in that example, and then obtain the same summarization as the final result:
-
-- First of all, install `sparklyr` and `sparklyr.flint` if you haven&amp;#39;t done so already.
-
-  
-  ```r
-  install.packages(&amp;quot;sparklyr&amp;quot;)
-  install.packages(&amp;quot;sparklyr.flint&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Connect to Apache Spark that is running locally from &lt;code&gt;sparklyr&lt;/code&gt;, but remember to attach &lt;code&gt;sparklyr.flint&lt;/code&gt; before running &lt;code&gt;sparklyr::spark_connect&lt;/code&gt;, and then import our example time-series data to Spark:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
-library(sparklyr.flint)
-
-sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;2.4&amp;quot;)
-sdf &amp;lt;- copy_to(sc, data.frame(time = seq(4), value = seq(4)^2))&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Convert &lt;code&gt;sdf&lt;/code&gt; above into a &lt;code&gt;TimeSeriesRDD&lt;/code&gt;&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;ts_rdd &amp;lt;- fromSDF(sdf, is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;time&amp;quot;)&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;And finally, run the ‘sum’ summarizer to obtain a summation of &lt;code&gt;value&lt;/code&gt;s in all past-2-second time windows:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;result &amp;lt;- summarize_sum(ts_rdd, column = &amp;quot;value&amp;quot;, window = in_past(&amp;quot;2s&amp;quot;))
-
-print(result %&amp;gt;% collect())&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;## # A tibble: 4 x 3
-##   time                value value_sum
-##   &amp;lt;dttm&amp;gt;              &amp;lt;dbl&amp;gt;     &amp;lt;dbl&amp;gt;
-## 1 1970-01-01 00:00:01     1         1
-## 2 1970-01-01 00:00:02     4         5
-## 3 1970-01-01 00:00:03     9        14
-## 4 1970-01-01 00:00:04    16        29&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;div id="why-create-a-sparklyr-extension" class="section level1"&gt;
-&lt;h1&gt;Why create a &lt;code&gt;sparklyr&lt;/code&gt; extension?&lt;/h1&gt;
-&lt;p&gt;The alternative to making &lt;code&gt;sparklyr.flint&lt;/code&gt; a &lt;code&gt;sparklyr&lt;/code&gt; extension is to bundle all time-series functionalities it provides with &lt;code&gt;sparklyr&lt;/code&gt; itself. We decided that this would not be a good idea because of the following reasons:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Not all &lt;code&gt;sparklyr&lt;/code&gt; users will need those time-series functionalities&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;com.twosigma:flint:0.6.0&lt;/code&gt; and all Maven packages it transitively relies on are quite heavy dependency-wise&lt;/li&gt;
-&lt;li&gt;Implementing an intuitive R interface for &lt;code&gt;Flint&lt;/code&gt; also takes a non-trivial number of R source files, and making all of that part of &lt;code&gt;sparklyr&lt;/code&gt; itself would be too much&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;So, considering all of the above, building &lt;code&gt;sparklyr.flint&lt;/code&gt; as an extension of &lt;code&gt;sparklyr&lt;/code&gt; seems to be a much more reasonable choice.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="current-state-of-sparklyr.flint-and-its-future-directions" class="section level1"&gt;
-&lt;h1&gt;Current state of &lt;code&gt;sparklyr.flint&lt;/code&gt; and its future directions&lt;/h1&gt;
-&lt;p&gt;Recently &lt;code&gt;sparklyr.flint&lt;/code&gt; has had its first successful release on CRAN. At the moment, &lt;code&gt;sparklyr.flint&lt;/code&gt; only supports the &lt;code&gt;summarizeCycle&lt;/code&gt; and &lt;code&gt;summarizeWindow&lt;/code&gt; functionalities of &lt;code&gt;Flint&lt;/code&gt;, and does not yet support asof join and other useful time-series operations. While &lt;code&gt;sparklyr.flint&lt;/code&gt; contains R interfaces to most of the summarizers in &lt;code&gt;Flint&lt;/code&gt; (one can find the list of summarizers currently supported by &lt;code&gt;sparklyr.flint&lt;/code&gt; in &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/sparklyr.flint.pdf"&gt;here&lt;/a&gt;), there are still a few of them missing (e.g., the support for &lt;code&gt;OLSRegressionSummarizer&lt;/code&gt;, among others).&lt;/p&gt;
-&lt;p&gt;In general, the goal of building &lt;code&gt;sparklyr.flint&lt;/code&gt; is for it to be a thin “translation layer” between &lt;code&gt;sparklyr&lt;/code&gt; and &lt;code&gt;Flint&lt;/code&gt;. It should be as simple and intuitive as possibly can be, while supporting a rich set of &lt;code&gt;Flint&lt;/code&gt; time-series functionalities.&lt;/p&gt;
-&lt;p&gt;We cordially welcome any open-source contribution towards &lt;code&gt;sparklyr.flint&lt;/code&gt;. Please visit &lt;a href="https://github.com/r-spark/sparklyr.flint/issues" class="uri"&gt;https://github.com/r-spark/sparklyr.flint/issues&lt;/a&gt; if you would like to initiate discussions, report bugs, or propose new features related to &lt;code&gt;sparklyr.flint&lt;/code&gt;, and &lt;a href="https://github.com/r-spark/sparklyr.flint/pulls" class="uri"&gt;https://github.com/r-spark/sparklyr.flint/pulls&lt;/a&gt; if you would like to send pull requests.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="acknowledgement" class="section level1"&gt;
-&lt;h1&gt;Acknowledgement&lt;/h1&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;First and foremost, the author wishes to thank Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for proposing the idea of creating &lt;code&gt;sparklyr.flint&lt;/code&gt; as the R interface for &lt;code&gt;Flint&lt;/code&gt;, and for his guidance on how to build it as an extension to &lt;code&gt;sparklyr&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Both Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) and Daniel (&lt;a href="https://github.com/dfalbel"&gt;@dfalbel&lt;/a&gt;) have offered numerous helpful tips on making the initial submission of &lt;code&gt;sparklyr.flint&lt;/code&gt; to CRAN successful.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;We really appreciate the enthusiasm from &lt;code&gt;sparklyr&lt;/code&gt; users who were willing to give &lt;code&gt;sparklyr.flint&lt;/code&gt; a try shortly after it was released on CRAN (and there were quite a few downloads of &lt;code&gt;sparklyr.flint&lt;/code&gt; in the past week according to CRAN stats, which was quite encouraging for us to see). We hope you enjoy using &lt;code&gt;sparklyr.flint&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;The author is also grateful for valuable editorial suggestions from Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) on this blog post.&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Thanks for reading!&lt;/p&gt;
-&lt;/div&gt;
-
-
-
-
-&lt;/div&gt;
-
-&lt;script&gt;
-
-// add bootstrap table styles to pandoc tables
-function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
-}
-$(document).ready(function () {
-  bootstrapStylePandocTables();
-});
-
-
-&lt;/script&gt;
-
-&lt;!-- tabsets --&gt;
-
-&lt;script&gt;
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-&lt;/script&gt;
-
-&lt;!-- code folding --&gt;
-
-
-&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
-&lt;script&gt;
-  (function () {
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
-    document.getElementsByTagName("head")[0].appendChild(script);
-  })();
-&lt;/script&gt;
-
-</description>
-      <distill:md5>e6f4df01ae92eb2c9d4837fa81a92b15</distill:md5>
+      <description>We are pleased to announce that sparklyr.flint, a sparklyr extension for analyzing time series at scale with Flint, is now available on CRAN. Flint is an open-source library for working with time-series in Apache Spark which supports aggregates and joins on time-series datasets.</description>
       <category>R</category>
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint</guid>
@@ -340,7 +214,7 @@ $(document).ready(function () {
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction</guid>
       <pubDate>Tue, 01 Sep 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction/images/thumb.png" medium="image" type="image/png" width="1667" height="923"/>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction/images/thumb.png" medium="image" type="image/png" width="600" height="332"/>
     </item>
     <item>
       <title>Training ImageNet with R</title>

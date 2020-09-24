@@ -218,7 +218,7 @@ print(mtcars_unnested_sdf, n = 5)
 
 It is often observed that many machine learning algorithms perform better on numeric inputs that are standardized. Many of us have learned in stats 101 that given a random variable $X$, we can compute its mean $\mu = E[X]$, standard deviation $\sigma = \sqrt{E[X^2] - (E[X])^2}$, and then obtain a standard score $z = \frac{X - \mu}{\sigma}$ which has mean of 0 and standard deviation of 1.
 
-However, notice both $E[X]$ and $E[X^2]$ from above are quantities that can be easily skewed by extreme outliers in $X$, causing distortions in $z$.
+However, notice both $E[X]$ and $E[X^2]$ from above are quantities that can be easily skewed by extreme outliers in $X$, causing distortions in $z$. A particular bad case of it would be if all non-outliers among $X$ are very close to $0$, hence making $E[X]$ close to $0$, while extreme outliers are all far in the negative direction, hence dragging down $E[X]$ while skewing $E[X^2]$ upwards.
 
 An alternative way of standardizing $X$ based on its median, 1st quartile, and 3rd quartile values, all of which are robust against outliers, would be the following:
 
@@ -228,41 +228,41 @@ and this is precisely what [RobustScaler](https://spark.apache.org/docs/3.0.0/ap
 
 To see `ft_robust_scaler()` in action and demonstrate its usefulness, we can go through a contrived example consisting of the following steps:
 
-- Draw 100 random samples from the standard normal distribution
+- Draw 500 random samples from the standard normal distribution
 
 ```{r echo=TRUE, eval=FALSE}
-sample_values <- rnorm(100)
+sample_values <- rnorm(500)
 print(sample_values)
 ```
 
 ```
-  [1] -0.885440337  0.831855863 -0.890427366  0.437780168  0.091902152
-  [6]  0.774895164 -0.839350781 -1.173025189 -0.442174680 -0.002573251
+  [1] -0.626453811  0.183643324 -0.835628612  1.595280802  0.329507772
+  [6] -0.820468384  0.487429052  0.738324705  0.575781352 -0.305388387
   ...
 ```
-- Inspect the minimal and maximal values among the 100 random samples:
+- Inspect the minimal and maximal values among the $500$ random samples:
 
 ```{r echo=TRUE, eval=FALSE}
 print(min(sample_values))
 ```
 ```
-  [1] -2.377851
+  [1] -3.008049
 ```
 
 ```{r echo=TRUE, eval=FALSE}
 print(max(sample_values))
 ```
 ```
-  [1] 2.629998
+  [1] 3.810277
 ```
 
-- Now create 5 other values that are extreme outliers compared to the 100 random samples above. Given that we know all 100 samples are within the range of $(-3, 3)$, we can choose $21, 22, \ldots, 25$ as our outliers:
+- Now create $10$ other values that are extreme outliers compared to the $500$ random samples above. Given that we know all $500$ samples are within the range of $(-4, 4)$, we can choose $-501, -502, \ldots, -509, -510$ as our $10$ outliers:
 
 ```{r echo=TRUE, eval=FALSE}
-outliers <- 20 + seq(5)
+outliers <- -500L - seq(10)
 ```
 
-- Copy all 105 values into a Spark dataframe named `sdf`
+- Copy all $510$ values into a Spark dataframe named `sdf`
 
 ```{r echo=TRUE, eval=FALSE}
 library(sparklyr)
@@ -281,15 +281,17 @@ scaled <- sdf %>%
   unlist()
 ```
 
-- Plotting the result shows the non-outlier data points being scaled to values that still more or less form a bell-shaped distribution, as expected, so the scaling is robust against influences of the outliers:
+- Plotting the result shows the non-outlier data points being scaled to values that still more or less form a bell-shaped distribution centered around $0$, as expected, so the scaling is robust against influences of the outliers:
 
 ```{r echo=TRUE, eval=FALSE}
 library(ggplot2)
 
-ggplot(data.frame(scaled = scaled), aes(x = scaled)) + geom_histogram(binwidth = 0.2)
+ggplot(data.frame(scaled = scaled), aes(x = scaled)) +
+  xlim(-7, 7) +
+  geom_histogram(binwidth = 0.2)
 ```
 
-![](images/scaled.png){#id .class width=40% height=40%}
+![](images/scaled.png){#id .class width=60% height=60%}
 
 - Finally, we can compare the distribution of the scaled values above with the distribution of z-scores of all input values, and notice how scaling the input with only mean and standard deviation would have caused noticeable skewness -- which the robust scaler has successfully avoided:
 
@@ -297,10 +299,14 @@ ggplot(data.frame(scaled = scaled), aes(x = scaled)) + geom_histogram(binwidth =
 ```{r echo=TRUE, eval=FALSE}
 all_values <- c(sample_values, outliers)
 z_scores <- (all_values - mean(all_values)) / sd(all_values)
-ggplot(data.frame(scaled = z_scores), aes(x = scaled)) + geom_histogram(binwidth = 0.2)
+ggplot(data.frame(scaled = z_scores), aes(x = scaled)) +
+  xlim(-0.05, 0.2) +
+  geom_histogram(binwidth = 0.005)
 ```
 
-![](images/skewed.png){#id .class width=40% height=40%}
+![](images/skewed.png){#id .class width=60% height=60%}
+
+- From the plots one can observe while both of them result in some bell-shaped distributions, the former is centered around $0$, correctly indicating the average among all non-outlier values, while the latter is clearly not centered around $0$ as its center has been noticeably shifted by the $10$ outlier values.
 
 ## RAPIDS
 

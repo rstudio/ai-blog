@@ -12,7 +12,551 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 07 Sep 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 29 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title/>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</link>
+      <description>
+
+
+&lt;p&gt;Two days ago, I introduced &lt;a href="https://github.com/mlverse/torch"&gt;torch&lt;/a&gt;, an R package natively providing functionality that is brought to Python users by &lt;a href="https://pytorch.org/"&gt;PyTorch&lt;/a&gt;. In that post, I assumed basic familiarity with TensorFlow/Keras – in all likelihood, not an unreasonable assumption to make on this blog. Therefore, I portrayed &lt;code&gt;torch&lt;/code&gt; in a way I figured would be helpful to someone who “grew up” with the Keras way of training a model: focussing on differences, yet not losing sight of the overall process.&lt;/p&gt;
+&lt;p&gt;This post now changes perspective. We code a simple neural network “from scratch”, making use of just a single of &lt;code&gt;torch&lt;/code&gt;’s building blocks (a pretty major one, though!): &lt;em&gt;tensors&lt;/em&gt;. This network will be as “raw” (low-level) as can be. (For the less math-inclined people among us, it may serve as a refresher of what’s actually going on beneath all those convenience tools they gave us. But the real purpose is to illustrate what can be done with tensors alone.)&lt;/p&gt;
+&lt;p&gt;Subsequently, three posts (of increasingly shorter length) will show how to reduce the effort – noticeably right from the start, enormously once we finish. At the end of this mini-series, you will have seen how automatic differentiation works in &lt;code&gt;torch&lt;/code&gt;, how to use &lt;code&gt;module&lt;/code&gt;s (layers, in &lt;code&gt;keras&lt;/code&gt; speak, and compositions thereof), and optimizers. By then, you’ll have a lot of the background desirable when applying &lt;code&gt;torch&lt;/code&gt; to real-world tasks.&lt;/p&gt;
+&lt;p&gt;Back to the current post. This one will be the longest, since there is a lot to learn about tensors: how to create them; how to manipulate their contents and/or modify their shapes; how to convert them to R arrays, matrices or vectors; and of course, given the omnipresent need for speed: how to get all those operations executed on the GPU.Once we’ve cleared that agenda, we code the aforementioned little network, seeing all those aspects in action.&lt;/p&gt;
+&lt;h2 id="tensors"&gt;Tensors&lt;/h2&gt;
+&lt;h3 id="creation"&gt;Creation&lt;/h3&gt;
+&lt;p&gt;Tensors can be created by specifying individual values. Here we create two one-dimensional tensors (vectors), of type &lt;code&gt;float&lt;/code&gt; and &lt;code&gt;bool&lt;/code&gt;, respectively:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+# a 1d vector of length 2
+t &amp;lt;- torch_tensor(c(1, 2))
+t
+
+# also 1d, but of type boolean
+t &amp;lt;- torch_tensor(c(TRUE, FALSE))
+t&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1
+ 2
+[ CPUFloatType{2} ]
+
+torch_tensor 
+ 1
+ 0
+[ CPUBoolType{2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And here are two ways to create two-dimensional tensors (matrices). Note how in the second approach, you need to specify &lt;code&gt;byrow = TRUE&lt;/code&gt; in the call to &lt;code&gt;matrix()&lt;/code&gt; to get values arranged in row-major order.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# a 3x3 tensor (matrix)
+t &amp;lt;- torch_tensor(rbind(c(1,2,0), c(3,0,0), c(4,5,6)))
+t
+
+# also 3x3
+t &amp;lt;- torch_tensor(matrix(1:9, ncol = 3, byrow = TRUE))
+t&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1  2  0
+ 3  0  0
+ 4  5  6
+[ CPUFloatType{3,3} ]
+
+torch_tensor 
+ 1  2  3
+ 4  5  6
+ 7  8  9
+[ CPULongType{3,3} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In higher dimensions especially, it can be easier to specify the type of tensor abstractly, as in: “give me a tensor of &amp;lt;…&amp;gt; of shape n1 x n2”, where &amp;lt;…&amp;gt; could be “zeros”, or “ones”, or, say, “values drawn from a standard normal distribution”:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# a 3x3 tensor of standard-normally distributed values
+t &amp;lt;- torch_randn(3, 3)
+t
+
+# a 4x2x2 (3d) tensor of zeroes
+t &amp;lt;- torch_zeros(4, 2, 2)
+t&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+-2.1563  1.7085  0.5245
+ 0.8955 -0.6854  0.2418
+ 0.4193 -0.7742 -1.0399
+[ CPUFloatType{3,3} ]
+
+torch_tensor 
+(1,.,.) = 
+  0  0
+  0  0
+
+(2,.,.) = 
+  0  0
+  0  0
+
+(3,.,.) = 
+  0  0
+  0  0
+
+(4,.,.) = 
+  0  0
+  0  0
+[ CPUFloatType{4,2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Many similar functions exist, including, e.g., &lt;code&gt;torch_arange()&lt;/code&gt; to create a tensor holding a sequence of evenly spaced values, &lt;code&gt;torch_eye()&lt;/code&gt; that returns an identity matrix, and &lt;code&gt;torch_logspace()&lt;/code&gt; that will fill a specified range with a list of values spaced logarithmically.&lt;/p&gt;
+&lt;p&gt;If no &lt;code&gt;dtype&lt;/code&gt; argument is specified, &lt;code&gt;torch&lt;/code&gt; will infer the data type from the passed-in value[s]. For example:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(c(3, 5, 7))
+t$dtype
+
+t &amp;lt;- torch_tensor(1L)
+t$dtype&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_Float
+
+torch_Long&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;But we can explicitly request a different &lt;code&gt;dtype&lt;/code&gt; if we want:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, dtype = torch_double())
+t$dtype&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_Double&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; tensors live on a &lt;em&gt;device&lt;/em&gt;. By default, this will be the CPU:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t$device&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cpu&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;But we could also define a tensor to live on the GPU:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, device = &amp;quot;cuda&amp;quot;)
+t$device&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cuda&amp;#39;, index=0)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We’ll talk more about devices below.&lt;/p&gt;
+&lt;p&gt;There is another very important parameter to the tensor creation functions: &lt;code&gt;requires_grad&lt;/code&gt;. Here though, I’ll need to ask for your patience: This one will prominently figure in the follow-up post.&lt;/p&gt;
+&lt;h3 id="conversion-to-built-in-r-data-types"&gt;Conversion to built-in R data types&lt;/h3&gt;
+&lt;p&gt;To convert &lt;code&gt;torch&lt;/code&gt; tensors to R, use &lt;code&gt;as_array&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(matrix(1:9, ncol = 3, byrow = TRUE))
+as_array(t)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;     [,1] [,2] [,3]
+[1,]    1    2    3
+[2,]    4    5    6
+[3,]    7    8    9&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Depending on whether the tensor is one-, two-, or three-dimensional, the resulting R object will be a vector, a matrix, or an array:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(c(1, 2, 3))
+as_array(t) %&amp;gt;% class()
+
+t &amp;lt;- torch_ones(c(2, 2))
+as_array(t) %&amp;gt;% class()
+
+t &amp;lt;- torch_ones(c(2, 2, 2))
+as_array(t) %&amp;gt;% class()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] &amp;quot;numeric&amp;quot;
+
+[1] &amp;quot;matrix&amp;quot; &amp;quot;array&amp;quot; 
+
+[1] &amp;quot;array&amp;quot;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For one-dimensional and two-dimensional tensors, it is also possible to use &lt;code&gt;as.integer&lt;/code&gt; / &lt;code&gt;as.matrix&lt;/code&gt;. (One reason you might do this is to have more self-documenting code.)&lt;/p&gt;
+&lt;p&gt;If a tensor currently lives on the GPU, you need to move it to the CPU first:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, device = &amp;quot;cuda&amp;quot;)
+as.integer(t$cpu())&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 2&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="indexing-and-slicing-tensors"&gt;Indexing and slicing tensors&lt;/h3&gt;
+&lt;p&gt;Often, we want to retrieve not a complete tensor, but only some of the values it holds, or even just a single value. In these cases, we talk about &lt;em&gt;slicing&lt;/em&gt; and &lt;em&gt;indexing&lt;/em&gt;, respectively.&lt;/p&gt;
+&lt;p&gt;In R, these operations are 1-based, meaning that when we specify offsets, we assume the very first element in an array to reside at offset &lt;code&gt;1&lt;/code&gt;. The same behavior was implemented for &lt;code&gt;torch&lt;/code&gt;. Thus, a lot of the functionality described in this section should feel intuitive.&lt;/p&gt;
+&lt;p&gt;The way I’m organizing this section is the following. We’ll inspect the intuitive parts first – where by intuitive I mean: intuitive to the R user who hasn’t worked with Python’s NumPy. Then come things which to this user, may look more surprising – but will turn out pretty useful.&lt;/p&gt;
+&lt;h4 id="indexing-and-slicing-the-r-like-part"&gt;Indexing and slicing, the R-like part&lt;/h4&gt;
+&lt;p&gt;None of these should probably be surprising:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
+t
+
+# a single value
+t[1, 1]
+
+# first row, all columns
+t[1, ]
+
+# first row, a subset of columns
+t[1, 1:2]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1  2  3
+ 4  5  6
+[ CPUFloatType{2,3} ]
+
+torch_tensor 
+1
+[ CPUFloatType{} ]
+
+torch_tensor 
+ 1
+ 2
+ 3
+[ CPUFloatType{3} ]
+
+torch_tensor 
+ 1
+ 2
+[ CPUFloatType{2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Note how just as in R, singleton dimensions are dropped:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
+
+# 2x3
+t$size() 
+
+# just a single row: will be returned as a vector
+t[1, 1:2]$size() 
+
+# a single element
+t[1, 1]$size()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 2 3
+
+[1] 2
+
+integer(0)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And just like in R, you can specify &lt;code&gt;drop = FALSE&lt;/code&gt; to keep those dimensions:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t[1, 1:2, drop = FALSE]$size()
+
+t[1, 1, drop = FALSE]$size()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 1 2
+
+[1] 1 1&lt;/code&gt;&lt;/pre&gt;
+&lt;h4 id="indexing-and-slicing-what-to-look-out-for"&gt;Indexing and slicing: What to look out for&lt;/h4&gt;
+&lt;p&gt;Whereas R uses negative numbers to remove elements at specified positions, in &lt;code&gt;torch&lt;/code&gt; negative values indicate that we start counting from the end of a tensor – with &lt;code&gt;-1&lt;/code&gt; pointing to its last element:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
+
+t[1, -1]
+
+t[ , -2:-1] &lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+3
+[ CPUFloatType{} ]
+
+torch_tensor 
+ 2  3
+ 5  6
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is a feature you might know from NumPy. Same with the following.&lt;/p&gt;
+&lt;p&gt;When the slicing expression &lt;code&gt;m:n&lt;/code&gt; is augmented by another semicolon and a third number – &lt;code&gt;m:n:o&lt;/code&gt; –, we will take every &lt;code&gt;o&lt;/code&gt;th item from the range specified by &lt;code&gt;m&lt;/code&gt; and &lt;code&gt;n&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(1:10)
+t[2:10:2]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  2
+  4
+  6
+  8
+ 10
+[ CPULongType{5} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Sometimes we don’t know how many dimensions a tensor has, but we do know what to do with the final dimension, or the first one. To subsume all others, we can use &lt;code&gt;..&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_randint(-7, 7, size = c(2, 2, 2))
+t
+
+t[.., 1]
+
+t[2, ..]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+(1,.,.) = 
+  2 -2
+ -5  4
+
+(2,.,.) = 
+  0  4
+ -3 -1
+[ CPUFloatType{2,2,2} ]
+
+torch_tensor 
+ 2 -5
+ 0 -3
+[ CPUFloatType{2,2} ]
+
+torch_tensor 
+ 0  4
+-3 -1
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now we move on to a topic that in practice, is just as indispensable as slicing: changing tensor &lt;em&gt;shapes&lt;/em&gt;.&lt;/p&gt;
+&lt;h3 id="reshaping-tensors"&gt;Reshaping tensors&lt;/h3&gt;
+&lt;p&gt;Changes in shape can occur in two fundamentally different ways. Seeing how “reshape” really means: &lt;em&gt;keep the values but modify their layout&lt;/em&gt;, we could either alter how they’re arranged physically or keep the physical structure as-is and just change the “mapping” (a semantic change, as it were).&lt;/p&gt;
+&lt;p&gt;In the first case, storage will have to be allocated for two tensors, source and target, and elements will be copied from the latter to the former. In the second, physically there will be just a single tensor, referenced by two logical entities with distinct metadata.&lt;/p&gt;
+&lt;p&gt;Not surprisingly, for performance reasons, the second operation is preferred.&lt;/p&gt;
+&lt;h4 id="zero-copy-reshaping"&gt;Zero-copy reshaping&lt;/h4&gt;
+&lt;p&gt;We start with zero-copy methods, as we’ll want to use them whenever we can.&lt;/p&gt;
+&lt;p&gt;A special case, but often seen in practice, is adding or removing a singleton dimension.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;unsqueeze()&lt;/code&gt; adds a dimension of size &lt;code&gt;1&lt;/code&gt; at a position specified by &lt;code&gt;dim&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randint(low = 3, high = 7, size = c(3, 3, 3))
+t1$size()
+
+t2 &amp;lt;- t1$unsqueeze(dim = 1)
+t2$size()
+
+t3 &amp;lt;- t1$unsqueeze(dim = 2)
+t3$size()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 3 3 3
+
+[1] 1 3 3 3
+
+[1] 3 1 3 3&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Conversely, &lt;code&gt;squeeze()&lt;/code&gt; removes singleton dimensions:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t4 &amp;lt;- t3$squeeze()
+t4$size()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 3 3 3&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The same could be accomplished with &lt;code&gt;view()&lt;/code&gt;. &lt;code&gt;view()&lt;/code&gt;, however, is much more general, in that it allows you to reshape the data to any valid dimensionality. (Valid meaning: The number of elements has to stay the same.)&lt;/p&gt;
+&lt;p&gt;Here we have a &lt;code&gt;3x2&lt;/code&gt; tensor that is reshaped to size &lt;code&gt;2x3&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
+t1
+
+t2 &amp;lt;- t1$view(c(2, 3))
+t2&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1  2
+ 3  4
+ 5  6
+[ CPUFloatType{3,2} ]
+
+torch_tensor 
+ 1  2  3
+ 4  5  6
+[ CPUFloatType{2,3} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;(Note how this is different from matrix transposition.)&lt;/p&gt;
+&lt;p&gt;Instead of going from two to three dimensions, we can flatten the matrix to a vector.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t4 &amp;lt;- t1$view(c(-1, 6))
+
+t4$size()
+
+t4&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 1 6
+
+torch_tensor 
+ 1  2  3  4  5  6
+[ CPUFloatType{1,6} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In contrast to indexing operations, this does not drop dimensions.&lt;/p&gt;
+&lt;p&gt;Like we said above, operations like &lt;code&gt;squeeze&lt;/code&gt; or &lt;code&gt;view()&lt;/code&gt; do not make copies. Or, put differently: The output tensor shares storage with the input tensor. We can in fact verify this ourselves:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1$storage()$data_ptr()
+
+t2$storage()$data_ptr()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] &amp;quot;0x5648d02ac800&amp;quot;
+
+[1] &amp;quot;0x5648d02ac800&amp;quot;&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;What’s different is the storage &lt;em&gt;metadata&lt;/em&gt; &lt;code&gt;torch&lt;/code&gt; keeps about both tensors. Here, the relevant information is the &lt;em&gt;stride&lt;/em&gt;:&lt;/p&gt;
+&lt;p&gt;A tensor’s &lt;code&gt;stride()&lt;/code&gt; method tracks, &lt;em&gt;for every dimension&lt;/em&gt;, how many elements have to be traversed to arrive at its next element (row or column, in two dimensions). For &lt;code&gt;t1&lt;/code&gt; above, of shape &lt;code&gt;3x2&lt;/code&gt;, we have to skip over 2 items to arrive at the next row. To arrive at the next column though, in every row we just have to skip a single entry:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1$stride()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 2 1&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For &lt;code&gt;t2&lt;/code&gt;, of shape &lt;code&gt;3x2&lt;/code&gt;, the distance between column elements is the same, but the distance between rows is now 3:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t2$stride()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 3 1&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;While zero-copy operations are optimal, there are cases where they won’t work.&lt;/p&gt;
+&lt;p&gt;With &lt;code&gt;view()&lt;/code&gt;, this can happen when a tensor was obtained via an operation – other than &lt;code&gt;view()&lt;/code&gt; itself – that itself already modified the &lt;em&gt;stride&lt;/em&gt;. One example would be &lt;code&gt;transpose()&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
+t1
+t1$stride()
+
+t2 &amp;lt;- t1$t()
+t2
+t2$stride()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1  2
+ 3  4
+ 5  6
+[ CPUFloatType{3,2} ]
+
+[1] 2 1
+
+torch_tensor 
+ 1  3  5
+ 2  4  6
+[ CPUFloatType{2,3} ]
+
+[1] 1 2&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt; lingo, tensors – like &lt;code&gt;t2&lt;/code&gt; – that re-use existing storage (and just read it differently), are said not to be “contiguous”&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. One way to reshape them is to use &lt;code&gt;contiguous()&lt;/code&gt; on them before. We’ll see this in the next subsection.&lt;/p&gt;
+&lt;h4 id="reshape-with-copy"&gt;Reshape with copy&lt;/h4&gt;
+&lt;p&gt;In the following snippet, trying to reshape &lt;code&gt;t2&lt;/code&gt; using &lt;code&gt;view()&lt;/code&gt; fails, as it already carries information indicating that the underlying data should not be read in physical order.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
+
+t2 &amp;lt;- t1$t()
+
+t2$view(6) # error!&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Error in (function (self, size)  : 
+  view size is not compatible with input tensor&amp;#39;s size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead. (view at ../aten/src/ATen/native/TensorShape.cpp:1364)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;However, if we first call &lt;code&gt;contiguous()&lt;/code&gt; on it, a &lt;em&gt;new tensor&lt;/em&gt; is created, which may then be (virtually) reshaped using &lt;code&gt;view()&lt;/code&gt;.&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t2$contiguous()
+
+t3$view(6)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1
+ 3
+ 5
+ 2
+ 4
+ 6
+[ CPUFloatType{6} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Alternatively, we can use &lt;code&gt;reshape()&lt;/code&gt;. &lt;code&gt;reshape()&lt;/code&gt; defaults to &lt;code&gt;view()&lt;/code&gt;-like behavior if possible; otherwise it will create a physical copy.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t2$storage()$data_ptr()
+
+t4 &amp;lt;- t2$reshape(6)
+
+t4$storage()$data_ptr()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] &amp;quot;0x5648d49b4f40&amp;quot;
+
+[1] &amp;quot;0x5648d2752980&amp;quot;&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="operations-on-tensors"&gt;Operations on tensors&lt;/h3&gt;
+&lt;p&gt;Unsurprisingly, &lt;code&gt;torch&lt;/code&gt; provides a bunch of mathematical operations on tensors; we’ll encounter some of them in the network code below, and you’ll encounter lots more when you continue your &lt;code&gt;torch&lt;/code&gt; journey. Here, we just quickly take a look at the overall tensor method semantics.&lt;/p&gt;
+&lt;p&gt;Tensor methods normally return references to new objects. Here, we add to &lt;code&gt;t1&lt;/code&gt; a clone of itself:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
+t2 &amp;lt;- t1$clone()
+
+t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  2   4
+  6   8
+ 10  12
+[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In this process, &lt;code&gt;t1&lt;/code&gt; has not modified:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1  2
+ 3  4
+ 5  6
+[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Many tensor methods have variants for mutating operations. These all carry a trailing underscore:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1$add_(t1)
+
+# now t1 has been modified
+t1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  4   8
+ 12  16
+ 20  24
+[ CPUFloatType{3,2} ]
+
+torch_tensor 
+  4   8
+ 12  16
+ 20  24
+[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Alternatively, you can of course assign the new object to a new reference variable:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t1$add(t1)
+
+t3&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  8  16
+ 24  32
+ 40  48
+[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is one thing we need to discuss before we wrap up our introduction to tensors: How can we run those operations on the GPU?&lt;/p&gt;
+&lt;h2 id="running-on-gpu"&gt;Running on GPU&lt;/h2&gt;
+&lt;p&gt;To check if your GPU(s) is/are visible to torch, run&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;cuda_is_available()
+
+cuda_device_count()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] TRUE
+
+[1] 1&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Tensors may be requested to live on the GPU right at creation:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;device &amp;lt;- torch_device(&amp;quot;cuda&amp;quot;)
+
+t &amp;lt;- torch_ones(c(2, 2), device = device) &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Alternatively, they can be moved between devices at any time:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t2 &amp;lt;- t$cuda()
+t2$device&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cuda&amp;#39;, index=0)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t2$cpu()
+t3$device&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cpu&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;That’s it for our discussion on tensors — almost. There is one &lt;code&gt;torch&lt;/code&gt; feature that, although related to tensor operations, deserves special mention. It is called broadcasting, and “bilingual” (R + Python) users will know it from NumPy.&lt;/p&gt;
+&lt;h2 id="broadcasting"&gt;Broadcasting&lt;/h2&gt;
+&lt;p&gt;We often have to perform operations on tensors with shapes that don’t match exactly.&lt;/p&gt;
+&lt;p&gt;Unsurprisingly, we can add a scalar to a tensor:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+
+t1 + 22&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 23.1097  21.4425  22.7732  22.2973  21.4128
+ 22.6936  21.8829  21.1463  21.6781  21.0827
+ 22.5672  21.2210  21.2344  23.1154  20.5004
+[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The same will work if we add tensor of size &lt;code&gt;1&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+
+t1 + torch_tensor(c(22))&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Adding tensors of different sizes normally won’t work:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+t2 &amp;lt;- torch_randn(c(5,5))
+
+t1$add(t2) # error&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Error in (function (self, other, alpha)  : 
+  The size of tensor a (2) must match the size of tensor b (5) at non-singleton dimension 1 (infer_size at ../aten/src/ATen/ExpandUtils.cpp:24)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;However, under certain conditions, one or both tensors may be virtually expanded so both tensors line up. This behavior is what is meant by &lt;em&gt;broadcasting&lt;/em&gt;. The way it works in &lt;code&gt;torch&lt;/code&gt; is not just inspired by, but actually identical to of NumPy.&lt;/p&gt;
+&lt;p&gt;The rules are:&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;&lt;p&gt;We align array shapes, &lt;em&gt;starting from the right&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Say we have two tensors, one of size &lt;code&gt;8x1x6x1&lt;/code&gt;, the other of size &lt;code&gt;7x1x5&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Here they are, right-aligned:&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;!-- --&gt;
+&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
+# t2, shape:        7  1  5&lt;/code&gt;&lt;/pre&gt;
+&lt;ol start="2" style="list-style-type: decimal"&gt;
+&lt;li&gt;&lt;p&gt;&lt;em&gt;Starting to look from the right&lt;/em&gt;, the sizes along aligned axes either have to match exactly, or one of them has to be equal to &lt;code&gt;1&lt;/code&gt;: In which case the latter is &lt;em&gt;broadcast&lt;/em&gt; to the larger one.&lt;/p&gt;
+&lt;p&gt;In the above example, this is the case for the second-from-last dimension. This now gives&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;!-- --&gt;
+&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
+# t2, shape:        7  6  5&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;, with broadcasting happening in &lt;code&gt;t2&lt;/code&gt;.&lt;/p&gt;
+&lt;ol start="3" style="list-style-type: decimal"&gt;
+&lt;li&gt;&lt;p&gt;If on the left, one of the arrays has an additional axis (or more than one), the other is virtually expanded to have a size of &lt;code&gt;1&lt;/code&gt; in that place, in which case broadcasting will happen as stated in (2).&lt;/p&gt;
+&lt;p&gt;This is the case with &lt;code&gt;t1&lt;/code&gt;’s leftmost dimension. First, there is a virtual expansion&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;!-- --&gt;
+&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
+# t2, shape:     1  7  1  5&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;and then, broadcasting happens:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
+# t2, shape:     8  7  1  5&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;According to these rules, our above example&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+t2 &amp;lt;- torch_randn(c(5,5))
+
+t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;could be modified in various ways that would allow for adding two tensors.&lt;/p&gt;
+&lt;p&gt;For example, if &lt;code&gt;t2&lt;/code&gt; were &lt;code&gt;1x5&lt;/code&gt;, it would only need to get broadcast to size &lt;code&gt;3x5&lt;/code&gt; before the addition operation:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+t2 &amp;lt;- torch_randn(c(1,5))
+
+t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+-1.0505  1.5811  1.1956 -0.0445  0.5373
+ 0.0779  2.4273  2.1518 -0.6136  2.6295
+ 0.1386 -0.6107 -1.2527 -1.3256 -0.1009
+[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;If it were of size &lt;code&gt;5&lt;/code&gt;, a virtual leading dimension would be added, and then, the same broadcasting would take place as in the previous case.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
+t2 &amp;lt;- torch_randn(c(5))
+
+t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+-1.4123  2.1392 -0.9891  1.1636 -1.4960
+ 0.8147  1.0368 -2.6144  0.6075 -2.0776
+-2.3502  1.4165  0.4651 -0.8816 -1.0685
+[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Here is a more complex example. Broadcasting how happens both in &lt;code&gt;t&lt;/code&gt; and in &lt;code&gt;t2&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(1,5))
+t2 &amp;lt;- torch_randn(c(3,1))
+
+t$add(t2)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1.2274  1.1880  0.8531  1.8511 -0.0627
+ 0.2639  0.2246 -0.1103  0.8877 -1.0262
+-1.5951 -1.6344 -1.9693 -0.9713 -2.8852
+[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As a nice final example, through broadcasting, an outer product can be computed like so:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(c(0, 10, 20, 30))
+
+t2 &amp;lt;- torch_tensor(c(1, 2, 3))
+
+t1$view(c(4,1)) * t2&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  0   0   0
+ 10  20  30
+ 20  40  60
+ 30  60  90
+[ CPUFloatType{4,3} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And now, we really get to implementing that neural network!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;Although the assumption may be tempting, “contiguous” does not correspond to what we’d call “contiguous in memory” in casual language.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;For correctness’ sake, &lt;code&gt;contiguous()&lt;/code&gt; will only make a copy if the tensor it is called on is &lt;em&gt;not contiguous already.&lt;/em&gt;&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">b3342ae85ca28cf328840b0841a346d0</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</guid>
+      <pubDate>Thu, 29 Oct 2020 00:00:00 +0000</pubDate>
+    </item>
     <item>
       <title>Introducing sparklyr.flint: A time-series extension for sparklyr</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
@@ -20,25 +564,84 @@
       <description>
 
 
-&lt;div class="container-fluid main-container"&gt;
-
-
-
-
-&lt;div class="fluid-row" id="header"&gt;
-
-
-
-
-&lt;/div&gt;
-
-
+&lt;p&gt;In this blog post, we will showcase &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;&lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/a&gt;, a brand new &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; extension providing a simple and intuitive R interface to the &lt;a href="https://github.com/twosigma/flint"&gt;&lt;code&gt;Flint&lt;/code&gt;&lt;/a&gt; time series library. &lt;code&gt;sparklyr.flint&lt;/code&gt; is available on &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;CRAN&lt;/a&gt; today and can be installed as follows:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;install.packages(&amp;quot;sparklyr.flint&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The first two sections of this post will be a quick bird’s eye view on &lt;code&gt;sparklyr&lt;/code&gt; and &lt;code&gt;Flint&lt;/code&gt;, which will ensure readers unfamiliar with &lt;code&gt;sparklyr&lt;/code&gt; or &lt;code&gt;Flint&lt;/code&gt; can see both of them as essential building blocks for &lt;code&gt;sparklyr.flint&lt;/code&gt;. After that, we will feature &lt;code&gt;sparklyr.flint&lt;/code&gt;’s design philosophy, current state, example usages, and last but not least, its future directions as an open-source project in the subsequent sections.&lt;/p&gt;
+&lt;h1 id="quick-intro-to-sparklyr"&gt;Quick Intro to &lt;code&gt;sparklyr&lt;/code&gt;&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;sparklyr&lt;/code&gt; is an open-source R interface that integrates the power of distributed computing from &lt;a href="https://spark.apache.org"&gt;Apache Spark&lt;/a&gt; with the familiar idioms, tools, and paradigms for data transformation and data modelling in R. It allows data pipelines working well with non-distributed data in R to be easily transformed into analogous ones that can process large-scale, distributed data in Apache Spark.&lt;/p&gt;
+&lt;p&gt;Instead of summarizing everything &lt;code&gt;sparklyr&lt;/code&gt; has to offer in a few sentences, which is impossible to do, this section will solely focus on a small subset of &lt;code&gt;sparklyr&lt;/code&gt; functionalities that are relevant to connecting to Apache Spark from R, importing time series data from external data sources to Spark, and also simple transformations which are typically part of data pre-processing steps.&lt;/p&gt;
+&lt;h3 id="connecting-to-an-apache-spark-cluster"&gt;Connecting to an Apache Spark cluster&lt;/h3&gt;
+&lt;p&gt;The first step in using &lt;code&gt;sparklyr&lt;/code&gt; is to connect to Apache Spark. Usually this means one of the following:&lt;/p&gt;
 &lt;ul&gt;
-&lt;li&gt;```&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Running Apache Spark locally on your machine, and connecting to it to test, debug, or to execute quick demos that don’t require a multi-node Spark cluster:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;2.4.4&amp;quot;)&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Connecting to a multi-node Apache Spark cluster that is managed by a cluster manager such as &lt;a href="https://spark.apache.org/docs/latest/running-on-yarn.html"&gt;YARN&lt;/a&gt;, e.g.,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;yarn-client&amp;quot;, spark_home = &amp;quot;/usr/lib/spark&amp;quot;)&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
 &lt;/ul&gt;
+&lt;h3 id="importing-external-data-to-spark"&gt;Importing external data to Spark&lt;/h3&gt;
+&lt;p&gt;Making external data available in Spark is easy with &lt;code&gt;sparklyr&lt;/code&gt; given the large number of data sources &lt;code&gt;sparklyr&lt;/code&gt; supports. For example, given an R dataframe, such as&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dat &amp;lt;- data.frame(id = seq(10), value = rnorm(10))&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;the command to copy it to a Spark dataframe with 3 partitions is simply&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sdf &amp;lt;- copy_to(sc, dat, name = &amp;quot;unique_name_of_my_spark_dataframe&amp;quot;, repartition = 3L)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Similarly, there are options for ingesting data in CSV, JSON, ORC, AVRO, and many other well-known formats into Spark as well:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sdf_csv &amp;lt;- spark_read_csv(sc, name = &amp;quot;another_spark_dataframe&amp;quot;, path = &amp;quot;file:///tmp/file.csv&amp;quot;, repartition = 3L)
+# or
+sdf_json &amp;lt;- spark_read_json(sc, name = &amp;quot;yet_another_one&amp;quot;, path = &amp;quot;file:///tmp/file.json&amp;quot;, repartition = 3L)
+# or spark_read_orc, spark_read_avro, etc&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="transforming-a-spark-dataframe"&gt;Transforming a Spark dataframe&lt;/h3&gt;
+&lt;p&gt;With &lt;code&gt;sparklyr&lt;/code&gt;, the simplest and most readable way to transformation a Spark dataframe is by using &lt;code&gt;dplyr&lt;/code&gt; verbs and the pipe operator (&lt;code&gt;%&amp;gt;%&lt;/code&gt;) from &lt;a href="https://cran.r-project.org/web/packages/magrittr/index.html"&gt;magrittr&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;Sparklyr&lt;/code&gt; supports a large number of &lt;code&gt;dplyr&lt;/code&gt; verbs. For example,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sdf &amp;lt;- sdf %&amp;gt;%
+  dplyr::filter(!is.null(id)) %&amp;gt;%
+  dplyr::mutate(value = value ^ 2)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Ensures &lt;code&gt;sdf&lt;/code&gt; only contains rows with non-null IDs, and then squares the &lt;code&gt;value&lt;/code&gt; column of each row.&lt;/p&gt;
+&lt;p&gt;That’s about it for a quick intro to &lt;code&gt;sparklyr&lt;/code&gt;. You can learn more in &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, where you will find links to reference material, books, communities, sponsors, and much more.&lt;/p&gt;
+&lt;h1 id="what-is-flint"&gt;What is &lt;code&gt;Flint&lt;/code&gt;?&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;Flint&lt;/code&gt; is a powerful open-source library for working with time-series data in Apache Spark. First of all, it supports efficient computation of aggregate statistics on time-series data points having the same timestamp (a.k.a &lt;code&gt;summarizeCycles&lt;/code&gt; in &lt;code&gt;Flint&lt;/code&gt; nomenclature), within a given time window (a.k.a., &lt;code&gt;summarizeWindows&lt;/code&gt;), or within some given time intervals (a.k.a &lt;code&gt;summarizeIntervals&lt;/code&gt;). It can also join two or more time-series datasets based on inexact match of timestamps using asof join functions such as &lt;code&gt;LeftJoin&lt;/code&gt; and &lt;code&gt;FutureLeftJoin&lt;/code&gt;. The author of &lt;code&gt;Flint&lt;/code&gt; has outlined many more of &lt;code&gt;Flint&lt;/code&gt;’s major functionalities in &lt;a href="https://databricks.com/blog/2018/09/11/introducing-flint-a-time-series-library-for-apache-spark.html"&gt;this article&lt;/a&gt;, which I found to be extremely helpful when working out how to build &lt;code&gt;sparklyr.flint&lt;/code&gt; as a simple and straightforward R interface for such functionalities.&lt;/p&gt;
+&lt;p&gt;Readers wanting some direct hands-on experience with Flint and Apache Spark can go through the following steps to run a minimal example of using Flint to analyze time-series data:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;First, install Apache Spark locally, and then for convenience reasons, define the &lt;code&gt;SPARK_HOME&lt;/code&gt; environment variable. In this example, we will run Flint with Apache Spark 2.4.4 installed at &lt;code&gt;~/spark&lt;/code&gt;, so:&lt;/p&gt;
+&lt;pre class="bash"&gt;&lt;code&gt;export SPARK_HOME=~/spark/spark-2.4.4-bin-hadoop2.7&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Launch Spark shell and instruct it to download &lt;code&gt;Flint&lt;/code&gt; and its Maven dependencies:&lt;/p&gt;
+&lt;pre class="bash"&gt;&lt;code&gt;&amp;quot;${SPARK_HOME}&amp;quot;/bin/spark-shell --packages=com.twosigma:flint:0.6.0&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Create a simple Spark dataframe containing some time-series data:&lt;/p&gt;
+&lt;pre class="scala"&gt;&lt;code&gt;import spark.implicits._
+
+val ts_sdf = Seq((1L, 1), (2L, 4), (3L, 9), (4L, 16)).toDF(&amp;quot;time&amp;quot;, &amp;quot;value&amp;quot;)&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Import the dataframe along with additional metadata such as time unit and name of the timestamp column into a &lt;code&gt;TimeSeriesRDD&lt;/code&gt;, so that &lt;code&gt;Flint&lt;/code&gt; can interpret the time-series data unambiguously:&lt;/p&gt;
+&lt;pre class="scala"&gt;&lt;code&gt;import com.twosigma.flint.timeseries.TimeSeriesRDD
+
+val ts_rdd = TimeSeriesRDD.fromDF(
+  ts_sdf
+)(
+  isSorted = true, // rows are already sorted by time
+  timeUnit = java.util.concurrent.TimeUnit.SECONDS,
+  timeColumn = &amp;quot;time&amp;quot;
+)&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Finally, after all the hard work above, we can leverage various time-series functionalities provided by &lt;code&gt;Flint&lt;/code&gt; to analyze &lt;code&gt;ts_rdd&lt;/code&gt;. For example, the following will produce a new column named &lt;code&gt;value_sum&lt;/code&gt;. For each row, &lt;code&gt;value_sum&lt;/code&gt; will contain the summation of &lt;code&gt;value&lt;/code&gt;s that occurred within the past 2 seconds from the timestamp of that row:&lt;/p&gt;
+&lt;pre class="scala"&gt;&lt;code&gt;import com.twosigma.flint.timeseries.Windows
+import com.twosigma.flint.timeseries.Summarizers
+
+val window = Windows.pastAbsoluteTime(&amp;quot;2s&amp;quot;)
+val summarizer = Summarizers.sum(&amp;quot;value&amp;quot;)
+val result = ts_rdd.summarizeWindows(window, summarizer)
+
+result.toDF.show()&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code&gt;    +-------------------+-----+---------+
+    |               time|value|value_sum|
+    +-------------------+-----+---------+
+    |1970-01-01 00:00:01|    1|      1.0|
+    |1970-01-01 00:00:02|    4|      5.0|
+    |1970-01-01 00:00:03|    9|     14.0|
+    |1970-01-01 00:00:04|   16|     29.0|
+    +-------------------+-----+---------+&lt;/code&gt;&lt;/pre&gt;
 &lt;div class="line-block"&gt;     In other words, given a timestamp &lt;code&gt;t&lt;/code&gt; and a row in the result having &lt;code&gt;time&lt;/code&gt; equal to &lt;code&gt;t&lt;/code&gt;, one can notice the &lt;code&gt;value_sum&lt;/code&gt; column of that row contains sum of &lt;code&gt;value&lt;/code&gt;s within the time window of &lt;code&gt;[t - 2, t]&lt;/code&gt; from &lt;code&gt;ts_rdd&lt;/code&gt;.&lt;/div&gt;
-&lt;div id="intro-to-sparklyr.flint" class="section level1"&gt;
-&lt;h1&gt;Intro to &lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/h1&gt;
+&lt;h1 id="intro-to-sparklyr.flint"&gt;Intro to &lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/h1&gt;
 &lt;p&gt;The purpose of &lt;code&gt;sparklyr.flint&lt;/code&gt; is to make time-series functionalities of &lt;code&gt;Flint&lt;/code&gt; easily accessible from &lt;code&gt;sparklyr&lt;/code&gt;. To see &lt;code&gt;sparklyr.flint&lt;/code&gt; in action, one can skim through the example in the previous section, go through the following to produce the exact R-equivalent of each step in that example, and then obtain the same summarization as the final result:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;p&gt;First of all, install &lt;code&gt;sparklyr&lt;/code&gt; and &lt;code&gt;sparklyr.flint&lt;/code&gt; if you haven’t done so already.&lt;/p&gt;
@@ -64,9 +667,7 @@ print(result %&amp;gt;% collect())&lt;/code&gt;&lt;/pre&gt;
 ## 3 1970-01-01 00:00:03     9        14
 ## 4 1970-01-01 00:00:04    16        29&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;/div&gt;
-&lt;div id="why-create-a-sparklyr-extension" class="section level1"&gt;
-&lt;h1&gt;Why create a &lt;code&gt;sparklyr&lt;/code&gt; extension?&lt;/h1&gt;
+&lt;h1 id="why-create-a-sparklyr-extension"&gt;Why create a &lt;code&gt;sparklyr&lt;/code&gt; extension?&lt;/h1&gt;
 &lt;p&gt;The alternative to making &lt;code&gt;sparklyr.flint&lt;/code&gt; a &lt;code&gt;sparklyr&lt;/code&gt; extension is to bundle all time-series functionalities it provides with &lt;code&gt;sparklyr&lt;/code&gt; itself. We decided that this would not be a good idea because of the following reasons:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Not all &lt;code&gt;sparklyr&lt;/code&gt; users will need those time-series functionalities&lt;/li&gt;
@@ -74,15 +675,11 @@ print(result %&amp;gt;% collect())&lt;/code&gt;&lt;/pre&gt;
 &lt;li&gt;Implementing an intuitive R interface for &lt;code&gt;Flint&lt;/code&gt; also takes a non-trivial number of R source files, and making all of that part of &lt;code&gt;sparklyr&lt;/code&gt; itself would be too much&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;So, considering all of the above, building &lt;code&gt;sparklyr.flint&lt;/code&gt; as an extension of &lt;code&gt;sparklyr&lt;/code&gt; seems to be a much more reasonable choice.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="current-state-of-sparklyr.flint-and-its-future-directions" class="section level1"&gt;
-&lt;h1&gt;Current state of &lt;code&gt;sparklyr.flint&lt;/code&gt; and its future directions&lt;/h1&gt;
+&lt;h1 id="current-state-of-sparklyr.flint-and-its-future-directions"&gt;Current state of &lt;code&gt;sparklyr.flint&lt;/code&gt; and its future directions&lt;/h1&gt;
 &lt;p&gt;Recently &lt;code&gt;sparklyr.flint&lt;/code&gt; has had its first successful release on CRAN. At the moment, &lt;code&gt;sparklyr.flint&lt;/code&gt; only supports the &lt;code&gt;summarizeCycle&lt;/code&gt; and &lt;code&gt;summarizeWindow&lt;/code&gt; functionalities of &lt;code&gt;Flint&lt;/code&gt;, and does not yet support asof join and other useful time-series operations. While &lt;code&gt;sparklyr.flint&lt;/code&gt; contains R interfaces to most of the summarizers in &lt;code&gt;Flint&lt;/code&gt; (one can find the list of summarizers currently supported by &lt;code&gt;sparklyr.flint&lt;/code&gt; in &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/sparklyr.flint.pdf"&gt;here&lt;/a&gt;), there are still a few of them missing (e.g., the support for &lt;code&gt;OLSRegressionSummarizer&lt;/code&gt;, among others).&lt;/p&gt;
 &lt;p&gt;In general, the goal of building &lt;code&gt;sparklyr.flint&lt;/code&gt; is for it to be a thin “translation layer” between &lt;code&gt;sparklyr&lt;/code&gt; and &lt;code&gt;Flint&lt;/code&gt;. It should be as simple and intuitive as possibly can be, while supporting a rich set of &lt;code&gt;Flint&lt;/code&gt; time-series functionalities.&lt;/p&gt;
 &lt;p&gt;We cordially welcome any open-source contribution towards &lt;code&gt;sparklyr.flint&lt;/code&gt;. Please visit &lt;a href="https://github.com/r-spark/sparklyr.flint/issues" class="uri"&gt;https://github.com/r-spark/sparklyr.flint/issues&lt;/a&gt; if you would like to initiate discussions, report bugs, or propose new features related to &lt;code&gt;sparklyr.flint&lt;/code&gt;, and &lt;a href="https://github.com/r-spark/sparklyr.flint/pulls" class="uri"&gt;https://github.com/r-spark/sparklyr.flint/pulls&lt;/a&gt; if you would like to send pull requests.&lt;/p&gt;
-&lt;/div&gt;
-&lt;div id="acknowledgement" class="section level1"&gt;
-&lt;h1&gt;Acknowledgement&lt;/h1&gt;
+&lt;h1 id="acknowledgement"&gt;Acknowledgement&lt;/h1&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;p&gt;First and foremost, the author wishes to thank Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for proposing the idea of creating &lt;code&gt;sparklyr.flint&lt;/code&gt; as the R interface for &lt;code&gt;Flint&lt;/code&gt;, and for his guidance on how to build it as an extension to &lt;code&gt;sparklyr&lt;/code&gt;.&lt;/p&gt;&lt;/li&gt;
 &lt;li&gt;&lt;p&gt;Both Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) and Daniel (&lt;a href="https://github.com/dfalbel"&gt;@dfalbel&lt;/a&gt;) have offered numerous helpful tips on making the initial submission of &lt;code&gt;sparklyr.flint&lt;/code&gt; to CRAN successful.&lt;/p&gt;&lt;/li&gt;
@@ -90,55 +687,8 @@ print(result %&amp;gt;% collect())&lt;/code&gt;&lt;/pre&gt;
 &lt;li&gt;&lt;p&gt;The author is also grateful for valuable editorial suggestions from Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) on this blog post.&lt;/p&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;Thanks for reading!&lt;/p&gt;
-&lt;/div&gt;
-
-
-
-
-&lt;/div&gt;
-
-&lt;script&gt;
-
-// add bootstrap table styles to pandoc tables
-function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
-}
-$(document).ready(function () {
-  bootstrapStylePandocTables();
-});
-
-
-&lt;/script&gt;
-
-&lt;!-- tabsets --&gt;
-
-&lt;script&gt;
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-&lt;/script&gt;
-
-&lt;!-- code folding --&gt;
-
-
-&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
-&lt;script&gt;
-  (function () {
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
-    document.getElementsByTagName("head")[0].appendChild(script);
-  })();
-&lt;/script&gt;
-
-</description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">8cb77d5ba37aa1a89decbcc5ef689257</distill:md5>
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">e6f4df01ae92eb2c9d4837fa81a92b15</distill:md5>
       <category>R</category>
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint</guid>

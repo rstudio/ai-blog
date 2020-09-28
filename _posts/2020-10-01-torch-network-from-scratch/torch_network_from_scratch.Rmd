@@ -1,14 +1,14 @@
 ---
-title: ""
+title: "Introducing torch tensors"
 description: > 
- 
+ In this first installment in a mini-series of four, we present the main things you will want to know about torch tensors. As an illustrative example, we'll code a simple neural network from scratch.
 
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
     affiliation_url: https://www.rstudio.com/
 slug: keydanatorchnetworkfromscratch
-date: 10-30-2020
+date: 10-01-2020
 categories:
   - Torch
   - R
@@ -16,26 +16,26 @@ output:
   distill::distill_article:
     self_contained: false
     toc: true
-preview: images/tbd.png
+preview: images/pic.jpg
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-Two days ago, I introduced [torch](https://github.com/mlverse/torch), an R package natively providing functionality that is brought to Python users by [PyTorch](https://pytorch.org/). In that post, I assumed basic familiarity with TensorFlow/Keras -- in all likelihood, not an unreasonable assumption to make on this blog. Therefore, I portrayed `torch` in a way I figured would be helpful to someone who "grew up" with the Keras way of training a model: focussing on differences, yet not losing sight of the overall process.
+Two days ago, I introduced [torch](https://github.com/mlverse/torch), an R package natively providing functionality that is brought to Python users by [PyTorch](https://pytorch.org/). In that post, I assumed basic familiarity with TensorFlow/Keras -- in all likelihood, not an unreasonable assumption in the context of this blog. Consequently, I portrayed `torch` in a way I figured would be helpful to someone who "grew up" with the Keras way of training a model: Aiming to focus on differences, yet not lose sight of the overall process.
 
-This post now changes perspective. We code a simple neural network "from scratch", making use of just a single of `torch`'s building blocks (a pretty major one, though!): *tensors*. This network will be as "raw" (low-level) as can be. (For the less math-inclined people among us, it may serve as a refresher of what's actually going on beneath all those convenience tools they gave us. But the real purpose is to illustrate what can be done with tensors alone.)
+This post now changes perspective. We code a simple neural network "from scratch", making use of just a single of `torch`'s building blocks (a pretty major one, though): *tensors*. This network will be as "raw" (low-level) as can be. (For the less math-inclined people among us, it may serve as a refresher of what's actually going on beneath all those convenience tools they built for us. But the real purpose is to illustrate what can be done with tensors alone.)
 
 Subsequently, three posts (of increasingly shorter length) will show how to reduce the effort -- noticeably right from the start, enormously once we finish. At the end of this mini-series, you will have seen how automatic differentiation works in `torch`, how to use `module`s (layers, in `keras` speak, and compositions thereof), and optimizers. By then, you'll have a lot of the background desirable when applying `torch` to real-world tasks.
 
-Back to the current post. This one will be the longest, since there is a lot to learn about tensors: how to create them; how to manipulate their contents and/or modify their shapes; how to convert them to R arrays, matrices or vectors; and of course, given the omnipresent need for speed: how to get all those operations executed on the GPU.Once we've cleared that agenda, we code the aforementioned little network, seeing all those aspects in action.
+Back to the current post. This one will be the longest, since there is a lot to learn about tensors: How to create them; how to manipulate their contents and/or modify their shapes; how to convert them to R arrays, matrices or vectors; and of course, given the omnipresent need for speed: how to get all those operations executed on the GPU. Once we've cleared that agenda, we code the aforementioned little network, seeing all those aspects in action.
 
 ## Tensors
 
 ### Creation
 
-Tensors can be created by specifying individual values. Here we create two one-dimensional tensors (vectors), of type `float` and `bool`, respectively:
+Tensors may be created by specifying individual values. Here we create two one-dimensional tensors (vectors), of type `float` and `bool`, respectively:
 
 ```{r}
 library(torch)
@@ -83,7 +83,7 @@ t
      7  8  9
     [ CPULongType{3,3} ]
 
-In higher dimensions especially, it can be easier to specify the type of tensor abstractly, as in: "give me a tensor of \<...\> of shape n1 x n2", where \<...\> could be "zeros", or "ones", or, say, "values drawn from a standard normal distribution":
+In higher dimensions especially, it can be easier to specify the type of tensor abstractly, as in: "give me a tensor of \<...\> of shape n1 x n2", where \<...\> could be "zeros"; or "ones"; or, say, "values drawn from a standard normal distribution":
 
 ```{r}
 # a 3x3 tensor of standard-normally distributed values
@@ -122,7 +122,7 @@ t
 
 Many similar functions exist, including, e.g., `torch_arange()` to create a tensor holding a sequence of evenly spaced values, `torch_eye()` that returns an identity matrix, and `torch_logspace()` that will fill a specified range with a list of values spaced logarithmically.
 
-If no `dtype` argument is specified, `torch` will infer the data type from the passed-in value[s]. For example:
+If no `dtype` argument is specified, `torch` will infer the data type from the passed-in value(s). For example:
 
 ```{r}
 t <- torch_tensor(c(3, 5, 7))
@@ -133,7 +133,6 @@ t$dtype
 ```
 
     torch_Float
-
     torch_Long
 
 But we can explicitly request a different `dtype` if we want:
@@ -164,7 +163,7 @@ t$device
 
 We'll talk more about devices below.
 
-There is another very important parameter to the tensor creation functions: `requires_grad`. Here though, I'll need to ask for your patience: This one will prominently figure in the follow-up post.
+There is another very important parameter to the tensor creation functions: `requires_grad`. Here though, I need to ask for your patience: This one will prominently figure in the follow-up post.
 
 ### Conversion to built-in R data types
 
@@ -199,7 +198,7 @@ as_array(t) %>% class()
 
     [1] "array"
 
-For one-dimensional and two-dimensional tensors, it is also possible to use `as.integer` / `as.matrix`. (One reason you might do this is to have more self-documenting code.)
+For one-dimensional and two-dimensional tensors, it is also possible to use `as.integer` / `as.matrix`. (One reason you might want to do this is to have more self-documenting code.)
 
 If a tensor currently lives on the GPU, you need to move it to the CPU first:
 
@@ -214,13 +213,13 @@ as.integer(t$cpu())
 
 Often, we want to retrieve not a complete tensor, but only some of the values it holds, or even just a single value. In these cases, we talk about *slicing* and *indexing*, respectively.
 
-In R, these operations are 1-based, meaning that when we specify offsets, we assume the very first element in an array to reside at offset `1`. The same behavior was implemented for `torch`. Thus, a lot of the functionality described in this section should feel intuitive.
+In R, these operations are 1-based, meaning that when we specify offsets, we assume for the very first element in an array to reside at offset `1`. The same behavior was implemented for `torch`. Thus, a lot of the functionality described in this section should feel intuitive.
 
-The way I'm organizing this section is the following. We'll inspect the intuitive parts first -- where by intuitive I mean: intuitive to the R user who hasn't worked with Python's NumPy. Then come things which to this user, may look more surprising -- but will turn out pretty useful.
+The way I'm organizing this section is the following. We'll inspect the intuitive parts first, where by intuitive I mean: intuitive to the R user who has not yet worked with Python's [NumPy](https://numpy.org/). Then come things which to this user, may look more surprising, but will turn out to be pretty useful.
 
 #### Indexing and slicing, the R-like part
 
-None of these should probably be surprising:
+None of these should be overly surprising:
 
 ```{r}
 t <- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
@@ -312,7 +311,7 @@ t[ , -2:-1]
 
 This is a feature you might know from NumPy. Same with the following.
 
-When the slicing expression `m:n` is augmented by another semicolon and a third number -- `m:n:o` --, we will take every `o`th item from the range specified by `m` and `n`:
+When the slicing expression `m:n` is augmented by another colon and a third number -- `m:n:o` --, we will take every `o`th item from the range specified by `m` and `n`:
 
 ```{r}
 t <- torch_tensor(1:10)
@@ -372,7 +371,7 @@ Not surprisingly, for performance reasons, the second operation is preferred.
 
 We start with zero-copy methods, as we'll want to use them whenever we can.
 
-A special case, but often seen in practice, is adding or removing a singleton dimension.
+A special case often seen in practice is adding or removing a singleton dimension.
 
 `unsqueeze()` adds a dimension of size `1` at a position specified by `dim`:
 
@@ -402,7 +401,7 @@ t4$size()
 
     [1] 3 3 3
 
-The same could be accomplished with `view()`. `view()`, however, is much more general, in that it allows you to reshape the data to any valid dimensionality. (Valid meaning: The number of elements has to stay the same.)
+The same could be accomplished with `view()`. `view()`, however, is much more general, in that it allows you to reshape the data to any valid dimensionality. (Valid meaning: The number of elements stays the same.)
 
 Here we have a `3x2` tensor that is reshaped to size `2x3`:
 
@@ -477,7 +476,7 @@ t2$stride()
 
 While zero-copy operations are optimal, there are cases where they won't work.
 
-With `view()`, this can happen when a tensor was obtained via an operation -- other than `view()` itself -- that itself already modified the *stride*. One example would be `transpose()`:
+With `view()`, this can happen when a tensor was obtained via an operation -- other than `view()` itself -- that itself has already modified the *stride*. One example would be `transpose()`:
 
 ```{r}
 t1 <- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
@@ -521,7 +520,8 @@ t2$view(6) # error!
 ```
 
     Error in (function (self, size)  : 
-      view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead. (view at ../aten/src/ATen/native/TensorShape.cpp:1364)
+      view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces).
+      Use .reshape(...) instead. (view at ../aten/src/ATen/native/TensorShape.cpp:1364)
 
 However, if we first call `contiguous()` on it, a *new tensor* is created, which may then be (virtually) reshaped using `view()`.[^2]
 
@@ -558,7 +558,7 @@ t4$storage()$data_ptr()
 
 ### Operations on tensors
 
-Unsurprisingly, `torch` provides a bunch of mathematical operations on tensors; we'll encounter some of them in the network code below, and you'll encounter lots more when you continue your `torch` journey. Here, we just quickly take a look at the overall tensor method semantics.
+Unsurprisingly, `torch` provides a bunch of mathematical operations on tensors; we'll see some of them in the network code below, and you'll encounter lots more when you continue your `torch` journey. Here, we just quickly take a look at the overall tensor method semantics.
 
 Tensor methods normally return references to new objects. Here, we add to `t1` a clone of itself:
 
@@ -575,7 +575,7 @@ t1$add(t2)
      10  12
     [ CPUFloatType{3,2} ]
 
-In this process, `t1` has not modified:
+In this process, `t1` has not been modified:
 
 ```{r}
 t1
@@ -622,7 +622,7 @@ t3
      40  48
     [ CPUFloatType{3,2} ]
 
-There is one thing we need to discuss before we wrap up our introduction to tensors: How can we run those operations on the GPU?
+There is one thing we need to discuss before we wrap up our introduction to tensors: How can we have all those operations executed on the GPU?
 
 ## Running on GPU
 
@@ -702,7 +702,7 @@ t1$add(t2) # error
     Error in (function (self, other, alpha)  : 
       The size of tensor a (2) must match the size of tensor b (5) at non-singleton dimension 1 (infer_size at ../aten/src/ATen/ExpandUtils.cpp:24)
 
-However, under certain conditions, one or both tensors may be virtually expanded so both tensors line up. This behavior is what is meant by *broadcasting*. The way it works in `torch` is not just inspired by, but actually identical to of NumPy.
+However, under certain conditions, one or both tensors may be virtually expanded so both tensors line up. This behavior is what is meant by *broadcasting*. The way it works in `torch` is not just inspired by, but actually identical to that of NumPy.
 
 The rules are:
 
@@ -712,19 +712,17 @@ The rules are:
 
     Here they are, right-aligned:
 
-```{=html}
 <!-- -->
-```
+
     # t1, shape:     8  1  6  1
     # t2, shape:        7  1  5
 
-2.  *Starting to look from the right*, the sizes along aligned axes either have to match exactly, or one of them has to be equal to `1`: In which case the latter is *broadcast* to the larger one.
+2.  *Starting to look from the right*, the sizes along aligned axes either have to match exactly, or one of them has to be equal to `1`: in which case the latter is *broadcast* to the larger one.
 
     In the above example, this is the case for the second-from-last dimension. This now gives
 
-```{=html}
 <!-- -->
-```
+
     # t1, shape:     8  1  6  1
     # t2, shape:        7  6  5
 
@@ -734,9 +732,8 @@ The rules are:
 
     This is the case with `t1`'s leftmost dimension. First, there is a virtual expansion
 
-```{=html}
 <!-- -->
-```
+
     # t1, shape:     8  1  6  1
     # t2, shape:     1  7  1  5
 
@@ -786,13 +783,13 @@ t1$add(t2)
     -2.3502  1.4165  0.4651 -0.8816 -1.0685
     [ CPUFloatType{3,5} ]
 
-Here is a more complex example. Broadcasting how happens both in `t` and in `t2`:
+Here is a more complex example. Broadcasting how happens both in `t1` and in `t2`:
 
 ```{r}
 t1 <- torch_randn(c(1,5))
 t2 <- torch_randn(c(3,1))
 
-t$add(t2)
+t1$add(t2)
 ```
 
     torch_tensor 
@@ -801,7 +798,7 @@ t$add(t2)
     -1.5951 -1.6344 -1.9693 -0.9713 -2.8852
     [ CPUFloatType{3,5} ]
 
-As a nice final example, through broadcasting, an outer product can be computed like so:
+As a nice concluding example, through broadcasting, an outer product can be computed like so:
 
 ```{r}
 t1 <- torch_tensor(c(0, 10, 20, 30))
@@ -819,3 +816,261 @@ t1$view(c(4,1)) * t2
     [ CPUFloatType{4,3} ]
 
 And now, we really get to implementing that neural network!
+
+## A simple neural network using `torch` tensors
+
+Our task, which we'll approach in a low-level way today but considerably simplify in upcoming installments, consists of regressing a single target datum based on three input variables.
+
+We directly use `torch` to simulate some data.
+
+#### Toy data
+
+```{r}
+library(torch)
+
+# input dimensionality (number of input features)
+d_in <- 3
+# output dimensionality (number of predicted features)
+d_out <- 1
+# number of observations in training set
+n <- 100
+
+
+# create random data
+# input
+x <- torch_randn(n, d_in)
+# target
+y <- x[, 1, drop = FALSE] * 0.2 -
+  x[, 2, drop = FALSE] * 1.3 -
+  x[, 3, drop = FALSE] * 0.5 +
+  torch_randn(n, 1)
+```
+
+Next, we need to initialize the network's weights. We'll have one hidden layer, with `32` units. The output layer's size, being determined by the task, is equal to `1`.
+
+#### Initialize weights
+
+```{r}
+# dimensionality of hidden layer
+d_hidden <- 32
+
+# weights connecting input to hidden layer
+w1 <- torch_randn(d_in, d_hidden)
+# weights connecting hidden to output layer
+w2 <- torch_randn(d_hidden, d_out)
+
+# hidden layer bias
+b1 <- torch_zeros(1, d_hidden)
+# output layer bias
+b2 <- torch_zeros(1, d_out)
+```
+
+Now for the training loop proper. The training loop really here *is* the network.
+
+#### Training loop
+
+In each iteration ("epoch"), the training loop does four things:
+
+-   run through the network, computing predictions (*forward pass)*
+
+-   compare those predictions to the ground truth and quantify the loss
+
+-   run backwards through the network, computing the gradients that indicate how the weights should be changed
+
+-   actually update the weights, making use of the requested learning rate
+
+Here is the template we're going to fill:
+
+```{r}
+for (t in 1:200) {
+    
+    ### -------- Forward pass -------- 
+    
+    # here we'll compute the prediction
+    
+    
+    ### -------- compute loss -------- 
+    
+    # here we'll compute the sum of squared errors
+    
+
+    ### -------- Backpropagation -------- 
+    
+    # here we'll pass through the network, calculating the required gradients
+    
+
+    ### -------- Update weights -------- 
+    
+    # here we'll update the weights, subtracting portion of the gradients 
+}
+```
+
+The forward pass effectuates two affine transformations, one for the hidden and output layers each. In-between, ReLU activation is applied:
+
+```{r}
+  # compute pre-activations of hidden layers (dim: 100 x 32)
+  # torch_mm does matrix multiplication
+  h <- x$mm(w1) + b1
+  
+  # apply activation function (dim: 100 x 32)
+  # torch_clamp cuts off values below/above given thresholds
+  h_relu <- h$clamp(min = 0)
+  
+  # compute output (dim: 100 x 1)
+  y_pred <- h_relu$mm(w2) + b2
+```
+
+Our loss here is mean squared error:
+
+```{r}
+  loss <- as.numeric((y_pred - y)$pow(2)$sum())
+```
+
+Calculating gradients the manual way is a bit tedious, but it can be done:
+
+```{r}
+  # gradient of loss w.r.t. prediction (dim: 100 x 1)
+  grad_y_pred <- 2 * (y_pred - y)
+  # gradient of loss w.r.t. w2 (dim: 32 x 1)
+  grad_w2 <- h_relu$t()$mm(grad_y_pred)
+  # gradient of loss w.r.t. hidden activation (dim: 100 x 32)
+  grad_h_relu <- grad_y_pred$mm(w2$t())
+  # gradient of loss w.r.t. hidden pre-activation (dim: 100 x 32)
+  grad_h <- grad_h_relu$clone()
+  
+  grad_h[h < 0] <- 0
+  
+  # gradient of loss w.r.t. b2 (shape: ())
+  grad_b2 <- grad_y_pred$sum()
+  
+  # gradient of loss w.r.t. w1 (dim: 3 x 32)
+  grad_w1 <- x$t()$mm(grad_h)
+  # gradient of loss w.r.t. b1 (shape: (32, ))
+  grad_b1 <- grad_h$sum(dim = 1)
+```
+
+The final step then uses the calculated gradients to update the weights:
+
+```{r}
+  learning_rate <- 1e-4
+  
+  w2 <- w2 - learning_rate * grad_w2
+  b2 <- b2 - learning_rate * grad_b2
+  w1 <- w1 - learning_rate * grad_w1
+  b1 <- b1 - learning_rate * grad_b1
+```
+
+Let's use these snippets to fill in the gaps in the above template, and give it a try!
+
+#### Putting it all together
+
+```{r}
+library(torch)
+
+### generate training data -----------------------------------------------------
+
+# input dimensionality (number of input features)
+d_in <- 3
+# output dimensionality (number of predicted features)
+d_out <- 1
+# number of observations in training set
+n <- 100
+
+
+# create random data
+x <- torch_randn(n, d_in)
+y <-
+  x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+
+
+### initialize weights ---------------------------------------------------------
+
+# dimensionality of hidden layer
+d_hidden <- 32
+# weights connecting input to hidden layer
+w1 <- torch_randn(d_in, d_hidden)
+# weights connecting hidden to output layer
+w2 <- torch_randn(d_hidden, d_out)
+
+# hidden layer bias
+b1 <- torch_zeros(1, d_hidden)
+# output layer bias
+b2 <- torch_zeros(1, d_out)
+
+### network parameters ---------------------------------------------------------
+
+learning_rate <- 1e-4
+
+### training loop --------------------------------------------------------------
+
+for (t in 1:200) {
+  ### -------- Forward pass --------
+  
+  # compute pre-activations of hidden layers (dim: 100 x 32)
+  h <- x$mm(w1) + b1
+  # apply activation function (dim: 100 x 32)
+  h_relu <- h$clamp(min = 0)
+  # compute output (dim: 100 x 1)
+  y_pred <- h_relu$mm(w2) + b2
+  
+  ### -------- compute loss --------
+
+  loss <- as.numeric((y_pred - y)$pow(2)$sum())
+  
+  if (t %% 10 == 0)
+    cat("Epoch: ", t, "   Loss: ", loss, "\n")
+  
+  ### -------- Backpropagation --------
+  
+  # gradient of loss w.r.t. prediction (dim: 100 x 1)
+  grad_y_pred <- 2 * (y_pred - y)
+  # gradient of loss w.r.t. w2 (dim: 32 x 1)
+  grad_w2 <- h_relu$t()$mm(grad_y_pred)
+  # gradient of loss w.r.t. hidden activation (dim: 100 x 32)
+  grad_h_relu <- grad_y_pred$mm(
+    w2$t())
+  # gradient of loss w.r.t. hidden pre-activation (dim: 100 x 32)
+  grad_h <- grad_h_relu$clone()
+  
+  grad_h[h < 0] <- 0
+  
+  # gradient of loss w.r.t. b2 (shape: ())
+  grad_b2 <- grad_y_pred$sum()
+  
+  # gradient of loss w.r.t. w1 (dim: 3 x 32)
+  grad_w1 <- x$t()$mm(grad_h)
+  # gradient of loss w.r.t. b1 (shape: (32, ))
+  grad_b1 <- grad_h$sum(dim = 1)
+  
+  ### -------- Update weights --------
+  
+  w2 <- w2 - learning_rate * grad_w2
+  b2 <- b2 - learning_rate * grad_b2
+  w1 <- w1 - learning_rate * grad_w1
+  b1 <- b1 - learning_rate * grad_b1
+  
+}
+```
+
+    Epoch:  10     Loss:  352.3585 
+    Epoch:  20     Loss:  219.3624 
+    Epoch:  30     Loss:  155.2307 
+    Epoch:  40     Loss:  124.5716 
+    Epoch:  50     Loss:  109.2687 
+    Epoch:  60     Loss:  100.1543 
+    Epoch:  70     Loss:  94.77817 
+    Epoch:  80     Loss:  91.57003 
+    Epoch:  90     Loss:  89.37974 
+    Epoch:  100    Loss:  87.64617 
+    Epoch:  110    Loss:  86.3077 
+    Epoch:  120    Loss:  85.25118 
+    Epoch:  130    Loss:  84.37959 
+    Epoch:  140    Loss:  83.44133 
+    Epoch:  150    Loss:  82.60386 
+    Epoch:  160    Loss:  81.85324 
+    Epoch:  170    Loss:  81.23454 
+    Epoch:  180    Loss:  80.68679 
+    Epoch:  190    Loss:  80.16555 
+    Epoch:  200    Loss:  79.67953 
+
+This looks like it worked pretty well! It also should have fulfilled its purpose: Showing what all you can achieve using `torch` tensors alone. In case you didn't feel like going through the backprop logic with too much enthusiasm, don't worry: In the next installment, this will get significantly less cumbersome. See you then!

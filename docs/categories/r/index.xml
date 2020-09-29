@@ -12,7 +12,206 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 28 Sep 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 04 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Introducing torch autograd</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</link>
+      <description>
+
+
+&lt;p&gt;Last week, we saw how to code &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;a simple network from scratch&lt;/a&gt;, using nothing but &lt;code&gt;torch&lt;/code&gt; &lt;em&gt;tensors&lt;/em&gt;. Predictions, loss, gradients, weight updates – all these things we’ve been computing ourselves. Today, we make a significant change: Namely, we spare ourselves the cumbersome calculation of gradients, and have &lt;code&gt;torch&lt;/code&gt; do it for us.&lt;/p&gt;
+&lt;p&gt;Prior to that though, let’s get some background.&lt;/p&gt;
+&lt;h2 id="automatic-differentiation-with-autograd"&gt;Automatic differentiation with autograd&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;Torch&lt;/code&gt; uses a module called &lt;em&gt;autograd&lt;/em&gt; to&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;&lt;p&gt;record operations performed on tensors, and&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;store what will have to be done to obtain the corresponding gradients, once we’re entering the backward pass.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;These prospective actions are stored internally as functions, and when it’s time to compute the gradients, these functions are applied in order: Application starts from the output node, and calculated gradients are successively being &lt;em&gt;propagated&lt;/em&gt; &lt;em&gt;back&lt;/em&gt; through the network. This is a form of &lt;em&gt;reverse mode automatic differentiation&lt;/em&gt;.&lt;/p&gt;
+&lt;h4 id="autograd-basics"&gt;&lt;em&gt;Autograd&lt;/em&gt; basics&lt;/h4&gt;
+&lt;p&gt;As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with &lt;code&gt;requires_grad = TRUE&lt;/code&gt;. E.g.,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+
+x &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To be clear, &lt;code&gt;x&lt;/code&gt; now is a tensor &lt;em&gt;with respect to which&lt;/em&gt; gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data &lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. If subsequently we perform some operation on that tensor, assigning the result to &lt;code&gt;y&lt;/code&gt;,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y &amp;lt;- x$mean()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;we find that &lt;code&gt;y&lt;/code&gt; now has a non-empty &lt;code&gt;grad_fn&lt;/code&gt; that tells &lt;code&gt;torch&lt;/code&gt; how to compute the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$grad_fn&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Actual &lt;em&gt;computation&lt;/em&gt; of gradients is triggered by calling &lt;code&gt;backward()&lt;/code&gt; on the output tensor.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$backward()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After &lt;code&gt;backward()&lt;/code&gt; has been called, &lt;code&gt;x&lt;/code&gt; has a non-null field termed &lt;code&gt;grad&lt;/code&gt; that stores the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 0.2500  0.2500
+ 0.2500  0.2500
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;With longer chains of computations, we can take a glance at how &lt;code&gt;torch&lt;/code&gt; builds up a graph of backward operations. Here is a slightly more complex example – feel free to skip if you’re not the type who just &lt;em&gt;has&lt;/em&gt; to peek into things for them to make sense.&lt;/p&gt;
+&lt;h4 id="digging-deeper"&gt;Digging deeper&lt;/h4&gt;
+&lt;p&gt;We build up a simple graph of tensors, with “inputs” &lt;code&gt;x1&lt;/code&gt; and &lt;code&gt;x2&lt;/code&gt; being connected to “output” &lt;code&gt;out&lt;/code&gt; by “intermediaries” &lt;code&gt;y&lt;/code&gt; and &lt;code&gt;z&lt;/code&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x1 &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)
+x2 &amp;lt;- torch_tensor(1.1, requires_grad = TRUE)
+
+y &amp;lt;- x1 * (x2 + 2)
+
+z &amp;lt;- y$pow(2) * 3
+
+out &amp;lt;- z$mean()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To save memory, by default intermediate gradients are not stored. Calling &lt;code&gt;retain_grad()&lt;/code&gt; on a tensor allows to deviate from this default; let’s do this here, for the sake of demonstration:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$retain_grad()
+
+z$retain_grad()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now we can go backwards through the graph and inspect &lt;code&gt;torch&lt;/code&gt;’s action plan for backprop, starting from &lt;code&gt;out$grad_fn&lt;/code&gt;, like so:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for mean, the last operation executed
+out$grad_fn&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3
+out$grad_fn$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+MulBackward1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for pow in z = y.pow(2) * 3
+out$grad_fn$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+PowBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication in y = x * (x + 2)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+MulBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the two branches of y = x * (x + 2),
+# where the left branch is a leaf node (AccumulateGrad for x1)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+torch::autograd::AccumulateGrad
+[[2]]
+AddBackward1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# here we arrive at the other leaf node (AccumulateGrad for x2)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions[[2]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+torch::autograd::AccumulateGrad&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;If we now call &lt;code&gt;out$backward()&lt;/code&gt;, all tensors in the graph will have their respective gradients calculated.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$backward()
+
+z$grad
+y$grad
+x2$grad
+x1$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 0.2500  0.2500
+ 0.2500  0.2500
+[ CPUFloatType{2,2} ]
+torch_tensor 
+ 4.6500  4.6500
+ 4.6500  4.6500
+[ CPUFloatType{2,2} ]
+torch_tensor 
+ 18.6000
+[ CPUFloatType{1} ]
+torch_tensor 
+ 14.4150  14.4150
+ 14.4150  14.4150
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After this nerdy excursion, let’s see how &lt;em&gt;autograd&lt;/em&gt; makes our network simpler.&lt;/p&gt;
+&lt;h2 id="the-simple-network-now-using-autograd"&gt;The simple network, now using &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
+&lt;p&gt;Thanks to &lt;em&gt;autograd&lt;/em&gt;, we say good-bye to the tedious, error-prone process of coding backpropagation ourselves. A single method call does it all: &lt;code&gt;loss$backward()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;With &lt;code&gt;torch&lt;/code&gt; keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. Just for fun and to make the point, we can code forward pass, loss calculation and backward pass in just three lines:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
+  
+loss &amp;lt;- (y_pred - y)$pow(2)$sum()
+
+loss$backward()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+
+### generate training data -----------------------------------------------------
+
+# input dimensionality (number of input features)
+d_in &amp;lt;- 3
+# output dimensionality (number of predicted features)
+d_out &amp;lt;- 1
+# number of observations in training set
+n &amp;lt;- 100
+
+
+# create random data
+x &amp;lt;- torch_randn(n, d_in)
+y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+
+
+### initialize weights ---------------------------------------------------------
+
+# dimensionality of hidden layer
+d_hidden &amp;lt;- 32
+# weights connecting input to hidden layer
+w1 &amp;lt;- torch_randn(d_in, d_hidden, requires_grad = TRUE)
+# weights connecting hidden to output layer
+w2 &amp;lt;- torch_randn(d_hidden, d_out, requires_grad = TRUE)
+
+# hidden layer bias
+b1 &amp;lt;- torch_zeros(1, d_hidden, requires_grad = TRUE)
+# output layer bias
+b2 &amp;lt;- torch_zeros(1, d_out, requires_grad = TRUE)
+
+### network parameters ---------------------------------------------------------
+
+learning_rate &amp;lt;- 1e-4
+
+### training loop --------------------------------------------------------------
+
+for (t in 1:200) {
+  ### -------- Forward pass --------
+  
+  y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
+  
+  ### -------- compute loss -------- 
+  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
+  if (t %% 10 == 0)
+    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
+  
+  ### -------- Backpropagation --------
+  
+  # compute gradient of loss w.r.t. all tensors with requires_grad = TRUE
+  loss$backward()
+  
+  ### -------- Update weights -------- 
+  
+  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T 
+  # want to record for automatic gradient computation
+   with_no_grad({
+     w1 &amp;lt;- w1$sub_(learning_rate * w1$grad)
+     w2 &amp;lt;- w2$sub_(learning_rate * w2$grad)
+     b1 &amp;lt;- b1$sub_(learning_rate * b1$grad)
+     b2 &amp;lt;- b2$sub_(learning_rate * b2$grad)  
+     
+     # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
+     w1$grad$zero_()
+     w2$grad$zero_()
+     b1$grad$zero_()
+     b2$grad$zero_()  
+   })
+
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As explained above, after &lt;code&gt;some_tensor$backward()&lt;/code&gt;, all tensors preceding it in the graph&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt; will have their &lt;code&gt;grad&lt;/code&gt; fields populated. We make use of these fields to update the weights. But now that &lt;em&gt;autograd&lt;/em&gt; is “on”, whenever we execute an operation we &lt;em&gt;don’t&lt;/em&gt; want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to &lt;code&gt;with_no_grad()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;While this is something you may file under “nice to know” – after all, once we arrive at the last post in the series, this manual updating of weights will be gone –, the idiom of &lt;em&gt;zeroing gradients&lt;/em&gt; is here to stay: Values stored in &lt;code&gt;grad&lt;/code&gt; fields accumulate; whenever we’re done using them, we need to zero them out before reuse.&lt;/p&gt;
+&lt;h2 id="outlook"&gt;Outlook&lt;/h2&gt;
+&lt;p&gt;So where do we stand? We started out coding a network completely from scratch, making use of nothing but &lt;code&gt;torch&lt;/code&gt; tensors. Today, we got significant help from &lt;em&gt;autograd&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;But we’re still manually updating the weights, – and aren’t deep learning frameworks known to provide abstractions (“layers”, or: “modules”) on top of tensor computations …?&lt;/p&gt;
+&lt;p&gt;We address both issues in the follow-up installments. Thanks for reading!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;Unless we &lt;em&gt;want&lt;/em&gt; to change the data, as when generating adversarial examples.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">68b4457f4594ac1a742e88e6d9c790b4</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</guid>
+      <pubDate>Sun, 04 Oct 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Please allow me to introduce myself: Torch for R</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
@@ -267,7 +466,7 @@ test_accuracy&lt;/code&gt;&lt;/pre&gt;
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</guid>
-      <pubDate>Mon, 28 Sep 2020 00:00:00 +0000</pubDate>
+      <pubDate>Tue, 29 Sep 2020 00:00:00 +0000</pubDate>
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r/images/pt.png" medium="image" type="image/png" width="919" height="264"/>
     </item>
     <item>

@@ -12,7 +12,285 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 28 Sep 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 06 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Using torch modules</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules</link>
+      <description>
+
+
+&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;Last week&lt;/a&gt;, we started learning about &lt;code&gt;torch&lt;/code&gt; basics by coding a simple neural network from scratch, making use of just a single of &lt;code&gt;torch&lt;/code&gt;’s features: &lt;em&gt;tensors&lt;/em&gt;. &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd"&gt;On Monday&lt;/a&gt;, we immensely simplified the task, replacing manual backpropagation with &lt;em&gt;autograd&lt;/em&gt;. Today, we &lt;em&gt;modularize&lt;/em&gt; the network - in both the habitual and a very literal sense: Low-level matrix operations are swapped out for &lt;code&gt;torch&lt;/code&gt; &lt;code&gt;module&lt;/code&gt;s.&lt;/p&gt;
+&lt;h2 id="modules"&gt;Modules&lt;/h2&gt;
+&lt;p&gt;From other frameworks (Keras, say), you may be used to distinguishing between &lt;em&gt;models&lt;/em&gt; and &lt;em&gt;layers&lt;/em&gt;. In &lt;code&gt;torch&lt;/code&gt;, both are instances of &lt;code&gt;nn_Module()&lt;/code&gt;, and thus, have some methods in common. For those thinking in terms of “models” and “layers”, I’m artificially splitting up this section into two parts, for clarity of exposition. In reality though, there is no dichotomy: New modules may be composed of existing ones up to arbitrary levels of recursion.&lt;/p&gt;
+&lt;h3 id="base-modules-layers"&gt;Base modules (“layers”)&lt;/h3&gt;
+&lt;p&gt;Instead of writing out an affine operation by hand – &lt;code&gt;x$mm(w1) + b1&lt;/code&gt;, say –, as we’ve been doing so far, we can create a linear module. The following snippet instantiates a linear layer that expects three-feature inputs and returns a single output per observation:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+l &amp;lt;- nn_linear(3, 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The module has two parameters, “weight” and “bias”. Both have already been initialized:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;l$parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;$weight
+torch_tensor 
+-0.0385  0.1412 -0.5436
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.1950
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Modules are callable; calling a module executes its &lt;code&gt;forward()&lt;/code&gt; method, which for a linear layer just matrix-multiplies input and weights and adds the bias.&lt;/p&gt;
+&lt;p&gt;Let’s try this:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;data  &amp;lt;- torch_randn(10, 3)
+out &amp;lt;- l(data)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Unsurprisingly, &lt;code&gt;out&lt;/code&gt; now holds some data:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$data()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 0.2711
+-1.8151
+-0.0073
+ 0.1876
+-0.0930
+ 0.7498
+-0.2332
+-0.0428
+ 0.3849
+-0.2618
+[ CPUFloatType{10,1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In addition though, it knows what will need to be done, should ever it be asked to calculate gradients:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$grad_fn&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;AddmmBackward&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;(You may remember from the preceding post that when we work with tensors directly, we need to create them passing &lt;code&gt;requires_grad = TRUE&lt;/code&gt; to achieve this. With modules, &lt;code&gt;torch&lt;/code&gt; correctly assumes that we’ll want to perform backpropagation at some point.)&lt;/p&gt;
+&lt;p&gt;By now though, we haven’t called &lt;code&gt;backward()&lt;/code&gt; yet. Thus, no gradients have yet been calculated:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;l$weight$grad
+l$bias$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+[ Tensor (undefined) ]
+torch_tensor 
+[ Tensor (undefined) ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let’s change this:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$backward()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Error in (function (self, gradient, keep_graph, create_graph)  : 
+  grad can be implicitly created only for scalar outputs (_make_grads at ../torch/csrc/autograd/autograd.cpp:47)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Why the error? &lt;em&gt;Autograd&lt;/em&gt; expects the output tensor to be a scalar, while in our example, we have a tensor of size &lt;code&gt;(10, 1)&lt;/code&gt;. This error won’t often occur in practice, where we work with &lt;em&gt;batches&lt;/em&gt; of inputs (sometimes, just a single batch). But still, it’s interesting to see how to resolve this.&lt;/p&gt;
+&lt;p&gt;To make the example work, we introduce a – virtual – final aggregation step – taking the mean, say. Let’s call it &lt;code&gt;avg&lt;/code&gt;. If such a mean were taken, its gradient with respect to &lt;code&gt;l$weight&lt;/code&gt; would be obtained via the chain rule:&lt;/p&gt;
+&lt;p&gt;&lt;span class="math display"&gt;\[
+\begin{equation*} 
+ \frac{\partial \ avg}{\partial w} = \frac{\partial \ avg}{\partial \ out}  \ \frac{\partial \ out}{\partial w}
+\end{equation*}
+\]&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Of the quantities on the right side, we’re interested in the second. We need to provide the first one, the way it would look &lt;em&gt;if really we were taking the mean&lt;/em&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;d_avg_d_out &amp;lt;- torch_tensor(10)$`repeat`(10)$unsqueeze(1)$t()
+out$backward(gradient = d_avg_d_out)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now, &lt;code&gt;l$weight$grad&lt;/code&gt; and &lt;code&gt;l$bias$grad&lt;/code&gt; &lt;em&gt;do&lt;/em&gt; contain the respective gradients:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;l$weight$grad
+l$bias$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 1.3410  6.4343 -30.7135
+[ CPUFloatType{1,3} ]
+torch_tensor 
+ 100
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Back to the main thread. Besides &lt;code&gt;nn_linear()&lt;/code&gt; , &lt;code&gt;torch&lt;/code&gt; provides pretty much all the common layers you might hope for. But few tasks are solved by a single layer. How do you combine them? Or, in the usual lingo: How do you build &lt;em&gt;models&lt;/em&gt;?&lt;/p&gt;
+&lt;h3 id="container-modules-models"&gt;Container modules (“models”)&lt;/h3&gt;
+&lt;p&gt;Now, &lt;em&gt;models&lt;/em&gt; are just modules that contain other modules. For example, if all inputs are supposed to flow through the same nodes and along the same edges, then &lt;code&gt;nn_sequential()&lt;/code&gt; can be used to build a simple graph.&lt;/p&gt;
+&lt;p&gt;For example:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- nn_sequential(
+    nn_linear(3, 16),
+    nn_relu(),
+    nn_linear(16, 1)
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can use the same technique as above to get an overview of all model parameters (two weight matrices and two bias vectors):&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model$parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;$`0.weight`
+torch_tensor 
+-0.1968 -0.1127 -0.0504
+ 0.0083  0.3125  0.0013
+ 0.4784 -0.2757  0.2535
+-0.0898 -0.4706 -0.0733
+-0.0654  0.5016  0.0242
+ 0.4855 -0.3980 -0.3434
+-0.3609  0.1859 -0.4039
+ 0.2851  0.2809 -0.3114
+-0.0542 -0.0754 -0.2252
+-0.3175  0.2107 -0.2954
+-0.3733  0.3931  0.3466
+ 0.5616 -0.3793 -0.4872
+ 0.0062  0.4168 -0.5580
+ 0.3174 -0.4867  0.0904
+-0.0981 -0.0084  0.3580
+ 0.3187 -0.2954 -0.5181
+[ CPUFloatType{16,3} ]
+
+$`0.bias`
+torch_tensor 
+-0.3714
+ 0.5603
+-0.3791
+ 0.4372
+-0.1793
+-0.3329
+ 0.5588
+ 0.1370
+ 0.4467
+ 0.2937
+ 0.1436
+ 0.1986
+ 0.4967
+ 0.1554
+-0.3219
+-0.0266
+[ CPUFloatType{16} ]
+
+$`2.weight`
+torch_tensor 
+Columns 1 to 10-0.0908 -0.1786  0.0812 -0.0414 -0.0251 -0.1961  0.2326  0.0943 -0.0246  0.0748
+
+Columns 11 to 16 0.2111 -0.1801 -0.0102 -0.0244  0.1223 -0.1958
+[ CPUFloatType{1,16} ]
+
+$`2.bias`
+torch_tensor 
+ 0.2470
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To inspect an individual parameter, make use of its position in the sequential model. For example:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model[[1]]$bias&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+-0.3714
+ 0.5603
+-0.3791
+ 0.4372
+-0.1793
+-0.3329
+ 0.5588
+ 0.1370
+ 0.4467
+ 0.2937
+ 0.1436
+ 0.1986
+ 0.4967
+ 0.1554
+-0.3219
+-0.0266
+[ CPUFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And just like &lt;code&gt;nn_linear()&lt;/code&gt; above, this module can directly be called on data:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out &amp;lt;- model(data)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;On a composite module like this one, calling &lt;code&gt;backward()&lt;/code&gt; will backpropagate through all the layers:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$backward(gradient = torch_tensor(10)$`repeat`(10)$unsqueeze(1)$t())
+
+# e.g.
+model[[1]]$bias$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  0.0000
+-17.8578
+  1.6246
+ -3.7258
+ -0.2515
+ -5.8825
+ 23.2624
+  8.4903
+ -2.4604
+  6.7286
+ 14.7760
+-14.4064
+ -1.0206
+ -1.7058
+  0.0000
+ -9.7897
+[ CPUFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And placing the composite module on the GPU will move all tensors there:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model$cuda()
+model[[1]]$bias$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+  0.0000
+-17.8578
+  1.6246
+ -3.7258
+ -0.2515
+ -5.8825
+ 23.2624
+  8.4903
+ -2.4604
+  6.7286
+ 14.7760
+-14.4064
+ -1.0206
+ -1.7058
+  0.0000
+ -9.7897
+[ CUDAFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now let’s see how using &lt;code&gt;nn_sequential()&lt;/code&gt; can simplify our example network.&lt;/p&gt;
+&lt;h2 id="simple-network-using-modules"&gt;Simple network using modules&lt;/h2&gt;
+&lt;pre class="r"&gt;&lt;code&gt;### generate training data -----------------------------------------------------
+
+# input dimensionality (number of input features)
+d_in &amp;lt;- 3
+# output dimensionality (number of predicted features)
+d_out &amp;lt;- 1
+# number of observations in training set
+n &amp;lt;- 100
+
+
+# create random data
+x &amp;lt;- torch_randn(n, d_in)
+y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+
+
+### define the network ---------------------------------------------------------
+
+# dimensionality of hidden layer
+d_hidden &amp;lt;- 32
+
+model &amp;lt;- nn_sequential(
+  nn_linear(d_in, d_hidden),
+  nn_relu(),
+  nn_linear(d_hidden, d_out)
+)
+
+### network parameters ---------------------------------------------------------
+
+learning_rate &amp;lt;- 1e-4
+
+### training loop --------------------------------------------------------------
+
+for (t in 1:200) {
+  
+  ### -------- Forward pass -------- 
+  
+  y_pred &amp;lt;- model(x)
+  
+  ### -------- compute loss -------- 
+  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
+  if (t %% 10 == 0)
+    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
+  
+  ### -------- Backpropagation -------- 
+  
+  # Zero the gradients before running the backward pass.
+  model$zero_grad()
+  
+  # compute gradient of the loss w.r.t. all learnable parameters of the model
+  loss$backward()
+  
+  ### -------- Update weights -------- 
+  
+  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T want to record
+  # for automatic gradient computation
+  # Update each parameter by its `grad`
+  
+  with_no_grad({
+    model$parameters %&amp;gt;% purrr::walk(function(param) param$sub_(learning_rate * param$grad))
+  })
+  
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The forward pass looks a lot better now; however, we still loop through the model’s parameters and update each one by hand. Furthermore, you may be already be suspecting that &lt;code&gt;torch&lt;/code&gt; provides abstractions for common loss functions. In the next and last installment of this series, we’ll address both points, making use of &lt;code&gt;torch&lt;/code&gt; losses and optimizers. See you then!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">89db528ec58a4b4da856d3b6eea438b7</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules</guid>
+      <pubDate>Tue, 06 Oct 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Please allow me to introduce myself: Torch for R</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
@@ -267,7 +545,7 @@ test_accuracy&lt;/code&gt;&lt;/pre&gt;
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</guid>
-      <pubDate>Mon, 28 Sep 2020 00:00:00 +0000</pubDate>
+      <pubDate>Tue, 29 Sep 2020 00:00:00 +0000</pubDate>
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r/images/pt.png" medium="image" type="image/png" width="919" height="264"/>
     </item>
     <item>

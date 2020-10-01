@@ -12,645 +12,115 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Thu, 01 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 04 Oct 2020 00:00:00 +0000</lastBuildDate>
     <item>
-      <title>Getting familiar with torch tensors</title>
+      <title>Introducing torch autograd</title>
       <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</link>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</link>
       <description>
 
 
-&lt;p&gt;Two days ago, I introduced &lt;a href="https://github.com/mlverse/torch"&gt;&lt;code&gt;torch&lt;/code&gt;&lt;/a&gt;, an R package that provides the native functionality that is brought to Python users by &lt;a href="https://pytorch.org/"&gt;PyTorch&lt;/a&gt;. In that post, I assumed basic familiarity with TensorFlow/Keras. Consequently, I portrayed &lt;code&gt;torch&lt;/code&gt; in a way I figured would be helpful to someone who “grew up” with the Keras way of training a model: Aiming to focus on differences, yet not lose sight of the overall process.&lt;/p&gt;
-&lt;p&gt;This post now changes perspective. We code a simple neural network “from scratch”, making use of just one of &lt;code&gt;torch&lt;/code&gt;’s building blocks: &lt;em&gt;tensors&lt;/em&gt;. This network will be as “raw” (low-level) as can be. (For the less math-inclined people among us, it may serve as a refresher of what’s actually going on beneath all those convenience tools they built for us. But the real purpose is to illustrate what can be done with tensors alone.)&lt;/p&gt;
-&lt;p&gt;Subsequently, three posts will progressively show how to reduce the effort – noticeably right from the start, enormously once we finish. At the end of this mini-series, you will have seen how automatic differentiation works in &lt;code&gt;torch&lt;/code&gt;, how to use &lt;code&gt;module&lt;/code&gt;s (layers, in &lt;code&gt;keras&lt;/code&gt; speak, and compositions thereof), and optimizers. By then, you’ll have a lot of the background desirable when applying &lt;code&gt;torch&lt;/code&gt; to real-world tasks.&lt;/p&gt;
-&lt;p&gt;This post will be the longest, since there is a lot to learn about tensors: How to create them; how to manipulate their contents and/or modify their shapes; how to convert them to R arrays, matrices or vectors; and of course, given the omnipresent need for speed: how to get all those operations executed on the GPU. Once we’ve cleared that agenda, we code the aforementioned little network, seeing all those aspects in action.&lt;/p&gt;
-&lt;h2 id="tensors"&gt;Tensors&lt;/h2&gt;
-&lt;h3 id="creation"&gt;Creation&lt;/h3&gt;
-&lt;p&gt;Tensors may be created by specifying individual values. Here we create two one-dimensional tensors (vectors), of types &lt;code&gt;float&lt;/code&gt; and &lt;code&gt;bool&lt;/code&gt;, respectively:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-# a 1d vector of length 2
-t &amp;lt;- torch_tensor(c(1, 2))
-t
-
-# also 1d, but of type boolean
-t &amp;lt;- torch_tensor(c(TRUE, FALSE))
-t&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1
- 2
-[ CPUFloatType{2} ]
-
-torch_tensor 
- 1
- 0
-[ CPUBoolType{2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And here are two ways to create two-dimensional tensors (matrices). Note how in the second approach, you need to specify &lt;code&gt;byrow = TRUE&lt;/code&gt; in the call to &lt;code&gt;matrix()&lt;/code&gt; to get values arranged in row-major order.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# a 3x3 tensor (matrix)
-t &amp;lt;- torch_tensor(rbind(c(1,2,0), c(3,0,0), c(4,5,6)))
-t
-
-# also 3x3
-t &amp;lt;- torch_tensor(matrix(1:9, ncol = 3, byrow = TRUE))
-t&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1  2  0
- 3  0  0
- 4  5  6
-[ CPUFloatType{3,3} ]
-
-torch_tensor 
- 1  2  3
- 4  5  6
- 7  8  9
-[ CPULongType{3,3} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In higher dimensions especially, it can be easier to specify the type of tensor abstractly, as in: “give me a tensor of &amp;lt;…&amp;gt; of shape n1 x n2”, where &amp;lt;…&amp;gt; could be “zeros”; or “ones”; or, say, “values drawn from a standard normal distribution”:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# a 3x3 tensor of standard-normally distributed values
-t &amp;lt;- torch_randn(3, 3)
-t
-
-# a 4x2x2 (3d) tensor of zeroes
-t &amp;lt;- torch_zeros(4, 2, 2)
-t&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
--2.1563  1.7085  0.5245
- 0.8955 -0.6854  0.2418
- 0.4193 -0.7742 -1.0399
-[ CPUFloatType{3,3} ]
-
-torch_tensor 
-(1,.,.) = 
-  0  0
-  0  0
-
-(2,.,.) = 
-  0  0
-  0  0
-
-(3,.,.) = 
-  0  0
-  0  0
-
-(4,.,.) = 
-  0  0
-  0  0
-[ CPUFloatType{4,2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Many similar functions exist, including, e.g., &lt;code&gt;torch_arange()&lt;/code&gt; to create a tensor holding a sequence of evenly spaced values, &lt;code&gt;torch_eye()&lt;/code&gt; which returns an identity matrix, and &lt;code&gt;torch_logspace()&lt;/code&gt; which fills a specified range with a list of values spaced logarithmically.&lt;/p&gt;
-&lt;p&gt;If no &lt;code&gt;dtype&lt;/code&gt; argument is specified, &lt;code&gt;torch&lt;/code&gt; will infer the data type from the passed-in value(s). For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(c(3, 5, 7))
-t$dtype
-
-t &amp;lt;- torch_tensor(1L)
-t$dtype&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_Float
-torch_Long&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;But we can explicitly request a different &lt;code&gt;dtype&lt;/code&gt; if we want:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, dtype = torch_double())
-t$dtype&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_Double&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; tensors live on a &lt;em&gt;device&lt;/em&gt;. By default, this will be the CPU:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t$device&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cpu&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;But we could also define a tensor to live on the GPU:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, device = &amp;quot;cuda&amp;quot;)
-t$device&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cuda&amp;#39;, index=0)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We’ll talk more about devices below.&lt;/p&gt;
-&lt;p&gt;There is another very important parameter to the tensor-creation functions: &lt;code&gt;requires_grad&lt;/code&gt;. Here though, I need to ask for your patience: This one will prominently figure in the follow-up post.&lt;/p&gt;
-&lt;h3 id="conversion-to-built-in-r-data-types"&gt;Conversion to built-in R data types&lt;/h3&gt;
-&lt;p&gt;To convert &lt;code&gt;torch&lt;/code&gt; tensors to R, use &lt;code&gt;as_array()&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(matrix(1:9, ncol = 3, byrow = TRUE))
-as_array(t)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;     [,1] [,2] [,3]
-[1,]    1    2    3
-[2,]    4    5    6
-[3,]    7    8    9&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Depending on whether the tensor is one-, two-, or three-dimensional, the resulting R object will be a vector, a matrix, or an array:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(c(1, 2, 3))
-as_array(t) %&amp;gt;% class()
-
-t &amp;lt;- torch_ones(c(2, 2))
-as_array(t) %&amp;gt;% class()
-
-t &amp;lt;- torch_ones(c(2, 2, 2))
-as_array(t) %&amp;gt;% class()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] &amp;quot;numeric&amp;quot;
-
-[1] &amp;quot;matrix&amp;quot; &amp;quot;array&amp;quot; 
-
-[1] &amp;quot;array&amp;quot;&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;For one-dimensional and two-dimensional tensors, it is also possible to use &lt;code&gt;as.integer()&lt;/code&gt; / &lt;code&gt;as.matrix()&lt;/code&gt;. (One reason you might want to do this is to have more self-documenting code.)&lt;/p&gt;
-&lt;p&gt;If a tensor currently lives on the GPU, you need to move it to the CPU first:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(2, device = &amp;quot;cuda&amp;quot;)
-as.integer(t$cpu())&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 2&lt;/code&gt;&lt;/pre&gt;
-&lt;h3 id="indexing-and-slicing-tensors"&gt;Indexing and slicing tensors&lt;/h3&gt;
-&lt;p&gt;Often, we want to retrieve not a complete tensor, but only some of the values it holds, or even just a single value. In these cases, we talk about &lt;em&gt;slicing&lt;/em&gt; and &lt;em&gt;indexing&lt;/em&gt;, respectively.&lt;/p&gt;
-&lt;p&gt;In R, these operations are 1-based, meaning that when we specify offsets, we assume for the very first element in an array to reside at offset &lt;code&gt;1&lt;/code&gt;. The same behavior was implemented for &lt;code&gt;torch&lt;/code&gt;. Thus, a lot of the functionality described in this section should feel intuitive.&lt;/p&gt;
-&lt;p&gt;The way I’m organizing this section is the following. We’ll inspect the intuitive parts first, where by intuitive I mean: intuitive to the R user who has not yet worked with Python’s &lt;a href="https://numpy.org/"&gt;NumPy&lt;/a&gt;. Then come things which, to this user, may look more surprising, but will turn out to be pretty useful.&lt;/p&gt;
-&lt;h4 id="indexing-and-slicing-the-r-like-part"&gt;Indexing and slicing: the R-like part&lt;/h4&gt;
-&lt;p&gt;None of these should be overly surprising:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
-t
-
-# a single value
-t[1, 1]
-
-# first row, all columns
-t[1, ]
-
-# first row, a subset of columns
-t[1, 1:2]&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1  2  3
- 4  5  6
-[ CPUFloatType{2,3} ]
-
-torch_tensor 
-1
-[ CPUFloatType{} ]
-
-torch_tensor 
- 1
- 2
- 3
-[ CPUFloatType{3} ]
-
-torch_tensor 
- 1
- 2
-[ CPUFloatType{2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Note how, just as in R, singleton dimensions are dropped:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
-
-# 2x3
-t$size() 
-
-# just a single row: will be returned as a vector
-t[1, 1:2]$size() 
-
-# a single element
-t[1, 1]$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 2 3
-
-[1] 2
-
-integer(0)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And just like in R, you can specify &lt;code&gt;drop = FALSE&lt;/code&gt; to keep those dimensions:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t[1, 1:2, drop = FALSE]$size()
-
-t[1, 1, drop = FALSE]$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 1 2
-
-[1] 1 1&lt;/code&gt;&lt;/pre&gt;
-&lt;h4 id="indexing-and-slicing-what-to-look-out-for"&gt;Indexing and slicing: What to look out for&lt;/h4&gt;
-&lt;p&gt;Whereas R uses negative numbers to remove elements at specified positions, in &lt;code&gt;torch&lt;/code&gt; negative values indicate that we start counting from the end of a tensor – with &lt;code&gt;-1&lt;/code&gt; pointing to its last element:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(rbind(c(1,2,3), c(4,5,6)))
-
-t[1, -1]
-
-t[ , -2:-1] &lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-3
-[ CPUFloatType{} ]
-
-torch_tensor 
- 2  3
- 5  6
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This is a feature you might know from NumPy. Same with the following.&lt;/p&gt;
-&lt;p&gt;When the slicing expression &lt;code&gt;m:n&lt;/code&gt; is augmented by another colon and a third number – &lt;code&gt;m:n:o&lt;/code&gt; –, we will take every &lt;code&gt;o&lt;/code&gt;th item from the range specified by &lt;code&gt;m&lt;/code&gt; and &lt;code&gt;n&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_tensor(1:10)
-t[2:10:2]&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  2
-  4
-  6
-  8
- 10
-[ CPULongType{5} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Sometimes we don’t know how many dimensions a tensor has, but we do know what to do with the final dimension, or the first one. To subsume all others, we can use &lt;code&gt;..&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t &amp;lt;- torch_randint(-7, 7, size = c(2, 2, 2))
-t
-
-t[.., 1]
-
-t[2, ..]&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-(1,.,.) = 
-  2 -2
- -5  4
-
-(2,.,.) = 
-  0  4
- -3 -1
-[ CPUFloatType{2,2,2} ]
-
-torch_tensor 
- 2 -5
- 0 -3
-[ CPUFloatType{2,2} ]
-
-torch_tensor 
- 0  4
--3 -1
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now we move on to a topic that, in practice, is just as indispensable as slicing: changing tensor &lt;em&gt;shapes&lt;/em&gt;.&lt;/p&gt;
-&lt;h3 id="reshaping-tensors"&gt;Reshaping tensors&lt;/h3&gt;
-&lt;p&gt;Changes in shape can occur in two fundamentally different ways. Seeing how “reshape” really means: &lt;em&gt;keep the values but modify their layout&lt;/em&gt;, we could either alter how they’re arranged physically, or keep the physical structure as-is and just change the “mapping” (a semantic change, as it were).&lt;/p&gt;
-&lt;p&gt;In the first case, storage will have to be allocated for two tensors, source and target, and elements will be copied from the latter to the former. In the second, physically there will be just a single tensor, referenced by two logical entities with distinct metadata.&lt;/p&gt;
-&lt;p&gt;Not surprisingly, for performance reasons, the second operation is preferred.&lt;/p&gt;
-&lt;h4 id="zero-copy-reshaping"&gt;Zero-copy reshaping&lt;/h4&gt;
-&lt;p&gt;We start with zero-copy methods, as we’ll want to use them whenever we can.&lt;/p&gt;
-&lt;p&gt;A special case often seen in practice is adding or removing a singleton dimension.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;unsqueeze()&lt;/code&gt; adds a dimension of size &lt;code&gt;1&lt;/code&gt; at a position specified by &lt;code&gt;dim&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randint(low = 3, high = 7, size = c(3, 3, 3))
-t1$size()
-
-t2 &amp;lt;- t1$unsqueeze(dim = 1)
-t2$size()
-
-t3 &amp;lt;- t1$unsqueeze(dim = 2)
-t3$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 3 3 3
-
-[1] 1 3 3 3
-
-[1] 3 1 3 3&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Conversely, &lt;code&gt;squeeze()&lt;/code&gt; removes singleton dimensions:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t4 &amp;lt;- t3$squeeze()
-t4$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 3 3 3&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The same could be accomplished with &lt;code&gt;view()&lt;/code&gt;. &lt;code&gt;view()&lt;/code&gt;, however, is much more general, in that it allows you to reshape the data to any valid dimensionality. (Valid meaning: The number of elements stays the same.)&lt;/p&gt;
-&lt;p&gt;Here we have a &lt;code&gt;3x2&lt;/code&gt; tensor that is reshaped to size &lt;code&gt;2x3&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
-t1
-
-t2 &amp;lt;- t1$view(c(2, 3))
-t2&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1  2
- 3  4
- 5  6
-[ CPUFloatType{3,2} ]
-
-torch_tensor 
- 1  2  3
- 4  5  6
-[ CPUFloatType{2,3} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;(Note how this is different from matrix transposition.)&lt;/p&gt;
-&lt;p&gt;Instead of going from two to three dimensions, we can flatten the matrix to a vector.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t4 &amp;lt;- t1$view(c(-1, 6))
-
-t4$size()
-
-t4&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 1 6
-
-torch_tensor 
- 1  2  3  4  5  6
-[ CPUFloatType{1,6} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In contrast to indexing operations, this does not drop dimensions.&lt;/p&gt;
-&lt;p&gt;Like we said above, operations like &lt;code&gt;squeeze()&lt;/code&gt; or &lt;code&gt;view()&lt;/code&gt; do not make copies. Or, put differently: The output tensor shares storage with the input tensor. We can in fact verify this ourselves:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1$storage()$data_ptr()
-
-t2$storage()$data_ptr()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] &amp;quot;0x5648d02ac800&amp;quot;
-
-[1] &amp;quot;0x5648d02ac800&amp;quot;&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;What’s different is the storage &lt;em&gt;metadata&lt;/em&gt; &lt;code&gt;torch&lt;/code&gt; keeps about both tensors. Here, the relevant information is the &lt;em&gt;stride&lt;/em&gt;:&lt;/p&gt;
-&lt;p&gt;A tensor’s &lt;code&gt;stride()&lt;/code&gt; method tracks, &lt;em&gt;for every dimension&lt;/em&gt;, how many elements have to be traversed to arrive at its next element (row or column, in two dimensions). For &lt;code&gt;t1&lt;/code&gt; above, of shape &lt;code&gt;3x2&lt;/code&gt;, we have to skip over 2 items to arrive at the next row. To arrive at the next column though, in every row we just have to skip a single entry:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1$stride()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 2 1&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;For &lt;code&gt;t2&lt;/code&gt;, of shape &lt;code&gt;3x2&lt;/code&gt;, the distance between column elements is the same, but the distance between rows is now 3:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t2$stride()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 3 1&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;While zero-copy operations are optimal, there are cases where they won’t work.&lt;/p&gt;
-&lt;p&gt;With &lt;code&gt;view()&lt;/code&gt;, this can happen when a tensor was obtained via an operation – other than &lt;code&gt;view()&lt;/code&gt; itself – that itself has already modified the &lt;em&gt;stride&lt;/em&gt;. One example would be &lt;code&gt;transpose()&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
-t1
-t1$stride()
-
-t2 &amp;lt;- t1$t()
-t2
-t2$stride()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1  2
- 3  4
- 5  6
-[ CPUFloatType{3,2} ]
-
-[1] 2 1
-
-torch_tensor 
- 1  3  5
- 2  4  6
-[ CPUFloatType{2,3} ]
-
-[1] 1 2&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt; lingo, tensors – like &lt;code&gt;t2&lt;/code&gt; – that re-use existing storage (and just read it differently), are said not to be “contiguous”&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. One way to reshape them is to use &lt;code&gt;contiguous()&lt;/code&gt; on them before. We’ll see this in the next subsection.&lt;/p&gt;
-&lt;h4 id="reshape-with-copy"&gt;Reshape with copy&lt;/h4&gt;
-&lt;p&gt;In the following snippet, trying to reshape &lt;code&gt;t2&lt;/code&gt; using &lt;code&gt;view()&lt;/code&gt; fails, as it already carries information indicating that the underlying data should not be read in physical order.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
-
-t2 &amp;lt;- t1$t()
-
-t2$view(6) # error!&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;Error in (function (self, size)  : 
-  view size is not compatible with input tensor&amp;#39;s size and stride (at least one dimension spans across two contiguous subspaces).
-  Use .reshape(...) instead. (view at ../aten/src/ATen/native/TensorShape.cpp:1364)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;However, if we first call &lt;code&gt;contiguous()&lt;/code&gt; on it, a &lt;em&gt;new tensor&lt;/em&gt; is created, which may then be (virtually) reshaped using &lt;code&gt;view()&lt;/code&gt;.&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t2$contiguous()
-
-t3$view(6)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1
- 3
- 5
- 2
- 4
- 6
-[ CPUFloatType{6} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Alternatively, we can use &lt;code&gt;reshape()&lt;/code&gt;. &lt;code&gt;reshape()&lt;/code&gt; defaults to &lt;code&gt;view()&lt;/code&gt;-like behavior if possible; otherwise it will create a physical copy.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t2$storage()$data_ptr()
-
-t4 &amp;lt;- t2$reshape(6)
-
-t4$storage()$data_ptr()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] &amp;quot;0x5648d49b4f40&amp;quot;
-
-[1] &amp;quot;0x5648d2752980&amp;quot;&lt;/code&gt;&lt;/pre&gt;
-&lt;h3 id="operations-on-tensors"&gt;Operations on tensors&lt;/h3&gt;
-&lt;p&gt;Unsurprisingly, &lt;code&gt;torch&lt;/code&gt; provides a bunch of mathematical operations on tensors; we’ll see some of them in the network code below, and you’ll encounter lots more when you continue your &lt;code&gt;torch&lt;/code&gt; journey. Here, we quickly take a look at the overall tensor method semantics.&lt;/p&gt;
-&lt;p&gt;Tensor methods normally return references to new objects. Here, we add to &lt;code&gt;t1&lt;/code&gt; a clone of itself:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(rbind(c(1, 2), c(3, 4), c(5, 6)))
-t2 &amp;lt;- t1$clone()
-
-t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  2   4
-  6   8
- 10  12
-[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In this process, &lt;code&gt;t1&lt;/code&gt; has not been modified:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1  2
- 3  4
- 5  6
-[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Many tensor methods have variants for mutating operations. These all carry a trailing underscore:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1$add_(t1)
-
-# now t1 has been modified
-t1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  4   8
- 12  16
- 20  24
-[ CPUFloatType{3,2} ]
-
-torch_tensor 
-  4   8
- 12  16
- 20  24
-[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Alternatively, you can of course assign the new object to a new reference variable:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t1$add(t1)
-
-t3&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  8  16
- 24  32
- 40  48
-[ CPUFloatType{3,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;There is one thing we need to discuss before we wrap up our introduction to tensors: How can we have all those operations executed on the GPU?&lt;/p&gt;
-&lt;h2 id="running-on-gpu"&gt;Running on GPU&lt;/h2&gt;
-&lt;p&gt;To check if your GPU(s) is/are visible to torch, run&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;cuda_is_available()
-
-cuda_device_count()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] TRUE
-
-[1] 1&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Tensors may be requested to live on the GPU right at creation:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;device &amp;lt;- torch_device(&amp;quot;cuda&amp;quot;)
-
-t &amp;lt;- torch_ones(c(2, 2), device = device) &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Alternatively, they can be moved between devices at any time:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t2 &amp;lt;- t$cuda()
-t2$device&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cuda&amp;#39;, index=0)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t3 &amp;lt;- t2$cpu()
-t3$device&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_device(type=&amp;#39;cpu&amp;#39;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;That’s it for our discussion on tensors — almost. There is one &lt;code&gt;torch&lt;/code&gt; feature that, although related to tensor operations, deserves special mention. It is called broadcasting, and “bilingual” (R + Python) users will know it from NumPy.&lt;/p&gt;
-&lt;h2 id="broadcasting"&gt;Broadcasting&lt;/h2&gt;
-&lt;p&gt;We often have to perform operations on tensors with shapes that don’t match exactly.&lt;/p&gt;
-&lt;p&gt;Unsurprisingly, we can add a scalar to a tensor:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-
-t1 + 22&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 23.1097  21.4425  22.7732  22.2973  21.4128
- 22.6936  21.8829  21.1463  21.6781  21.0827
- 22.5672  21.2210  21.2344  23.1154  20.5004
-[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The same will work if we add tensor of size &lt;code&gt;1&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-
-t1 + torch_tensor(c(22))&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Adding tensors of different sizes normally won’t work:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-t2 &amp;lt;- torch_randn(c(5,5))
-
-t1$add(t2) # error&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;Error in (function (self, other, alpha)  : 
-  The size of tensor a (2) must match the size of tensor b (5) at non-singleton dimension 1 (infer_size at ../aten/src/ATen/ExpandUtils.cpp:24)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;However, under certain conditions, one or both tensors may be virtually expanded so both tensors line up. This behavior is what is meant by &lt;em&gt;broadcasting&lt;/em&gt;. The way it works in &lt;code&gt;torch&lt;/code&gt; is not just inspired by, but actually identical to that of NumPy.&lt;/p&gt;
-&lt;p&gt;The rules are:&lt;/p&gt;
+&lt;p&gt;Last week, we saw how to code &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;a simple network from scratch&lt;/a&gt;, using nothing but &lt;code&gt;torch&lt;/code&gt; &lt;em&gt;tensors&lt;/em&gt;. Predictions, loss, gradients, weight updates – all these things we’ve been computing ourselves. Today, we make a significant change: Namely, we spare ourselves the cumbersome calculation of gradients, and have &lt;code&gt;torch&lt;/code&gt; do it for us.&lt;/p&gt;
+&lt;p&gt;Prior to that though, let’s get some background.&lt;/p&gt;
+&lt;h2 id="automatic-differentiation-with-autograd"&gt;Automatic differentiation with &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; uses a module called &lt;em&gt;autograd&lt;/em&gt; to&lt;/p&gt;
 &lt;ol style="list-style-type: decimal"&gt;
-&lt;li&gt;&lt;p&gt;We align array shapes, &lt;em&gt;starting from the right&lt;/em&gt;.&lt;/p&gt;
-&lt;p&gt;Say we have two tensors, one of size &lt;code&gt;8x1x6x1&lt;/code&gt;, the other of size &lt;code&gt;7x1x5&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;Here they are, right-aligned:&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;record operations performed on tensors, and&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;store what will have to be done to obtain the corresponding gradients, once we’re entering the backward pass.&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
-&lt;!-- --&gt;
-&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
-# t2, shape:        7  1  5&lt;/code&gt;&lt;/pre&gt;
-&lt;ol start="2" style="list-style-type: decimal"&gt;
-&lt;li&gt;&lt;p&gt;&lt;em&gt;Starting to look from the right&lt;/em&gt;, the sizes along aligned axes either have to match exactly, or one of them has to be equal to &lt;code&gt;1&lt;/code&gt;: in which case the latter is &lt;em&gt;broadcast&lt;/em&gt; to the larger one.&lt;/p&gt;
-&lt;p&gt;In the above example, this is the case for the second-from-last dimension. This now gives&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;!-- --&gt;
-&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
-# t2, shape:        7  6  5&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;, with broadcasting happening in &lt;code&gt;t2&lt;/code&gt;.&lt;/p&gt;
-&lt;ol start="3" style="list-style-type: decimal"&gt;
-&lt;li&gt;&lt;p&gt;If on the left, one of the arrays has an additional axis (or more than one), the other is virtually expanded to have a size of &lt;code&gt;1&lt;/code&gt; in that place, in which case broadcasting will happen as stated in (2).&lt;/p&gt;
-&lt;p&gt;This is the case with &lt;code&gt;t1&lt;/code&gt;’s leftmost dimension. First, there is a virtual expansion&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;!-- --&gt;
-&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
-# t2, shape:     1  7  1  5&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;and then, broadcasting happens:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;# t1, shape:     8  1  6  1
-# t2, shape:     8  7  1  5&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;According to these rules, our above example&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-t2 &amp;lt;- torch_randn(c(5,5))
-
-t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;could be modified in various ways that would allow for adding two tensors.&lt;/p&gt;
-&lt;p&gt;For example, if &lt;code&gt;t2&lt;/code&gt; were &lt;code&gt;1x5&lt;/code&gt;, it would only need to get broadcast to size &lt;code&gt;3x5&lt;/code&gt; before the addition operation:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-t2 &amp;lt;- torch_randn(c(1,5))
-
-t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
--1.0505  1.5811  1.1956 -0.0445  0.5373
- 0.0779  2.4273  2.1518 -0.6136  2.6295
- 0.1386 -0.6107 -1.2527 -1.3256 -0.1009
-[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;If it were of size &lt;code&gt;5&lt;/code&gt;, a virtual leading dimension would be added, and then, the same broadcasting would take place as in the previous case.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(3,5))
-t2 &amp;lt;- torch_randn(c(5))
-
-t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
--1.4123  2.1392 -0.9891  1.1636 -1.4960
- 0.8147  1.0368 -2.6144  0.6075 -2.0776
--2.3502  1.4165  0.4651 -0.8816 -1.0685
-[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Here is a more complex example. Broadcasting how happens both in &lt;code&gt;t1&lt;/code&gt; and in &lt;code&gt;t2&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_randn(c(1,5))
-t2 &amp;lt;- torch_randn(c(3,1))
-
-t1$add(t2)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1.2274  1.1880  0.8531  1.8511 -0.0627
- 0.2639  0.2246 -0.1103  0.8877 -1.0262
--1.5951 -1.6344 -1.9693 -0.9713 -2.8852
-[ CPUFloatType{3,5} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;As a nice concluding example, through broadcasting an outer product can be computed like so:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;t1 &amp;lt;- torch_tensor(c(0, 10, 20, 30))
-
-t2 &amp;lt;- torch_tensor(c(1, 2, 3))
-
-t1$view(c(4,1)) * t2&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  0   0   0
- 10  20  30
- 20  40  60
- 30  60  90
-[ CPUFloatType{4,3} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And now, we really get to implementing that neural network!&lt;/p&gt;
-&lt;h2 id="a-simple-neural-network-using-torch-tensors"&gt;A simple neural network using &lt;code&gt;torch&lt;/code&gt; tensors&lt;/h2&gt;
-&lt;p&gt;Our task, which we approach in a low-level way today but considerably simplify in upcoming installments, consists of regressing a single target datum based on three input variables.&lt;/p&gt;
-&lt;p&gt;We directly use &lt;code&gt;torch&lt;/code&gt; to simulate some data.&lt;/p&gt;
-&lt;h4 id="toy-data"&gt;Toy data&lt;/h4&gt;
+&lt;p&gt;These prospective actions are stored internally as functions, and when it’s time to compute the gradients, these functions are applied in order: Application starts from the output node, and calculated gradients are successively &lt;em&gt;propagated&lt;/em&gt; &lt;em&gt;back&lt;/em&gt; through the network. This is a form of &lt;em&gt;reverse mode automatic differentiation&lt;/em&gt;.&lt;/p&gt;
+&lt;h4 id="autograd-basics"&gt;&lt;em&gt;Autograd&lt;/em&gt; basics&lt;/h4&gt;
+&lt;p&gt;As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with &lt;code&gt;requires_grad = TRUE&lt;/code&gt;. For example:&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;library(torch)
 
-# input dimensionality (number of input features)
-d_in &amp;lt;- 3
-# output dimensionality (number of predicted features)
-d_out &amp;lt;- 1
-# number of observations in training set
-n &amp;lt;- 100
+x &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To be clear, &lt;code&gt;x&lt;/code&gt; now is a tensor &lt;em&gt;with respect to which&lt;/em&gt; gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data &lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. If we subsequently perform some operation on that tensor, assigning the result to &lt;code&gt;y&lt;/code&gt;,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y &amp;lt;- x$mean()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;we find that &lt;code&gt;y&lt;/code&gt; now has a non-empty &lt;code&gt;grad_fn&lt;/code&gt; that tells &lt;code&gt;torch&lt;/code&gt; how to compute the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$grad_fn&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Actual &lt;em&gt;computation&lt;/em&gt; of gradients is triggered by calling &lt;code&gt;backward()&lt;/code&gt; on the output tensor.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$backward()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After &lt;code&gt;backward()&lt;/code&gt; has been called, &lt;code&gt;x&lt;/code&gt; has a non-null field termed &lt;code&gt;grad&lt;/code&gt; that stores the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 0.2500  0.2500
+ 0.2500  0.2500
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;With longer chains of computations, we can take a glance at how &lt;code&gt;torch&lt;/code&gt; builds up a graph of backward operations. Here is a slightly more complex example – feel free to skip if you’re not the type who just &lt;em&gt;has&lt;/em&gt; to peek into things for them to make sense.&lt;/p&gt;
+&lt;h4 id="digging-deeper"&gt;Digging deeper&lt;/h4&gt;
+&lt;p&gt;We build up a simple graph of tensors, with inputs &lt;code&gt;x1&lt;/code&gt; and &lt;code&gt;x2&lt;/code&gt; being connected to output &lt;code&gt;out&lt;/code&gt; by intermediaries &lt;code&gt;y&lt;/code&gt; and &lt;code&gt;z&lt;/code&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x1 &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)
+x2 &amp;lt;- torch_tensor(1.1, requires_grad = TRUE)
 
+y &amp;lt;- x1 * (x2 + 2)
 
-# create random data
-# input
-x &amp;lt;- torch_randn(n, d_in)
-# target
-y &amp;lt;- x[, 1, drop = FALSE] * 0.2 -
-  x[, 2, drop = FALSE] * 1.3 -
-  x[, 3, drop = FALSE] * 0.5 +
-  torch_randn(n, 1)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Next, we need to initialize the network’s weights. We’ll have one hidden layer, with &lt;code&gt;32&lt;/code&gt; units. The output layer’s size, being determined by the task, is equal to &lt;code&gt;1&lt;/code&gt;.&lt;/p&gt;
-&lt;h4 id="initialize-weights"&gt;Initialize weights&lt;/h4&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# dimensionality of hidden layer
-d_hidden &amp;lt;- 32
+z &amp;lt;- y$pow(2) * 3
 
-# weights connecting input to hidden layer
-w1 &amp;lt;- torch_randn(d_in, d_hidden)
-# weights connecting hidden to output layer
-w2 &amp;lt;- torch_randn(d_hidden, d_out)
+out &amp;lt;- z$mean()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To save memory, intermediate gradients are normally not being stored. Calling &lt;code&gt;retain_grad()&lt;/code&gt; on a tensor allows one to deviate from this default. Let’s do this here, for the sake of demonstration:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y$retain_grad()
 
-# hidden layer bias
-b1 &amp;lt;- torch_zeros(1, d_hidden)
-# output layer bias
-b2 &amp;lt;- torch_zeros(1, d_out)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now for the training loop proper. The training loop here really &lt;em&gt;is&lt;/em&gt; the network.&lt;/p&gt;
-&lt;h4 id="training-loop"&gt;Training loop&lt;/h4&gt;
-&lt;p&gt;In each iteration (“epoch”), the training loop does four things:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;runs through the network, computing predictions (&lt;em&gt;forward pass)&lt;/em&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;compares those predictions to the ground truth and quantify the loss&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;runs backwards through the network, computing the gradients that indicate how the weights should be changed&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;updates the weights, making use of the requested learning rate.&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Here is the template we’re going to fill:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;for (t in 1:200) {
-    
-    ### -------- Forward pass -------- 
-    
-    # here we&amp;#39;ll compute the prediction
-    
-    
-    ### -------- compute loss -------- 
-    
-    # here we&amp;#39;ll compute the sum of squared errors
-    
+z$retain_grad()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now we can go backwards through the graph and inspect &lt;code&gt;torch&lt;/code&gt;’s action plan for backprop, starting from &lt;code&gt;out$grad_fn&lt;/code&gt;, like so:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for mean, the last operation executed
+out$grad_fn&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3
+out$grad_fn$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+MulBackward1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for pow in z = y.pow(2) * 3
+out$grad_fn$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+PowBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication in y = x * (x + 2)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+MulBackward0&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the two branches of y = x * (x + 2),
+# where the left branch is a leaf node (AccumulateGrad for x1)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+torch::autograd::AccumulateGrad
+[[2]]
+AddBackward1&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# here we arrive at the other leaf node (AccumulateGrad for x2)
+out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions[[2]]$next_functions&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[[1]]
+torch::autograd::AccumulateGrad&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;If we now call &lt;code&gt;out$backward()&lt;/code&gt;, all tensors in the graph will have their respective gradients calculated.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out$backward()
 
-    ### -------- Backpropagation -------- 
-    
-    # here we&amp;#39;ll pass through the network, calculating the required gradients
-    
+z$grad
+y$grad
+x2$grad
+x1$grad&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+ 0.2500  0.2500
+ 0.2500  0.2500
+[ CPUFloatType{2,2} ]
+torch_tensor 
+ 4.6500  4.6500
+ 4.6500  4.6500
+[ CPUFloatType{2,2} ]
+torch_tensor 
+ 18.6000
+[ CPUFloatType{1} ]
+torch_tensor 
+ 14.4150  14.4150
+ 14.4150  14.4150
+[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After this nerdy excursion, let’s see how &lt;em&gt;autograd&lt;/em&gt; makes our network simpler.&lt;/p&gt;
+&lt;h2 id="the-simple-network-now-using-autograd"&gt;The simple network, now using &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
+&lt;p&gt;Thanks to &lt;em&gt;autograd&lt;/em&gt;, we say good-bye to the tedious, error-prone process of coding backpropagation ourselves. A single method call does it all: &lt;code&gt;loss$backward()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;With &lt;code&gt;torch&lt;/code&gt; keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. We can code forward pass, loss calculation, and backward pass in just three lines:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
+  
+loss &amp;lt;- (y_pred - y)$pow(2)$sum()
 
-    ### -------- Update weights -------- 
-    
-    # here we&amp;#39;ll update the weights, subtracting portion of the gradients 
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The forward pass effectuates two affine transformations, one each for the hidden and output layers. In-between, ReLU activation is applied:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;  # compute pre-activations of hidden layers (dim: 100 x 32)
-  # torch_mm does matrix multiplication
-  h &amp;lt;- x$mm(w1) + b1
-  
-  # apply activation function (dim: 100 x 32)
-  # torch_clamp cuts off values below/above given thresholds
-  h_relu &amp;lt;- h$clamp(min = 0)
-  
-  # compute output (dim: 100 x 1)
-  y_pred &amp;lt;- h_relu$mm(w2) + b2&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Our loss here is mean squared error:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;  loss &amp;lt;- as.numeric((y_pred - y)$pow(2)$sum())&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Calculating gradients the manual way is a bit tedious&lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;, but it can be done:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;  # gradient of loss w.r.t. prediction (dim: 100 x 1)
-  grad_y_pred &amp;lt;- 2 * (y_pred - y)
-  # gradient of loss w.r.t. w2 (dim: 32 x 1)
-  grad_w2 &amp;lt;- h_relu$t()$mm(grad_y_pred)
-  # gradient of loss w.r.t. hidden activation (dim: 100 x 32)
-  grad_h_relu &amp;lt;- grad_y_pred$mm(w2$t())
-  # gradient of loss w.r.t. hidden pre-activation (dim: 100 x 32)
-  grad_h &amp;lt;- grad_h_relu$clone()
-  
-  grad_h[h &amp;lt; 0] &amp;lt;- 0
-  
-  # gradient of loss w.r.t. b2 (shape: ())
-  grad_b2 &amp;lt;- grad_y_pred$sum()
-  
-  # gradient of loss w.r.t. w1 (dim: 3 x 32)
-  grad_w1 &amp;lt;- x$t()$mm(grad_h)
-  # gradient of loss w.r.t. b1 (shape: (32, ))
-  grad_b1 &amp;lt;- grad_h$sum(dim = 1)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The final step then uses the calculated gradients to update the weights:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;  learning_rate &amp;lt;- 1e-4
-  
-  w2 &amp;lt;- w2 - learning_rate * grad_w2
-  b2 &amp;lt;- b2 - learning_rate * grad_b2
-  w1 &amp;lt;- w1 - learning_rate * grad_w1
-  b1 &amp;lt;- b1 - learning_rate * grad_b1&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Let’s use these snippets to fill in the gaps in the above template, and give it a try!&lt;/p&gt;
-&lt;h4 id="putting-it-all-together"&gt;Putting it all together&lt;/h4&gt;
+loss$backward()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;library(torch)
 
 ### generate training data -----------------------------------------------------
@@ -665,8 +135,7 @@ n &amp;lt;- 100
 
 # create random data
 x &amp;lt;- torch_randn(n, d_in)
-y &amp;lt;-
-  x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
 
 
 ### initialize weights ---------------------------------------------------------
@@ -674,14 +143,14 @@ y &amp;lt;-
 # dimensionality of hidden layer
 d_hidden &amp;lt;- 32
 # weights connecting input to hidden layer
-w1 &amp;lt;- torch_randn(d_in, d_hidden)
+w1 &amp;lt;- torch_randn(d_in, d_hidden, requires_grad = TRUE)
 # weights connecting hidden to output layer
-w2 &amp;lt;- torch_randn(d_hidden, d_out)
+w2 &amp;lt;- torch_randn(d_hidden, d_out, requires_grad = TRUE)
 
 # hidden layer bias
-b1 &amp;lt;- torch_zeros(1, d_hidden)
+b1 &amp;lt;- torch_zeros(1, d_hidden, requires_grad = TRUE)
 # output layer bias
-b2 &amp;lt;- torch_zeros(1, d_out)
+b2 &amp;lt;- torch_zeros(1, d_out, requires_grad = TRUE)
 
 ### network parameters ---------------------------------------------------------
 
@@ -692,81 +161,62 @@ learning_rate &amp;lt;- 1e-4
 for (t in 1:200) {
   ### -------- Forward pass --------
   
-  # compute pre-activations of hidden layers (dim: 100 x 32)
-  h &amp;lt;- x$mm(w1) + b1
-  # apply activation function (dim: 100 x 32)
-  h_relu &amp;lt;- h$clamp(min = 0)
-  # compute output (dim: 100 x 1)
-  y_pred &amp;lt;- h_relu$mm(w2) + b2
+  y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
   
-  ### -------- compute loss --------
-
-  loss &amp;lt;- as.numeric((y_pred - y)$pow(2)$sum())
-  
+  ### -------- compute loss -------- 
+  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
   if (t %% 10 == 0)
-    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss, &amp;quot;\n&amp;quot;)
+    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
   
   ### -------- Backpropagation --------
   
-  # gradient of loss w.r.t. prediction (dim: 100 x 1)
-  grad_y_pred &amp;lt;- 2 * (y_pred - y)
-  # gradient of loss w.r.t. w2 (dim: 32 x 1)
-  grad_w2 &amp;lt;- h_relu$t()$mm(grad_y_pred)
-  # gradient of loss w.r.t. hidden activation (dim: 100 x 32)
-  grad_h_relu &amp;lt;- grad_y_pred$mm(
-    w2$t())
-  # gradient of loss w.r.t. hidden pre-activation (dim: 100 x 32)
-  grad_h &amp;lt;- grad_h_relu$clone()
+  # compute gradient of loss w.r.t. all tensors with requires_grad = TRUE
+  loss$backward()
   
-  grad_h[h &amp;lt; 0] &amp;lt;- 0
+  ### -------- Update weights -------- 
   
-  # gradient of loss w.r.t. b2 (shape: ())
-  grad_b2 &amp;lt;- grad_y_pred$sum()
-  
-  # gradient of loss w.r.t. w1 (dim: 3 x 32)
-  grad_w1 &amp;lt;- x$t()$mm(grad_h)
-  # gradient of loss w.r.t. b1 (shape: (32, ))
-  grad_b1 &amp;lt;- grad_h$sum(dim = 1)
-  
-  ### -------- Update weights --------
-  
-  w2 &amp;lt;- w2 - learning_rate * grad_w2
-  b2 &amp;lt;- b2 - learning_rate * grad_b2
-  w1 &amp;lt;- w1 - learning_rate * grad_w1
-  b1 &amp;lt;- b1 - learning_rate * grad_b1
-  
+  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T 
+  # want to record for automatic gradient computation
+   with_no_grad({
+     w1 &amp;lt;- w1$sub_(learning_rate * w1$grad)
+     w2 &amp;lt;- w2$sub_(learning_rate * w2$grad)
+     b1 &amp;lt;- b1$sub_(learning_rate * b1$grad)
+     b2 &amp;lt;- b2$sub_(learning_rate * b2$grad)  
+     
+     # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
+     w1$grad$zero_()
+     w2$grad$zero_()
+     b1$grad$zero_()
+     b2$grad$zero_()  
+   })
+
 }&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;Epoch:  10     Loss:  352.3585 
-Epoch:  20     Loss:  219.3624 
-Epoch:  30     Loss:  155.2307 
-Epoch:  40     Loss:  124.5716 
-Epoch:  50     Loss:  109.2687 
-Epoch:  60     Loss:  100.1543 
-Epoch:  70     Loss:  94.77817 
-Epoch:  80     Loss:  91.57003 
-Epoch:  90     Loss:  89.37974 
-Epoch:  100    Loss:  87.64617 
-Epoch:  110    Loss:  86.3077 
-Epoch:  120    Loss:  85.25118 
-Epoch:  130    Loss:  84.37959 
-Epoch:  140    Loss:  83.44133 
-Epoch:  150    Loss:  82.60386 
-Epoch:  160    Loss:  81.85324 
-Epoch:  170    Loss:  81.23454 
-Epoch:  180    Loss:  80.68679 
-Epoch:  190    Loss:  80.16555 
-Epoch:  200    Loss:  79.67953 &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This looks like it worked pretty well! It also should have fulfilled its purpose: Showing what you can achieve using &lt;code&gt;torch&lt;/code&gt; tensors alone. In case you didn’t feel like going through the backprop logic with too much enthusiasm, don’t worry: In the next installment, this will get significantly less cumbersome. See you then!&lt;/p&gt;
+&lt;p&gt;As explained above, after &lt;code&gt;some_tensor$backward()&lt;/code&gt;, all tensors preceding it in the graph&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt; will have their &lt;code&gt;grad&lt;/code&gt; fields populated. We make use of these fields to update the weights. But now that &lt;em&gt;autograd&lt;/em&gt; is “on”, whenever we execute an operation we &lt;em&gt;don’t&lt;/em&gt; want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to &lt;code&gt;with_no_grad()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;While this is something you may file under “nice to know” – after all, once we arrive at the last post in the series, this manual updating of weights will be gone – the idiom of &lt;em&gt;zeroing gradients&lt;/em&gt; is here to stay: Values stored in &lt;code&gt;grad&lt;/code&gt; fields accumulate; whenever we’re done using them, we need to zero them out before reuse.&lt;/p&gt;
+&lt;h2 id="outlook"&gt;Outlook&lt;/h2&gt;
+&lt;p&gt;So where do we stand? We started out coding a network completely from scratch, making use of nothing but &lt;code&gt;torch&lt;/code&gt; tensors. Today, we got significant help from &lt;em&gt;autograd&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;But we’re still manually updating the weights, – and aren’t deep learning frameworks known to provide abstractions (“layers”, or: “modules”) on top of tensor computations …?&lt;/p&gt;
+&lt;p&gt;We address both issues in the follow-up installments. Thanks for reading!&lt;/p&gt;
 &lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
 &lt;div class="footnotes"&gt;
 &lt;hr /&gt;
 &lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;Although the assumption may be tempting, “contiguous” does not correspond to what we’d call “contiguous in memory” in casual language.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn2"&gt;&lt;p&gt;For correctness’ sake, &lt;code&gt;contiguous()&lt;/code&gt; will only make a copy if the tensor it is called on is &lt;em&gt;not contiguous already.&lt;/em&gt;&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn3"&gt;&lt;p&gt;Just to avoid any misunderstandings: In the next installment, this will be very first thing rendered obsolete by &lt;code&gt;torch&lt;/code&gt;’s automatic differentiation capabilities.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;Unless we &lt;em&gt;want&lt;/em&gt; to change the data, as when generating adversarial examples.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
 &lt;/div&gt;</description>
-      <distill:md5>b3342ae85ca28cf328840b0841a346d0</distill:md5>
+      <distill:md5>68b4457f4594ac1a742e88e6d9c790b4</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</guid>
+      <pubDate>Sun, 04 Oct 2020 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
+    <item>
+      <title>Getting familiar with torch tensors</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</link>
+      <description>In this first installment of a four-part miniseries, we present the main things you will want to know about torch tensors. As an illustrative example, we'll code a simple neural network from scratch.</description>
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</guid>
@@ -789,252 +239,7 @@ Epoch:  200    Loss:  79.67953 &lt;/code&gt;&lt;/pre&gt;
       <title>Please allow me to introduce myself: Torch for R</title>
       <dc:creator>Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</link>
-      <description>
-
-
-&lt;p&gt;Last January at &lt;a href="https://rstudio.com/conference/"&gt;rstudio::conf&lt;/a&gt;, in that distant past when conferences still used to take place at some physical location, my colleague &lt;a href="https://twitter.com/dfalbel"&gt;Daniel&lt;/a&gt; gave a talk introducing new features and ongoing development in the &lt;code&gt;tensorflow&lt;/code&gt; ecosystem. In the Q&amp;amp;A part, he was asked something unexpected: Were we going to build support for &lt;a href="https://pytorch.org/"&gt;PyTorch&lt;/a&gt;? He hesitated; that was in fact the plan, and he had already played around with natively implementing &lt;code&gt;torch&lt;/code&gt; tensors at a prior time, but he was not completely certain how well “it” would work.&lt;/p&gt;
-&lt;p&gt;“It”, that is an implementation which does not bind to Python Torch, meaning, we don’t install the PyTorch wheel and import it via &lt;code&gt;reticulate&lt;/code&gt;. Instead, we delegate to the underlying C++ library &lt;code&gt;libtorch&lt;/code&gt; for tensor computations and automatic differentiation, while neural network features – layers, activations, optimizers – are implemented directly in R. Removing the intermediary has at least two benefits: For one, the leaner software stack means fewer possible problems in installation and fewer places to look when troubleshooting. Secondly, through its non-dependence on Python, &lt;code&gt;torch&lt;/code&gt; does not require users to install and maintain a suitable Python environment. Depending on operating system and context, this can make an enormous difference: For example, in many organizations employees are not allowed to manipulate privileged software installations on their laptops.&lt;/p&gt;
-&lt;p&gt;So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against &lt;code&gt;libtorch&lt;/code&gt; would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable.)&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt; On the other, the sheer amount of work involved in re-implementing – not all, but a big amount of – PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we’ll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that &lt;code&gt;torch&lt;/code&gt; can be useful to the R community. Thus, without further ado, let’s train a neural network.&lt;/p&gt;
-&lt;p&gt;You’re not at your laptop now? Just follow along in the &lt;a href="https://colab.research.google.com/drive/1NdiN9n_a7NEvFpvjPDvxKTshrSWgxZK5?usp=sharing"&gt;companion notebook on Colaboratory&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id="installation"&gt;Installation&lt;/h2&gt;
-&lt;h4 id="torch"&gt;&lt;code&gt;torch&lt;/code&gt;&lt;/h4&gt;
-&lt;p&gt;Installing &lt;code&gt;torch&lt;/code&gt; is as straightforward as typing&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;install.packages(&amp;quot;torch&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This will detect whether you have CUDA installed, and either download the CPU or the GPU version of &lt;code&gt;libtorch&lt;/code&gt;. Then, it will install the R package from CRAN. To make use of the very newest features, you can install the development version from GitHub:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;devtools::install_github(&amp;quot;mlverse/torch&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To quickly check the installation, and whether GPU support works fine (assuming that there &lt;em&gt;is&lt;/em&gt; a CUDA-capable NVidia GPU), create a tensor &lt;em&gt;on the CUDA device&lt;/em&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;torch_tensor(1, device = &amp;quot;cuda&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1
-[ CUDAFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;If all our &lt;em&gt;hello torch&lt;/em&gt; example did was run a network on, say, simulated data, we could stop here. As we’ll do image classification, however, we need to install another package: &lt;code&gt;torchvision&lt;/code&gt;.&lt;/p&gt;
-&lt;h4 id="torchvision"&gt;&lt;code&gt;torchvision&lt;/code&gt;&lt;/h4&gt;
-&lt;p&gt;Whereas &lt;code&gt;torch&lt;/code&gt; is where tensors, network modules, and generic data loading functionality live, datatype-specific capabilities are – or will be – provided by dedicated packages. In general, these capabilities comprise three types of things: datasets, tools for pre-processing and data loading, and pre-trained models.&lt;/p&gt;
-&lt;p&gt;As of this writing, PyTorch has dedicated libraries for three domain areas: vision, text, and audio. In R, we plan to proceed analogously – “plan”, because &lt;code&gt;torchtext&lt;/code&gt; and &lt;code&gt;torchaudio&lt;/code&gt; are yet to be created. Right now, &lt;code&gt;torchvision&lt;/code&gt; is all we need:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;devtools::install_github(&amp;quot;mlverse/torchvision&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And we’re ready to load the data.&lt;/p&gt;
-&lt;h2 id="data-loading-and-pre-processing"&gt;Data loading and pre-processing&lt;/h2&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-library(torchvision)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The list of vision datasets bundled with PyTorch is long, and they’re continually being added to &lt;code&gt;torchvision&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;The one we need right now is available already, and it’s – MNIST? … not quite: It’s my favorite “MNIST dropin”, &lt;a href="https://github.com/rois-codh/kmnist"&gt;Kuzushiji-MNIST&lt;/a&gt; &lt;span class="citation"&gt;(Clanuwat et al. 2018)&lt;/span&gt;. Like other datasets explicitly created to replace MNIST, it has ten classes – characters, in this case, depicted as grayscale images of resolution &lt;code&gt;28x28&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;Here are the first 32 characters:&lt;/p&gt;
-&lt;div class="figure"&gt;
-&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-09-29-introducing-torch-for-r/images/kmnist.png" alt="Kuzushiji MNIST." width="768" /&gt;
-&lt;p class="caption"&gt;
-(#fig:unnamed-chunk-7)Kuzushiji MNIST.
-&lt;/p&gt;
-&lt;/div&gt;
-&lt;h4 id="dataset"&gt;Dataset&lt;/h4&gt;
-&lt;p&gt;The following code will download the data separately for training and test sets.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;train_ds &amp;lt;- kmnist_dataset(
-  &amp;quot;.&amp;quot;,
-  download = TRUE,
-  train = TRUE,
-  transform = transform_to_tensor
-)
-
-test_ds &amp;lt;- kmnist_dataset(
-  &amp;quot;.&amp;quot;,
-  download = TRUE,
-  train = FALSE,
-  transform = transform_to_tensor
-)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Note the &lt;code&gt;transform&lt;/code&gt; argument. &lt;code&gt;transform_to_tensor&lt;/code&gt; takes an image and applies two transformations: First, it normalizes the pixels to the range between 0 and 1. Then, it adds another dimension in front. Why?&lt;/p&gt;
-&lt;p&gt;Contrary to what you might expect – if until now, you’ve been using &lt;code&gt;keras&lt;/code&gt; – the additional dimension is &lt;em&gt;not&lt;/em&gt; the batch dimension. Batching will be taken care of by the &lt;code&gt;dataloader&lt;/code&gt;, to be introduced next. Instead, this is the &lt;em&gt;channels&lt;/em&gt; dimension that in &lt;code&gt;torch&lt;/code&gt;, is found &lt;em&gt;before&lt;/em&gt; the width and height dimensions by default.&lt;/p&gt;
-&lt;p&gt;One thing I’ve found to be extremely useful about &lt;code&gt;torch&lt;/code&gt; is how easy it is to inspect objects. Even though we’re dealing with a &lt;code&gt;dataset&lt;/code&gt;, a custom object, and not an R array or even a &lt;code&gt;torch&lt;/code&gt; tensor, we can easily peek at what’s inside. Indexing in &lt;code&gt;torch&lt;/code&gt; is 1-based, conforming to the R user’s intuitions. Consequently,&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;train_ds[1]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;gives us the first element in the dataset, an R &lt;em&gt;list&lt;/em&gt; of two tensors corresponding to input and target, respectively. (We don’t reproduce the output here, but you can see for yourself in the notebook.)&lt;/p&gt;
-&lt;p&gt;Let’s inspect the shape of the input tensor:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;train_ds[1][[1]]$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1]  1 28 28&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now that we have the data, we need someone to feed them to a deep learning model, nicely batched and all. In &lt;code&gt;torch&lt;/code&gt;, this is the task of data loaders.&lt;/p&gt;
-&lt;h4 id="data-loader"&gt;Data loader&lt;/h4&gt;
-&lt;p&gt;Each of the training and test sets gets their own data loader:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;train_dl &amp;lt;- dataloader(train_ds, batch_size = 32, shuffle = TRUE)
-test_dl &amp;lt;- dataloader(test_ds, batch_size = 32)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Again, &lt;code&gt;torch&lt;/code&gt; makes it easy to verify we did the correct thing. To take a look at the content of the first batch, do&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;train_iter &amp;lt;- train_dl$.iter()
-train_iter$.next()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Functionality like this may not seem indispensable when working with a well-known dataset, but it will turn out to be very useful when a lot of domain-specific pre-processing is required.&lt;/p&gt;
-&lt;p&gt;Now that we’ve seen how to load data, all prerequisites are fulfilled for visualizing them. Here is the code that was used to display the first batch of characters, above:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;par(mfrow = c(4,8), mar = rep(0, 4))
-images &amp;lt;- train_dl$.iter()$.next()[[1]][1:32, 1, , ] 
-images %&amp;gt;%
-  purrr::array_tree(1) %&amp;gt;%
-  purrr::map(as.raster) %&amp;gt;%
-  purrr::iwalk(~{plot(.x)})&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We’re ready to define our network – a simple convnet.&lt;/p&gt;
-&lt;h2 id="network"&gt;Network&lt;/h2&gt;
-&lt;p&gt;If you’ve been using &lt;code&gt;keras&lt;/code&gt; &lt;em&gt;custom models&lt;/em&gt; (or have some experience with &lt;em&gt;Py&lt;/em&gt;Torch), the following way of defining a network may not look too surprising.&lt;/p&gt;
-&lt;p&gt;You use &lt;code&gt;nn_module()&lt;/code&gt; to define an R6 class that will hold the network’s components. Its layers are created in &lt;code&gt;initialize()&lt;/code&gt;; &lt;code&gt;forward()&lt;/code&gt; describes what happens during the network’s forward pass. One thing on terminology: In &lt;code&gt;torch&lt;/code&gt;, layers are called &lt;em&gt;modules&lt;/em&gt;, as are networks. This makes sense: The design is truly &lt;em&gt;modular&lt;/em&gt; in that any module can be used as a component in a larger one.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;net &amp;lt;- nn_module(
-  
-  &amp;quot;KMNIST-CNN&amp;quot;,
-  
-  initialize = function() {
-    # in_channels, out_channels, kernel_size, stride = 1, padding = 0
-    self$conv1 &amp;lt;- nn_conv2d(1, 32, 3)
-    self$conv2 &amp;lt;- nn_conv2d(32, 64, 3)
-    self$dropout1 &amp;lt;- nn_dropout2d(0.25)
-    self$dropout2 &amp;lt;- nn_dropout2d(0.5)
-    self$fc1 &amp;lt;- nn_linear(9216, 128)
-    self$fc2 &amp;lt;- nn_linear(128, 10)
-  },
-  
-  forward = function(x) {
-    x %&amp;gt;% 
-      self$conv1() %&amp;gt;%
-      nnf_relu() %&amp;gt;%
-      self$conv2() %&amp;gt;%
-      nnf_relu() %&amp;gt;%
-      nnf_max_pool2d(2) %&amp;gt;%
-      self$dropout1() %&amp;gt;%
-      torch_flatten(start_dim = 2) %&amp;gt;%
-      self$fc1() %&amp;gt;%
-      nnf_relu() %&amp;gt;%
-      self$dropout2() %&amp;gt;%
-      self$fc2()
-  }
-)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The layers – apologies: modules – themselves may look familiar. Unsurprisingly, &lt;code&gt;nn_conv2d()&lt;/code&gt; performs two-dimensional convolution; &lt;code&gt;nn_linear()&lt;/code&gt; multiplies by a weight matrix and adds a vector of biases. But what are those numbers: &lt;code&gt;nn_linear(128, 10)&lt;/code&gt;, say?&lt;/p&gt;
-&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt;, instead of the number of units in a layer, you specify input and output dimensionalities of the “data” that run through it. Thus, &lt;code&gt;nn_linear(128, 10)&lt;/code&gt; has 128 input connections and outputs 10 values – one for every class. In some cases, such as this one, specifying dimensions is easy – we know how many input edges there are (namely, the same as the number of output edges from the previous layer), and we know how many output values we need. But how about the previous module? How do we arrive at &lt;code&gt;9216&lt;/code&gt; input connections?&lt;/p&gt;
-&lt;p&gt;Here, a bit of calculation is necessary. We go through all actions that happen in &lt;code&gt;forward()&lt;/code&gt; – if they affect shapes, we keep track of the transformation; if they don’t, we ignore them.&lt;/p&gt;
-&lt;p&gt;So, we start with input tensors of shape &lt;code&gt;batch_size x 1 x 28 x 28&lt;/code&gt;. Then,&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nn_conv2d(1, 32, 3)&lt;/code&gt; , or equivalently, &lt;code&gt;nn_conv2d(in_channels = 1, out_channels = 32, kernel_size = 3),&lt;/code&gt;applies a convolution with kernel size 3, stride 1 (the default), and no padding (the default). We can consult the &lt;a href="https://mlverse.github.io/torch/reference/nn_conv2d.html"&gt;documentation&lt;/a&gt; to look up the resulting output size, or just intuitively reason that with a kernel of size 3 and no padding, the image will shrink by one pixel in each direction, resulting in a spatial resolution of &lt;code&gt;26 x 26&lt;/code&gt;. &lt;em&gt;Per channel&lt;/em&gt;, that is. Thus, the actual output shape is &lt;code&gt;batch_size x 32 x 26 x 26&lt;/code&gt; . Next,&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nnf_relu()&lt;/code&gt; applies ReLU activation, in no way touching the shape. Next is&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nn_conv2d(32, 64, 3)&lt;/code&gt;, another convolution with zero padding and kernel size 3. Output size now is &lt;code&gt;batch_size x 64 x 24 x 24&lt;/code&gt; . Now, the second&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nnf_relu()&lt;/code&gt; again does nothing to the output shape, but&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nnf_max_pool2d(2)&lt;/code&gt; (equivalently: &lt;code&gt;nnf_max_pool2d(kernel_size = 2)&lt;/code&gt;) does: It applies max pooling over regions of extension &lt;code&gt;2 x 2&lt;/code&gt;, thus downsizing the output to a format of &lt;code&gt;batch_size x 64 x 12 x 12&lt;/code&gt; . Now,&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nn_dropout2d(0.25)&lt;/code&gt; is a no-op, shape-wise, but if we want to apply a linear layer later, we need to merge all of the &lt;em&gt;channels&lt;/em&gt;, &lt;em&gt;height&lt;/em&gt; and &lt;em&gt;width&lt;/em&gt; axes into a single dimension. This is done in&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;torch_flatten(start_dim = 2)&lt;/code&gt;. Output shape is now &lt;code&gt;batch_size * 9216&lt;/code&gt; , since &lt;code&gt;64 * 12 * 12 = 9216&lt;/code&gt; . Thus here we have the &lt;code&gt;9216&lt;/code&gt; input connections fed into the&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nn_linear(9216, 128)&lt;/code&gt; discussed above. Again,&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nnf_relu()&lt;/code&gt; and &lt;code&gt;nn_dropout2d(0.5)&lt;/code&gt; leave dimensions as they are, and finally,&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;&lt;code&gt;nn_linear(128, 10)&lt;/code&gt; gives us the desired output scores, one for each of the ten classes.&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Now you’ll be thinking, – what if my network is more complicated? Calculations could become pretty cumbersome. Luckily, with &lt;code&gt;torch&lt;/code&gt;’s flexibility, there is another way. Since every layer is callable &lt;em&gt;in isolation&lt;/em&gt;, we can just … create some sample data and see what happens!&lt;/p&gt;
-&lt;p&gt;Here is a sample “image” – or more precisely, a one-item batch containing it:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x &amp;lt;- torch_randn(c(1, 1, 28, 28))&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;What if we call the first &lt;em&gt;conv2d&lt;/em&gt; module on it?&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;conv1 &amp;lt;- nn_conv2d(1, 32, 3)
-conv1(x)$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1]  1 32 26 26&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Or both &lt;em&gt;conv2d&lt;/em&gt; modules?&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;conv2 &amp;lt;- nn_conv2d(32, 64, 3)
-(conv1(x) %&amp;gt;% conv2())$size()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1]  1 64 24 24&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And so on. This is just one example illustrating how &lt;code&gt;torch&lt;/code&gt;s flexibility makes developing neural nets easier.&lt;/p&gt;
-&lt;p&gt;Back to the main thread. We instantiate the model, and we ask &lt;code&gt;torch&lt;/code&gt; to allocate its weights (parameters) on the GPU:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- net()
-model$to(device = &amp;quot;cuda&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We’ll do the same for the input and output data – that is, we’ll move them to the GPU. This is done in the training loop, which we’ll inspect next.&lt;/p&gt;
-&lt;h2 id="training"&gt;Training&lt;/h2&gt;
-&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt;, when creating an optimizer, we tell it what to operate on, namely, the model’s parameters:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(model$parameters)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;What about the loss function? For classification with more than two classes, we use &lt;em&gt;cross entropy&lt;/em&gt;, in &lt;code&gt;torch&lt;/code&gt;: &lt;code&gt;nnf_cross_entropy(prediction, ground_truth)&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# this will be called for every batch, see training loop below
-loss &amp;lt;- nnf_cross_entropy(output, b[[2]]$to(device = &amp;quot;cuda&amp;quot;))&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Unlike categorical cross entropy in &lt;code&gt;keras&lt;/code&gt; , which would expect &lt;code&gt;prediction&lt;/code&gt; to contain probabilities, as obtained by applying a &lt;em&gt;softmax&lt;/em&gt; activation, &lt;code&gt;torch&lt;/code&gt;’s &lt;code&gt;nnf_cross_entropy()&lt;/code&gt; works with the raw outputs (the &lt;em&gt;logits&lt;/em&gt;). This is why the network’s last linear layer was not followed by any activation.&lt;/p&gt;
-&lt;p&gt;The training loop, in fact, is a double one: It loops over epochs and batches. For every batch, it calls the model on the input, calculates the loss, and has the optimizer update the weights:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;for (epoch in 1:5) {
-
-  l &amp;lt;- c()
-
-  for (b in enumerate(train_dl)) {
-    # make sure each batch&amp;#39;s gradient updates are calculated from a fresh start
-    optimizer$zero_grad()
-    # get model predictions
-    output &amp;lt;- model(b[[1]]$to(device = &amp;quot;cuda&amp;quot;))
-    # calculate loss
-    loss &amp;lt;- nnf_cross_entropy(output, b[[2]]$to(device = &amp;quot;cuda&amp;quot;))
-    # calculate gradient
-    loss$backward()
-    # apply weight updates
-    optimizer$step()
-    # track losses
-    l &amp;lt;- c(l, loss$item())
-  }
-
-  cat(sprintf(&amp;quot;Loss at epoch %d: %3f\n&amp;quot;, epoch, mean(l)))
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;Loss at epoch 1: 1.795564
-Loss at epoch 2: 1.540063
-Loss at epoch 3: 1.495343
-Loss at epoch 4: 1.461649
-Loss at epoch 5: 1.446628&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Although there is a lot more that &lt;em&gt;could&lt;/em&gt; be done – calculate metrics or evaluate performance on a validation set, for example – the above is a typical (if simple) template for a &lt;code&gt;torch&lt;/code&gt; training loop.&lt;/p&gt;
-&lt;p&gt;The optimizer-related idioms in particular&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;optimizer$zero_grad()
-# ...
-loss$backward()
-# ...
-optimizer$step()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;you’ll keep encountering over and over.&lt;/p&gt;
-&lt;p&gt;Finally, let’s evaluate model performance on the test set.&lt;/p&gt;
-&lt;h2 id="evaluation"&gt;Evaluation&lt;/h2&gt;
-&lt;p&gt;Putting a model in &lt;code&gt;eval&lt;/code&gt; mode tells &lt;code&gt;torch&lt;/code&gt; &lt;em&gt;not&lt;/em&gt; to calculate gradients and perform backprop during the operations that follow:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model$eval()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We iterate over the test set, keeping track of losses and accuracies obtained on the batches.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;test_losses &amp;lt;- c()
-total &amp;lt;- 0
-correct &amp;lt;- 0
-
-for (b in enumerate(test_dl)) {
-  output &amp;lt;- model(b[[1]]$to(device = &amp;quot;cuda&amp;quot;))
-  labels &amp;lt;- b[[2]]$to(device = &amp;quot;cuda&amp;quot;)
-  loss &amp;lt;- nnf_cross_entropy(output, labels)
-  test_losses &amp;lt;- c(test_losses, loss$item())
-  # torch_max returns a list, with position 1 containing the values 
-  # and position 2 containing the respective indices
-  predicted &amp;lt;- torch_max(output$data(), dim = 2)[[2]]
-  total &amp;lt;- total + labels$size(1)
-  # add number of correct classifications in this batch to the aggregate
-  correct &amp;lt;- correct + (predicted == labels)$sum()$item()
-}
-
-mean(test_losses)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 1.53784480643349&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Here is mean accuracy, computed as proportion of correct classifications:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;test_accuracy &amp;lt;-  correct/total
-test_accuracy&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[1] 0.9449&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;That’s it for our first &lt;code&gt;torch&lt;/code&gt; example. Where to from here?&lt;/p&gt;
-&lt;h2 id="learn"&gt;Learn&lt;/h2&gt;
-&lt;p&gt;To learn more, check out our vignettes on the &lt;a href="https://mlverse.github.io/torch"&gt;&lt;code&gt;torch&lt;/code&gt; website&lt;/a&gt;. To begin, you may want to check out these in particular:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;“Getting started” series: Build a simple neural network from scratch, starting from &lt;a href="https://mlverse.github.io/tohttps://mlverse.github.io/torch/articles/getting-started/tensors.html"&gt;low-level tensor manipulation&lt;/a&gt; and gradually adding in higher-level features like &lt;a href="https://mlverse.github.io/torch/articles/getting-started/tensors-and-autograd.html"&gt;automatic differentiation&lt;/a&gt; and &lt;a href="https://mlverse.github.io/torch/articles/getting-started/nn.html"&gt;network modules&lt;/a&gt;.&lt;/li&gt;
-&lt;li&gt;More on tensors: &lt;a href="https://mlverse.github.io/torch/articles/tensor-creation.html"&gt;Tensor creation&lt;/a&gt; and &lt;a href="https://mlverse.github.io/torch/articles/indexing.html"&gt;indexing&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;Backpropagation in &lt;code&gt;torch&lt;/code&gt;: &lt;a href="https://mlverse.github.io/torch/articles/using-autograd.html"&gt;autograd&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;If you have questions, or run into problems, please feel free to ask on &lt;a href="https://github.com/mlverse/torch"&gt;GitHub&lt;/a&gt; or on the &lt;a href="https://community.rstudio.com/c/ml/15"&gt;RStudio community forum&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id="we-need-you"&gt;We need you&lt;/h2&gt;
-&lt;p&gt;We very much hope that the R community will find the new functionality useful. But that’s not all. We hope that you, many of you, will take part in the journey.&lt;/p&gt;
-&lt;p&gt;There is not just a whole framework to be built, including many specialized modules, activation functions, optimizers and schedulers, with more of each being added continuously, on the Python side.&lt;/p&gt;
-&lt;p&gt;There is not just that whole “bag of data types” to be taken care of (images, text, audio…), each of which demand their own pre-processing and data-loading functionality. As everyone knows from experience, ease of data preparation is a, perhaps &lt;em&gt;the&lt;/em&gt; essential factor in how usable a framework is.&lt;/p&gt;
-&lt;p&gt;Then, there is the ever-expanding ecosystem of libraries built on top of PyTorch: &lt;a href="https://github.com/OpenMined/PySyft"&gt;PySyft&lt;/a&gt; and &lt;a href="https://github.com/facebookresearch/CrypTen"&gt;CrypTen&lt;/a&gt; for privacy-preserving machine learning, &lt;a href="https://github.com/rusty1s/pytorch_geometric"&gt;PyTorch Geometric&lt;/a&gt; for deep learning on manifolds, and &lt;a href="http://pyro.ai/"&gt;Pyro&lt;/a&gt; for probabilistic programming, to name just a few.&lt;/p&gt;
-&lt;p&gt;All this is much more than can be done by one or two people: We need your help! Contributions are greatly welcomed at absolutely &lt;em&gt;any&lt;/em&gt; scale:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Add or improve documentation, add introductory examples&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Implement missing layers (modules), activations, helper functions…&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Implement model architectures&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Port some of the PyTorch ecosystem&lt;/p&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;One component that should be of special interest to the R community is &lt;a href="https://pytorch.org/docs/stable/distributions.html"&gt;Torch distributions&lt;/a&gt;, the basis for probabilistic computation. This package is built upon by e.g. the aforementioned &lt;a href="http://pyro.ai/"&gt;Pyro&lt;/a&gt;; at the same time, the distributions that live there are used in probabilistic neural networks or normalizing flows.&lt;/p&gt;
-&lt;p&gt;To reiterate, participation from the R community is greatly encouraged (more than that – fervently hoped for!). Have fun with &lt;code&gt;torch&lt;/code&gt;, and thanks for reading!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="refs" class="references hanging-indent"&gt;
-&lt;div id="ref-clanuwat2018deep"&gt;
-&lt;p&gt;Clanuwat, Tarin, Mikel Bober-Irizar, Asanobu Kitamoto, Alex Lamb, Kazuaki Yamamoto, and David Ha. 2018. “Deep Learning for Classical Japanese Literature.” December 3, 2018. &lt;a href="http://arxiv.org/abs/cs.CV/1812.01718"&gt;http://arxiv.org/abs/cs.CV/1812.01718&lt;/a&gt;.&lt;/p&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;div class="footnotes"&gt;
-&lt;hr /&gt;
-&lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;In a nutshell, &lt;a href="https://twitter.com/javierluraschi"&gt;Javier&lt;/a&gt; had the idea of wrapping &lt;code&gt;libtorch&lt;/code&gt; into &lt;a href="https://github.com/mlverse/lantern"&gt;lantern&lt;/a&gt;, a C interface to &lt;code&gt;libtorch&lt;/code&gt;, thus avoiding cross-compiler issues between MinGW and Visual Studio.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/div&gt;</description>
-      <distill:md5>badabdb56d35c151b49117b5db3f7f00</distill:md5>
+      <description>Today, we are excited to introduce torch, an R package that allows you to use PyTorch-like functionality natively from R. No Python installation is required: torch is built directly on top of libtorch, a C++ library that provides the tensor-computation and automatic-differentiation capabilities essential to building neural networks.</description>
       <category>Packages/Releases</category>
       <category>Torch</category>
       <category>R</category>

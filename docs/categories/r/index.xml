@@ -620,6 +620,215 @@ for (t in 1:200) {
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-09-30-sparklyr-1.4.0-released/images/sparklyr-1.4.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
+      <title>Optimizers in torch</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-09-torch-optim</link>
+      <description>
+
+
+&lt;p&gt;This is the fourth and last installment in a series introducing &lt;code&gt;torch&lt;/code&gt; basics. Initially, we &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch/"&gt;focused on &lt;em&gt;tensors&lt;/em&gt;&lt;/a&gt;. To illustrate their power, we coded a complete (if toy-size) neural network from scratch. We didn’t make use of any of &lt;code&gt;torch&lt;/code&gt;’s higher-level capabilities – not even &lt;em&gt;autograd&lt;/em&gt;, its automatic-differentiation feature.&lt;/p&gt;
+&lt;p&gt;This changed in the &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd"&gt;follow-up post&lt;/a&gt;. No more thinking about derivatives and the chain rule; a single call to &lt;code&gt;backward()&lt;/code&gt; did it all.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-07-torch-modules"&gt;Two days ago&lt;/a&gt;, the code again saw a major simplification. Modules, and compositions thereof, turned out to be much more manageable than tensors, hand-assembled in some DAG&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Based on that last state, there are just two more things to do. For one, we still compute the loss by hand. And secondly, even though we get the gradients all nicely computed from &lt;em&gt;autograd&lt;/em&gt;, we still loop over the model’s parameters, updating them all ourselves. You won’t be surprised to hear that nothing of this is necessary.&lt;/p&gt;
+&lt;h2 id="losses-and-loss-functions"&gt;Losses and loss functions&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; comes with all the usual loss functions, such as mean squared error, cross entropy, Kullback-Leibler divergence, and their likes. In general, there are two usage modes.&lt;/p&gt;
+&lt;p&gt;Taking the example of mean squared error, one way is to call &lt;code&gt;nnf_mse_loss()&lt;/code&gt; directly on the prediction and ground truth tensors. For example:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x &amp;lt;- torch_randn(c(3, 2, 3))
+y &amp;lt;- torch_zeros(c(3, 2, 3))
+
+nnf_mse_loss(x, y)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+0.682362
+[ CPUFloatType{} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Other loss functions designed to be called directly start with &lt;code&gt;nnf_&lt;/code&gt; as well: &lt;code&gt;nnf_binary_cross_entropy()&lt;/code&gt;, &lt;code&gt;nnf_nll_loss()&lt;/code&gt;, &lt;code&gt;nnf_kl_div()&lt;/code&gt; … and so on.&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;The second way is to define the algorithm in advance and call it at some later time. Here, respective constructors all start with &lt;code&gt;nn_&lt;/code&gt; and end in &lt;code&gt;_loss&lt;/code&gt;. For example: &lt;code&gt;nn_bce_loss()&lt;/code&gt;, &lt;code&gt;nn_nll_loss(),&lt;/code&gt; &lt;code&gt;nn_kl_div_loss()&lt;/code&gt; …&lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;loss &amp;lt;- nn_mse_loss()
+
+loss(x, y)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor 
+0.682362
+[ CPUFloatType{} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This method may be preferable when one and the same algorithm, as specified by configurable parameters, should be applied to more than one pair of tensors.&lt;/p&gt;
+&lt;h2 id="optimizers"&gt;Optimizers&lt;/h2&gt;
+&lt;p&gt;So far, we’ve been updating model parameters following a simple strategy: The gradients told us which direction on the loss curve was downward; the learning rate told us how big of a step to take. What we did was a straightforward implementation of &lt;em&gt;gradient descent&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;However, optimization algorithms used in deep learning get a lot more sophisticated than that. Below, we’ll see how to replace our manual updates using &lt;code&gt;optim_adam()&lt;/code&gt;, &lt;code&gt;torch&lt;/code&gt;’s implementation of the Adam algorithm &lt;span class="citation"&gt;(Kingma and Ba 2017)&lt;/span&gt;. First though, let’s take a quick look at how &lt;code&gt;torch&lt;/code&gt; optimizers work.&lt;/p&gt;
+&lt;p&gt;Here is a very simple network, consisting of just one linear layer, to be called on a single data point.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;data &amp;lt;- torch_randn(1, 3)
+
+model &amp;lt;- nn_linear(3, 1)
+model$parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;$weight
+torch_tensor 
+-0.0385  0.1412 -0.5436
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.1950
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;When we create an optimizer, we tell it what parameters it is supposed to work on.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(model$parameters, lr = 0.01)
+optimizer&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;&amp;lt;optim_adam&amp;gt;
+  Inherits from: &amp;lt;torch_Optimizer&amp;gt;
+  Public:
+    add_param_group: function (param_group) 
+    clone: function (deep = FALSE) 
+    defaults: list
+    initialize: function (params, lr = 0.001, betas = c(0.9, 0.999), eps = 1e-08, 
+    param_groups: list
+    state: list
+    step: function (closure = NULL) 
+    zero_grad: function () &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;At any time, we can inspect those parameters:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer$param_groups[[1]]$params&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;$weight
+torch_tensor 
+-0.0385  0.1412 -0.5436
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.1950
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now we perform the forward and backward passes. The backward pass calculates the gradients, but does &lt;em&gt;not&lt;/em&gt; update the parameters, as we can see both from the model &lt;em&gt;and&lt;/em&gt; the optimizer objects:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;out &amp;lt;- model(data)
+out$backward()
+
+optimizer$param_groups[[1]]$params
+model$parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;$weight
+torch_tensor 
+-0.0385  0.1412 -0.5436
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.1950
+[ CPUFloatType{1} ]
+
+$weight
+torch_tensor 
+-0.0385  0.1412 -0.5436
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.1950
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Calling &lt;code&gt;step()&lt;/code&gt; on the optimizer actually &lt;em&gt;performs&lt;/em&gt; the updates. Again, let’s be paranoid and check that both model and optimizer now hold the updated values:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer$step()
+
+optimizer$param_groups[[1]]$params
+model$parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;NULL
+$weight
+torch_tensor 
+-0.0285  0.1312 -0.5536
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.2050
+[ CPUFloatType{1} ]
+
+$weight
+torch_tensor 
+-0.0285  0.1312 -0.5536
+[ CPUFloatType{1,3} ]
+
+$bias
+torch_tensor 
+-0.2050
+[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;If we perform optimization in a loop, we need to make sure to call &lt;code&gt;optimizer$zero_grad()&lt;/code&gt; on every step, as otherwise gradients would be accumulated. You can see this in our final version of the network.&lt;/p&gt;
+&lt;h2 id="simple-network-final-version"&gt;Simple network: final version&lt;/h2&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+
+### generate training data -----------------------------------------------------
+
+# input dimensionality (number of input features)
+d_in &amp;lt;- 3
+# output dimensionality (number of predicted features)
+d_out &amp;lt;- 1
+# number of observations in training set
+n &amp;lt;- 100
+
+
+# create random data
+x &amp;lt;- torch_randn(n, d_in)
+y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+
+
+
+### define the network ---------------------------------------------------------
+
+# dimensionality of hidden layer
+d_hidden &amp;lt;- 32
+
+model &amp;lt;- nn_sequential(
+  nn_linear(d_in, d_hidden),
+  nn_relu(),
+  nn_linear(d_hidden, d_out)
+)
+
+### network parameters ---------------------------------------------------------
+
+# for adam, need to choose a much higher learning rate in this problem
+learning_rate &amp;lt;- 0.08
+
+optimizer &amp;lt;- optim_adam(model$parameters, lr = learning_rate)
+
+### training loop --------------------------------------------------------------
+
+for (t in 1:200) {
+  
+  ### -------- Forward pass -------- 
+  
+  y_pred &amp;lt;- model(x)
+  
+  ### -------- compute loss -------- 
+  loss &amp;lt;- nnf_mse_loss(y_pred, y, reduction = &amp;quot;sum&amp;quot;)
+  if (t %% 10 == 0)
+    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
+  
+  ### -------- Backpropagation -------- 
+  
+  # Still need to zero out the gradients before the backward pass, only this time,
+  # on the optimizer object
+  optimizer$zero_grad()
+  
+  # gradients are still computed on the loss tensor (no change here)
+  loss$backward()
+  
+  ### -------- Update weights -------- 
+  
+  # use the optimizer to update model parameters
+  optimizer$step()
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And that’s it! We’ve seen all the major actors on stage: tensors, &lt;em&gt;autograd&lt;/em&gt;, modules, loss functions, and optimizers. In future posts, we’ll explore how to use &lt;em&gt;torch&lt;/em&gt; for standard deep learning tasks involving images, text, tabular data, and more. Thanks for reading!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div id="refs" class="references hanging-indent"&gt;
+&lt;div id="ref-kingma2017adam"&gt;
+&lt;p&gt;Kingma, Diederik P., and Jimmy Ba. 2017. “Adam: A Method for Stochastic Optimization.” &lt;a href="http://arxiv.org/abs/1412.6980"&gt;http://arxiv.org/abs/1412.6980&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;directed acyclic graph&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;The prefix &lt;code&gt;nnf_&lt;/code&gt; was chosen because in PyTorch, the corresponding functions live in &lt;a href="https://pytorch.org/docs/stable/nn.functional.html"&gt;torch.nn.functional&lt;/a&gt;.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn3"&gt;&lt;p&gt;This time, the corresponding PyTorch module is &lt;a href="https://pytorch.org/docs/stable/nn.html"&gt;torch.nn&lt;/a&gt;.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">36d30c81f9e7940880a94bc0db25151b</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-09-torch-optim</guid>
+      <pubDate>Wed, 30 Sep 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-09-torch-optim/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
+    <item>
       <title>Please allow me to introduce myself: Torch for R</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</link>

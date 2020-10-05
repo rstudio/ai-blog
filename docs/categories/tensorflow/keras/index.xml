@@ -14,253 +14,8 @@
     <generator>Distill</generator>
     <lastBuildDate>Sun, 04 Oct 2020 00:00:00 +0000</lastBuildDate>
     <item>
-      <title>Introducing torch autograd</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</link>
-      <description>
-
-
-&lt;p&gt;Last week, we saw how to code &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;a simple network from scratch&lt;/a&gt;, using nothing but &lt;code&gt;torch&lt;/code&gt; &lt;em&gt;tensors&lt;/em&gt;. Predictions, loss, gradients, weight updates – all these things we’ve been computing ourselves. Today, we make a significant change: Namely, we spare ourselves the cumbersome calculation of gradients, and have &lt;code&gt;torch&lt;/code&gt; do it for us.&lt;/p&gt;
-&lt;p&gt;Prior to that though, let’s get some background.&lt;/p&gt;
-&lt;h2 id="automatic-differentiation-with-autograd"&gt;Automatic differentiation with &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; uses a module called &lt;em&gt;autograd&lt;/em&gt; to&lt;/p&gt;
-&lt;ol style="list-style-type: decimal"&gt;
-&lt;li&gt;&lt;p&gt;record operations performed on tensors, and&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;store what will have to be done to obtain the corresponding gradients, once we’re entering the backward pass.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;These prospective actions are stored internally as functions, and when it’s time to compute the gradients, these functions are applied in order: Application starts from the output node, and calculated gradients are successively &lt;em&gt;propagated&lt;/em&gt; &lt;em&gt;back&lt;/em&gt; through the network. This is a form of &lt;em&gt;reverse mode automatic differentiation&lt;/em&gt;.&lt;/p&gt;
-&lt;h4 id="autograd-basics"&gt;&lt;em&gt;Autograd&lt;/em&gt; basics&lt;/h4&gt;
-&lt;p&gt;As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with &lt;code&gt;requires_grad = TRUE&lt;/code&gt;. For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-
-x &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To be clear, &lt;code&gt;x&lt;/code&gt; now is a tensor &lt;em&gt;with respect to which&lt;/em&gt; gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data &lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. If we subsequently perform some operation on that tensor, assigning the result to &lt;code&gt;y&lt;/code&gt;,&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y &amp;lt;- x$mean()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;we find that &lt;code&gt;y&lt;/code&gt; now has a non-empty &lt;code&gt;grad_fn&lt;/code&gt; that tells &lt;code&gt;torch&lt;/code&gt; how to compute the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$grad_fn&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Actual &lt;em&gt;computation&lt;/em&gt; of gradients is triggered by calling &lt;code&gt;backward()&lt;/code&gt; on the output tensor.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$backward()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;After &lt;code&gt;backward()&lt;/code&gt; has been called, &lt;code&gt;x&lt;/code&gt; has a non-null field termed &lt;code&gt;grad&lt;/code&gt; that stores the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 0.2500  0.2500
- 0.2500  0.2500
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;With longer chains of computations, we can take a glance at how &lt;code&gt;torch&lt;/code&gt; builds up a graph of backward operations. Here is a slightly more complex example – feel free to skip if you’re not the type who just &lt;em&gt;has&lt;/em&gt; to peek into things for them to make sense.&lt;/p&gt;
-&lt;h4 id="digging-deeper"&gt;Digging deeper&lt;/h4&gt;
-&lt;p&gt;We build up a simple graph of tensors, with inputs &lt;code&gt;x1&lt;/code&gt; and &lt;code&gt;x2&lt;/code&gt; being connected to output &lt;code&gt;out&lt;/code&gt; by intermediaries &lt;code&gt;y&lt;/code&gt; and &lt;code&gt;z&lt;/code&gt;.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x1 &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)
-x2 &amp;lt;- torch_tensor(1.1, requires_grad = TRUE)
-
-y &amp;lt;- x1 * (x2 + 2)
-
-z &amp;lt;- y$pow(2) * 3
-
-out &amp;lt;- z$mean()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To save memory, intermediate gradients are normally not being stored. Calling &lt;code&gt;retain_grad()&lt;/code&gt; on a tensor allows one to deviate from this default. Let’s do this here, for the sake of demonstration:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$retain_grad()
-
-z$retain_grad()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now we can go backwards through the graph and inspect &lt;code&gt;torch&lt;/code&gt;’s action plan for backprop, starting from &lt;code&gt;out$grad_fn&lt;/code&gt;, like so:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for mean, the last operation executed
-out$grad_fn&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3
-out$grad_fn$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-MulBackward1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for pow in z = y.pow(2) * 3
-out$grad_fn$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-PowBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication in y = x * (x + 2)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-MulBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the two branches of y = x * (x + 2),
-# where the left branch is a leaf node (AccumulateGrad for x1)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-torch::autograd::AccumulateGrad
-[[2]]
-AddBackward1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# here we arrive at the other leaf node (AccumulateGrad for x2)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions[[2]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-torch::autograd::AccumulateGrad&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;If we now call &lt;code&gt;out$backward()&lt;/code&gt;, all tensors in the graph will have their respective gradients calculated.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$backward()
-
-z$grad
-y$grad
-x2$grad
-x1$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 0.2500  0.2500
- 0.2500  0.2500
-[ CPUFloatType{2,2} ]
-torch_tensor 
- 4.6500  4.6500
- 4.6500  4.6500
-[ CPUFloatType{2,2} ]
-torch_tensor 
- 18.6000
-[ CPUFloatType{1} ]
-torch_tensor 
- 14.4150  14.4150
- 14.4150  14.4150
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;After this nerdy excursion, let’s see how &lt;em&gt;autograd&lt;/em&gt; makes our network simpler.&lt;/p&gt;
-&lt;h2 id="the-simple-network-now-using-autograd"&gt;The simple network, now using &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
-&lt;p&gt;Thanks to &lt;em&gt;autograd&lt;/em&gt;, we say good-bye to the tedious, error-prone process of coding backpropagation ourselves. A single method call does it all: &lt;code&gt;loss$backward()&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;With &lt;code&gt;torch&lt;/code&gt; keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. We can code forward pass, loss calculation, and backward pass in just three lines:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
-  
-loss &amp;lt;- (y_pred - y)$pow(2)$sum()
-
-loss$backward()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-
-### generate training data -----------------------------------------------------
-
-# input dimensionality (number of input features)
-d_in &amp;lt;- 3
-# output dimensionality (number of predicted features)
-d_out &amp;lt;- 1
-# number of observations in training set
-n &amp;lt;- 100
-
-
-# create random data
-x &amp;lt;- torch_randn(n, d_in)
-y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
-
-
-### initialize weights ---------------------------------------------------------
-
-# dimensionality of hidden layer
-d_hidden &amp;lt;- 32
-# weights connecting input to hidden layer
-w1 &amp;lt;- torch_randn(d_in, d_hidden, requires_grad = TRUE)
-# weights connecting hidden to output layer
-w2 &amp;lt;- torch_randn(d_hidden, d_out, requires_grad = TRUE)
-
-# hidden layer bias
-b1 &amp;lt;- torch_zeros(1, d_hidden, requires_grad = TRUE)
-# output layer bias
-b2 &amp;lt;- torch_zeros(1, d_out, requires_grad = TRUE)
-
-### network parameters ---------------------------------------------------------
-
-learning_rate &amp;lt;- 1e-4
-
-### training loop --------------------------------------------------------------
-
-for (t in 1:200) {
-  ### -------- Forward pass --------
-  
-  y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
-  
-  ### -------- compute loss -------- 
-  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
-  if (t %% 10 == 0)
-    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
-  
-  ### -------- Backpropagation --------
-  
-  # compute gradient of loss w.r.t. all tensors with requires_grad = TRUE
-  loss$backward()
-  
-  ### -------- Update weights -------- 
-  
-  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T 
-  # want to record for automatic gradient computation
-   with_no_grad({
-     w1 &amp;lt;- w1$sub_(learning_rate * w1$grad)
-     w2 &amp;lt;- w2$sub_(learning_rate * w2$grad)
-     b1 &amp;lt;- b1$sub_(learning_rate * b1$grad)
-     b2 &amp;lt;- b2$sub_(learning_rate * b2$grad)  
-     
-     # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
-     w1$grad$zero_()
-     w2$grad$zero_()
-     b1$grad$zero_()
-     b2$grad$zero_()  
-   })
-
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;As explained above, after &lt;code&gt;some_tensor$backward()&lt;/code&gt;, all tensors preceding it in the graph&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt; will have their &lt;code&gt;grad&lt;/code&gt; fields populated. We make use of these fields to update the weights. But now that &lt;em&gt;autograd&lt;/em&gt; is “on”, whenever we execute an operation we &lt;em&gt;don’t&lt;/em&gt; want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to &lt;code&gt;with_no_grad()&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;While this is something you may file under “nice to know” – after all, once we arrive at the last post in the series, this manual updating of weights will be gone – the idiom of &lt;em&gt;zeroing gradients&lt;/em&gt; is here to stay: Values stored in &lt;code&gt;grad&lt;/code&gt; fields accumulate; whenever we’re done using them, we need to zero them out before reuse.&lt;/p&gt;
-&lt;h2 id="outlook"&gt;Outlook&lt;/h2&gt;
-&lt;p&gt;So where do we stand? We started out coding a network completely from scratch, making use of nothing but &lt;code&gt;torch&lt;/code&gt; tensors. Today, we got significant help from &lt;em&gt;autograd&lt;/em&gt;.&lt;/p&gt;
-&lt;p&gt;But we’re still manually updating the weights, – and aren’t deep learning frameworks known to provide abstractions (“layers”, or: “modules”) on top of tensor computations …?&lt;/p&gt;
-&lt;p&gt;We address both issues in the follow-up installments. Thanks for reading!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;div class="footnotes"&gt;
-&lt;hr /&gt;
-&lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;Unless we &lt;em&gt;want&lt;/em&gt; to change the data, as when generating adversarial examples.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn2"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/div&gt;</description>
-      <distill:md5>68b4457f4594ac1a742e88e6d9c790b4</distill:md5>
-      <category>Torch</category>
-      <category>R</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</guid>
-      <pubDate>Sun, 04 Oct 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd/images/preview.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>Getting familiar with torch tensors</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</link>
-      <description>In this first installment of a four-part miniseries, we present the main things you will want to know about torch tensors. As an illustrative example, we'll code a simple neural network from scratch.</description>
-      <category>Torch</category>
-      <category>R</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch</guid>
-      <pubDate>Thu, 01 Oct 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-10-01-torch-network-from-scratch/images/pic.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>sparklyr 1.4: Weighted Sampling, Tidyr Verbs, Robust Scaler, RAPIDS, and more</title>
-      <dc:creator>Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-30-sparklyr-1.4.0-released</link>
-      <description>Sparklyr 1.4 is now available! This release comes with delightful new features such as weighted sampling and tidyr verbs support for Spark dataframes, robust scaler for standardizing data based on median and interquartile range, spark_connect interface for RAPIDS GPU acceleration plugin, as well as a number of dplyr-related improvements.</description>
-      <category>R</category>
-      <category>Packages/Releases</category>
-      <category>Distributed Computing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-30-sparklyr-1.4.0-released</guid>
-      <pubDate>Wed, 30 Sep 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-30-sparklyr-1.4.0-released/images/sparklyr-1.4.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>Please allow me to introduce myself: Torch for R</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</link>
-      <description>Today, we are excited to introduce torch, an R package that allows you to use PyTorch-like functionality natively from R. No Python installation is required: torch is built directly on top of libtorch, a C++ library that provides the tensor-computation and automatic-differentiation capabilities essential to building neural networks.</description>
-      <category>Packages/Releases</category>
-      <category>Torch</category>
-      <category>R</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r</guid>
-      <pubDate>Tue, 29 Sep 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-29-introducing-torch-for-r/images/pt.png" medium="image" type="image/png" width="919" height="264"/>
-    </item>
-    <item>
-      <title>Introducing sparklyr.flint: A time-series extension for sparklyr</title>
-      <dc:creator>Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint</link>
-      <description>We are pleased to announce that sparklyr.flint, a sparklyr extension for analyzing time series at scale with Flint, is now available on CRAN. Flint is an open-source library for working with time-series in Apache Spark which supports aggregates and joins on time-series datasets.</description>
-      <category>R</category>
-      <category>Time Series</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint</guid>
-      <pubDate>Mon, 07 Sep 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-07-sparklyr-flint/images/thumb.png" medium="image" type="image/png" width="126" height="77"/>
-    </item>
-    <item>
       <title>An introduction to weather forecasting with deep learning</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction</link>
       <description>A few weeks ago, we showed how to forecast chaotic dynamical systems with deep learning, augmented by a custom constraint derived from domain-specific insight. Global weather is a chaotic system, but of much higher complexity than many tasks commonly addressed with machine and/or deep learning. In this post, we provide a practical introduction featuring a simple deep learning baseline for atmospheric forecasting. While far away from being competitive, it serves to illustrate how more sophisticated and compute-intensive models may approach that formidable task by means of methods situated on the "black-box end" of the continuum.</description>
       <category>R</category>
@@ -268,11 +23,11 @@ for (t in 1:200) {
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction</guid>
       <pubDate>Tue, 01 Sep 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction/images/thumb.png" medium="image" type="image/png" width="600" height="332"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction/images/thumb.png" medium="image" type="image/png" width="600" height="332"/>
     </item>
     <item>
       <title>Training ImageNet with R</title>
-      <dc:creator>Javier Luraschi</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Javier Luraschi</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-08-24-training-imagenet-with-r</link>
       <description>This post explores how to train large datasets with TensorFlow and R. Specifically, we present how to download and repartition ImageNet, followed by training ImageNet across multiple GPUs in distributed environments using TensorFlow and Apache Spark.</description>
       <category>R</category>
@@ -281,21 +36,11 @@ for (t in 1:200) {
       <category>Data Management</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-08-24-training-imagenet-with-r</guid>
       <pubDate>Mon, 24 Aug 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-08-24-training-imagenet-with-r/images/fishing-net.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>Deepfake detection challenge from R</title>
-      <dc:creator>Turgut Abdullayev</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-08-18-deepfake</link>
-      <description>A couple of months ago, Amazon, Facebook, Microsoft, and other contributors initiated a challenge consisting of telling apart real and AI-generated ("fake") videos. We show how to approach this challenge from R.</description>
-      <category>Image Recognition &amp; Image Processing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-08-18-deepfake</guid>
-      <pubDate>Tue, 18 Aug 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-08-18-deepfake/files/frame_2.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-08-24-training-imagenet-with-r/images/fishing-net.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>FNN-VAE for noisy time series forecasting</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-31-fnn-vae-for-noisy-timeseries</link>
       <description>In the last part of this mini-series on forecasting with false nearest neighbors (FNN) loss, we replace the LSTM autoencoder from the previous post by a convolutional VAE, resulting in equivalent prediction performance but significantly lower training time. In addition, we find that FNN regularization is of great help when an underlying deterministic process is obscured by substantial noise.</description>
       <category>R</category>
@@ -304,32 +49,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-31-fnn-vae-for-noisy-timeseries</guid>
       <pubDate>Fri, 31 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-31-fnn-vae-for-noisy-timeseries/images/kb.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>State-of-the-art NLP models from R</title>
-      <dc:creator>Turgut Abdullayev</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-30-state-of-the-art-nlp-models-from-r</link>
-      <description>Nowadays, Microsoft, Google, Facebook, and OpenAI are sharing lots of state-of-the-art models in the field of Natural Language Processing. However, fewer materials exist how to use these models from R. In this post, we will show how R users can access and benefit from these models as well.</description>
-      <category>Natural Language Processing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-30-state-of-the-art-nlp-models-from-r</guid>
-      <pubDate>Thu, 30 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-30-state-of-the-art-nlp-models-from-r/files/dino.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>Parallelized sampling using exponential variates</title>
-      <dc:creator>Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling</link>
-      <description>How can the seemingly iterative process of weighted sampling without replacement be transformed into something highly parallelizable? Turns out a well-known technique based on exponential variates accomplishes exactly that.</description>
-      <category>Concepts</category>
-      <category>Distributed Computing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling</guid>
-      <pubDate>Wed, 29 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-29-parallelized-sampling/images/dice.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-07-31-fnn-vae-for-noisy-timeseries/images/kb.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Time series prediction with FNN-LSTM</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</link>
       <description>In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, "vanilla LSTM", FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.</description>
       <category>R</category>
@@ -338,22 +62,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm</guid>
       <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>sparklyr 1.3: Higher-order Functions, Avro and Custom Serializers</title>
-      <dc:creator>Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released</link>
-      <description>Sparklyr 1.3 is now available, featuring exciting new functionalities such as integration of Spark higher-order functions and data import/export in Avro and in user-defined serialization formats.</description>
-      <category>Packages/Releases</category>
-      <category>Distributed Computing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released</guid>
-      <pubDate>Thu, 16 Jul 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-07-16-sparklyr-1.3.0-released/images/sparklyr-1.3.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Deep attractors: Where deep learning meets chaos</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-06-24-deep-attractors</link>
       <description>In nonlinear dynamics, when the state space is thought to be multidimensional but all we have for data is just a univariate time series, one may attempt to reconstruct the true space via delay coordinate embeddings. However, it is not clear a priori how to choose dimensionality and time lag of the reconstruction space. In this post, we show how to use an autoencoder architecture to circumvent the problem: Given just a scalar series of observations, the autoencoder directly learns to represent attractors of chaotic systems in adequate dimensionality.</description>
       <category>R</category>
@@ -362,11 +75,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-06-24-deep-attractors</guid>
       <pubDate>Wed, 24 Jun 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-06-24-deep-attractors/images/x_z.gif" medium="image" type="image/gif"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-06-24-deep-attractors/images/x_z.gif" medium="image" type="image/gif"/>
     </item>
     <item>
       <title>Easy PixelCNN with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn</link>
       <description>PixelCNN is a deep learning architecture - or bundle of architectures - designed to generate highly realistic-looking images. To use it, no reverse-engineering of arXiv papers or search for reference implementations is required: TensorFlow Probability and its R wrapper, tfprobability, now include a PixelCNN distribution that can be used to train a straightforwardly-defined neural network in a parameterizable way.</description>
       <category>R</category>
@@ -376,11 +89,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn</guid>
       <pubDate>Fri, 29 May 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn/images/thumb.png" medium="image" type="image/png" width="400" height="203"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-05-29-pixelcnn/images/thumb.png" medium="image" type="image/png" width="400" height="203"/>
     </item>
     <item>
       <title>Hacking deep learning: model inversion attack by example</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks</link>
       <description>Compared to other applications, deep learning models might not seem too likely as victims of privacy attacks. However, methods exist to determine whether an entity was used in the training set (an adversarial attack called member inference), and techniques subsumed under "model inversion" allow to reconstruct raw data input given just model output (and sometimes, context information). This post shows an end-to-end example of model inversion, and explores mitigation strategies using TensorFlow Privacy.</description>
       <category>R</category>
@@ -388,11 +101,11 @@ for (t in 1:200) {
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks</guid>
       <pubDate>Fri, 15 May 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks/images/results.png" medium="image" type="image/png" width="600" height="394"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks/images/results.png" medium="image" type="image/png" width="600" height="394"/>
     </item>
     <item>
       <title>Towards privacy: Encrypted deep learning with Syft and Keras</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft</link>
       <description>Deep learning need not be irreconcilable with privacy protection. Federated learning enables on-device, distributed model training; encryption keeps model and gradient updates private; differential privacy prevents the training data from leaking. As of today, private and secure deep learning is an emerging technology. In this post, we introduce Syft, an open-source framework that integrates with PyTorch as well as TensorFlow. In an example use case, we obtain private predictions from a Keras model.</description>
       <category>R</category>
@@ -400,88 +113,43 @@ for (t in 1:200) {
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft</guid>
       <pubDate>Wed, 29 Apr 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft/images/thumb.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>sparklyr 1.2: Foreach, Spark 3.0 and Databricks Connect</title>
-      <dc:creator>Yitao Li</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-21-sparklyr-1.2.0-released</link>
-      <description>A new sparklyr release is now available. This sparklyr 1.2 release features new functionalities such as support for Databricks Connect, a Spark backend for the 'foreach' package, inter-op improvements for working with Spark 3.0 preview, as well as a number of bug fixes and improvements addressing user-visible pain points.</description>
-      <category>R</category>
-      <category>Packages/Releases</category>
-      <category>Distributed Computing</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-21-sparklyr-1.2.0-released</guid>
-      <pubDate>Tue, 21 Apr 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-04-21-sparklyr-1.2.0-released/images/sparklyr.png" medium="image" type="image/png" width="1241" height="307"/>
-    </item>
-    <item>
-      <title>pins 0.4: Versioning</title>
-      <dc:creator>Javier Luraschi</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-13-pins-04</link>
-      <description>A new release of pins is available on CRAN today. This release adds support to time travel across dataset versions, which improves collaboration and protects your code from breaking when remote resources change unexpectedly.</description>
-      <category>R</category>
-      <category>Packages/Releases</category>
-      <category>Data Management</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-13-pins-04</guid>
-      <pubDate>Mon, 13 Apr 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-04-13-pins-04/images/thumb.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-04-29-encrypted_keras_with_syft/images/thumb.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>A first look at federated learning with TensorFlow</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro</link>
       <description>The term "federated learning" was coined to describe a form of distributed model training where the data remains on client devices, i.e., is never shipped to the coordinating server. In this post, we introduce central concepts and run first experiments with TensorFlow Federated, using R.</description>
       <category>Privacy &amp; Security</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro</guid>
       <pubDate>Wed, 08 Apr 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/images/federated_learning.png" medium="image" type="image/png" width="1122" height="570"/>
-    </item>
-    <item>
-      <title>Introducing: The RStudio AI Blog</title>
-      <dc:creator>The Multiverse Team</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-04-01-rstudio-ai-blog</link>
-      <description>This blog just got a new title: RStudio AI Blog. We explain why.</description>
-      <category>Meta</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-04-01-rstudio-ai-blog</guid>
-      <pubDate>Mon, 30 Mar 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-04-01-rstudio-ai-blog/images/thumb.jpg" medium="image" type="image/jpeg"/>
-    </item>
-    <item>
-      <title>Infinite surprise - the iridescent personality of Kullback-Leibler divergence</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2020-02-19-kl-divergence</link>
-      <description>Kullback-Leibler divergence is not just used to train variational autoencoders or Bayesian networks (and not just a hard-to-pronounce thing). It is a fundamental concept in information theory, put to use in a vast range of applications. Most interestingly, it's not always about constraint, regularization or compression. Quite on the contrary, sometimes it is about novelty, discovery and surprise.</description>
-      <category>Probabilistic ML/DL</category>
-      <category>Concepts</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-02-19-kl-divergence</guid>
-      <pubDate>Wed, 19 Feb 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-02-19-kl-divergence/images/ultimatemachine.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/images/federated_learning.png" medium="image" type="image/png" width="1122" height="570"/>
     </item>
     <item>
       <title>NumPy-style broadcasting for R TensorFlow users</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-01-24-numpy-broadcasting</link>
       <description>Broadcasting, as done by Python's scientific computing library NumPy, involves dynamically extending shapes so that arrays of different sizes may be passed to operations that expect conformity - such as adding or multiplying elementwise. In NumPy, the way broadcasting works is specified exactly; the same rules apply to TensorFlow operations. For anyone who finds herself, occasionally, consulting Python code, this post strives to explain.</description>
       <category>TensorFlow/Keras</category>
       <category>Concepts</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-01-24-numpy-broadcasting</guid>
       <pubDate>Fri, 24 Jan 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-01-24-numpy-broadcasting/images/thumb.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-01-24-numpy-broadcasting/images/thumb.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>First experiments with TensorFlow mixed-precision training</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2020-01-13-mixed-precision-training</link>
       <description>TensorFlow 2.1, released last week, allows for mixed-precision training, making use of the Tensor Cores available in the most recent NVidia GPUs. In this post, we report first experimental results and provide some background on what this is all about.</description>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-01-13-mixed-precision-training</guid>
       <pubDate>Mon, 13 Jan 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-01-13-mixed-precision-training/images/tc.png" medium="image" type="image/png" width="589" height="399"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-01-13-mixed-precision-training/images/tc.png" medium="image" type="image/png" width="589" height="399"/>
     </item>
     <item>
       <title>Differential Privacy with TensorFlow</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy</link>
       <description>Differential Privacy guarantees that results of a database query are basically independent of the presence in the data of a single individual. Applied to machine learning, we expect that no single training example influences the parameters of the trained model in a substantial way. This post introduces TensorFlow Privacy, a library built on top of TensorFlow, that can be used to train differentially private deep learning models from R.</description>
       <category>Privacy &amp; Security</category>
@@ -489,44 +157,44 @@ for (t in 1:200) {
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy</guid>
       <pubDate>Fri, 20 Dec 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/images/cat.png" medium="image" type="image/png" width="400" height="251"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/images/cat.png" medium="image" type="image/png" width="400" height="251"/>
     </item>
     <item>
       <title>tfhub: R interface to TensorFlow Hub</title>
-      <dc:creator>Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-12-18-tfhub-0.7.0</link>
       <description>TensorFlow Hub is a library for the publication, discovery, and consumption of reusable parts of machine learning models. A module is a self-contained piece of a TensorFlow graph, along with its weights and assets, that can be reused across different tasks in a process known as transfer learning.</description>
       <category>TensorFlow/Keras</category>
       <category>Packages/Releases</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-12-18-tfhub-0.7.0</guid>
       <pubDate>Wed, 18 Dec 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-12-18-tfhub-0.7.0/images/tfhub.png" medium="image" type="image/png" width="1365" height="909"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-12-18-tfhub-0.7.0/images/tfhub.png" medium="image" type="image/png" width="1365" height="909"/>
     </item>
     <item>
       <title>Gaussian Process Regression with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-12-10-variational-gaussian-process</link>
       <description>Continuing our tour of applications of TensorFlow Probability (TFP), after Bayesian Neural Networks, Hamiltonian Monte Carlo and State Space Models, here we show an example of Gaussian Process Regression. In fact, what we see is a rather "normal" Keras network, defined and trained in pretty much the usual way, with TFP's Variational Gaussian Process layer pulling off all the magic.</description>
       <category>Probabilistic ML/DL</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-12-10-variational-gaussian-process</guid>
       <pubDate>Tue, 10 Dec 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-12-10-variational-gaussian-process/images/kernel_cookbook.png" medium="image" type="image/png" width="818" height="352"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-12-10-variational-gaussian-process/images/kernel_cookbook.png" medium="image" type="image/png" width="818" height="352"/>
     </item>
     <item>
       <title>Getting started with Keras from R - the 2020 edition</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-11-27-gettingstarted-2020</link>
       <description>Looking for materials to get started with deep learning from R? This post presents useful tutorials, guides, and background documentation on the new TensorFlow for R website.  Advanced users will find pointers to applications of new release 2.0 (or upcoming 2.1!) features alluded to in the recent TensorFlow 2.0 post.</description>
       <category>Packages/Releases</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-11-27-gettingstarted-2020</guid>
       <pubDate>Wed, 27 Nov 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-11-27-gettingstarted-2020/images/website.png" medium="image" type="image/png" width="1591" height="725"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-11-27-gettingstarted-2020/images/website.png" medium="image" type="image/png" width="1591" height="725"/>
     </item>
     <item>
       <title>Variational convnets with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-11-13-variational-convnet</link>
       <description>In a Bayesian neural network, layer weights are distributions, not tensors. Using tfprobability, the R wrapper to TensorFlow Probability, we can build regular Keras models that have probabilistic layers, and thus get uncertainty estimates "for free". In this post, we show how to define, train and obtain predictions from a probabilistic convolutional neural network.</description>
       <category>Probabilistic ML/DL</category>
@@ -534,11 +202,11 @@ for (t in 1:200) {
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-11-13-variational-convnet</guid>
       <pubDate>Wed, 13 Nov 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-11-13-variational-convnet/images/bbb.png" medium="image" type="image/png" width="796" height="378"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-11-13-variational-convnet/images/bbb.png" medium="image" type="image/png" width="796" height="378"/>
     </item>
     <item>
       <title>tfprobability 0.8 on CRAN: Now how can you use it?</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran</link>
       <description>Part of the r-tensorflow ecosystem, tfprobability is an R wrapper to TensorFlow Probability, the Python probabilistic programming framework developed by Google. We take the occasion of tfprobability's acceptance on CRAN to give a high-level introduction, highlighting interesting use cases and applications.</description>
       <category>Probabilistic ML/DL</category>
@@ -546,56 +214,33 @@ for (t in 1:200) {
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran</guid>
       <pubDate>Thu, 07 Nov 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran/images/tfprobability.png" medium="image" type="image/png" width="518" height="600"/>
-    </item>
-    <item>
-      <title>Innocent unicorns considered harmful? How to experiment with GPT-2 from R</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <dc:creator>Javier Luraschi</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2019-10-23-gpt-2</link>
-      <description>Is society ready to deal with challenges brought about by artificially-generated  information - fake images, fake videos, fake text? While this post won't answer that question, it should help form an opinion on the threat exerted by fake text as of this writing, autumn 2019.  We introduce gpt2, an R package that wraps OpenAI's public implementation of GPT-2, the language model that early this year surprised the NLP community with the unprecedented quality of its creations.</description>
-      <category>Natural Language Processing</category>
-      <category>Packages/Releases</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2019-10-23-gpt-2</guid>
-      <pubDate>Wed, 23 Oct 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-10-23-gpt-2/images/thumb.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran/images/tfprobability.png" medium="image" type="image/png" width="518" height="600"/>
     </item>
     <item>
       <title>TensorFlow 2.0 is here - what changes for R users?</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-10-08-tf2-whatchanges</link>
       <description>TensorFlow 2.0 was finally released last week. As R users we have two kinds of questions. First, will my keras code still run? And second, what is it that changes? In this post, we answer both and, then, give a tour of exciting new developments in the r-tensorflow ecosystem.</description>
       <category>TensorFlow/Keras</category>
       <category>Packages/Releases</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-10-08-tf2-whatchanges</guid>
       <pubDate>Tue, 08 Oct 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-10-08-tf2-whatchanges/images/thumb.png" medium="image" type="image/png" width="400" height="400"/>
-    </item>
-    <item>
-      <title>On leapfrogs, crashing satellites, and going nuts: A very first conceptual introduction to Hamiltonian Monte Carlo</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2019-10-03-intro-to-hmc</link>
-      <description>TensorFlow Probability, and its R wrapper tfprobability, provide Markov Chain Monte Carlo (MCMC) methods that were used in a number of recent posts on this blog. These posts were directed to users already comfortable with the method, and terminology, per se, which readers mainly interested in deep learning won't necessarily be. Here we try to make up leeway, introducing Hamitonian Monte Carlo (HMC) as well as a few often-heard "buzzwords" accompanying it, always striving to keep in mind what it is all "for".</description>
-      <category>Bayesian Modeling</category>
-      <category>Concepts</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2019-10-03-intro-to-hmc</guid>
-      <pubDate>Thu, 03 Oct 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-10-03-intro-to-hmc/images/mb.png" medium="image" type="image/png" width="548" height="345"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-10-08-tf2-whatchanges/images/thumb.png" medium="image" type="image/png" width="400" height="400"/>
     </item>
     <item>
       <title>BERT from R</title>
-      <dc:creator>Turgut Abdullayev</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Turgut Abdullayev</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-09-30-bert-r</link>
       <description>A deep learning model - BERT from Google AI Research - has yielded state-of-the-art results in a wide variety of Natural Language Processing (NLP) tasks. In this tutorial, we will show how to load and train the BERT model from R, using Keras.</description>
       <category>Natural Language Processing</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-09-30-bert-r</guid>
       <pubDate>Mon, 30 Sep 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-09-30-bert-r/images/bert.png" medium="image" type="image/png" width="437" height="367"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-09-30-bert-r/images/bert.png" medium="image" type="image/png" width="437" height="367"/>
     </item>
     <item>
       <title>So, how come we can use TensorFlow from R?</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-08-29-using-tf-from-r</link>
       <description>Have you ever wondered why you can call TensorFlow - mostly known as a Python framework - from R? If not - that's how it should be, as the R packages keras and tensorflow aim to make this process as transparent as possible to the user. But for them to be those helpful genies, someone else first has to tame the Python.</description>
       <category>TensorFlow/Keras</category>
@@ -603,57 +248,46 @@ for (t in 1:200) {
       <category>Concepts</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-08-29-using-tf-from-r</guid>
       <pubDate>Thu, 29 Aug 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-08-29-using-tf-from-r/images/thumb.png" medium="image" type="image/png" width="739" height="516"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-08-29-using-tf-from-r/images/thumb.png" medium="image" type="image/png" width="739" height="516"/>
     </item>
     <item>
       <title>Image segmentation with U-Net</title>
-      <dc:creator>Daniel Falbel</dc:creator>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-08-23-unet</link>
       <description>In image segmentation, every pixel of an image is assigned a class. Depending on the application, classes could be different cell types; or the task could be binary, as in "cancer cell yes or no?". Area of application notwithstanding, the established neural network architecture of choice is U-Net. In this post, we show how to preprocess data and train a U-Net model on the Kaggle Carvana image segmentation data.</description>
       <category>Image Recognition &amp; Image Processing</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-08-23-unet</guid>
       <pubDate>Fri, 23 Aug 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-08-23-unet/images/unet.png" medium="image" type="image/png" width="1400" height="932"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-08-23-unet/images/unet.png" medium="image" type="image/png" width="1400" height="932"/>
     </item>
     <item>
       <title>Modeling censored data with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-07-31-censored-data</link>
       <description>In this post we use tfprobability, the R interface to TensorFlow Probability, to model censored data. Again, the exposition is inspired by the treatment of this topic in Richard McElreath's Statistical Rethinking. Instead of cute cats though, we model immaterial entities from the cold world of technology: This post explores durations of CRAN package checks, a dataset that comes with Max Kuhn's parsnip.</description>
       <category>Bayesian Modeling</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-07-31-censored-data</guid>
       <pubDate>Wed, 31 Jul 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-07-31-censored-data/images/thumb_cropped.png" medium="image" type="image/png" width="955" height="396"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-07-31-censored-data/images/thumb_cropped.png" medium="image" type="image/png" width="955" height="396"/>
     </item>
     <item>
       <title>TensorFlow feature columns: Transforming your data recipes-style</title>
-      <dc:creator>Daniel Falbel</dc:creator>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-07-09-feature-columns</link>
       <description>TensorFlow feature columns provide useful functionality for preprocessing categorical data and chaining transformations, like bucketization or feature crossing. From R, we use them in popular "recipes" style, creating and subsequently refining a feature specification. In this post, we show how using feature specs frees cognitive resources and lets you focus on what you really want to accomplish. What's more, because of its elegance, feature-spec code reads nice and is fun to write as well.</description>
       <category>TensorFlow/Keras</category>
       <category>Tabular Data</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-07-09-feature-columns</guid>
       <pubDate>Tue, 09 Jul 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-07-09-feature-columns/images/feature_cols_hier.png" medium="image" type="image/png" width="1172" height="678"/>
-    </item>
-    <item>
-      <title>Dynamic linear models with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2019-06-25-dynamic_linear_models_tfprobability</link>
-      <description>Previous posts featuring tfprobability - the R interface to TensorFlow Probability - have focused on enhancements to deep neural networks (e.g., introducing Bayesian uncertainty estimates) and fitting hierarchical models with Hamiltonian Monte Carlo. This time, we show how to fit time series using dynamic linear models (DLMs), yielding posterior predictive forecasts as well as the smoothed and filtered estimates from the Kálmán filter.</description>
-      <category>Probabilistic ML/DL</category>
-      <category>Time Series</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2019-06-25-dynamic_linear_models_tfprobability</guid>
-      <pubDate>Mon, 24 Jun 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-06-25-dynamic_linear_models_tfprobability/images/thumb.png" medium="image" type="image/png" width="2012" height="1065"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-07-09-feature-columns/images/feature_cols_hier.png" medium="image" type="image/png" width="1172" height="678"/>
     </item>
     <item>
       <title>Adding uncertainty estimates to Keras models with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability</link>
       <description>As of today, there is no mainstream road to obtaining uncertainty estimates from neural networks. All that can be said is that, normally, approaches tend to be Bayesian in spirit, involving some way of putting a prior over model weights. This holds true as well for the method presented in this post: We show how to use tfprobability, the R interface to TensorFlow Probability, to add uncertainty estimates to a Keras model in an elegant and conceptually plausible way.</description>
       <category>Probabilistic ML/DL</category>
@@ -661,33 +295,33 @@ for (t in 1:200) {
       <category>Concepts</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability</guid>
       <pubDate>Wed, 05 Jun 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/images/uci_both.png" medium="image" type="image/png" width="2020" height="1020"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/images/uci_both.png" medium="image" type="image/png" width="2020" height="1020"/>
     </item>
     <item>
       <title>Hierarchical partial pooling, continued: Varying slopes models with TensorFlow Probability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes</link>
       <description>This post builds on our recent introduction to multi-level modeling with tfprobability, the R wrapper to TensorFlow Probability. We show how to pool not just mean values ("intercepts"), but also relationships ("slopes"), thus enabling models to learn from data in an even broader way. Again, we use an example from Richard McElreath's "Statistical Rethinking"; the terminology as well as the way we present this topic are largely owed to this book.</description>
       <category>Bayesian Modeling</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes</guid>
       <pubDate>Fri, 24 May 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes/images/thumb.png" medium="image" type="image/png" width="509" height="249"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes/images/thumb.png" medium="image" type="image/png" width="509" height="249"/>
     </item>
     <item>
       <title>Tadpoles on TensorFlow: Hierarchical partial pooling with tfprobability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-05-06-tadpoles-on-tensorflow</link>
       <description>This post is a first introduction to MCMC modeling with tfprobability, the R interface to TensorFlow Probability (TFP). Our example is a multi-level model describing tadpole mortality, which may be known to the reader from Richard McElreath's wonderful "Statistical Rethinking".</description>
       <category>Bayesian Modeling</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-05-06-tadpoles-on-tensorflow</guid>
       <pubDate>Mon, 06 May 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-05-06-tadpoles-on-tensorflow/images/thumb.png" medium="image" type="image/png" width="1612" height="659"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-05-06-tadpoles-on-tensorflow/images/thumb.png" medium="image" type="image/png" width="1612" height="659"/>
     </item>
     <item>
       <title>Experimenting with autoregressive flows in TensorFlow Probability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-04-24-autoregressive-flows</link>
       <description>Continuing from the recent introduction to bijectors in TensorFlow Probability (TFP), this post brings autoregressivity to the table. Using TFP through the new R package tfprobability, we look at the implementation of masked autoregressive flows (MAF) and put them to use on two different datasets.</description>
       <category>Probabilistic ML/DL</category>
@@ -695,22 +329,22 @@ for (t in 1:200) {
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-04-24-autoregressive-flows</guid>
       <pubDate>Wed, 24 Apr 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-04-24-autoregressive-flows/images/made.png" medium="image" type="image/png" width="686" height="398"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-04-24-autoregressive-flows/images/made.png" medium="image" type="image/png" width="686" height="398"/>
     </item>
     <item>
       <title>Auto-Keras: Tuning-free deep learning from R</title>
-      <dc:creator>Juan Cruz Rodriguez</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Juan Cruz Rodriguez</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-04-16-autokeras</link>
       <description>Sometimes in deep learning, architecture design and hyperparameter tuning pose substantial challenges. Using Auto-Keras, none of these is needed: We start a search procedure and extract the best-performing model. This post presents Auto-Keras in action on the well-known MNIST dataset.</description>
       <category>TensorFlow/Keras</category>
       <category>Packages/Releases</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-04-16-autokeras</guid>
       <pubDate>Tue, 16 Apr 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-04-16-autokeras/images/thumbnail.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-04-16-autokeras/images/thumbnail.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Getting into the flow: Bijectors in TensorFlow Probability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows</link>
       <description>Normalizing flows are one of the lesser known, yet fascinating and successful architectures in unsupervised deep learning. In this post we provide a basic introduction to flows using tfprobability, an R wrapper to TensorFlow Probability. Upcoming posts will build on this, using more complex flows on more complex data.</description>
       <category>Probabilistic ML/DL</category>
@@ -719,22 +353,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows</guid>
       <pubDate>Fri, 05 Apr 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/images/flows.png" medium="image" type="image/png" width="904" height="325"/>
-    </item>
-    <item>
-      <title>Math, code, concepts: A third road to deep learning</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2019-03-15-concepts-way-to-dl</link>
-      <description>Not everybody who wants to get into deep learning has a strong background in math or programming. This post elaborates on a concepts-driven, abstraction-based way to learn what it's all about.</description>
-      <category>Meta</category>
-      <category>Concepts</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2019-03-15-concepts-way-to-dl</guid>
-      <pubDate>Fri, 15 Mar 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-03-15-concepts-way-to-dl/images/prev.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/images/flows.png" medium="image" type="image/png" width="904" height="325"/>
     </item>
     <item>
       <title>Audio classification with Keras: Looking closer at the non-deep learning parts</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background</link>
       <description>Sometimes, deep learning is seen - and welcomed - as a way to avoid laborious preprocessing of data. However, there are cases where preprocessing of sorts does not only help improve prediction, but constitutes a fascinating topic in itself. One such case is audio classification. In this post, we build on a previous post on this blog, this time focusing on explaining some of the non-deep learning background. We then link the concepts explained to updated for near-future releases TensorFlow code.</description>
       <category>TensorFlow/Keras</category>
@@ -742,11 +365,11 @@ for (t in 1:200) {
       <category>Audio Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background</guid>
       <pubDate>Thu, 07 Feb 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/images/seven2.png" medium="image" type="image/png" width="1714" height="846"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/images/seven2.png" medium="image" type="image/png" width="1714" height="846"/>
     </item>
     <item>
       <title>Discrete Representation Learning with VQ-VAE and TensorFlow Probability</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-01-24-vq-vae</link>
       <description>Mostly when thinking of Variational Autoencoders (VAEs), we picture the prior as an isotropic Gaussian. But this is by no means a necessity. The Vector Quantised Variational Autoencoder (VQ-VAE) described in van den Oord et al's "Neural Discrete Representation Learning" features a discrete latent space that allows to learn impressively concise latent representations. In this post, we combine elements of Keras, TensorFlow, and TensorFlow Probability to see if we can generate convincing letters resembling those in Kuzushiji-MNIST.</description>
       <category>TensorFlow/Keras</category>
@@ -754,11 +377,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-01-24-vq-vae</guid>
       <pubDate>Thu, 24 Jan 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-01-24-vq-vae/images/thumb1.png" medium="image" type="image/png" width="510" height="287"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-01-24-vq-vae/images/thumb1.png" medium="image" type="image/png" width="510" height="287"/>
     </item>
     <item>
       <title>Getting started with TensorFlow Probability from R</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability</link>
       <description>TensorFlow Probability offers a vast range of functionality ranging from distributions over probabilistic network layers to probabilistic inference. It works seamlessly with core TensorFlow and (TensorFlow) Keras. In this post, we provide a short introduction to the distributions layer and then, use it for sampling and calculating probabilities in a Variational Autoencoder.</description>
       <category>TensorFlow/Keras</category>
@@ -766,11 +389,11 @@ for (t in 1:200) {
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability</guid>
       <pubDate>Tue, 08 Jan 2019 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/images/thumb.png" medium="image" type="image/png" width="884" height="584"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/images/thumb.png" medium="image" type="image/png" width="884" height="584"/>
     </item>
     <item>
       <title>Concepts in object detection</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-12-18-object-detection-concepts</link>
       <description>As shown in a previous post, naming and locating a single object in an image is a task that may be approached in a straightforward way. This is not the same with general object detection, though - naming and locating several objects at once, with no prior information about how many objects are supposed to be detected.
 In this post, we explain the steps involved in coding a basic single-shot object detector: Not unlike SSD (Single-shot Multibox Detector), but simplified and designed not for best performance, but comprehensibility.</description>
@@ -778,22 +401,22 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-12-18-object-detection-concepts</guid>
       <pubDate>Tue, 18 Dec 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-12-18-object-detection-concepts/images/results.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-12-18-object-detection-concepts/images/results.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Entity embeddings for fun and profit</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-11-26-embeddings-fun-and-profit</link>
       <description>Embedding layers are not just useful when working with language data. As "entity embeddings", they've recently become famous for applications on tabular, small-scale data. In this post, we exemplify two possible use cases, also drawing attention to what not to expect.</description>
       <category>TensorFlow/Keras</category>
       <category>Tabular Data</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-11-26-embeddings-fun-and-profit</guid>
       <pubDate>Mon, 26 Nov 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-11-26-embeddings-fun-and-profit/images/thumb.png" medium="image" type="image/png" width="820" height="410"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-11-26-embeddings-fun-and-profit/images/thumb.png" medium="image" type="image/png" width="820" height="410"/>
     </item>
     <item>
       <title>You sure? A Bayesian approach to obtaining uncertainty estimates from neural networks</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout</link>
       <description>In deep learning, there is no obvious way of obtaining uncertainty estimates. In 2016, Gal and Ghahramani proposed a method that is both theoretically grounded and practical: use dropout at test time. In this post, we introduce a refined version of this method (Gal et al. 2017) that has the network itself learn how uncertain it is.</description>
       <category>Image Recognition &amp; Image Processing</category>
@@ -801,22 +424,22 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout</guid>
       <pubDate>Mon, 12 Nov 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout/images/thumb.png" medium="image" type="image/png" width="2046" height="872"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-11-12-uncertainty_estimates_dropout/images/thumb.png" medium="image" type="image/png" width="2046" height="872"/>
     </item>
     <item>
       <title>Naming and locating objects in images</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects</link>
       <description>Object detection (the act of classifying and localizing multiple objects in a scene) is one of the more difficult, but very relevant in practice deep learning tasks. We'll build up to it in several posts. Here we start with the simpler tasks of naming and locating a single object.</description>
       <category>TensorFlow/Keras</category>
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects</guid>
       <pubDate>Mon, 05 Nov 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/images/preds_train.jpg" medium="image" type="image/jpeg"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/images/preds_train.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
       <title>Representation learning with MMD-VAE</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae</link>
       <description>Like GANs, variational autoencoders (VAEs) are often used to generate images. However, VAEs add an additional promise: namely, to model an underlying latent space. Here, we first look at a typical implementation that maximizes the evidence lower bound. Then, we compare it to one of the more recent competitors, MMD-VAE, from the Info-VAE (information maximizing VAE) family.</description>
       <category>TensorFlow/Keras</category>
@@ -824,43 +447,43 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae</guid>
       <pubDate>Mon, 22 Oct 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae/images/thumb.png" medium="image" type="image/png" width="468" height="178"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae/images/thumb.png" medium="image" type="image/png" width="468" height="178"/>
     </item>
     <item>
       <title>Winner takes all: A look at activations and cost functions</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro</link>
       <description>Why do we use the activations we use, and how do they relate to the cost functions they tend to co-appear with? In this post we provide a conceptual introduction.</description>
       <category>TensorFlow/Keras</category>
       <category>Concepts</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro</guid>
       <pubDate>Thu, 11 Oct 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro/images/output.png" medium="image" type="image/png" width="800" height="384"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro/images/output.png" medium="image" type="image/png" width="800" height="384"/>
     </item>
     <item>
       <title>More flexible models with TensorFlow eager execution and Keras</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-10-02-eager-wrapup</link>
       <description>Advanced applications like generative adversarial networks, neural style transfer, and the attention mechanism ubiquitous in natural language processing used to be not-so-simple to implement with the Keras declarative coding paradigm. Now, with the advent of TensorFlow eager execution, things have changed. This post explores using eager execution with R.</description>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-10-02-eager-wrapup</guid>
       <pubDate>Tue, 02 Oct 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-10-02-eager-wrapup/images/m.png" medium="image" type="image/png" width="384" height="126"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-10-02-eager-wrapup/images/m.png" medium="image" type="image/png" width="384" height="126"/>
     </item>
     <item>
       <title>Collaborative filtering with embeddings</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender</link>
       <description>Embeddings are not just for use in natural language processing. Here we apply embeddings to a common task in collaborative filtering - predicting user ratings - and on our way, strive for a better understanding of what an embedding layer really does.</description>
       <category>TensorFlow/Keras</category>
       <category>Tabular Data</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender</guid>
       <pubDate>Wed, 26 Sep 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/images/m.png" medium="image" type="image/png" width="700" height="402"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/images/m.png" medium="image" type="image/png" width="700" height="402"/>
     </item>
     <item>
       <title>Image-to-image translation with pix2pix</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix</link>
       <description>Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.</description>
       <category>TensorFlow/Keras</category>
@@ -868,11 +491,11 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Unsupervised Learning</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix</guid>
       <pubDate>Thu, 20 Sep 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/images/pix2pixlosses.png" medium="image" type="image/png" width="842" height="536"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/images/pix2pixlosses.png" medium="image" type="image/png" width="842" height="536"/>
     </item>
     <item>
       <title>Attention-based Image Captioning with Keras</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning</link>
       <description>Image captioning is a challenging task at intersection of vision and language. Here, we demonstrate using Keras and eager execution to incorporate an attention mechanism that allows the network to concentrate on image features relevant to the current state of text generation.</description>
       <category>Natural Language Processing</category>
@@ -880,11 +503,11 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning</guid>
       <pubDate>Mon, 17 Sep 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/images/showattendandtell.png" medium="image" type="image/png" width="627" height="269"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/images/showattendandtell.png" medium="image" type="image/png" width="627" height="269"/>
     </item>
     <item>
       <title>Neural style transfer with eager execution and Keras</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-09-10-eager-style-transfer</link>
       <description>Continuing our series on combining Keras with TensorFlow eager execution, we show how to implement neural style transfer in a straightforward way. Based on this easy-to-adapt example, you can easily perform style transfer on your own images.</description>
       <category>TensorFlow/Keras</category>
@@ -892,21 +515,21 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-09-10-eager-style-transfer</guid>
       <pubDate>Mon, 10 Sep 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-09-10-eager-style-transfer/images/preview.png" medium="image" type="image/png" width="344" height="231"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-09-10-eager-style-transfer/images/preview.png" medium="image" type="image/png" width="344" height="231"/>
     </item>
     <item>
       <title>Getting started with deep learning in R</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-09-07-getting-started</link>
       <description>Many fields are benefiting from the use of deep learning, and with the R keras, tensorflow and related packages, you can now easily do state of the art deep learning in R. In this post, we want to give some orientation as to how to best get started.</description>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-09-07-getting-started</guid>
       <pubDate>Fri, 07 Sep 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-09-07-getting-started/images/digits.png" medium="image" type="image/png" width="557" height="317"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-09-07-getting-started/images/digits.png" medium="image" type="image/png" width="557" height="317"/>
     </item>
     <item>
       <title>Generating images with Keras and TensorFlow eager execution</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan</link>
       <description>Generative adversarial networks (GANs) are a popular deep learning approach to generating new entities (often but not always images). We show how to code them using Keras and TensorFlow eager execution.</description>
       <category>TensorFlow/Keras</category>
@@ -914,64 +537,45 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan</guid>
       <pubDate>Sun, 26 Aug 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/images/thumb.png" medium="image" type="image/png" width="240" height="144"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/images/thumb.png" medium="image" type="image/png" width="240" height="144"/>
     </item>
     <item>
       <title>Attention-based Neural Machine Translation with Keras</title>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer</link>
       <description>As sequence to sequence prediction tasks get more involved, attention mechanisms have proven helpful. A prominent example is neural machine translation. Following a recent Google Colaboratory notebook, we show how to implement attention in R.</description>
       <category>Natural Language Processing</category>
       <category>TensorFlow/Keras</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer</guid>
       <pubDate>Mon, 30 Jul 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/images/attention.png" medium="image" type="image/png" width="606" height="448"/>
-    </item>
-    <item>
-      <title>Classifying physical activity from smartphone data</title>
-      <dc:creator>Nick Strayer</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection</link>
-      <description>Using Keras to train a convolutional neural network to classify physical activity. The dataset was built from the recordings of 30 subjects performing basic activities and postural transitions while carrying a waist-mounted smartphone with embedded inertial sensors.</description>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection</guid>
-      <pubDate>Tue, 17 Jul 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/index_files/figure-html5/unnamed-chunk-8-1.png" medium="image" type="image/png" width="1152" height="768"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/images/attention.png" medium="image" type="image/png" width="606" height="448"/>
     </item>
     <item>
       <title>Predicting Sunspot Frequency with Keras</title>
-      <dc:creator>Matt Dancho</dc:creator>
-      <dc:creator>Sigrid Keydana</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Matt Dancho</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-06-25-sunspots-lstm</link>
       <description>In this post we will examine making time series predictions using the sunspots dataset that ships with base R. Sunspots are dark spots on the sun, associated with lower temperature. Our post will focus on both how to apply deep learning to time series forecasting, and how to properly apply cross validation in this domain.</description>
       <category>TensorFlow/Keras</category>
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-06-25-sunspots-lstm</guid>
       <pubDate>Mon, 25 Jun 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-06-25-sunspots-lstm/images/backtested_test.png" medium="image" type="image/png" width="800" height="416"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-06-25-sunspots-lstm/images/backtested_test.png" medium="image" type="image/png" width="800" height="416"/>
     </item>
     <item>
       <title>Simple Audio Classification with Keras</title>
-      <dc:creator>Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras</link>
       <description>In this tutorial we will build a deep learning model to classify words. We will use the Speech Commands dataset which consists of 65,000 one-second audio files of people saying 30 different words.</description>
       <category>TensorFlow/Keras</category>
       <category>Audio Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras</guid>
       <pubDate>Wed, 06 Jun 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://upload.wikimedia.org/wikipedia/commons/6/61/FFT-Time-Frequency-View.png" medium="image" type="image/png"/>
-    </item>
-    <item>
-      <title>GPU Workstations in the Cloud with Paperspace</title>
-      <dc:creator>J.J. Allaire</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2018-04-02-rstudio-gpu-paperspace</link>
-      <description>If you don't have local access to a modern NVIDIA GPU, your best bet is typically to run GPU intensive training jobs in the cloud. Paperspace is a cloud service that provides access to a fully preconfigured Ubuntu 16.04 desktop environment equipped with a GPU.</description>
-      <category>Cloud</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2018-04-02-rstudio-gpu-paperspace</guid>
-      <pubDate>Mon, 02 Apr 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-04-02-rstudio-gpu-paperspace/images/paperspace-mnist-cnn.png" medium="image" type="image/png" width="2030" height="1338"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://upload.wikimedia.org/wikipedia/commons/6/61/FFT-Time-Frequency-View.png" medium="image" type="image/png"/>
     </item>
     <item>
       <title>lime v0.4: The Kitten Picture Edition</title>
-      <dc:creator>Thomas Lin Pedersen</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Thomas Lin Pedersen</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-03-09-lime-v04-the-kitten-picture-edition</link>
       <description>A new major release of lime has landed on CRAN. lime is an R port of the Python library of the same name by Marco Ribeiro that allows the user to pry open black box machine learning models and explain their outcomes on a per-observation basis</description>
       <category>Packages/Releases</category>
@@ -980,22 +584,22 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-03-09-lime-v04-the-kitten-picture-edition</guid>
       <pubDate>Fri, 09 Mar 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-03-09-lime-v04-the-kitten-picture-edition/images/unnamed-chunk-8-1.png" medium="image" type="image/png" width="1344" height="672"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-03-09-lime-v04-the-kitten-picture-edition/images/unnamed-chunk-8-1.png" medium="image" type="image/png" width="1344" height="672"/>
     </item>
     <item>
       <title>Deep Learning for Cancer Immunotherapy</title>
-      <dc:creator>Leon Eyrich Jessen</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Leon Eyrich Jessen</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-29-dl-for-cancer-immunotherapy</link>
       <description>The aim of this post is to illustrate how deep learning is being applied in cancer immunotherapy (Immuno-oncology or Immunooncology) - a cancer treatment strategy, where the aim is to utilize the cancer patient's own immune system to fight the cancer.</description>
       <category>TensorFlow/Keras</category>
       <category>Tabular Data</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-29-dl-for-cancer-immunotherapy</guid>
       <pubDate>Mon, 29 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-29-dl-for-cancer-immunotherapy/images/01_ffn_02_results_3_by_3_confusion_matrix.png" medium="image" type="image/png" width="3000" height="1800"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-01-29-dl-for-cancer-immunotherapy/images/01_ffn_02_results_3_by_3_confusion_matrix.png" medium="image" type="image/png" width="3000" height="1800"/>
     </item>
     <item>
       <title>Predicting Fraud with Autoencoders and Keras</title>
-      <dc:creator>Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-24-keras-fraud-autoencoder</link>
       <description>In this post we will train an autoencoder to detect credit card fraud. We will also demonstrate how to train Keras models in the cloud using CloudML. The basis of our model will be the Kaggle Credit Card Fraud Detection dataset.</description>
       <category>TensorFlow/Keras</category>
@@ -1003,22 +607,22 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Cloud</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-24-keras-fraud-autoencoder</guid>
       <pubDate>Thu, 25 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-24-keras-fraud-autoencoder/images/preview.png" medium="image" type="image/png" width="790" height="537"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-01-24-keras-fraud-autoencoder/images/preview.png" medium="image" type="image/png" width="790" height="537"/>
     </item>
     <item>
       <title>Analyzing rtweet Data with kerasformula</title>
-      <dc:creator>Pete Mohanty</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Pete Mohanty</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-24-analyzing-rtweet-data-with-kerasformula</link>
       <description>The kerasformula package offers a high-level interface for the R interface to Keras. It’s main interface is the kms function, a regression-style interface to keras_model_sequential that uses formulas and sparse matrices. We use kerasformula to predict how popular tweets will be based on how often the tweet was retweeted and favorited.</description>
       <category>TensorFlow/Keras</category>
       <category>Natural Language Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-24-analyzing-rtweet-data-with-kerasformula</guid>
       <pubDate>Wed, 24 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-24-analyzing-rtweet-data-with-kerasformula/images/densities-1.png" medium="image" type="image/png" width="672" height="480"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-01-24-analyzing-rtweet-data-with-kerasformula/images/densities-1.png" medium="image" type="image/png" width="672" height="480"/>
     </item>
     <item>
       <title>Deep Learning With Keras To Predict Customer Churn</title>
-      <dc:creator>Matt Dancho</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Matt Dancho</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-11-keras-customer-churn</link>
       <description>Using Keras to predict customer churn based on the IBM Watson Telco Customer Churn dataset. We also demonstrate using the lime package to help explain which features drive individual model predictions. In addition, we use three new packages to assist with Machine Learning: recipes for preprocessing, rsample for sampling data and yardstick for model metrics.</description>
       <category>TensorFlow/Keras</category>
@@ -1026,117 +630,76 @@ In this post, we explain the steps involved in coding a basic single-shot object
       <category>Explainability</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-11-keras-customer-churn</guid>
       <pubDate>Thu, 11 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-11-keras-customer-churn/images/customer_churn_analysis_corrr.png" medium="image" type="image/png" width="2696" height="1696"/>
-    </item>
-    <item>
-      <title>R Interface to Google CloudML</title>
-      <dc:creator>J.J. Allaire</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-10-r-interface-to-cloudml</link>
-      <description>We are excited to announce the availability of the cloudml package, which provides an R interface to Google Cloud Machine Learning Engine. CloudML provides a number of services including on-demand access to training on GPUs and hyperparameter tuning to optimize key attributes of model architectures.</description>
-      <category>Cloud</category>
-      <category>Packages/Releases</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-10-r-interface-to-cloudml</guid>
-      <pubDate>Wed, 10 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-10-r-interface-to-cloudml/images/cloudml.png" medium="image" type="image/png" width="394" height="211"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-01-11-keras-customer-churn/images/customer_churn_analysis_corrr.png" medium="image" type="image/png" width="2696" height="1696"/>
     </item>
     <item>
       <title>Classifying Duplicate Questions from Quora with Keras</title>
-      <dc:creator>Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2018-01-09-keras-duplicate-questions-quora</link>
       <description>In this post we will use Keras to classify duplicated questions from Quora. Our implementation is inspired by the Siamese Recurrent Architecture, with modifications to the similarity measure and the embedding layers (the original paper uses pre-trained word vectors)</description>
       <category>TensorFlow/Keras</category>
       <category>Natural Language Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2018-01-09-keras-duplicate-questions-quora</guid>
       <pubDate>Tue, 09 Jan 2018 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2018-01-09-keras-duplicate-questions-quora/keras-duplicate-questions-quora.png" medium="image" type="image/png" width="1302" height="788"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2018-01-09-keras-duplicate-questions-quora/keras-duplicate-questions-quora.png" medium="image" type="image/png" width="1302" height="788"/>
     </item>
     <item>
       <title>Word Embeddings with Keras</title>
-      <dc:creator>Daniel Falbel</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2017-12-22-word-embeddings-with-keras</link>
       <description>Word embedding is a method used to map words of a vocabulary to dense vectors of real numbers where semantically similar words are mapped to nearby points. In this example we'll use Keras to generate word embeddings for the Amazon Fine Foods Reviews dataset.</description>
       <category>TensorFlow/Keras</category>
       <category>Natural Language Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2017-12-22-word-embeddings-with-keras</guid>
       <pubDate>Fri, 22 Dec 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-12-22-word-embeddings-with-keras/word-embeddings-with-keras.png" medium="image" type="image/png" width="700" height="450"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2017-12-22-word-embeddings-with-keras/word-embeddings-with-keras.png" medium="image" type="image/png" width="700" height="450"/>
     </item>
     <item>
       <title>Time Series Forecasting with Recurrent Neural Networks</title>
-      <dc:creator>François Chollet</dc:creator>
-      <dc:creator>J.J. Allaire</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">François Chollet</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">J.J. Allaire</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks</link>
       <description>In this post, we'll review three advanced techniques for improving the performance and generalization power of recurrent neural networks.  We'll demonstrate all three concepts on a temperature-forecasting problem, where you have access to a time series of data points coming from sensors installed on the roof of a building.</description>
       <category>TensorFlow/Keras</category>
       <category>Time Series</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks</guid>
       <pubDate>Wed, 20 Dec 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks/images/jena_temp-r.png" medium="image" type="image/png" width="6000" height="4000"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks/images/jena_temp-r.png" medium="image" type="image/png" width="6000" height="4000"/>
     </item>
     <item>
       <title>Image Classification on Small Datasets with Keras</title>
-      <dc:creator>François Chollet</dc:creator>
-      <dc:creator>J.J. Allaire</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">François Chollet</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">J.J. Allaire</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2017-12-14-image-classification-on-small-datasets</link>
       <description>Having to train an image-classification model using very little data is a common situation, in this article we review three techniques for tackling this problem including feature extraction and fine tuning from a pretrained network.</description>
       <category>TensorFlow/Keras</category>
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2017-12-14-image-classification-on-small-datasets</guid>
       <pubDate>Thu, 14 Dec 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-12-14-image-classification-on-small-datasets/images/swapping_fc_classifier.png" medium="image" type="image/png" width="678" height="453"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2017-12-14-image-classification-on-small-datasets/images/swapping_fc_classifier.png" medium="image" type="image/png" width="678" height="453"/>
     </item>
     <item>
       <title>Deep Learning for Text Classification with Keras</title>
-      <dc:creator>François Chollet</dc:creator>
-      <dc:creator>J.J. Allaire</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">François Chollet</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">J.J. Allaire</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2017-12-07-text-classification-with-keras</link>
       <description>Two-class classification, or binary classification, may be the most widely applied kind of machine-learning problem. In this excerpt from the book Deep Learning with R, you'll learn to classify movie reviews as positive or negative, based on the text content of the reviews.</description>
       <category>TensorFlow/Keras</category>
       <category>Natural Language Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2017-12-07-text-classification-with-keras</guid>
       <pubDate>Thu, 07 Dec 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-12-07-text-classification-with-keras/images/training-history.png" medium="image" type="image/png" width="1400" height="865"/>
-    </item>
-    <item>
-      <title>tfruns: Tools for TensorFlow Training Runs</title>
-      <dc:creator>J.J. Allaire</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2017-10-04-tfruns</link>
-      <description>The tfruns package provides a suite of tools for tracking, visualizing, and managing TensorFlow training runs and experiments from R.</description>
-      <category>Packages/Releases</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2017-10-04-tfruns</guid>
-      <pubDate>Wed, 04 Oct 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-10-04-tfruns/preview.png" medium="image" type="image/png" width="2006" height="1116"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2017-12-07-text-classification-with-keras/images/training-history.png" medium="image" type="image/png" width="1400" height="865"/>
     </item>
     <item>
       <title>Keras for R</title>
-      <dc:creator>J.J. Allaire</dc:creator>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">J.J. Allaire</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2017-09-06-keras-for-r</link>
       <description>We are excited to announce that the keras package is now available on CRAN. The package provides an R interface to Keras, a high-level neural networks API developed with a focus on enabling fast experimentation.</description>
       <category>TensorFlow/Keras</category>
       <category>Packages/Releases</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2017-09-06-keras-for-r</guid>
       <pubDate>Tue, 05 Sep 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-09-06-keras-for-r/preview.png" medium="image" type="image/png" width="669" height="414"/>
-    </item>
-    <item>
-      <title>TensorFlow Estimators</title>
-      <dc:creator>Yuan Tang</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2017-08-31-tensorflow-estimators-for-r</link>
-      <description>The tfestimators package is an R interface to TensorFlow Estimators, a high-level API that provides implementations of many different model types including linear models and deep neural networks.</description>
-      <category>Packages/Releases</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2017-08-31-tensorflow-estimators-for-r</guid>
-      <pubDate>Thu, 31 Aug 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-08-31-tensorflow-estimators-for-r/tensorflow-architecture.png" medium="image" type="image/png" width="1198" height="796"/>
-    </item>
-    <item>
-      <title>TensorFlow v1.3 Released</title>
-      <dc:creator>J.J. Allaire</dc:creator>
-      <link>https://blogs.rstudio.com/tensorflow/posts/2017-08-17-tensorflow-v13-released</link>
-      <description>The final release of TensorFlow v1.3 is now available. This release marks the initial availability of several canned estimators including DNNClassifier and  DNNRegressor.</description>
-      <category>Packages/Releases</category>
-      <guid>https://blogs.rstudio.com/tensorflow/posts/2017-08-17-tensorflow-v13-released</guid>
-      <pubDate>Thu, 17 Aug 2017 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2017-08-17-tensorflow-v13-released/tensorflow-logo.png" medium="image" type="image/png" width="3876" height="741"/>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2017-09-06-keras-for-r/preview.png" medium="image" type="image/png" width="669" height="414"/>
     </item>
   </channel>
 </rss>

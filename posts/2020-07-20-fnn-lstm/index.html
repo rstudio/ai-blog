@@ -1,0 +1,2631 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+<title>RStudio AI Blog: Time series prediction with FNN-LSTM</title>
+
+<meta property="description" itemprop="description" content="In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, &quot;vanilla LSTM&quot;, FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="../../images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2020-07-20"/>
+<meta property="article:created" itemprop="dateCreated" content="2020-07-20"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="RStudio AI Blog: Time series prediction with FNN-LSTM"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, &quot;vanilla LSTM&quot;, FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="RStudio AI Blog"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="RStudio AI Blog: Time series prediction with FNN-LSTM"/>
+<meta property="twitter:description" content="In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, &quot;vanilla LSTM&quot;, FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/images/old_faithful.jpg"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="RStudio AI Blog: Time series prediction with FNN-LSTM"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2020/07/20"/>
+<meta name="citation_publication_date" content="2020/07/20"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Deep reconstruction of strange attractors from time series;citation_publication_date=2020;citation_author=William Gilpin"/>
+  <meta name="citation_reference" content="citation_title=Nonlinear time series analysis;citation_publication_date=2004;citation_publisher=Cambridge University Press;citation_author=Holger Kantz;citation_author=Thomas Schreiber"/>
+  <meta name="citation_reference" content="citation_title=Embedology;citation_publication_date=1991;citation_volume=65;citation_doi=10.1007/BF01053745;citation_author=Tim Sauer;citation_author=James A. Yorke;citation_author=Martin Casdagli"/>
+  <meta name="citation_reference" content="citation_title=Measuring the strangeness of strange attractors;citation_publication_date=1983;citation_volume=9;citation_doi=https://doi.org/10.1016/0167-2789(83)90298-1;citation_issn=0167-2789;citation_author=Peter Grassberger;citation_author=Itamar Procaccia"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","slug","bibliography","date","categories","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["Time series prediction with FNN-LSTM"]},{"type":"character","attributes":{},"value":["In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, \"vanilla LSTM\", FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydanafnnlstm"]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["07-20-2020"]},{"type":"character","attributes":{},"value":["R","TensorFlow/Keras","Time Series","Unsupervised Learning"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/old_faithful.jpg"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","data/ecg.csv","data/electricity.csv","data/geyser.csv","data/mouse.csv","images/ecg_mses.png","images/ecg_predictions.png","images/ecg_ts.png","images/electricity_mses.png","images/electricity_predictions.png","images/electricity_ts.png","images/geyser_mses.png","images/geyser_preds.png","images/geyser_ts.png","images/mouse_mses.png","images/mouse_predictions.png","images/mouse_ts.png","images/old_faithful.jpg","timeseries-prediction-with-fnn-lstm_files/bowser-1.9.3/bowser.min.js","timeseries-prediction-with-fnn-lstm_files/distill-2.2.21/template.v2.js","timeseries-prediction-with-fnn-lstm_files/header-attrs-2.3/header-attrs.js","timeseries-prediction-with-fnn-lstm_files/jquery-1.11.3/jquery.min.js","timeseries-prediction-with-fnn-lstm_files/webcomponents-2.0.0/webcomponents.js"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+<meta name="distill:offset" content="../.."/>
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.distill-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.distill-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #0F2E3D;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.distill-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.distill-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .distill-site-nav {
+    display: none;
+  }
+}
+
+.distill-site-header {
+
+}
+
+.distill-site-footer {
+
+}
+
+
+/* Site Header */
+
+.distill-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.distill-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.distill-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.distill-site-header a,
+.distill-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.distill-site-header .title {
+  font-size: 18px;
+  min-width: 150px;
+}
+
+.distill-site-header .logo {
+  padding: 0;
+}
+
+.distill-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.distill-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .distill-site-header .logo img {
+    display: inline-block;
+  }
+  .distill-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .distill-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.distill-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a, .nav-dropdown-content .nav-dropdown-header {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown-content .nav-dropdown-header {
+  display: block;
+  padding: 5px 24px;
+  padding-bottom: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header a, .distill-site-header .nav-dropdown  {display: none;}
+  .distill-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .distill-site-header .title {
+    margin-left: 0;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 0;
+  }
+  .distill-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-header.responsive {position: relative; min-height: 500px; }
+  .distill-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .distill-site-header.responsive a,
+  .distill-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .distill-site-header.responsive .nav-left,
+  .distill-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .distill-site-header.responsive .nav-dropdown {float: none;}
+  .distill-site-header.responsive .nav-dropdown-content {position: relative;}
+  .distill-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.distill-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<script src="../../site_libs/autocomplete-0.37.1/autocomplete.min.js"></script>
+<script src="../../site_libs/fuse-6.4.1/fuse.min.js"></script>
+
+<script type="application/javascript">
+
+function getMeta(metaName) {
+  var metas = document.getElementsByTagName('meta');
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute('name') === metaName) {
+      return metas[i].getAttribute('content');
+    }
+  }
+  return '';
+}
+
+function offsetURL(url) {
+  var offset = getMeta('distill:offset');
+  return offset ? offset + '/' + url : url;
+}
+
+function createIndex() {
+  var options = {
+    keys: [
+      "title",
+      "categories",
+      "description",
+      "contents"
+    ]
+  };
+  return new window.Fuse([],options);
+}
+
+function createFuseIndex() {
+
+  // create fuse index
+  var options = { keys: ["title", "description", "contents"] };
+  var fuse = new window.Fuse([], options);
+
+  // fetch the main search.json
+  return fetch(offsetURL('search.json'))
+    .then(function(response) {
+      if (response.status == 200) {
+        return response.json().then(function(json) {
+          // index main articles
+          json.articles.forEach(function(article) {
+            fuse.add(article);
+          });
+          // download collections and index their articles
+          return Promise.all(json.collections.map(function(collection) {
+            return fetch(offsetURL(collection)).then(function(response) {
+              if (response.status === 200) {
+                return response.json().then(function(articles) {
+                  articles.forEach(function(article) {
+                    fuse.add(article);
+                  });
+                })
+              } else {
+                return Promise.reject(
+                  new Error('Unexpected status from search index request: ' +
+                            response.status)
+                );
+              }
+            });
+          })).then(function() {
+            return fuse;
+          });
+        });
+
+      } else {
+        return Promise.reject(
+          new Error('Unexpected status from search index request: ' +
+                      response.status)
+        );
+      }
+    });
+}
+
+window.document.addEventListener("DOMContentLoaded", function (event) {
+
+  // get search element (bail if we don't have one)
+  var searchEl = window.document.getElementById('distill-search');
+  if (!searchEl)
+    return;
+
+  createFuseIndex()
+    .then(function(fuse) {
+
+      // make search box visible
+      searchEl.classList.remove('hidden');
+
+      // initialize autocomplete
+      var options = {
+        autoselect: true,
+        hint: false,
+        minLength: 2,
+      };
+      window.autocomplete(searchEl, options, [{
+        source: function(query, callback) {
+          const searchOptions = {
+            isCaseSensitive: false,
+            shouldSort: true,
+            minMatchCharLength: 2,
+            limit: 10,
+            keys: [
+              { name: 'title', weight: 20 },
+              { name: 'categories', weight: 15 },
+              { name: 'description', weight: 10 },
+              { name: 'contents', weight: 5 },
+            ],
+          };
+          var results = fuse.search(query, searchOptions);
+          callback(results
+            .map(function(result) { return result.item; })
+            .filter(function(item) { return !!item.description; })
+          );
+        },
+        templates: {
+          suggestion: function(suggestion) {
+            var html = `
+              <div class="search-item">
+                <h3>${suggestion.title}</h3>
+                <div class="search-item-description">
+                  ${suggestion.description}
+                </div>
+                <div class="search-item-preview">
+                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                </div>
+              </div>
+            `;
+            return html;
+          }
+        }
+      }]).on('autocomplete:selected', function(event, suggestion) {
+        window.location.href = offsetURL(suggestion.path);
+      });
+      // remove inline display style on autocompleter (we want to
+      // manage responsive display via css)
+      $('.algolia-autocomplete').css("display", "");
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
+
+});
+
+</script>
+
+<style type="text/css">
+
+/* Algolioa Autocomplete */
+
+.algolia-autocomplete {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: sub;
+  background-color: white;
+  color: black;
+  padding: 6px;
+  padding-top: 8px;
+  padding-bottom: 0;
+  border-radius: 6px;
+  border: 1px #0F2E3D solid;
+  width: 180px;
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-nav .algolia-autocomplete {
+    display: none;
+    visibility: hidden;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete {
+    display: inline-block;
+    visibility: visible;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete .aa-dropdown-menu {
+    margin-left: 0;
+    width: 400px;
+    max-height: 400px;
+  }
+}
+
+.algolia-autocomplete .aa-input, .algolia-autocomplete .aa-hint {
+  width: 90%;
+  outline: none;
+  border: none;
+}
+
+.algolia-autocomplete .aa-hint {
+  color: #999;
+}
+.algolia-autocomplete .aa-dropdown-menu {
+  width: 550px;
+  max-height: 70vh;
+  overflow-x: visible;
+  overflow-y: scroll;
+  padding: 5px;
+  margin-top: 3px;
+  margin-left: -150px;
+  background-color: #fff;
+  border-radius: 5px;
+  border: 1px solid #999;
+  border-top: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion {
+  cursor: pointer;
+  padding: 5px 4px;
+  border-bottom: 1px solid #eee;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion:last-of-type {
+  border-bottom: none;
+  margin-bottom: 2px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item {
+  overflow: hidden;
+  font-size: 0.8em;
+  line-height: 1.4em;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  margin-block-start: 0;
+  margin-block-end: 5px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-description {
+  display: inline-block;
+  overflow: hidden;
+  height: 2.8em;
+  width: 80%;
+  margin-right: 4%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview {
+  display: inline-block;
+  width: 15%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img {
+  height: 3em;
+  width: auto;
+  display: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img[src] {
+  display: initial;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion.aa-cursor {
+  background-color: #eee;
+}
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion em {
+  font-weight: bold;
+  font-style: normal;
+}
+
+</style>
+
+
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table>caption {
+  margin-bottom: 10px;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+.authors-affiliations .orcid-id {
+  width: 16px;
+  height:16px;
+  margin-left: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+  padding-bottom: 2px;
+}
+
+d-title .dt-tags {
+  margin-top: 1em;
+  grid-column: text;
+}
+
+.dt-tags .dt-tag {
+  text-decoration: none;
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0em 0.4em;
+  margin-right: 0.5em;
+  margin-bottom: 0.4em;
+  font-size: 70%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+d-article table.gt_table td,
+d-article table.gt_table th {
+  border-bottom: none;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.l-screen .caption {
+  margin-left: 10px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-top: 2.5rem;
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article h2 {
+  margin: 1rem 0 1.5rem 0;
+}
+
+d-article h3 {
+  margin-top: 1.5rem;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+/* Tweak code blocks */
+
+d-article div.sourceCode code,
+d-article pre code {
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: hidden;
+}
+
+d-article div.sourceCode {
+  background-color: white;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+d-article pre {
+  font-size: 12px;
+  color: black;
+  background: none;
+  margin-top: 0;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+d-article pre a {
+  border-bottom: none;
+}
+
+d-article pre a:hover {
+  border-bottom: none;
+  text-decoration: underline;
+}
+
+@media(min-width: 768px) {
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: visible !important;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+d-article pre {
+  font-size: 14px;
+}
+
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for d-contents */
+
+.d-contents {
+  grid-column: text;
+  color: rgba(0,0,0,0.8);
+  font-size: 0.9em;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+  padding-bottom: 0.5em;
+  margin-bottom: 1em;
+  padding-left: 0.25em;
+  justify-self: start;
+}
+
+@media(min-width: 1000px) {
+  .d-contents.d-contents-float {
+    height: 0;
+    grid-column-start: 1;
+    grid-column-end: 4;
+    justify-self: center;
+    padding-right: 3em;
+    padding-left: 2em;
+  }
+}
+
+.d-contents nav h3 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.d-contents li {
+  list-style-type: none
+}
+
+.d-contents nav > ul {
+  padding-left: 0;
+}
+
+.d-contents ul {
+  padding-left: 1em
+}
+
+.d-contents nav ul li {
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
+}
+
+.d-contents nav a {
+  font-size: 13px;
+  border-bottom: none;
+  text-decoration: none
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.d-contents nav a:hover {
+  text-decoration: underline solid rgba(0, 0, 0, 0.6)
+}
+
+.d-contents nav > ul > li > a {
+  font-weight: 600;
+}
+
+.d-contents nav > ul > li > ul {
+  font-weight: inherit;
+}
+
+.d-contents nav > ul > li > ul > li {
+  margin-top: 0.2em;
+}
+
+
+.d-contents nav ul {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+
+.d-article-with-toc h2:nth-child(2) {
+  margin-top: 0;
+}
+
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure img {
+  width: 100%;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+/* Citations */
+
+d-article .citation {
+  color: inherit;
+  cursor: inherit;
+}
+
+div.hanging-indent{
+  margin-left: 1em; text-indent: -1em;
+}
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Include appendix styles here so they can be overridden */
+
+d-appendix {
+  contain: layout style;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-top: 60px;
+  margin-bottom: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  color: rgba(0,0,0,0.5);
+  padding-top: 60px;
+  padding-bottom: 48px;
+}
+
+d-appendix h3 {
+  grid-column: page-start / text-start;
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 1em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.65);
+}
+
+d-appendix h3 + * {
+  margin-top: 1em;
+}
+
+d-appendix ol {
+  padding: 0 0 0 15px;
+}
+
+@media (min-width: 768px) {
+  d-appendix ol {
+    padding: 0 0 0 30px;
+    margin-left: -30px;
+  }
+}
+
+d-appendix li {
+  margin-bottom: 1em;
+}
+
+d-appendix a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+d-appendix > * {
+  grid-column: text;
+}
+
+d-appendix > d-footnote-list,
+d-appendix > d-citation-list,
+d-appendix > distill-appendix {
+  grid-column: screen;
+}
+
+/* Include footnote styles here so they can be overridden */
+
+d-footnote-list {
+  contain: layout style;
+}
+
+d-footnote-list > * {
+  grid-column: text;
+}
+
+d-footnote-list a.footnote-backlink {
+  color: rgba(0,0,0,0.3);
+  padding-left: 0.5em;
+}
+
+
+
+/* Anchor.js */
+
+.anchorjs-link {
+  /*transition: all .25s linear; */
+  text-decoration: none;
+  border-bottom: none;
+}
+*:hover > .anchorjs-link {
+  margin-left: -1.125em !important;
+  text-decoration: none;
+  border-bottom: none;
+}
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+.sidebar-section.custom {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.custom p {
+  margin-bottom: 0.5em;
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // add anchors
+  if (window.anchors) {
+    window.anchors.options.placement = 'left';
+    window.anchors.add('d-article > h2, d-article > h3, d-article > h4, d-article > h5');
+  }
+
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.html();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.html(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  // move refs into #references-listing
+  $('#references-listing').replaceWith($('#refs'));
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-contents a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('div.sourceCode, pre, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // remove code block used to force  highlighting css
+  $('.distill-force-highlighting-css').parent().remove();
+
+  // remove empty line numbers inserted by pandoc when using a
+  // custom syntax highlighting theme
+  $('code.sourceCode a:empty').remove();
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // article with toc class
+    $('.d-contents').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // add orcid ids
+    $('.authors-affiliations').find('.author').each(function(i, el) {
+      var orcid_id = front_matter.authors[i].orcidID;
+      if (orcid_id) {
+        var a = $('<a></a>');
+        a.attr('href', 'https://orcid.org/' + orcid_id);
+        var img = $('<img></img>');
+        img.addClass('orcid-id');
+        img.attr('alt', 'ORCID ID');
+        img.attr('src','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2ZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo1N0NEMjA4MDI1MjA2ODExOTk0QzkzNTEzRjZEQTg1NyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDozM0NDOEJGNEZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDozM0NDOEJGM0ZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkZDN0YxMTc0MDcyMDY4MTE5NUZFRDc5MUM2MUUwNEREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjU3Q0QyMDgwMjUyMDY4MTE5OTRDOTM1MTNGNkRBODU3Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+84NovQAAAR1JREFUeNpiZEADy85ZJgCpeCB2QJM6AMQLo4yOL0AWZETSqACk1gOxAQN+cAGIA4EGPQBxmJA0nwdpjjQ8xqArmczw5tMHXAaALDgP1QMxAGqzAAPxQACqh4ER6uf5MBlkm0X4EGayMfMw/Pr7Bd2gRBZogMFBrv01hisv5jLsv9nLAPIOMnjy8RDDyYctyAbFM2EJbRQw+aAWw/LzVgx7b+cwCHKqMhjJFCBLOzAR6+lXX84xnHjYyqAo5IUizkRCwIENQQckGSDGY4TVgAPEaraQr2a4/24bSuoExcJCfAEJihXkWDj3ZAKy9EJGaEo8T0QSxkjSwORsCAuDQCD+QILmD1A9kECEZgxDaEZhICIzGcIyEyOl2RkgwAAhkmC+eAm0TAAAAABJRU5ErkJggg==');
+        a.append(img);
+        $(this).append(a);
+      }
+    });
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // remove d-appendix and d-footnote-list local styles
+    $('d-appendix > style:first-child').remove();
+    $('d-footnote-list > style:first-child').remove();
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-contents').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark non-body figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    var figures = $(this).find('img, .html-widget');
+    if ($(this).attr('data-layout') !== "l-body") {
+      figures.css('width', '100%');
+    } else {
+      figures.css('max-width', '100%');
+      figures.filter("[width]").each(function(i, val) {
+        var fig = $(this);
+        fig.css('width', fig.attr('width') + 'px');
+      });
+
+    }
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.distill-site-header a[href]').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+  // add figcaption style to table captions
+  $('caption').parent('table').addClass("figcaption");
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $(window).resize();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/header-attrs-2.3/header-attrs.js"></script>
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-20375833-3');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Time series prediction with FNN-LSTM","description":"In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, \"vanilla LSTM\", FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/","orcidID":""}],"publishedDate":"2020-07-20T00:00:00.000+00:00","citationText":"Keydana, 2020"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="distill-site-nav distill-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">AI Blog</a>
+<input id="distill-search" class="nav-search hidden" type="text" placeholder="Search..."/>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss" aria-hidden="true"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Time series prediction with FNN-LSTM</h1>
+<p><p>In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, “vanilla LSTM”, FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.</p></p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>07-20-2020
+</div>
+
+<div class="d-article">
+<p>Today, we pick up on the plan alluded to in the conclusion of the recent <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">Deep attractors: Where deep learning meets chaos</a>: employ that same technique to generate <em>forecasts</em> for empirical time series data.</p>
+<p>“That same technique”, which for conciseness, I’ll take the liberty of referring to as FNN-LSTM, is due to William Gilpin’s 2020 paper “Deep reconstruction of strange attractors from time series” <span class="citation" data-cites="gilpin2020deep">(Gilpin <a href="#ref-gilpin2020deep" role="doc-biblioref">2020</a>)</span>.</p>
+<p>In a nutshell<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, the problem addressed is as follows: A system, known or assumed to be nonlinear and highly dependent on initial conditions, is observed, resulting in a scalar series of measurements. The measurements are not just – inevitably – noisy, but in addition, they are – at best – a projection of a multidimensional state space onto a line.</p>
+<p>Classically in nonlinear time series analysis, such scalar series of observations are augmented by supplementing, at every point in time, delayed measurements of that same series – a technique called <em>delay coordinate embedding</em> <span class="citation" data-cites="embedology">(Sauer, Yorke, and Casdagli <a href="#ref-embedology" role="doc-biblioref">1991</a>)</span>. For example, instead of just a single vector <code>X1</code>, we could have a matrix of vectors <code>X1</code>, <code>X2</code>, and <code>X3</code>, with <code>X2</code> containing the same values as <code>X1</code>, but starting from the third observation, and <code>X3</code>, from the fifth. In this case, the <em>delay</em> would be 2, and the <em>embedding dimension</em>, 3. Various <a href="https://en.wikipedia.org/wiki/Takens&#39;s_theorem">theorems</a> state that if these parameters are chosen adequately, it is possible to reconstruct the complete state space. There is a problem though: The theorems assume that the dimensionality of the true state space is known, which in many real-world applications, won’t be the case.</p>
+<p>This is where Gilpin’s idea comes in: Train an autoencoder, whose intermediate representation encapsulates the system’s attractor. Not just any MSE-optimized autoencoder though. The latent representation is regularized by <em>false nearest neighbors</em> (FNN) loss, a technique commonly used with delay coordinate embedding to determine an adequate embedding dimension. False neighbors are those who are close in <code>n</code>-dimensional space, but significantly farther apart in <code>n+1</code>-dimensional space. In the aforementioned introductory <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">post</a>, we showed how this technique allowed to reconstruct the attractor of the (synthetic) Lorenz system. Now, we want to move on to prediction.</p>
+<p>We first describe the setup, including model definitions, training procedures, and data preparation. Then, we tell you how it went.</p>
+<h2 id="setup">Setup</h2>
+<h3 id="from-reconstruction-to-forecasting-and-branching-out-into-the-real-world">From reconstruction to forecasting, and branching out into the real world</h3>
+<p>In the previous post, we trained an LSTM autoencoder to generate a compressed code, representing the attractor of the system. As usual with autoencoders, the target when training is the same as the input, meaning that overall loss consisted of two components: The FNN loss, computed on the latent representation only, and the mean-squared-error loss between input and output. Now for prediction, the target consists of future values, as many as we wish to predict. Put differently: The architecture stays the same, but instead of reconstruction we perform prediction, in the standard RNN way. Where the usual RNN setup would just directly chain the desired number of LSTMs, we have an LSTM encoder that outputs a (timestep-less) latent code, and an LSTM decoder that starting from that code, repeated as many times as required, forecasts the required number of future values.</p>
+<p>This of course means that to evaluate forecast performance, we need to compare against an LSTM-only setup. This is exactly what we’ll do, and comparison will turn out to be interesting not just quantitatively, but <em>qualitatively</em> as well.</p>
+<p>We perform these comparisons on the four datasets Gilpin chose to demonstrate <a href="https://github.com/williamgilpin/fnn/blob/master/exploratory.ipynb">attractor reconstruction on observational data</a>. While all of these, as is evident from the images in that notebook, exhibit nice attractors, we’ll see that not all of them are equally suited to forecasting using simple RNN-based architectures – with or without FNN regularization. But even those that clearly demand a different approach allow for interesting observations as to the impact of FNN loss.</p>
+<h3 id="model-definitions-and-training-setup">Model definitions and training setup</h3>
+<p>In all four experiments, we use the same model definitions and training procedures, the only differing parameter being the number of timesteps used in the LSTMs (for reasons that will become evident when we introduce the individual datasets).</p>
+<p>Both architectures were chosen to be straightforward, and about comparable in number of parameters – both basically consist of two LSTMs with 32 units (<code>n_recurrent</code> will be set to 32 for all experiments).<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+<h4 id="fnn-lstm">FNN-LSTM</h4>
+<p>FNN-LSTM looks nearly like in the previous post, apart from the fact that we split up the encoder LSTM into two, to uncouple capacity (<code>n_recurrent</code>) from maximal latent state dimensionality (<code>n_latent</code>, kept at 10 just like before).</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# DL-related packages
+library(tensorflow)
+library(keras)
+library(tfdatasets)
+library(tfautograph)
+library(reticulate)
+
+# going to need those later
+library(tidyverse)
+library(cowplot)
+
+encoder_model &lt;- function(n_timesteps,
+                          n_features,
+                          n_recurrent,
+                          n_latent,
+                          name = NULL) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$noise &lt;- layer_gaussian_noise(stddev = 0.5)
+    self$lstm1 &lt;-  layer_lstm(
+      units = n_recurrent,
+      input_shape = c(n_timesteps, n_features),
+      return_sequences = TRUE
+    ) 
+    self$batchnorm1 &lt;- layer_batch_normalization()
+    self$lstm2 &lt;-  layer_lstm(
+      units = n_latent,
+      return_sequences = FALSE
+    ) 
+    self$batchnorm2 &lt;- layer_batch_normalization()
+    
+    function (x, mask = NULL) {
+      x %&gt;%
+        self$noise() %&gt;%
+        self$lstm1() %&gt;%
+        self$batchnorm1() %&gt;%
+        self$lstm2() %&gt;%
+        self$batchnorm2() 
+    }
+  })
+}
+
+decoder_model &lt;- function(n_timesteps,
+                          n_features,
+                          n_recurrent,
+                          n_latent,
+                          name = NULL) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$repeat_vector &lt;- layer_repeat_vector(n = n_timesteps)
+    self$noise &lt;- layer_gaussian_noise(stddev = 0.5)
+    self$lstm &lt;- layer_lstm(
+      units = n_recurrent,
+      return_sequences = TRUE,
+      go_backwards = TRUE
+    ) 
+    self$batchnorm &lt;- layer_batch_normalization()
+    self$elu &lt;- layer_activation_elu() 
+    self$time_distributed &lt;- time_distributed(layer = layer_dense(units = n_features))
+    
+    function (x, mask = NULL) {
+      x %&gt;%
+        self$repeat_vector() %&gt;%
+        self$noise() %&gt;%
+        self$lstm() %&gt;%
+        self$batchnorm() %&gt;%
+        self$elu() %&gt;%
+        self$time_distributed()
+    }
+  })
+}
+
+n_latent &lt;- 10L
+n_features &lt;- 1
+n_hidden &lt;- 32
+
+encoder &lt;- encoder_model(n_timesteps,
+                         n_features,
+                         n_hidden,
+                         n_latent)
+
+decoder &lt;- decoder_model(n_timesteps,
+                         n_features,
+                         n_hidden,
+                         n_latent)</code></pre>
+</div>
+<p>The regularizer, FNN loss, is unchanged:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+loss_false_nn &lt;- function(x) {
+  
+  # changing these parameters is equivalent to
+  # changing the strength of the regularizer, so we keep these fixed (these values
+  # correspond to the original values used in Kennel et al 1992).
+  rtol &lt;- 10 
+  atol &lt;- 2
+  k_frac &lt;- 0.01
+  
+  k &lt;- max(1, floor(k_frac * batch_size))
+  
+  ## Vectorized version of distance matrix calculation
+  tri_mask &lt;-
+    tf$linalg$band_part(
+      tf$ones(
+        shape = c(tf$cast(n_latent, tf$int32), tf$cast(n_latent, tf$int32)),
+        dtype = tf$float32
+      ),
+      num_lower = -1L,
+      num_upper = 0L
+    )
+  
+  # latent x batch_size x latent
+  batch_masked &lt;-
+    tf$multiply(tri_mask[, tf$newaxis,], x[tf$newaxis, reticulate::py_ellipsis()])
+  
+  # latent x batch_size x 1
+  x_squared &lt;-
+    tf$reduce_sum(batch_masked * batch_masked,
+                  axis = 2L,
+                  keepdims = TRUE)
+  
+  # latent x batch_size x batch_size
+  pdist_vector &lt;- x_squared + tf$transpose(x_squared, perm = c(0L, 2L, 1L)) -
+    2 * tf$matmul(batch_masked, tf$transpose(batch_masked, perm = c(0L, 2L, 1L)))
+  
+  #(latent, batch_size, batch_size)
+  all_dists &lt;- pdist_vector
+  # latent
+  all_ra &lt;-
+    tf$sqrt((1 / (
+      batch_size * tf$range(1, 1 + n_latent, dtype = tf$float32)
+    )) *
+      tf$reduce_sum(tf$square(
+        batch_masked - tf$reduce_mean(batch_masked, axis = 1L, keepdims = TRUE)
+      ), axis = c(1L, 2L)))
+  
+  # Avoid singularity in the case of zeros
+  #(latent, batch_size, batch_size)
+  all_dists &lt;-
+    tf$clip_by_value(all_dists, 1e-14, tf$reduce_max(all_dists))
+  
+  #inds = tf.argsort(all_dists, axis=-1)
+  top_k &lt;- tf$math$top_k(-all_dists, tf$cast(k + 1, tf$int32))
+  # (#(latent, batch_size, batch_size)
+  top_indices &lt;- top_k[[1]]
+  
+  #(latent, batch_size, batch_size)
+  neighbor_dists_d &lt;-
+    tf$gather(all_dists, top_indices, batch_dims = -1L)
+  #(latent - 1, batch_size, batch_size)
+  neighbor_new_dists &lt;-
+    tf$gather(all_dists[2:-1, , ],
+              top_indices[1:-2, , ],
+              batch_dims = -1L)
+  
+  # Eq. 4 of Kennel et al.
+  #(latent - 1, batch_size, batch_size)
+  scaled_dist &lt;- tf$sqrt((
+    tf$square(neighbor_new_dists) -
+      # (9, 8, 2)
+      tf$square(neighbor_dists_d[1:-2, , ])) /
+      # (9, 8, 2)
+      tf$square(neighbor_dists_d[1:-2, , ])
+  )
+  
+  # Kennel condition #1
+  #(latent - 1, batch_size, batch_size)
+  is_false_change &lt;- (scaled_dist &gt; rtol)
+  # Kennel condition 2
+  #(latent - 1, batch_size, batch_size)
+  is_large_jump &lt;-
+    (neighbor_new_dists &gt; atol * all_ra[1:-2, tf$newaxis, tf$newaxis])
+  
+  is_false_neighbor &lt;-
+    tf$math$logical_or(is_false_change, is_large_jump)
+  #(latent - 1, batch_size, 1)
+  total_false_neighbors &lt;-
+    tf$cast(is_false_neighbor, tf$int32)[reticulate::py_ellipsis(), 2:(k + 2)]
+  
+  # Pad zero to match dimensionality of latent space
+  # (latent - 1)
+  reg_weights &lt;-
+    1 - tf$reduce_mean(tf$cast(total_false_neighbors, tf$float32), axis = c(1L, 2L))
+  # (latent,)
+  reg_weights &lt;- tf$pad(reg_weights, list(list(1L, 0L)))
+  
+  # Find batch average activity
+  
+  # L2 Activity regularization
+  activations_batch_averaged &lt;-
+    tf$sqrt(tf$reduce_mean(tf$square(x), axis = 0L))
+  
+  loss &lt;- tf$reduce_sum(tf$multiply(reg_weights, activations_batch_averaged))
+  loss
+  
+}</code></pre>
+</div>
+<p>Training is unchanged as well, apart from the fact that now, we continually output latent variable variances in addition to the losses. This is because with FNN-LSTM, we have to choose an adequate weight for the FNN loss component. An “adequate weight” is one where the variance drops sharply after the first <code>n</code> variables, with <code>n</code> thought to correspond to attractor dimensionality. For the Lorenz system discussed in the previous post, this is how these variances looked:</p>
+<pre><code>
+     V1       V2        V3        V4        V5        V6        V7        V8        V9       V10
+ 0.0739   0.0582   1.12e-6   3.13e-4   1.43e-5   1.52e-8   1.35e-6   1.86e-4   1.67e-4   4.39e-5</code></pre>
+<p>If we take variance as an indicator of <em>importance</em>, the first two variables are clearly more important than the rest. This finding nicely corresponds to “official” estimates of Lorenz attractor dimensionality. For example, the correlation dimension is estimated to lie around 2.05 <span class="citation" data-cites="GRASSBERGER1983189">(Grassberger and Procaccia <a href="#ref-GRASSBERGER1983189" role="doc-biblioref">1983</a>)</span>.</p>
+<p>Thus, here we have the training routine:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train_step &lt;- function(batch) {
+  with (tf$GradientTape(persistent = TRUE) %as% tape, {
+    code &lt;- encoder(batch[[1]])
+    prediction &lt;- decoder(code)
+    
+    l_mse &lt;- mse_loss(batch[[2]], prediction)
+    l_fnn &lt;- loss_false_nn(code)
+    loss &lt;- l_mse + fnn_weight * l_fnn
+  })
+  
+  encoder_gradients &lt;-
+    tape$gradient(loss, encoder$trainable_variables)
+  decoder_gradients &lt;-
+    tape$gradient(loss, decoder$trainable_variables)
+  
+  optimizer$apply_gradients(purrr::transpose(list(
+    encoder_gradients, encoder$trainable_variables
+  )))
+  optimizer$apply_gradients(purrr::transpose(list(
+    decoder_gradients, decoder$trainable_variables
+  )))
+  
+  train_loss(loss)
+  train_mse(l_mse)
+  train_fnn(l_fnn)
+  
+  
+}
+
+training_loop &lt;- tf_function(autograph(function(ds_train) {
+  for (batch in ds_train) {
+    train_step(batch)
+  }
+  
+  tf$print(&quot;Loss: &quot;, train_loss$result())
+  tf$print(&quot;MSE: &quot;, train_mse$result())
+  tf$print(&quot;FNN loss: &quot;, train_fnn$result())
+  
+  train_loss$reset_states()
+  train_mse$reset_states()
+  train_fnn$reset_states()
+  
+}))
+
+
+mse_loss &lt;-
+  tf$keras$losses$MeanSquaredError(reduction = tf$keras$losses$Reduction$SUM)
+
+train_loss &lt;- tf$keras$metrics$Mean(name = &#39;train_loss&#39;)
+train_fnn &lt;- tf$keras$metrics$Mean(name = &#39;train_fnn&#39;)
+train_mse &lt;-  tf$keras$metrics$Mean(name = &#39;train_mse&#39;)
+
+# fnn_multiplier should be chosen individually per dataset
+# this is the value we used on the geyser dataset
+fnn_multiplier &lt;- 0.7
+fnn_weight &lt;- fnn_multiplier * nrow(x_train)/batch_size
+
+# learning rate may also need adjustment
+optimizer &lt;- optimizer_adam(lr = 1e-3)
+
+for (epoch in 1:200) {
+ cat(&quot;Epoch: &quot;, epoch, &quot; -----------\n&quot;)
+ training_loop(ds_train)
+ 
+ test_batch &lt;- as_iterator(ds_test) %&gt;% iter_next()
+ encoded &lt;- encoder(test_batch[[1]]) 
+ test_var &lt;- tf$math$reduce_variance(encoded, axis = 0L)
+ print(test_var %&gt;% as.numeric() %&gt;% round(5))
+}</code></pre>
+</div>
+<p>On to what we’ll use as a baseline for comparison.</p>
+<h4 id="vanilla-lstm">Vanilla LSTM</h4>
+<p>Here is the vanilla LSTM, stacking two layers, each, again, of size 32. Dropout and recurrent dropout were chosen individually per dataset, as was the learning rate.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+lstm &lt;- function(n_latent, n_timesteps, n_features, n_recurrent, dropout, recurrent_dropout,
+                 optimizer = optimizer_adam(lr =  1e-3)) {
+  
+  model &lt;- keras_model_sequential() %&gt;%
+    layer_lstm(
+      units = n_recurrent,
+      input_shape = c(n_timesteps, n_features),
+      dropout = dropout, 
+      recurrent_dropout = recurrent_dropout,
+      return_sequences = TRUE
+    ) %&gt;% 
+    layer_lstm(
+      units = n_recurrent,
+      dropout = dropout,
+      recurrent_dropout = recurrent_dropout,
+      return_sequences = TRUE
+    ) %&gt;% 
+    time_distributed(layer_dense(units = 1))
+  
+  model %&gt;%
+    compile(
+      loss = &quot;mse&quot;,
+      optimizer = optimizer
+    )
+  model
+  
+}
+
+model &lt;- lstm(n_latent, n_timesteps, n_features, n_hidden, dropout = 0.2, recurrent_dropout = 0.2)</code></pre>
+</div>
+<h3 id="data-preparation">Data preparation</h3>
+<p>For all experiments, data were prepared in the same way.</p>
+<p>In every case, we used the first 10000 measurements available in the respective <code>.pkl</code> files <a href="https://github.com/williamgilpin/fnn/tree/master/datasets">provided by Gilpin in his GitHub repository</a>. To save on file size and not depend on an external data source, we extracted those first 10000 entries to <code>.csv</code> files downloadable directly from this blog’s repo:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+geyser &lt;- download.file(
+  &quot;https://raw.githubusercontent.com/rstudio/ai-blog/master/docs/posts/2020-07-20-fnn-lstm/data/geyser.csv&quot;,
+  &quot;data/geyser.csv&quot;)
+
+electricity &lt;- download.file(
+  &quot;https://raw.githubusercontent.com/rstudio/ai-blog/master/docs/posts/2020-07-20-fnn-lstm/data/electricity.csv&quot;,
+  &quot;data/electricity.csv&quot;)
+
+ecg &lt;- download.file(
+  &quot;https://raw.githubusercontent.com/rstudio/ai-blog/master/docs/posts/2020-07-20-fnn-lstm/data/ecg.csv&quot;,
+  &quot;data/ecg.csv&quot;)
+
+mouse &lt;- download.file(
+  &quot;https://raw.githubusercontent.com/rstudio/ai-blog/master/docs/posts/2020-07-20-fnn-lstm/data/mouse.csv&quot;,
+  &quot;data/mouse.csv&quot;)</code></pre>
+</div>
+<p>Should you want to access the complete time series (of considerably greater lengths), just download them from Gilpin’s repo and load them using <code>reticulate</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# e.g.
+geyser &lt;- reticulate::py_load_object(&quot;geyser_train_test.pkl&quot;)</code></pre>
+</div>
+<p>Here is the data preparation code for the first dataset, <code>geyser</code> - all other datasets were treated the same way.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# the first 10000 measurements from the compilation provided by Gilpin
+geyser &lt;- read_csv(&quot;geyser.csv&quot;, col_names = FALSE) %&gt;% select(X1) %&gt;% pull() %&gt;% unclass()
+
+# standardize
+geyser &lt;- scale(geyser)
+
+# varies per dataset; see below 
+n_timesteps &lt;- 60
+batch_size &lt;- 32
+
+# transform into [batch_size, timesteps, features] format required by RNNs
+gen_timesteps &lt;- function(x, n_timesteps) {
+  do.call(rbind,
+          purrr::map(seq_along(x),
+                     function(i) {
+                       start &lt;- i
+                       end &lt;- i + n_timesteps - 1
+                       out &lt;- x[start:end]
+                       out
+                     })
+  ) %&gt;%
+    na.omit()
+}
+
+n &lt;- 10000
+train &lt;- gen_timesteps(geyser[1:(n/2)], 2 * n_timesteps)
+test &lt;- gen_timesteps(geyser[(n/2):n], 2 * n_timesteps) 
+
+dim(train) &lt;- c(dim(train), 1)
+dim(test) &lt;- c(dim(test), 1)
+
+# split into input and target  
+x_train &lt;- train[ , 1:n_timesteps, , drop = FALSE]
+y_train &lt;- train[ , (n_timesteps + 1):(2*n_timesteps), , drop = FALSE]
+
+x_test &lt;- test[ , 1:n_timesteps, , drop = FALSE]
+y_test &lt;- test[ , (n_timesteps + 1):(2*n_timesteps), , drop = FALSE]
+
+# create tfdatasets
+ds_train &lt;- tensor_slices_dataset(list(x_train, y_train)) %&gt;%
+  dataset_shuffle(nrow(x_train)) %&gt;%
+  dataset_batch(batch_size)
+
+ds_test &lt;- tensor_slices_dataset(list(x_test, y_test)) %&gt;%
+  dataset_batch(nrow(x_test))</code></pre>
+</div>
+<p>Now we’re ready to look at how forecasting goes on our four datasets.</p>
+<h2 id="experiments">Experiments</h2>
+<h3 id="geyser-dataset">Geyser dataset</h3>
+<p>People working with time series may have heard of <a href="https://en.wikipedia.org/wiki/Old_Faithful">Old Faithful</a>, a geyser in Wyoming, US that has continually been erupting every 44 minutes to two hours since the year 2004. For the subset of data Gilpin extracted<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>,</p>
+<blockquote>
+<p><code>geyser_train_test.pkl</code> corresponds to detrended temperature readings from the main runoff pool of the Old Faithful geyser in Yellowstone National Park, downloaded from the <a href="https://geysertimes.org/">GeyserTimes database</a>. Temperature measurements start on April 13, 2015 and occur in one-minute increments.</p>
+</blockquote>
+<p>Like we said above, <code>geyser.csv</code> is a subset of these measurements, comprising the first 10000 data points. To choose an adequate timestep for the LSTMs, we inspect the series at various resolutions:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-8"></span>
+<img src="images/geyser_ts.png" alt="Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the first 200." width="600" />
+<p class="caption">
+Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the first 200.
+</p>
+</div>
+</div>
+<p>It seems like the behavior is periodic with a period of about 40-50; a timestep of 60 thus seemed like a good try.</p>
+<p>Having trained both FNN-LSTM and the vanilla LSTM for 200 epochs, we first inspect the variances of the latent variables on the test set. The value of <code>fnn_multiplier</code> corresponding to this run was <code>0.7</code>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+test_batch &lt;- as_iterator(ds_test) %&gt;% iter_next()
+encoded &lt;- encoder(test_batch[[1]]) %&gt;%
+  as.array() %&gt;%
+  as_tibble()
+
+encoded %&gt;% summarise_all(var)</code></pre>
+</div>
+<pre><code>
+   V1     V2        V3          V4       V5       V6       V7       V8       V9      V10
+0.258 0.0262 0.0000627 0.000000600 0.000533 0.000362 0.000238 0.000121 0.000518 0.000365</code></pre>
+<p>There is a drop in importance between the first two variables and the rest; however, unlike in the Lorenz system, <code>V1</code> and <code>V2</code> variances also differ by an order of magnitude.</p>
+<p>Now, it’s interesting to compare prediction errors for both models. We are going to make an observation that will carry through to all three datasets to come.</p>
+<p>Keeping up the suspense for a while, here is the code used to compute per-timestep prediction errors from both models. The same code will be used for all other datasets.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+calc_mse &lt;- function(df, y_true, y_pred) {
+  (sum((df[[y_true]] - df[[y_pred]])^2))/nrow(df)
+}
+
+get_mse &lt;- function(test_batch, prediction) {
+  
+  comp_df &lt;- 
+    data.frame(
+      test_batch[[2]][, , 1] %&gt;%
+        as.array()) %&gt;%
+        rename_with(function(name) paste0(name, &quot;_true&quot;)) %&gt;%
+    bind_cols(
+      data.frame(
+        prediction[, , 1] %&gt;%
+          as.array()) %&gt;%
+          rename_with(function(name) paste0(name, &quot;_pred&quot;)))
+  
+  mse &lt;- purrr::map(1:dim(prediction)[2],
+                        function(varno)
+                          calc_mse(comp_df,
+                                   paste0(&quot;X&quot;, varno, &quot;_true&quot;),
+                                   paste0(&quot;X&quot;, varno, &quot;_pred&quot;))) %&gt;%
+    unlist()
+  
+  mse
+}
+
+prediction_fnn &lt;- decoder(encoder(test_batch[[1]]))
+mse_fnn &lt;- get_mse(test_batch, prediction_fnn)
+
+prediction_lstm &lt;- model %&gt;% predict(ds_test)
+mse_lstm &lt;- get_mse(test_batch, prediction_lstm)
+
+mses &lt;- data.frame(timestep = 1:n_timesteps, fnn = mse_fnn, lstm = mse_lstm) %&gt;%
+  gather(key = &quot;type&quot;, value = &quot;mse&quot;, -timestep)
+
+ggplot(mses, aes(timestep, mse, color = type)) +
+  geom_point() +
+  scale_color_manual(values = c(&quot;#00008B&quot;, &quot;#3CB371&quot;)) +
+  theme_classic() +
+  theme(legend.position = &quot;none&quot;) </code></pre>
+</div>
+<p>And here is the actual comparison. One thing especially jumps to the eye: FNN-LSTM forecast error is significantly lower for initial timesteps, first and foremost, for the very first prediction, which from this graph we expect to be pretty good!</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-11"></span>
+<img src="images/geyser_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
+<p class="caption">
+Figure 2: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
+</p>
+</div>
+</div>
+<p>Interestingly, we see “jumps” in prediction error, for FNN-LSTM, between the very first forecast and the second, and then between the second and the ensuing ones, reminding of the similar jumps in variable importance for the latent code! After the first ten timesteps, vanilla LSTM has caught up with FNN-LSTM, and we won’t interpret further development of the losses based on just a single run’s output.</p>
+<p>Instead, let’s inspect actual predictions. We randomly pick sequences from the test set, and ask both FNN-LSTM and vanilla LSTM for a forecast. The same procedure will be followed for the other datasets.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+given &lt;- data.frame(as.array(tf$concat(list(
+  test_batch[[1]][, , 1], test_batch[[2]][, , 1]
+),
+axis = 1L)) %&gt;% t()) %&gt;%
+  add_column(type = &quot;given&quot;) %&gt;%
+  add_column(num = 1:(2 * n_timesteps))
+
+fnn &lt;- data.frame(as.array(prediction_fnn[, , 1]) %&gt;%
+                    t()) %&gt;%
+  add_column(type = &quot;fnn&quot;) %&gt;%
+  add_column(num = (n_timesteps  + 1):(2 * n_timesteps))
+
+lstm &lt;- data.frame(as.array(prediction_lstm[, , 1]) %&gt;%
+                     t()) %&gt;%
+  add_column(type = &quot;lstm&quot;) %&gt;%
+  add_column(num = (n_timesteps + 1):(2 * n_timesteps))
+
+compare_preds_df &lt;- bind_rows(given, lstm, fnn)
+
+plots &lt;- 
+  purrr::map(sample(1:dim(compare_preds_df)[2], 16),
+             function(v) {
+               ggplot(compare_preds_df, aes(num, .data[[paste0(&quot;X&quot;, v)]], color = type)) +
+                 geom_line() +
+                 theme_classic() +
+                 theme(legend.position = &quot;none&quot;, axis.title = element_blank()) +
+                 scale_color_manual(values = c(&quot;#00008B&quot;, &quot;#DB7093&quot;, &quot;#3CB371&quot;))
+             })
+
+plot_grid(plotlist = plots, ncol = 4)</code></pre>
+</div>
+<p>Here are sixteen random picks of predictions on the test set. The ground truth is displayed in pink; blue forecasts are from FNN-LSTM, green ones from vanilla LSTM.</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-13"></span>
+<img src="images/geyser_preds.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
+<p class="caption">
+Figure 3: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
+</p>
+</div>
+</div>
+<p>What we expect from the error inspection comes true: FNN-LSTM yields significantly better predictions for immediate continuations of a given sequence.</p>
+<p>Let’s move on to the second dataset on our list.</p>
+<h3 id="electricity-dataset">Electricity dataset</h3>
+<p>This is a dataset on power consumption, aggregated over 321 different households and fifteen-minute-intervals.</p>
+<blockquote>
+<p><code>electricity_train_test.pkl</code> corresponds to average power consumption by 321 Portuguese households between 2012 and 2014, in units of kilowatts consumed in fifteen minute increments. This dataset is from the <a href="http://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014">UCI machine learning database</a>.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
+</blockquote>
+<p>Here, we see a very regular pattern:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-14"></span>
+<img src="images/electricity_ts.png" alt="Electricity dataset. Top: First 2000 observations. Bottom: Zooming in on 500 observations, skipping the very beginning of the series." width="600" />
+<p class="caption">
+Figure 4: Electricity dataset. Top: First 2000 observations. Bottom: Zooming in on 500 observations, skipping the very beginning of the series.
+</p>
+</div>
+</div>
+<p>With such regular behavior, we immediately tried to predict a higher number of timesteps (<code>120</code>) – and didn’t have to retract behind that aspiration.</p>
+<p>For an <code>fnn_multiplier</code> of <code>0.5</code>, latent variable variances look like this:</p>
+<pre><code>
+V1          V2            V3       V4       V5            V6       V7         V8      V9     V10
+0.390 0.000637 0.00000000288 1.48e-10 2.10e-11 0.00000000119 6.61e-11 0.00000115 1.11e-4 1.40e-4</code></pre>
+<p>We definitely see a sharp drop already after the first variable.</p>
+<p>How do prediction errors compare on the two architectures?</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-15"></span>
+<img src="images/electricity_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
+<p class="caption">
+Figure 5: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
+</p>
+</div>
+</div>
+<p>Here, FNN-LSTM performs better over a long range of timesteps, but again, the difference is most visible for immediate predictions. Will an inspection of actual predictions confirm this view?</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-16"></span>
+<img src="images/electricity_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
+<p class="caption">
+Figure 6: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
+</p>
+</div>
+</div>
+<p>It does! In fact, forecasts from FNN-LSTM are very impressive on all time scales.</p>
+<p>Now that we’ve seen the easy and predictable, let’s approach the weird and difficult.</p>
+<h3 id="ecg-dataset">ECG dataset</h3>
+<p>Says Gilpin,</p>
+<blockquote>
+<p><code>ecg_train.pkl</code> and <code>ecg_test.pkl</code> correspond to ECG measurements for two different patients, taken from the <a href="https://physionet.org/content/qtdb/1.0.0/">PhysioNet QT database</a>.<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a></p>
+</blockquote>
+<p>How do these look?</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-17"></span>
+<img src="images/ecg_ts.png" alt="ECG dataset. Top: First 1000 observations. Bottom: Zooming in on the first 400 observations." width="600" />
+<p class="caption">
+Figure 7: ECG dataset. Top: First 1000 observations. Bottom: Zooming in on the first 400 observations.
+</p>
+</div>
+</div>
+<p>To the layperson that I am, these do not look nearly as regular as expected. First experiments showed that both architectures are not capable of dealing with a high number of timesteps. In every try, FNN-LSTM performed better for the very first timestep.</p>
+<p>This is also the case for <code>n_timesteps = 12</code>, the final try (after <code>120</code>, <code>60</code> and <code>30</code>). With an <code>fnn_multiplier</code> of <code>1</code>, the latent variances obtained amounted to the following:</p>
+<pre><code>
+     V1        V2          V3        V4         V5       V6       V7         V8         V9       V10
+  0.110  1.16e-11     3.78e-9 0.0000992    9.63e-9  4.65e-5  1.21e-4    9.91e-9    3.81e-9   2.71e-8</code></pre>
+<p>There <em>is</em> a gap between the first variable and all other ones; but not much variance is explained by <code>V1</code> either.</p>
+<p>Apart from the very first prediction, vanilla LSTM shows lower forecast errors this time; however, we have to add that this was not consistently observed when experimenting with other timestep settings.</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-18"></span>
+<img src="images/ecg_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
+<p class="caption">
+Figure 8: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
+</p>
+</div>
+</div>
+<p>Looking at actual predictions, both architectures perform best when a persistence forecast is adequate – in fact, they produce one even when it is <em>not</em>.</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-19"></span>
+<img src="images/ecg_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
+<p class="caption">
+Figure 9: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
+</p>
+</div>
+</div>
+<p>On this dataset, we certainly would want to explore other architectures better able to capture the presence of high <em>and</em> low frequencies in the data, such as mixture models. But – were we forced to stay with one of these, and could do a one-step-ahead, rolling forecast, we’d go with FNN-LSTM.</p>
+<p>Speaking of mixed frequencies – we haven’t seen the extremes yet …</p>
+<h3 id="mouse-dataset">Mouse dataset</h3>
+<p>“Mouse”, that’s spike rates recorded from a mouse thalamus.</p>
+<blockquote>
+<p><code>mouse.pkl</code> A time series of spiking rates for a neuron in a mouse thalamus. Raw spike data was obtained from <a href="http://crcns.org/data-sets/thalamus/th-1/about-th-1">CRCNS</a> and processed with the authors' code in order to generate a spike rate time series.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
+</blockquote>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-20"></span>
+<img src="images/mouse_ts.png" alt="Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on the first 500 observations." width="600" />
+<p class="caption">
+Figure 10: Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on the first 500 observations.
+</p>
+</div>
+</div>
+<p>Obviously, this dataset will be very hard to predict. How, after “long” silence, do you know that a neuron is going to fire?</p>
+<p>As usual, we inspect latent code variances (<code>fnn_multiplier</code> was set to <code>0.4</code>):</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+     V1       V2        V3         V4       V5       V6        V7      V8       V9        V10
+ 0.0796  0.00246  0.000214    2.26e-7   .71e-9  4.22e-8  6.45e-10 1.61e-4 2.63e-10    2.05e-8
+&gt;</code></pre>
+</div>
+<p>Again, we don’t see the first variable explaining much variance. Still, interestingly, when inspecting forecast errors we get a picture very similar to the one obtained on our first, <code>geyser</code>, dataset:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-22"></span>
+<img src="images/mouse_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
+<p class="caption">
+Figure 11: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM.
+</p>
+</div>
+</div>
+<p>So here, the latent code definitely seems to help! With every timestep “more” that we try to predict, prediction performance goes down <em>continuously</em> – or put the other way round, short-time predictions are expected to be pretty good!</p>
+<p>Let’s see:</p>
+<div class="layout-chunk" data-layout="l-body-outset">
+<div class="figure"><span id="fig:unnamed-chunk-23"></span>
+<img src="images/mouse_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
+<p class="caption">
+Figure 12: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth.
+</p>
+</div>
+</div>
+<p>In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to happen”, vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track” as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an obvious decision with this dataset.</p>
+<h2 id="discussion">Discussion</h2>
+<p>When, in timeseries forecasting, would we consider FNN-LSTM? Judging by the above experiments, conducted on four very different datasets: Whenever we consider a deep learning approach. Of course, this has been a casual exploration – and it was meant to be, as – hopefully – was evident from the nonchalant and bloomy (sometimes) writing style.</p>
+<p>Throughout the text, we’ve emphasized <em>utility</em> – how could this technique be used to improve predictions? But, looking at the above results, a number of interesting questions come to mind. We already speculated (though in an indirect way) whether the number of high-variance variables in the latent code was relatable to how far we could sensibly forecast into the future. However, even more intriguing is the question of how characteristics of the <em>dataset itself</em> affect FNN efficiency.</p>
+<p>Such characteristics could be:</p>
+<ul>
+<li><p>How nonlinear is the dataset? (Put differently, how incompatible, as indicated by some form of test algorithm, is it with the hypothesis that the data generation mechanism was a linear one?)</p></li>
+<li><p>To what degree does the system appear to be sensitively dependent on initial conditions? In other words, what is the value of its (estimated, from the observations) highest <a href="https://en.wikipedia.org/wiki/Lyapunov_exponent">Lyapunov exponent</a>?</p></li>
+<li><p>What is its (estimated) dimensionality, for example, in terms of <a href="https://en.wikipedia.org/wiki/Correlation_dimension">correlation dimension</a>?</p></li>
+</ul>
+<p>While it is easy to obtain those estimates, using, for instance, the <a href="https://cran.r-project.org/web/packages/nonlinearTseries/">nonlinearTseries</a> package explicitly modeled after practices described in Kantz &amp; Schreiber’s classic <span class="citation" data-cites="Kantz">(Kantz and Schreiber <a href="#ref-Kantz" role="doc-biblioref">2004</a>)</span>, we don’t want to extrapolate from our tiny sample of datasets, and leave such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its conceptual attractivity.</p>
+<p>Thanks for reading!</p>
+<div id="refs" class="references hanging-indent" role="doc-bibliography">
+<div id="ref-gilpin2020deep">
+<p>Gilpin, William. 2020. “Deep Reconstruction of Strange Attractors from Time Series.” <a href="http://arxiv.org/abs/2002.05909">http://arxiv.org/abs/2002.05909</a>.</p>
+</div>
+<div id="ref-GRASSBERGER1983189">
+<p>Grassberger, Peter, and Itamar Procaccia. 1983. “Measuring the Strangeness of Strange Attractors.” <em>Physica D: Nonlinear Phenomena</em> 9 (1): 189–208. <a href="https://doi.org/https://doi.org/10.1016/0167-2789(83)90298-1">https://doi.org/https://doi.org/10.1016/0167-2789(83)90298-1</a>.</p>
+</div>
+<div id="ref-Kantz">
+<p>Kantz, Holger, and Thomas Schreiber. 2004. <em>Nonlinear Time Series Analysis</em>. Cambridge University Press.</p>
+</div>
+<div id="ref-embedology">
+<p>Sauer, Tim, James A. Yorke, and Martin Casdagli. 1991. “Embedology.” <em>Journal of Statistical Physics</em> 65 (3-4): 579–616. <a href="https://doi.org/10.1007/BF01053745">https://doi.org/10.1007/BF01053745</a>.</p>
+</div>
+</div>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>Please refer to the aforementioned predecessor post for a detailed introduction.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>“Basically” because FNN-LSTM technically has three LSTMs – the third one, with <code>n_latent = 10</code> units, being used to store the latent code.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3" role="doc-endnote"><p>see dataset descriptions in the <a href="https://github.com/williamgilpin/fnn">repository's README</a><a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4" role="doc-endnote"><p>again, citing from Gilpin’s repository’s <a href="https://github.com/williamgilpin/fnn">README</a>.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5" role="doc-endnote"><p>again, citing from Gilpin’s repository’s <a href="https://github.com/williamgilpin/fnn">README</a>.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6" role="doc-endnote"><p>again, citing from Gilpin’s repository’s <a href="https://github.com/williamgilpin/fnn">README</a>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2020-07-20-fnn-lstm/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=Time%20series%20prediction%20with%20FNN-LSTM&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2020-07-20-fnn-lstm%2F">
+        <i class="fab fa-twitter"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2020-07-20-fnn-lstm%2F&amp;title=Time%20series%20prediction%20with%20FNN-LSTM">
+        <i class="fab fa-linkedin"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script>
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/';
+  this.page.identifier = 'posts/2020-07-20-fnn-lstm/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+Posts also available at <a href="https://www.r-bloggers.com">r-bloggers</a>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function(){
+    document.querySelector(".sidebar-section.categories a[href='#R']").parentNode.style.display = "None";
+  });
+</script></div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="references">References</h3>
+  <div id="references-listing"></div>
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2020, July 20). RStudio AI Blog: Time series prediction with FNN-LSTM. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydanafnnlstm,
+  author = {Keydana, Sigrid},
+  title = {RStudio AI Blog: Time series prediction with FNN-LSTM},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/},
+  year = {2020}
+}</pre>
+</div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

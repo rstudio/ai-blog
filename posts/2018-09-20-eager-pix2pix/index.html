@@ -1,0 +1,2467 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+  <!--radix_placeholder_meta_tags-->
+<title>RStudio AI Blog: Image-to-image translation with pix2pix</title>
+
+<meta property="description" itemprop="description" content="Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="../../images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2018-09-20"/>
+<meta property="article:created" itemprop="dateCreated" content="2018-09-20"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="RStudio AI Blog: Image-to-image translation with pix2pix"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/images/pix2pixlosses.png"/>
+<meta property="og:image:width" content="842"/>
+<meta property="og:image:height" content="536"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="RStudio AI Blog"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="RStudio AI Blog: Image-to-image translation with pix2pix"/>
+<meta property="twitter:description" content="Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/images/pix2pixlosses.png"/>
+<meta property="twitter:image:width" content="842"/>
+<meta property="twitter:image:height" content="536"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="RStudio AI Blog: Image-to-image translation with pix2pix"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2018/09/20"/>
+<meta name="citation_publication_date" content="2018/09/20"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Image-to-image translation with conditional adversarial networks;citation_publication_date=2016;citation_volume=abs/1611.07004;citation_author=Phillip Isola;citation_author=Jun-Yan Zhu;citation_author=Tinghui Zhou;citation_author=Alexei A. Efros"/>
+  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_publication_date=2015;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
+  <meta name="citation_reference" content="citation_title=Unpaired image-to-image translation using cycle-consistent adversarial networks;citation_publication_date=2017;citation_volume=abs/1703.10593;citation_author=Jun-Yan Zhu;citation_author=Taesung Park;citation_author=Phillip Isola;citation_author=Alexei A. Efros"/>
+  <meta name="citation_reference" content="citation_title=Deconvolution and checkerboard artifacts;citation_publication_date=2016;citation_doi=10.23915/distill.00003;citation_author=Augustus Odena;citation_author=Vincent Dumoulin;citation_author=Chris Olah"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","bibliography","slug","date","categories","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["Image-to-image translation with pix2pix"]},{"type":"character","attributes":{},"value":["Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"character","attributes":{},"value":["keydana2018eagerpix2pix"]},{"type":"character","attributes":{},"value":["09-20-2018"]},{"type":"character","attributes":{},"value":["TensorFlow/Keras","Image Recognition & Image Processing","Unsupervised Learning"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained"]}},"value":[{"type":"logical","attributes":{},"value":[false]}]}]},{"type":"character","attributes":{},"value":["images/pix2pixlosses.png"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","eager-pix2pix_files/bowser-1.9.3/bowser.min.js","eager-pix2pix_files/distill-2.2.21/template.v2.js","eager-pix2pix_files/jquery-1.11.3/jquery.min.js","eager-pix2pix_files/webcomponents-2.0.0/webcomponents.js","images/105.jpg","images/cyclegan.png","images/pix2pix_test_10.png","images/pix2pix_test_32.png","images/pix2pix_test_82.png","images/pix2pix_test_92.png","images/pix2pix.png","images/pix2pixlosses.png","images/unet.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+<meta name="distill:offset" content="../.."/>
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.distill-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.distill-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #0F2E3D;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.distill-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.distill-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .distill-site-nav {
+    display: none;
+  }
+}
+
+.distill-site-header {
+
+}
+
+.distill-site-footer {
+
+}
+
+
+/* Site Header */
+
+.distill-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.distill-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.distill-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.distill-site-header a,
+.distill-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.distill-site-header .title {
+  font-size: 18px;
+  min-width: 150px;
+}
+
+.distill-site-header .logo {
+  padding: 0;
+}
+
+.distill-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.distill-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .distill-site-header .logo img {
+    display: inline-block;
+  }
+  .distill-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .distill-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.distill-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a, .nav-dropdown-content .nav-dropdown-header {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown-content .nav-dropdown-header {
+  display: block;
+  padding: 5px 24px;
+  padding-bottom: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header a, .distill-site-header .nav-dropdown  {display: none;}
+  .distill-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .distill-site-header .title {
+    margin-left: 0;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 0;
+  }
+  .distill-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-header.responsive {position: relative; min-height: 500px; }
+  .distill-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .distill-site-header.responsive a,
+  .distill-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .distill-site-header.responsive .nav-left,
+  .distill-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .distill-site-header.responsive .nav-dropdown {float: none;}
+  .distill-site-header.responsive .nav-dropdown-content {position: relative;}
+  .distill-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.distill-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<script src="../../site_libs/autocomplete-0.37.1/autocomplete.min.js"></script>
+<script src="../../site_libs/fuse-6.4.1/fuse.min.js"></script>
+
+<script type="application/javascript">
+
+function getMeta(metaName) {
+  var metas = document.getElementsByTagName('meta');
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute('name') === metaName) {
+      return metas[i].getAttribute('content');
+    }
+  }
+  return '';
+}
+
+function offsetURL(url) {
+  var offset = getMeta('distill:offset');
+  return offset ? offset + '/' + url : url;
+}
+
+function createIndex() {
+  var options = {
+    keys: [
+      "title",
+      "categories",
+      "description",
+      "contents"
+    ]
+  };
+  return new window.Fuse([],options);
+}
+
+function createFuseIndex() {
+
+  // create fuse index
+  var options = { keys: ["title", "description", "contents"] };
+  var fuse = new window.Fuse([], options);
+
+  // fetch the main search.json
+  return fetch(offsetURL('search.json'))
+    .then(function(response) {
+      if (response.status == 200) {
+        return response.json().then(function(json) {
+          // index main articles
+          json.articles.forEach(function(article) {
+            fuse.add(article);
+          });
+          // download collections and index their articles
+          return Promise.all(json.collections.map(function(collection) {
+            return fetch(offsetURL(collection)).then(function(response) {
+              if (response.status === 200) {
+                return response.json().then(function(articles) {
+                  articles.forEach(function(article) {
+                    fuse.add(article);
+                  });
+                })
+              } else {
+                return Promise.reject(
+                  new Error('Unexpected status from search index request: ' +
+                            response.status)
+                );
+              }
+            });
+          })).then(function() {
+            return fuse;
+          });
+        });
+
+      } else {
+        return Promise.reject(
+          new Error('Unexpected status from search index request: ' +
+                      response.status)
+        );
+      }
+    });
+}
+
+window.document.addEventListener("DOMContentLoaded", function (event) {
+
+  // get search element (bail if we don't have one)
+  var searchEl = window.document.getElementById('distill-search');
+  if (!searchEl)
+    return;
+
+  createFuseIndex()
+    .then(function(fuse) {
+
+      // make search box visible
+      searchEl.classList.remove('hidden');
+
+      // initialize autocomplete
+      var options = {
+        autoselect: true,
+        hint: false,
+        minLength: 2,
+      };
+      window.autocomplete(searchEl, options, [{
+        source: function(query, callback) {
+          const searchOptions = {
+            isCaseSensitive: false,
+            shouldSort: true,
+            minMatchCharLength: 2,
+            limit: 10,
+            keys: [
+              { name: 'title', weight: 20 },
+              { name: 'categories', weight: 15 },
+              { name: 'description', weight: 10 },
+              { name: 'contents', weight: 5 },
+            ],
+          };
+          var results = fuse.search(query, searchOptions);
+          callback(results
+            .map(function(result) { return result.item; })
+            .filter(function(item) { return !!item.description; })
+          );
+        },
+        templates: {
+          suggestion: function(suggestion) {
+            var html = `
+              <div class="search-item">
+                <h3>${suggestion.title}</h3>
+                <div class="search-item-description">
+                  ${suggestion.description}
+                </div>
+                <div class="search-item-preview">
+                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                </div>
+              </div>
+            `;
+            return html;
+          }
+        }
+      }]).on('autocomplete:selected', function(event, suggestion) {
+        window.location.href = offsetURL(suggestion.path);
+      });
+      // remove inline display style on autocompleter (we want to
+      // manage responsive display via css)
+      $('.algolia-autocomplete').css("display", "");
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
+
+});
+
+</script>
+
+<style type="text/css">
+
+/* Algolioa Autocomplete */
+
+.algolia-autocomplete {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: sub;
+  background-color: white;
+  color: black;
+  padding: 6px;
+  padding-top: 8px;
+  padding-bottom: 0;
+  border-radius: 6px;
+  border: 1px #0F2E3D solid;
+  width: 180px;
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-nav .algolia-autocomplete {
+    display: none;
+    visibility: hidden;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete {
+    display: inline-block;
+    visibility: visible;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete .aa-dropdown-menu {
+    margin-left: 0;
+    width: 400px;
+    max-height: 400px;
+  }
+}
+
+.algolia-autocomplete .aa-input, .algolia-autocomplete .aa-hint {
+  width: 90%;
+  outline: none;
+  border: none;
+}
+
+.algolia-autocomplete .aa-hint {
+  color: #999;
+}
+.algolia-autocomplete .aa-dropdown-menu {
+  width: 550px;
+  max-height: 70vh;
+  overflow-x: visible;
+  overflow-y: scroll;
+  padding: 5px;
+  margin-top: 3px;
+  margin-left: -150px;
+  background-color: #fff;
+  border-radius: 5px;
+  border: 1px solid #999;
+  border-top: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion {
+  cursor: pointer;
+  padding: 5px 4px;
+  border-bottom: 1px solid #eee;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion:last-of-type {
+  border-bottom: none;
+  margin-bottom: 2px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item {
+  overflow: hidden;
+  font-size: 0.8em;
+  line-height: 1.4em;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  margin-block-start: 0;
+  margin-block-end: 5px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-description {
+  display: inline-block;
+  overflow: hidden;
+  height: 2.8em;
+  width: 80%;
+  margin-right: 4%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview {
+  display: inline-block;
+  width: 15%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img {
+  height: 3em;
+  width: auto;
+  display: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img[src] {
+  display: initial;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion.aa-cursor {
+  background-color: #eee;
+}
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion em {
+  font-weight: bold;
+  font-style: normal;
+}
+
+</style>
+
+
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table>caption {
+  margin-bottom: 10px;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+.authors-affiliations .orcid-id {
+  width: 16px;
+  height:16px;
+  margin-left: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+  padding-bottom: 2px;
+}
+
+d-title .dt-tags {
+  margin-top: 1em;
+  grid-column: text;
+}
+
+.dt-tags .dt-tag {
+  text-decoration: none;
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0em 0.4em;
+  margin-right: 0.5em;
+  margin-bottom: 0.4em;
+  font-size: 70%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+d-article table.gt_table td,
+d-article table.gt_table th {
+  border-bottom: none;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.l-screen .caption {
+  margin-left: 10px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-top: 2.5rem;
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article h2 {
+  margin: 1rem 0 1.5rem 0;
+}
+
+d-article h3 {
+  margin-top: 1.5rem;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+/* Tweak code blocks */
+
+d-article div.sourceCode code,
+d-article pre code {
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: hidden;
+}
+
+d-article div.sourceCode {
+  background-color: white;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+d-article pre {
+  font-size: 12px;
+  color: black;
+  background: none;
+  margin-top: 0;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+d-article pre a {
+  border-bottom: none;
+}
+
+d-article pre a:hover {
+  border-bottom: none;
+  text-decoration: underline;
+}
+
+@media(min-width: 768px) {
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: visible !important;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+d-article pre {
+  font-size: 14px;
+}
+
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for d-contents */
+
+.d-contents {
+  grid-column: text;
+  color: rgba(0,0,0,0.8);
+  font-size: 0.9em;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+  padding-bottom: 0.5em;
+  margin-bottom: 1em;
+  padding-left: 0.25em;
+  justify-self: start;
+}
+
+@media(min-width: 1000px) {
+  .d-contents.d-contents-float {
+    height: 0;
+    grid-column-start: 1;
+    grid-column-end: 4;
+    justify-self: center;
+    padding-right: 3em;
+    padding-left: 2em;
+  }
+}
+
+.d-contents nav h3 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.d-contents li {
+  list-style-type: none
+}
+
+.d-contents nav > ul {
+  padding-left: 0;
+}
+
+.d-contents ul {
+  padding-left: 1em
+}
+
+.d-contents nav ul li {
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
+}
+
+.d-contents nav a {
+  font-size: 13px;
+  border-bottom: none;
+  text-decoration: none
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.d-contents nav a:hover {
+  text-decoration: underline solid rgba(0, 0, 0, 0.6)
+}
+
+.d-contents nav > ul > li > a {
+  font-weight: 600;
+}
+
+.d-contents nav > ul > li > ul {
+  font-weight: inherit;
+}
+
+.d-contents nav > ul > li > ul > li {
+  margin-top: 0.2em;
+}
+
+
+.d-contents nav ul {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+
+.d-article-with-toc h2:nth-child(2) {
+  margin-top: 0;
+}
+
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure img {
+  width: 100%;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+/* Citations */
+
+d-article .citation {
+  color: inherit;
+  cursor: inherit;
+}
+
+div.hanging-indent{
+  margin-left: 1em; text-indent: -1em;
+}
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Include appendix styles here so they can be overridden */
+
+d-appendix {
+  contain: layout style;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-top: 60px;
+  margin-bottom: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  color: rgba(0,0,0,0.5);
+  padding-top: 60px;
+  padding-bottom: 48px;
+}
+
+d-appendix h3 {
+  grid-column: page-start / text-start;
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 1em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.65);
+}
+
+d-appendix h3 + * {
+  margin-top: 1em;
+}
+
+d-appendix ol {
+  padding: 0 0 0 15px;
+}
+
+@media (min-width: 768px) {
+  d-appendix ol {
+    padding: 0 0 0 30px;
+    margin-left: -30px;
+  }
+}
+
+d-appendix li {
+  margin-bottom: 1em;
+}
+
+d-appendix a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+d-appendix > * {
+  grid-column: text;
+}
+
+d-appendix > d-footnote-list,
+d-appendix > d-citation-list,
+d-appendix > distill-appendix {
+  grid-column: screen;
+}
+
+/* Include footnote styles here so they can be overridden */
+
+d-footnote-list {
+  contain: layout style;
+}
+
+d-footnote-list > * {
+  grid-column: text;
+}
+
+d-footnote-list a.footnote-backlink {
+  color: rgba(0,0,0,0.3);
+  padding-left: 0.5em;
+}
+
+
+
+/* Anchor.js */
+
+.anchorjs-link {
+  /*transition: all .25s linear; */
+  text-decoration: none;
+  border-bottom: none;
+}
+*:hover > .anchorjs-link {
+  margin-left: -1.125em !important;
+  text-decoration: none;
+  border-bottom: none;
+}
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+.sidebar-section.custom {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.custom p {
+  margin-bottom: 0.5em;
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // add anchors
+  if (window.anchors) {
+    window.anchors.options.placement = 'left';
+    window.anchors.add('d-article > h2, d-article > h3, d-article > h4, d-article > h5');
+  }
+
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.html();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.html(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  // move refs into #references-listing
+  $('#references-listing').replaceWith($('#refs'));
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-contents a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('div.sourceCode, pre, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // remove code block used to force  highlighting css
+  $('.distill-force-highlighting-css').parent().remove();
+
+  // remove empty line numbers inserted by pandoc when using a
+  // custom syntax highlighting theme
+  $('code.sourceCode a:empty').remove();
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // article with toc class
+    $('.d-contents').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // add orcid ids
+    $('.authors-affiliations').find('.author').each(function(i, el) {
+      var orcid_id = front_matter.authors[i].orcidID;
+      if (orcid_id) {
+        var a = $('<a></a>');
+        a.attr('href', 'https://orcid.org/' + orcid_id);
+        var img = $('<img></img>');
+        img.addClass('orcid-id');
+        img.attr('alt', 'ORCID ID');
+        img.attr('src','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2ZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo1N0NEMjA4MDI1MjA2ODExOTk0QzkzNTEzRjZEQTg1NyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDozM0NDOEJGNEZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDozM0NDOEJGM0ZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkZDN0YxMTc0MDcyMDY4MTE5NUZFRDc5MUM2MUUwNEREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjU3Q0QyMDgwMjUyMDY4MTE5OTRDOTM1MTNGNkRBODU3Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+84NovQAAAR1JREFUeNpiZEADy85ZJgCpeCB2QJM6AMQLo4yOL0AWZETSqACk1gOxAQN+cAGIA4EGPQBxmJA0nwdpjjQ8xqArmczw5tMHXAaALDgP1QMxAGqzAAPxQACqh4ER6uf5MBlkm0X4EGayMfMw/Pr7Bd2gRBZogMFBrv01hisv5jLsv9nLAPIOMnjy8RDDyYctyAbFM2EJbRQw+aAWw/LzVgx7b+cwCHKqMhjJFCBLOzAR6+lXX84xnHjYyqAo5IUizkRCwIENQQckGSDGY4TVgAPEaraQr2a4/24bSuoExcJCfAEJihXkWDj3ZAKy9EJGaEo8T0QSxkjSwORsCAuDQCD+QILmD1A9kECEZgxDaEZhICIzGcIyEyOl2RkgwAAhkmC+eAm0TAAAAABJRU5ErkJggg==');
+        a.append(img);
+        $(this).append(a);
+      }
+    });
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // remove d-appendix and d-footnote-list local styles
+    $('d-appendix > style:first-child').remove();
+    $('d-footnote-list > style:first-child').remove();
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-contents').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark non-body figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    var figures = $(this).find('img, .html-widget');
+    if ($(this).attr('data-layout') !== "l-body") {
+      figures.css('width', '100%');
+    } else {
+      figures.css('max-width', '100%');
+      figures.filter("[width]").each(function(i, val) {
+        var fig = $(this);
+        fig.css('width', fig.attr('width') + 'px');
+      });
+
+    }
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.distill-site-header a[href]').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+  // add figcaption style to table captions
+  $('caption').parent('table').addClass("figcaption");
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $(window).resize();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-20375833-3');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Image-to-image translation with pix2pix","description":"Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/","orcidID":""}],"publishedDate":"2018-09-20T00:00:00.000+00:00","citationText":"Keydana, 2018"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="distill-site-nav distill-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">AI Blog</a>
+<input id="distill-search" class="nav-search hidden" type="text" placeholder="Search..."/>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss" aria-hidden="true"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Image-to-image translation with pix2pix</h1>
+<p><p>Conditional GANs (cGANs) may be used to generate one type of object based on another - e.g., a map based on a photo, or a color video based on black-and-white. Here, we show how to implement the pix2pix approach with Keras and eager execution.</p></p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>09-20-2018
+</div>
+
+<div class="d-article">
+<p>What do we need to train a neural network? A common answer is: a model, a cost function, and an optimization algorithm. (I know: I’m leaving out the most important thing here - the data.)</p>
+<p>As computer programs work with numbers, the cost function has to be pretty specific: We can’t just say <em>predict next month’s demand for lawn mowers please, and do your best</em>, we have to say something like this: Minimize the squared deviation of the estimate from the target value.</p>
+<p>In some cases it may be straightforward to map a task to a measure of error, in others, it may not. Consider the task of generating non-existing objects of a certain type (like a face, a scene, or a video clip). How do we quantify success? The trick with <em>generative adversarial networks</em> (GANs) is to let the network learn the cost function.</p>
+<p>As shown in <a href="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/">Generating images with Keras and TensorFlow eager execution</a>, in a simple GAN the setup is this: One agent, the <em>generator</em>, keeps on producing fake objects. The other, the <em>discriminator</em>, is tasked to tell apart the real objects from the fake ones. For the generator, loss is augmented when its fraud gets discovered, meaning that the generator’s cost function depends on what the discriminator does. For the discriminator, loss grows when it fails to correctly tell apart generated objects from authentic ones.</p>
+<p>In a GAN of the type just described, creation starts from white noise. However in the real world, what is required may be a form of transformation, not creation. Take, for example, colorization of black-and-white images, or conversion of aerials to maps. For applications like those, we <em>condition</em> on additional input: Hence the name, <em>conditional adversarial networks</em>.</p>
+<p>Put concretely, this means the generator is passed not (or not only) white noise, but data of a certain input structure, such as edges or shapes. It then has to generate realistic-looking pictures of real objects having those shapes. The discriminator, too, may receive the shapes or edges as input, in addition to the fake and real objects it is tasked to tell apart.</p>
+<p>Here are a few examples of conditioning, taken from the paper we’ll be implementing (see below):</p>
+<figure>
+<img src="images/pix2pix.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span></figcaption>
+</figure>
+<p>In this post, we port to R a <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/pix2pix/pix2pix_eager.ipynb">Google Colaboratory Notebook</a> using Keras with eager execution. We’re implementing the basic architecture from <em>pix2pix</em>, as described by Isola et al. in their 2016 paper<span class="citation" data-cites="IsolaZZE16">(Isola et al. <a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span>. It’s an interesting paper to read as it validates the approach on a bunch of different datasets, and shares outcomes of using different loss families, too:</p>
+<figure>
+<img src="images/pix2pixlosses.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16">Isola et al. (<a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span></figcaption>
+</figure>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>The code shown here will work with the current CRAN versions of <code>tensorflow</code>, <code>keras</code>, and <code>tfdatasets</code>. Also, be sure to check that you’re using at least version 1.9 of TensorFlow. If that isn’t the case, as of this writing, this</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(tensorflow)
+install_tensorflow()</code></pre>
+</div>
+<p>will get you version 1.10.</p>
+<p>When loading libraries, please make sure you’re executing the first 4 lines in the exact order shown. We need to make sure we’re using the TensorFlow implementation of Keras (<code>tf.keras</code> in Python land), and we have to enable eager execution before using TensorFlow in any way.</p>
+<p>No need to copy-paste any code snippets - you’ll find the complete code (in order necessary for execution) here: <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-pix2pix.R">eager-pix2pix.R</a>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+library(keras)
+use_implementation(&quot;tensorflow&quot;)
+library(tensorflow)
+tfe_enable_eager_execution(device_policy = &quot;silent&quot;)
+
+library(tfdatasets)
+library(purrr)</code></pre>
+</div>
+<h2 id="dataset">Dataset</h2>
+<p>For this post, we’re working with one of the datasets used in the paper, a <a href="https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/">preprocessed</a> version of the <a href="http://cmp.felk.cvut.cz/~tylecr1/facade/">CMP Facade Dataset</a>.</p>
+<p>Images contain the ground truth - that we’d wish for the generator to generate, and for the discriminator to correctly detect as authentic - and the input we’re conditioning on (a coarse segmention into object classes) next to each other in the same file.</p>
+<figure>
+<img src="images/105.jpg" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <a href="https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/" class="uri">https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/</a></figcaption>
+</figure>
+<h2 id="preprocessing">Preprocessing</h2>
+<p>Obviously, our preprocessing will have to split the input images into parts. That’s the first thing that happens in the function below.</p>
+<p>After that, action depends on whether we’re in the training or testing phases. If we’re training, we perform random jittering, via upsizing the image to <code>286x286</code> and then cropping to the original size of <code>256x256</code>. In about 50% of the cases, we also flipping the image left-to-right.</p>
+<p>In both cases, training and testing, we normalize the image to the range between -1 and 1.</p>
+<p>Note the use of the <code>tf$image</code> module for image -related operations. This is required as the images will be streamed via <code>tfdatasets</code>, which works on TensorFlow graphs.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+img_width &lt;- 256L
+img_height &lt;- 256L
+
+load_image &lt;- function(image_file, is_train) {
+
+  image &lt;- tf$read_file(image_file)
+  image &lt;- tf$image$decode_jpeg(image)
+  
+  w &lt;- as.integer(k_shape(image)[2])
+  w2 &lt;- as.integer(w / 2L)
+  real_image &lt;- image[ , 1L:w2, ]
+  input_image &lt;- image[ , (w2 + 1L):w, ]
+  
+  input_image &lt;- k_cast(input_image, tf$float32)
+  real_image &lt;- k_cast(real_image, tf$float32)
+
+  if (is_train) {
+    input_image &lt;-
+      tf$image$resize_images(input_image,
+                             c(286L, 286L),
+                             align_corners = TRUE,
+                             method = 2)
+    real_image &lt;- tf$image$resize_images(real_image,
+                                         c(286L, 286L),
+                                         align_corners = TRUE,
+                                         method = 2)
+    
+    stacked_image &lt;-
+      k_stack(list(input_image, real_image), axis = 1)
+    cropped_image &lt;-
+      tf$random_crop(stacked_image, size = c(2L, img_height, img_width, 3L))
+    c(input_image, real_image) %&lt;-% 
+      list(cropped_image[1, , , ], cropped_image[2, , , ])
+    
+    if (runif(1) &gt; 0.5) {
+      input_image &lt;- tf$image$flip_left_right(input_image)
+      real_image &lt;- tf$image$flip_left_right(real_image)
+    }
+    
+  } else {
+    input_image &lt;-
+      tf$image$resize_images(
+        input_image,
+        size = c(img_height, img_width),
+        align_corners = TRUE,
+        method = 2
+      )
+    real_image &lt;-
+      tf$image$resize_images(
+        real_image,
+        size = c(img_height, img_width),
+        align_corners = TRUE,
+        method = 2
+      )
+  }
+  
+  input_image &lt;- (input_image / 127.5) - 1
+  real_image &lt;- (real_image / 127.5) - 1
+  
+  list(input_image, real_image)
+}</code></pre>
+</div>
+<h2 id="streaming-the-data">Streaming the data</h2>
+<p>The images will be streamed via <code>tfdatasets</code>, using a batch size of 1. Note how the <code>load_image</code> function we defined above is wrapped in <code>tf$py_func</code> to enable accessing tensor values in the usual eager way (which by default, as of this writing, is not possible with the TensorFlow datasets API).</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+# change to where you unpacked the data
+# there will be train, val and test subdirectories below
+data_dir &lt;- &quot;facades&quot;
+
+buffer_size &lt;- 400
+batch_size &lt;- 1
+batches_per_epoch &lt;- buffer_size / batch_size
+
+train_dataset &lt;-
+  tf$data$Dataset$list_files(file.path(data_dir, &quot;train/*.jpg&quot;)) %&gt;%
+  dataset_shuffle(buffer_size) %&gt;%
+  dataset_map(function(image) {
+    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))
+  }) %&gt;%
+  dataset_batch(batch_size)
+
+test_dataset &lt;-
+  tf$data$Dataset$list_files(file.path(data_dir, &quot;test/*.jpg&quot;)) %&gt;%
+  dataset_map(function(image) {
+    tf$py_func(load_image, list(image, TRUE), list(tf$float32, tf$float32))
+  }) %&gt;%
+  dataset_batch(batch_size)</code></pre>
+</div>
+<h2 id="defining-the-actors">Defining the actors</h2>
+<h3 id="generator">Generator</h3>
+<p>First, here’s the generator. Let’s start with a birds-eye view.</p>
+<p>The generator receives as input a coarse segmentation, of size 256x256, and should produce a nice color image of a facade. It first successively downsamples the input, up to a minimal size of 1x1. Then after maximal condensation, it starts upsampling again, until it has reached the required output resolution of 256x256.</p>
+<p>During downsampling, as spatial resolution decreases, the number of filters increases. During upsampling, it goes the opposite way.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+generator &lt;- function(name = &quot;generator&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$down1 &lt;- downsample(64, 4, apply_batchnorm = FALSE)
+    self$down2 &lt;- downsample(128, 4)
+    self$down3 &lt;- downsample(256, 4)
+    self$down4 &lt;- downsample(512, 4)
+    self$down5 &lt;- downsample(512, 4)
+    self$down6 &lt;- downsample(512, 4)
+    self$down7 &lt;- downsample(512, 4)
+    self$down8 &lt;- downsample(512, 4)
+    
+    self$up1 &lt;- upsample(512, 4, apply_dropout = TRUE)
+    self$up2 &lt;- upsample(512, 4, apply_dropout = TRUE)
+    self$up3 &lt;- upsample(512, 4, apply_dropout = TRUE)
+    self$up4 &lt;- upsample(512, 4)
+    self$up5 &lt;- upsample(256, 4)
+    self$up6 &lt;- upsample(128, 4)
+    self$up7 &lt;- upsample(64, 4)
+    
+    self$last &lt;- layer_conv_2d_transpose(
+      filters = 3,
+      kernel_size = 4,
+      strides = 2,
+      padding = &quot;same&quot;,
+      kernel_initializer = initializer_random_normal(0, 0.2),
+      activation = &quot;tanh&quot;
+    )
+    
+    function(x, mask = NULL, training = TRUE) {           # x shape == (bs, 256, 256, 3)
+     
+      x1 &lt;- x %&gt;% self$down1(training = training)         # (bs, 128, 128, 64)
+      x2 &lt;- self$down2(x1, training = training)           # (bs, 64, 64, 128)
+      x3 &lt;- self$down3(x2, training = training)           # (bs, 32, 32, 256)
+      x4 &lt;- self$down4(x3, training = training)           # (bs, 16, 16, 512)
+      x5 &lt;- self$down5(x4, training = training)           # (bs, 8, 8, 512)
+      x6 &lt;- self$down6(x5, training = training)           # (bs, 4, 4, 512)
+      x7 &lt;- self$down7(x6, training = training)           # (bs, 2, 2, 512)
+      x8 &lt;- self$down8(x7, training = training)           # (bs, 1, 1, 512)
+
+      x9 &lt;- self$up1(list(x8, x7), training = training)   # (bs, 2, 2, 1024)
+      x10 &lt;- self$up2(list(x9, x6), training = training)  # (bs, 4, 4, 1024)
+      x11 &lt;- self$up3(list(x10, x5), training = training) # (bs, 8, 8, 1024)
+      x12 &lt;- self$up4(list(x11, x4), training = training) # (bs, 16, 16, 1024)
+      x13 &lt;- self$up5(list(x12, x3), training = training) # (bs, 32, 32, 512)
+      x14 &lt;- self$up6(list(x13, x2), training = training) # (bs, 64, 64, 256)
+      x15 &lt;-self$up7(list(x14, x1), training = training)  # (bs, 128, 128, 128)
+      x16 &lt;- self$last(x15)                               # (bs, 256, 256, 3)
+      x16
+    }
+  })
+}</code></pre>
+</div>
+<p>How can spatial information be preserved if we downsample all the way down to a single pixel? The generator follows the general principle of a <em>U-Net</em> <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15" role="doc-biblioref">2015</a>)</span>, where skip connections exist from layers earlier in the downsampling process to layers later on the way up.</p>
+<figure>
+<img src="images/unet.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15" role="doc-biblioref">2015</a>)</span></figcaption>
+</figure>
+<p>Let’s take the line</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+x15 &lt;-self$up7(list(x14, x1), training = training)</code></pre>
+</div>
+<p>from the <code>call</code> method.</p>
+<p>Here, the inputs to <code>self$up</code> are <code>x14</code>, which went through all of the down- and upsampling, and <code>x1</code>, the output from the very first downsampling step. The former has resolution 64x64, the latter, 128x128. How do they get combined?</p>
+<p>That’s taken care of by <code>upsample</code>, technically a custom model of its own. As an aside, we remark how custom models let you pack your code into nice, reusable modules.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+upsample &lt;- function(filters,
+                     size,
+                     apply_dropout = FALSE,
+                     name = &quot;upsample&quot;) {
+  
+  keras_model_custom(name = NULL, function(self) {
+    
+    self$apply_dropout &lt;- apply_dropout
+    self$up_conv &lt;- layer_conv_2d_transpose(
+      filters = filters,
+      kernel_size = size,
+      strides = 2,
+      padding = &quot;same&quot;,
+      kernel_initializer = initializer_random_normal(),
+      use_bias = FALSE
+    )
+    self$batchnorm &lt;- layer_batch_normalization()
+    if (self$apply_dropout) {
+      self$dropout &lt;- layer_dropout(rate = 0.5)
+    }
+    
+    function(xs, mask = NULL, training = TRUE) {
+      
+      c(x1, x2) %&lt;-% xs
+      x &lt;- self$up_conv(x1) %&gt;% self$batchnorm(training = training)
+      if (self$apply_dropout) {
+        x %&gt;% self$dropout(training = training)
+      }
+      x %&gt;% layer_activation(&quot;relu&quot;)
+      concat &lt;- k_concatenate(list(x, x2))
+      concat
+    }
+  })
+}</code></pre>
+</div>
+<p><code>x14</code> is upsampled to double its size, and <code>x1</code> is appended as is. The axis of concatenation here is axis 4, the feature map / channels axis. <code>x1</code> comes with 64 channels, <code>x14</code> comes out of <code>layer_conv_2d_transpose</code> with 64 channels, too (because <code>self$up7</code> has been defined that way). So we end up with an image of resolution 128x128 and 128 feature maps for the output of step <code>x15</code>.</p>
+<p>Downsampling, too, is factored out to its own model. Here too, the number of filters is configurable.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+downsample &lt;- function(filters,
+                       size,
+                       apply_batchnorm = TRUE,
+                       name = &quot;downsample&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$apply_batchnorm &lt;- apply_batchnorm
+    self$conv1 &lt;- layer_conv_2d(
+      filters = filters,
+      kernel_size = size,
+      strides = 2,
+      padding = &#39;same&#39;,
+      kernel_initializer = initializer_random_normal(0, 0.2),
+      use_bias = FALSE
+    )
+    if (self$apply_batchnorm) {
+      self$batchnorm &lt;- layer_batch_normalization()
+    }
+    
+    function(x, mask = NULL, training = TRUE) {
+      
+      x &lt;- self$conv1(x)
+      if (self$apply_batchnorm) {
+        x %&gt;% self$batchnorm(training = training)
+      }
+      x %&gt;% layer_activation_leaky_relu()
+    }
+  })
+}</code></pre>
+</div>
+<p>Now for the discriminator.</p>
+<h3 id="discriminator">Discriminator</h3>
+<p>Again, let’s start with a birds-eye view. The discriminator receives as input both the coarse segmentation and the ground truth. Both are concatenated and processed together. Just like the generator, the discriminator is thus conditioned on the segmentation.</p>
+<p>What does the discriminator return? The output of <code>self$last</code> has one channel, but a spatial resolution of 30x30: We’re outputting a probability for each of 30x30 image <em>patches</em> (which is why the authors are calling this a <em>PatchGAN</em>).</p>
+<p>The discriminator thus working on small image patches means it only cares about local structure, and consequently, enforces correctness in the high frequencies only. Correctness in the low frequencies is taken care of by an additional L1 component in the discriminator loss that operates over the whole image (as we’ll see below).</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+discriminator &lt;- function(name = &quot;discriminator&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$down1 &lt;- disc_downsample(64, 4, FALSE)
+    self$down2 &lt;- disc_downsample(128, 4)
+    self$down3 &lt;- disc_downsample(256, 4)
+    self$zero_pad1 &lt;- layer_zero_padding_2d()
+    self$conv &lt;- layer_conv_2d(
+      filters = 512,
+      kernel_size = 4,
+      strides = 1,
+      kernel_initializer = initializer_random_normal(),
+      use_bias = FALSE
+    )
+    self$batchnorm &lt;- layer_batch_normalization()
+    self$zero_pad2 &lt;- layer_zero_padding_2d()
+    self$last &lt;- layer_conv_2d(
+      filters = 1,
+      kernel_size = 4,
+      strides = 1,
+      kernel_initializer = initializer_random_normal()
+    )
+    
+    function(x, y, mask = NULL, training = TRUE) {
+      
+      x &lt;- k_concatenate(list(x, y)) %&gt;%            # (bs, 256, 256, channels*2)
+        self$down1(training = training) %&gt;%         # (bs, 128, 128, 64)
+        self$down2(training = training) %&gt;%         # (bs, 64, 64, 128)
+        self$down3(training = training) %&gt;%         # (bs, 32, 32, 256)
+        self$zero_pad1() %&gt;%                        # (bs, 34, 34, 256)
+        self$conv() %&gt;%                             # (bs, 31, 31, 512)
+        self$batchnorm(training = training) %&gt;%
+        layer_activation_leaky_relu() %&gt;%
+        self$zero_pad2() %&gt;%                        # (bs, 33, 33, 512)
+        self$last()                                 # (bs, 30, 30, 1)
+      x
+    }
+  })
+}</code></pre>
+</div>
+<p>And here’s the factored-out downsampling functionality, again providing the means to configure the number of filters.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+disc_downsample &lt;- function(filters,
+                            size,
+                            apply_batchnorm = TRUE,
+                            name = &quot;disc_downsample&quot;) {
+  
+  keras_model_custom(name = name, function(self) {
+    
+    self$apply_batchnorm &lt;- apply_batchnorm
+    self$conv1 &lt;- layer_conv_2d(
+      filters = filters,
+      kernel_size = size,
+      strides = 2,
+      padding = &#39;same&#39;,
+      kernel_initializer = initializer_random_normal(0, 0.2),
+      use_bias = FALSE
+    )
+    if (self$apply_batchnorm) {
+      self$batchnorm &lt;- layer_batch_normalization()
+    }
+    
+    function(x, mask = NULL, training = TRUE) {
+      x &lt;- self$conv1(x)
+      if (self$apply_batchnorm) {
+        x %&gt;% self$batchnorm(training = training)
+      }
+      x %&gt;% layer_activation_leaky_relu()
+    }
+  })
+}</code></pre>
+</div>
+<h3 id="losses-and-optimizer">Losses and optimizer</h3>
+<p>As we said in the introduction, the idea of a GAN is to have the network learn the cost function. More concretely, the thing it should learn is the balance between two losses, the generator loss and the discriminator loss. Each of them individually, of course, has to be provided with a loss function, so there are still decisions to be made.</p>
+<p>For the generator, two things factor into the loss: First, does the discriminator debunk my creations as fake? Second, how big is the absolute deviation of the generated image from the target? The latter factor does not have to be present in a conditional GAN, but was included by the authors to further encourage proximity to the target, and empirically found to deliver better results.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+lambda &lt;- 100 # value chosen by the authors of the paper
+generator_loss &lt;- function(disc_judgment, generated_output, target) {
+    gan_loss &lt;- tf$losses$sigmoid_cross_entropy(
+      tf$ones_like(disc_judgment),
+      disc_judgment
+    )
+    l1_loss &lt;- tf$reduce_mean(tf$abs(target - generated_output))
+    gan_loss + (lambda * l1_loss)
+  }</code></pre>
+</div>
+<p>The discriminator loss looks as in a standard (un-conditional) GAN. Its first component is determined by how accurately it classifies real images as real, while the second depends on its competence in judging fake images as fake.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+discriminator_loss &lt;- function(real_output, generated_output) {
+  real_loss &lt;- tf$losses$sigmoid_cross_entropy(
+    multi_class_labels = tf$ones_like(real_output),
+    logits = real_output
+  )
+  generated_loss &lt;- tf$losses$sigmoid_cross_entropy(
+    multi_class_labels = tf$zeros_like(generated_output),
+    logits = generated_output
+  )
+  real_loss + generated_loss
+}</code></pre>
+</div>
+<p>For optimization, we rely on Adam for both the generator and the discriminator.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+discriminator_optimizer &lt;- tf$train$AdamOptimizer(2e-4, beta1 = 0.5)
+generator_optimizer &lt;- tf$train$AdamOptimizer(2e-4, beta1 = 0.5)</code></pre>
+</div>
+<h2 id="the-game">The game</h2>
+<p>We’re ready to have the generator and the discriminator play the game! Below, we use <a href="https://www.tensorflow.org/api_docs/python/tf/contrib/eager/defun">defun</a> to compile the respective R functions into TensorFlow graphs, to speed up computations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+generator &lt;- generator()
+discriminator &lt;- discriminator()
+
+generator$call = tf$contrib$eager$defun(generator$call)
+discriminator$call = tf$contrib$eager$defun(discriminator$call)</code></pre>
+</div>
+<p>We also create a <code>tf$train$Checkpoint</code> object that will allow us to save and restore training weights.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+checkpoint_dir &lt;- &quot;./checkpoints_pix2pix&quot;
+checkpoint_prefix &lt;- file.path(checkpoint_dir, &quot;ckpt&quot;)
+checkpoint &lt;- tf$train$Checkpoint(
+    generator_optimizer = generator_optimizer,
+    discriminator_optimizer = discriminator_optimizer,
+    generator = generator,
+    discriminator = discriminator
+)</code></pre>
+</div>
+<p>Training is a loop over epochs with an inner loop over batches yielded by the dataset. As usual with eager execution, <code>tf$GradientTape</code> takes care of recording the forward pass and determining the gradients, while the optimizer - there are two of them in this setup - adjusts the networks’ weights.</p>
+<p>Every tenth epoch, we save the weights, and tell the generator to have a go at the first example of the test set, so we can monitor network progress. See <code>generate_images</code> in the companion code for this functionality.</p>
+<div class="layout-chunk" data-layout="l-body">
+<pre class="r"><code>
+train &lt;- function(dataset, num_epochs) {
+  
+  for (epoch in 1:num_epochs) {
+    total_loss_gen &lt;- 0
+    total_loss_disc &lt;- 0
+    iter &lt;- make_iterator_one_shot(train_dataset)
+    
+    until_out_of_range({
+      batch &lt;- iterator_get_next(iter)
+      input_image &lt;- batch[[1]]
+      target &lt;- batch[[2]]
+      
+      with(tf$GradientTape() %as% gen_tape, {
+        with(tf$GradientTape() %as% disc_tape, {
+          
+          gen_output &lt;- generator(input_image, training = TRUE)
+          disc_real_output &lt;-
+            discriminator(input_image, target, training = TRUE)
+          disc_generated_output &lt;-
+            discriminator(input_image, gen_output, training = TRUE)
+          gen_loss &lt;-
+            generator_loss(disc_generated_output, gen_output, target)
+          disc_loss &lt;-
+            discriminator_loss(disc_real_output, disc_generated_output)
+          total_loss_gen &lt;- total_loss_gen + gen_loss
+          total_loss_disc &lt;- total_loss_disc + disc_loss
+        })
+      })
+      
+      generator_gradients &lt;- gen_tape$gradient(gen_loss,
+                                               generator$variables)
+      discriminator_gradients &lt;- disc_tape$gradient(disc_loss,
+                                                    discriminator$variables)
+      
+      generator_optimizer$apply_gradients(transpose(list(
+        generator_gradients,
+        generator$variables
+      )))
+      discriminator_optimizer$apply_gradients(transpose(
+        list(discriminator_gradients,
+             discriminator$variables)
+      ))
+      
+    })
+    
+    cat(&quot;Epoch &quot;, epoch, &quot;\n&quot;)
+    cat(&quot;Generator loss: &quot;,
+        total_loss_gen$numpy() / batches_per_epoch,
+        &quot;\n&quot;)
+    cat(&quot;Discriminator loss: &quot;,
+        total_loss_disc$numpy() / batches_per_epoch,
+        &quot;\n\n&quot;)
+    
+    if (epoch %% 10 == 0) {
+      test_iter &lt;- make_iterator_one_shot(test_dataset)
+      batch &lt;- iterator_get_next(test_iter)
+      input &lt;- batch[[1]]
+      target &lt;- batch[[2]]
+      generate_images(generator, input, target, paste0(&quot;epoch_&quot;, i))
+    }
+    
+    if (epoch %% 10 == 0) {
+      checkpoint$save(file_prefix = checkpoint_prefix)
+    }
+  }
+}
+
+if (!restore) {
+  train(train_dataset, 200)
+} </code></pre>
+</div>
+<h2 id="the-results">The results</h2>
+<p>What has the network learned?</p>
+<p>Here’s a pretty typical result from the test set. It doesn’t look so bad.</p>
+<p><img src="images/pix2pix_test_10.png" style="width:100.0%" /></p>
+<p>Here’s another one. Interestingly, the colors used in the fake image match the previous one’s pretty well, even though we used an additional L1 loss to penalize deviations from the original.</p>
+<p><img src="images/pix2pix_test_32.png" style="width:100.0%" /></p>
+<p>This pick from the test set again shows similar hues, and it might already convey an impression one gets when going through the complete test set: The network has not just learned some balance between creatively turning a coarse mask into a detailed image on the one hand, and reproducing a concrete example on the other hand. It also has internalized the main architectural style present in the dataset.</p>
+<p><img src="images/pix2pix_test_82.png" style="width:100.0%" /></p>
+<p>For an extreme example, take this. The mask leaves an enormous lot of freedom, while the target image is a pretty untypical (perhaps the most untypical) pick from the test set. The outcome is a structure that could represent a building, or part of a building, of specific texture and color shades.</p>
+<p><img src="images/pix2pix_test_92.png" style="width:100.0%" /></p>
+<h2 id="conclusion">Conclusion</h2>
+<p>When we say the network has internalized the dominant style of the training set, is this a bad thing? (We’re used to thinking in terms of overfitting on the training set.)</p>
+<p>With GANs though, one could say it all depends on the purpose. If it doesn’t fit our purpose, one thing we could try is training on several datasets at the same time.</p>
+<p>Again depending on what we want to achieve, another weakness could be the lack of stochasticity in the model, as stated by the authors of the paper themselves. This will be hard to avoid when working with paired datasets as the ones used in <em>pix2pix</em>. An interesting alternative is CycleGAN<span class="citation" data-cites="ZhuPIE17">(Zhu et al. <a href="#ref-ZhuPIE17" role="doc-biblioref">2017</a>)</span> that lets you transfer style between complete datasets without using paired instances:</p>
+<figure>
+<img src="images/cyclegan.png" class="external" style="width:100.0%" alt="" /><figcaption>Figure from <span class="citation" data-cites="ZhuPIE17">Zhu et al. (<a href="#ref-ZhuPIE17" role="doc-biblioref">2017</a>)</span></figcaption>
+</figure>
+<p>Finally closing on a more technical note, you may have noticed the prominent checkerboard effects in the above fake examples. This phenomenon (and ways to address it) is superbly explained in a 2016 article on <a href="https://distill.pub/">distill.pub</a> <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution" role="doc-biblioref">2016</a>)</span>. In our case, it will mostly be due to the use of <code>layer_conv_2d_transpose</code> for upsampling.</p>
+<p>As per the authors <span class="citation" data-cites="odena2016deconvolution">(Odena, Dumoulin, and Olah <a href="#ref-odena2016deconvolution" role="doc-biblioref">2016</a>)</span>, a better alternative is upsizing followed by padding and (standard) convolution. If you’re interested, it should be straightforward to modify the example code to use <code>tf$image$resize_images</code> (using <code>ResizeMethod.NEAREST_NEIGHBOR</code> as recommended by the authors), <code>tf$pad</code> and <code>layer_conv2d</code>.</p>
+<div id="refs" class="references" role="doc-bibliography">
+<div id="ref-IsolaZZE16">
+<p>Isola, Phillip, Jun-Yan Zhu, Tinghui Zhou, and Alexei A. Efros. 2016. “Image-to-Image Translation with Conditional Adversarial Networks.” <em>CoRR</em> abs/1611.07004. <a href="http://arxiv.org/abs/1611.07004">http://arxiv.org/abs/1611.07004</a>.</p>
+</div>
+<div id="ref-odena2016deconvolution">
+<p>Odena, Augustus, Vincent Dumoulin, and Chris Olah. 2016. “Deconvolution and Checkerboard Artifacts.” <em>Distill</em>. <a href="https://doi.org/10.23915/distill.00003">https://doi.org/10.23915/distill.00003</a>.</p>
+</div>
+<div id="ref-RonnebergerFB15">
+<p>Ronneberger, Olaf, Philipp Fischer, and Thomas Brox. 2015. “U-Net: Convolutional Networks for Biomedical Image Segmentation.” <em>CoRR</em> abs/1505.04597. <a href="http://arxiv.org/abs/1505.04597">http://arxiv.org/abs/1505.04597</a>.</p>
+</div>
+<div id="ref-ZhuPIE17">
+<p>Zhu, Jun-Yan, Taesung Park, Phillip Isola, and Alexei A. Efros. 2017. “Unpaired Image-to-Image Translation Using Cycle-Consistent Adversarial Networks.” <em>CoRR</em> abs/1703.10593. <a href="http://arxiv.org/abs/1703.10593">http://arxiv.org/abs/1703.10593</a>.</p>
+</div>
+</div>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2018-09-20-eager-pix2pix/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=Image-to-image%20translation%20with%20pix2pix&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2018-09-20-eager-pix2pix%2F">
+        <i class="fab fa-twitter"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2018-09-20-eager-pix2pix%2F&amp;title=Image-to-image%20translation%20with%20pix2pix">
+        <i class="fab fa-linkedin"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script>
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/';
+  this.page.identifier = 'posts/2018-09-20-eager-pix2pix/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+Posts also available at <a href="https://www.r-bloggers.com">r-bloggers</a>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function(){
+    document.querySelector(".sidebar-section.categories a[href='#R']").parentNode.style.display = "None";
+  });
+</script></div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="references">References</h3>
+  <div id="references-listing"></div>
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2018, Sept. 20). RStudio AI Blog: Image-to-image translation with pix2pix. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydana2018eagerpix2pix,
+  author = {Keydana, Sigrid},
+  title = {RStudio AI Blog: Image-to-image translation with pix2pix},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/},
+  year = {2018}
+}</pre>
+</div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

@@ -1218,9 +1218,9 @@ code span.wa { color: #545454; font-weight: bold; font-style: italic; } /* Warni
 <p>For those unfamiliar with the term, ASOF joins are temporal join operations based on inexact matching of timestamps. Within the context of <a href="https://spark.apache.org">Apache Spark</a>, a join operation, loosely speaking, matches records from two data frames (let’s call them <code>left</code> and <code>right</code>) based on some criteria. A temporal join implies matching records in <code>left</code> and <code>right</code> based on timestamps, and with inexact matching of timestamps permitted, it is typically useful to join <code>left</code> and <code>right</code> along one of the following temporal directions:</p>
 <ol type="1">
 <li>Looking behind: if a record from <code>left</code> has timestamp <code>t</code>, then it gets matched with ones from <code>right</code> having the most recent timestamp less than or equal to <code>t</code>.</li>
-<li>Looking ahead: if a record from <code>left</code> has timestamp <code>t</code> then it gets matched with ones from <code>right</code> having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) <code>t</code></li>
+<li>Looking ahead: if a record from <code>left</code> has timestamp <code>t,</code> then it gets matched with ones from <code>right</code> having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) <code>t</code>.</li>
 </ol>
-<p>Of course, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart, therefore an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of a ASOF join operation.</p>
+<p>However, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart. Therefore, an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of an ASOF join operation.</p>
 <p>In <code>sparklyr.flint</code> 0.2, all ASOF join functionalities of Flint are accessible via the <code>asof_join()</code> method. For example, given 2 timeseries RDDs <code>left</code> and <code>right</code>:</p>
 <pre><code>library(sparklyr)
 library(sparklyr.flint)
@@ -1230,7 +1230,7 @@ left &lt;- copy_to(sc, tibble::tibble(t = seq(10), u = seq(10))) %&gt;%
   from_sdf(is_sorted = TRUE, time_unit = &quot;SECONDS&quot;, time_column = &quot;t&quot;)
 right &lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&gt;%
   from_sdf(is_sorted = TRUE, time_unit = &quot;SECONDS&quot;, time_column = &quot;t&quot;)</code></pre>
-<p>the following prints the result of match each record from <code>left</code> with the most recent record(s) from <code>right</code> that are at most 1 second behind</p>
+<p>The following prints the result of matching each record from <code>left</code> with the most recent record(s) from <code>right</code> that are, at most, 1 second behind.</p>
 <pre><code>print(asof_join(left, right, tol = &quot;1s&quot;, direction = &quot;&gt;=&quot;) %&gt;% to_sdf())
 
 ## # Source: spark&lt;?&gt; [?? x 3]
@@ -1246,7 +1246,7 @@ right &lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&gt;
 ##  8 1970-01-01 00:00:08     8     8
 ##  9 1970-01-01 00:00:09     9     9
 ## 10 1970-01-01 00:00:10    10    10</code></pre>
-<p>whereas if we change the temporal direction to “&lt;”, then each record from <code>left</code> will be matched with any record(s) from <code>right</code> that is strictly in the future and is at most 1 second ahead of the current record from <code>left</code>:</p>
+<p>Whereas if we change the temporal direction to “&lt;”, then each record from <code>left</code> will be matched with any record(s) from <code>right</code> that is strictly in the future and is at most 1 second ahead of the current record from <code>left</code>:</p>
 <pre><code>print(asof_join(left, right, tol = &quot;1s&quot;, direction = &quot;&lt;&quot;) %&gt;% to_sdf())
 
 ## # Source: spark&lt;?&gt; [?? x 3]
@@ -1272,16 +1272,14 @@ right &lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&gt;
 mtcars_ts &lt;- from_sdf(mtcars_sdf, is_sorted = TRUE, time_unit = &quot;SECONDS&quot;)
 model &lt;- ols_regression(mtcars_ts, mpg ~ hp + wt) %&gt;% to_sdf()
 
-print(model %&gt;% dplyr::pull(akaikeIC))
-## [1] 154.6523
+print(model %&gt;% dplyr::select(akaikeIC, bayesIC, cond))
 
-print(model %&gt;% dplyr::pull(bayesIC))
-## [1] 159.0495
+## # Source: spark&lt;?&gt; [?? x 3]
+##   akaikeIC bayesIC    cond
+##      &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+## 1     155.    159. 345403.
 
-print(model %&gt;% dplyr::pull(cond))
-## [1] 345403.4
-
-## # ^ output says condition number of the Gram matrix was within reason
+# ^ output says condition number of the Gram matrix was within reason
 
 print(model %&gt;% dplyr::pull(beta))
 

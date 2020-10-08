@@ -32,9 +32,9 @@
 &lt;p&gt;For those unfamiliar with the term, ASOF joins are temporal join operations based on inexact matching of timestamps. Within the context of &lt;a href="https://spark.apache.org"&gt;Apache Spark&lt;/a&gt;, a join operation, loosely speaking, matches records from two data frames (let’s call them &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;) based on some criteria. A temporal join implies matching records in &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; based on timestamps, and with inexact matching of timestamps permitted, it is typically useful to join &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; along one of the following temporal directions:&lt;/p&gt;
 &lt;ol style="list-style-type: decimal"&gt;
 &lt;li&gt;Looking behind: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t&lt;/code&gt;, then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the most recent timestamp less than or equal to &lt;code&gt;t&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Looking ahead: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t&lt;/code&gt; then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) &lt;code&gt;t&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Looking ahead: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t,&lt;/code&gt; then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) &lt;code&gt;t&lt;/code&gt;.&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;Of course, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart, therefore an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of a ASOF join operation.&lt;/p&gt;
+&lt;p&gt;However, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart. Therefore, an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of an ASOF join operation.&lt;/p&gt;
 &lt;p&gt;In &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2, all ASOF join functionalities of Flint are accessible via the &lt;code&gt;asof_join()&lt;/code&gt; method. For example, given 2 timeseries RDDs &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;library(sparklyr)
 library(sparklyr.flint)
@@ -44,7 +44,7 @@ left &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10), u = seq(10))) %&amp;gt;%
   from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)
 right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&amp;gt;%
   from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;the following prints the result of match each record from &lt;code&gt;left&lt;/code&gt; with the most recent record(s) from &lt;code&gt;right&lt;/code&gt; that are at most 1 second behind&lt;/p&gt;
+&lt;p&gt;The following prints the result of matching each record from &lt;code&gt;left&lt;/code&gt; with the most recent record(s) from &lt;code&gt;right&lt;/code&gt; that are, at most, 1 second behind.&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;gt;=&amp;quot;) %&amp;gt;% to_sdf())
 
 ## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
@@ -60,7 +60,7 @@ right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %
 ##  8 1970-01-01 00:00:08     8     8
 ##  9 1970-01-01 00:00:09     9     9
 ## 10 1970-01-01 00:00:10    10    10&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;whereas if we change the temporal direction to “&amp;lt;”, then each record from &lt;code&gt;left&lt;/code&gt; will be matched with any record(s) from &lt;code&gt;right&lt;/code&gt; that is strictly in the future and is at most 1 second ahead of the current record from &lt;code&gt;left&lt;/code&gt;:&lt;/p&gt;
+&lt;p&gt;Whereas if we change the temporal direction to “&amp;lt;”, then each record from &lt;code&gt;left&lt;/code&gt; will be matched with any record(s) from &lt;code&gt;right&lt;/code&gt; that is strictly in the future and is at most 1 second ahead of the current record from &lt;code&gt;left&lt;/code&gt;:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;lt;&amp;quot;) %&amp;gt;% to_sdf())
 
 ## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
@@ -86,16 +86,14 @@ right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %
 mtcars_ts &amp;lt;- from_sdf(mtcars_sdf, is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;)
 model &amp;lt;- ols_regression(mtcars_ts, mpg ~ hp + wt) %&amp;gt;% to_sdf()
 
-print(model %&amp;gt;% dplyr::pull(akaikeIC))
-## [1] 154.6523
+print(model %&amp;gt;% dplyr::select(akaikeIC, bayesIC, cond))
 
-print(model %&amp;gt;% dplyr::pull(bayesIC))
-## [1] 159.0495
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##   akaikeIC bayesIC    cond
+##      &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;
+## 1     155.    159. 345403.
 
-print(model %&amp;gt;% dplyr::pull(cond))
-## [1] 345403.4
-
-## # ^ output says condition number of the Gram matrix was within reason
+# ^ output says condition number of the Gram matrix was within reason
 
 print(model %&amp;gt;% dplyr::pull(beta))
 

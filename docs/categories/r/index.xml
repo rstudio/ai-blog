@@ -12,7 +12,113 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Tue, 06 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 12 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>sparklyr.flint 0.2: ASOF Joins, OLS Regression, and Additional Summarizers</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released</link>
+      <description>
+
+
+&lt;p&gt;Since &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;&lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/a&gt;, a &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; extension for leveraging &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; time series functionalities through &lt;code&gt;sparklyr&lt;/code&gt;, was &lt;a href="https://blogs.rstudio.com/ai/posts/2020-09-07-sparklyr-flint"&gt;introduced&lt;/a&gt; in September, we have made a number of enhancements to it, and have successfully submitted &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 to CRAN recently.&lt;/p&gt;
+&lt;p&gt;In this blog post, we highlight the following new features and improvements from &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#asof-joins"&gt;ASOF Joins&lt;/a&gt; of Timeseries RDDs&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ols-regression"&gt;OLS Regression&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#additional-summarizers"&gt;Additional Summarizers&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#better-integration-with-sparklyr"&gt;Better Integration With &lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="asof-joins"&gt;ASOF Joins&lt;/h2&gt;
+&lt;p&gt;For those unfamiliar with the term, ASOF joins are temporal join operations based on inexact matching of timestamps. Within the context of &lt;a href="https://spark.apache.org"&gt;Apache Spark&lt;/a&gt;, a join operation, loosely speaking, matches records from two data frames (let’s call them &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;) based on some criteria. A temporal join implies matching records in &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; based on timestamps, and with inexact matching of timestamps permitted, it is typically useful to join &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; along one of the following temporal directions:&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;Looking behind: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t&lt;/code&gt;, then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the most recent timestamp less than or equal to &lt;code&gt;t&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Looking ahead: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t&lt;/code&gt; then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) &lt;code&gt;t&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Of course, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart, therefore an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of a ASOF join operation.&lt;/p&gt;
+&lt;p&gt;In &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2, all ASOF join functionalities of Flint are accessible via the &lt;code&gt;asof_join()&lt;/code&gt; method. For example, given 2 timeseries RDDs &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;library(sparklyr)
+library(sparklyr.flint)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+left &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10), u = seq(10))) %&amp;gt;%
+  from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)
+right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&amp;gt;%
+  from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;the following prints the result of match each record from &lt;code&gt;left&lt;/code&gt; with the most recent record(s) from &lt;code&gt;right&lt;/code&gt; that are at most 1 second behind&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;gt;=&amp;quot;) %&amp;gt;% to_sdf())
+
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##    time                    u     v
+##    &amp;lt;dttm&amp;gt;              &amp;lt;int&amp;gt; &amp;lt;int&amp;gt;
+##  1 1970-01-01 00:00:01     1    NA
+##  2 1970-01-01 00:00:02     2     2
+##  3 1970-01-01 00:00:03     3     3
+##  4 1970-01-01 00:00:04     4     4
+##  5 1970-01-01 00:00:05     5     5
+##  6 1970-01-01 00:00:06     6     6
+##  7 1970-01-01 00:00:07     7     7
+##  8 1970-01-01 00:00:08     8     8
+##  9 1970-01-01 00:00:09     9     9
+## 10 1970-01-01 00:00:10    10    10&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;whereas if we change the temporal direction to “&amp;lt;”, then each record from &lt;code&gt;left&lt;/code&gt; will be matched with any record(s) from &lt;code&gt;right&lt;/code&gt; that is strictly in the future and is at most 1 second ahead of the current record from &lt;code&gt;left&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;lt;&amp;quot;) %&amp;gt;% to_sdf())
+
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##    time                    u     v
+##    &amp;lt;dttm&amp;gt;              &amp;lt;int&amp;gt; &amp;lt;int&amp;gt;
+##  1 1970-01-01 00:00:01     1     2
+##  2 1970-01-01 00:00:02     2     3
+##  3 1970-01-01 00:00:03     3     4
+##  4 1970-01-01 00:00:04     4     5
+##  5 1970-01-01 00:00:05     5     6
+##  6 1970-01-01 00:00:06     6     7
+##  7 1970-01-01 00:00:07     7     8
+##  8 1970-01-01 00:00:08     8     9
+##  9 1970-01-01 00:00:09     9    10
+## 10 1970-01-01 00:00:10    10    11&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Notice regardless of which temporal direction is selected, all timestamps and &lt;code&gt;u&lt;/code&gt; values from &lt;code&gt;left&lt;/code&gt; will always be present in the output, and the &lt;code&gt;v&lt;/code&gt; column in the output contains &lt;code&gt;NA&lt;/code&gt; whenever there is no record from &lt;code&gt;right&lt;/code&gt; that meets the matching criteria.&lt;/p&gt;
+&lt;h2 id="ols-regression"&gt;OLS Regression&lt;/h2&gt;
+&lt;p&gt;You might be wondering whether the version of this functionality in Flint is more or less identical to &lt;code&gt;lm()&lt;/code&gt; in R. Turns out it has much more to offer than &lt;code&gt;lm()&lt;/code&gt; does. An OLS regression in Flint will compute useful metrics such as &lt;a href="https://en.wikipedia.org/wiki/Akaike_information_criterion"&gt;Akaike information criterion&lt;/a&gt; and &lt;a href="https://en.wikipedia.org/wiki/Bayesian_information_criterion"&gt;Bayesian information criterion&lt;/a&gt;, both of which are useful for model selection purposes, and the calculations of both are parallelized by Flint to fully utilize computational power available in a Spark cluster. In addition, Flint supports ignoring regressors that are constant or nearly constant, which becomes useful when an intercept term is included. To see why this is the case, we need to briefly examine the goal of the OLS regression, which is to find some column vector of coefficients &lt;span class="math inline"&gt;\(\mathbf{\beta}\)&lt;/span&gt; that minimizes &lt;span class="math inline"&gt;\(\|\mathbf{y} - \mathbf{X} \mathbf{\beta}\|^2\)&lt;/span&gt;, where &lt;span class="math inline"&gt;\(\mathbf{y}\)&lt;/span&gt; is the column vector of response variables, and &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; is a matrix consisting of columns of regressors plus an entire column of &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s representing the intercept terms. The solution to this problem is &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt;, assuming the Gram matrix &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; is non-singular. However, if &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; contains a column of all &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s of intercept terms, and another column of formed by a regressor that is constant (or so), then columns of &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; will be linearly dependent (or nearly so) and &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; will be singular (or nearly so), which presents an issue computation-wise. However, if a regressor is constant, then it essentially plays the same role as the intercept terms do. So simply excluding such a constant regressor in &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; solves the problem. Also, speaking of inverting the Gram matrix, readers remembering the concept of “condition number” from numerical analysis must be thinking to themselves how computing &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt; could be numerically unstable if &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; has a large condition number. This is why Flint also outputs the condition number of the Gram matrix in the OLS regression result, so that one can sanity-check the underlying quadratic minimization problem being solved is well-conditioned.&lt;/p&gt;
+&lt;p&gt;So, to summarize, the OLS regression functionality implemented in Flint not only outputs the solution to the problem, but also calculates useful metrics that helps data scentists assess the sanity and predictive quality of the resulting model.&lt;/p&gt;
+&lt;p&gt;To see OLS regression in action in &lt;code&gt;sparklyr.flint&lt;/code&gt;, one can run the following example:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;mtcars_sdf &amp;lt;- copy_to(sc, mtcars, overwrite = TRUE) %&amp;gt;%
+  dplyr::mutate(time = 0L)
+mtcars_ts &amp;lt;- from_sdf(mtcars_sdf, is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;)
+model &amp;lt;- ols_regression(mtcars_ts, mpg ~ hp + wt) %&amp;gt;% to_sdf()
+
+print(model %&amp;gt;% dplyr::pull(akaikeIC))
+## [1] 154.6523
+
+print(model %&amp;gt;% dplyr::pull(bayesIC))
+## [1] 159.0495
+
+print(model %&amp;gt;% dplyr::pull(cond))
+## [1] 345403.4
+
+## # ^ output says condition number of the Gram matrix was within reason
+
+print(model %&amp;gt;% dplyr::pull(beta))
+
+## [[1]]
+## [1] -0.03177295 -3.87783074&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="additional-summarizers"&gt;Additional Summarizers&lt;/h2&gt;
+&lt;p&gt;The EWMA (Exponential Weighted Moving Average), EMA half-life, and the standardized moment summarizers (namely, skewness and kurtosis) along with a few others which were missing in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.1 are now fully supported in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2.&lt;/p&gt;
+&lt;h2 id="better-integration-with-sparklyr"&gt;Better Integration With &lt;code&gt;sparklyr&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;While &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.1 included a &lt;code&gt;collect()&lt;/code&gt; method for exporting data from a Flint time-series RDD to an R data frame, it did not have a similar method for extracting the underlying Spark data frame from a Flint time-series RDD. This was clearly an oversight. In &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2, one can call &lt;code&gt;to_sdf()&lt;/code&gt; on a timeseries RDD to get back a Spark data frame that is usable in &lt;code&gt;sparklyr&lt;/code&gt; (e.g., as shown by &lt;code&gt;model %&amp;gt;% to_sdf() %&amp;gt;% dplyr::pull(...)&lt;/code&gt; examples from above). One can also get to the underlying Spark data frame JVM object reference by calling &lt;code&gt;spark_dataframe()&lt;/code&gt; on a Flint time-series RDD (this is usually unnecessary in vast majority of &lt;code&gt;sparklyr&lt;/code&gt; use cases though).&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have presented a number of new features and improvements introduced in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 and dug into some of them in this blog post. We hope you are as excited about them as we are. Thanks for reading!&lt;/p&gt;
+&lt;h2 id="acknowledgement"&gt;Acknowledgement&lt;/h2&gt;
+&lt;p&gt;The author would like to thank Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for their fantastic editorial inputs on this blog post!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">7cab2074a632a78f28014593cf071b77</distill:md5>
+      <category>R</category>
+      <category>Packages/Releases</category>
+      <category>Time Series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released</guid>
+      <pubDate>Mon, 12 Oct 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released/images/sparklyr-flint-0.2.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Using torch modules</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
@@ -273,7 +379,7 @@ for (t in 1:200) {
   
   ### -------- Update weights -------- 
   
-  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T want to record
+  # Wrap in with_no_grad() because this is a part we DON'T want to record
   # for automatic gradient computation
   # Update each parameter by its `grad`
   
@@ -283,12 +389,13 @@ for (t in 1:200) {
   
 }&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;The forward pass looks a lot better now; however, we still loop through the model’s parameters and update each one by hand. Furthermore, you may be already be suspecting that &lt;code&gt;torch&lt;/code&gt; provides abstractions for common loss functions. In the next and last installment of this series, we’ll address both points, making use of &lt;code&gt;torch&lt;/code&gt; losses and optimizers. See you then!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">89db528ec58a4b4da856d3b6eea438b7</distill:md5>
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">a1b469c50fc6b6237ccbd72dae5d21ef</distill:md5>
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules</guid>
-      <pubDate>Tue, 06 Oct 2020 00:00:00 +0000</pubDate>
+      <pubDate>Wed, 07 Oct 2020 00:00:00 +0000</pubDate>
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules/images/preview.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>

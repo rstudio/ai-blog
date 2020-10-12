@@ -20,7 +20,7 @@
       <description>
 
 
-&lt;p&gt;Since &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;&lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/a&gt;, a &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; extension for leveraging &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; time series functionalities through &lt;code&gt;sparklyr&lt;/code&gt;, was &lt;a href="https://blogs.rstudio.com/ai/posts/2020-09-07-sparklyr-flint"&gt;introduced&lt;/a&gt; in September, we have made a number of enhancements to it, and have successfully submitted &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 to CRAN recently.&lt;/p&gt;
+&lt;p&gt;Since &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;&lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/a&gt;, a &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; extension for leveraging &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; time series functionalities through &lt;code&gt;sparklyr&lt;/code&gt;, was &lt;a href="https://blogs.rstudio.com/ai/posts/2020-09-07-sparklyr-flint"&gt;introduced&lt;/a&gt; in September, we have made a number of enhancements to it, and have successfully submitted &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 to CRAN.&lt;/p&gt;
 &lt;p&gt;In this blog post, we highlight the following new features and improvements from &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href="#asof-joins"&gt;ASOF Joins&lt;/a&gt; of Timeseries RDDs&lt;/li&gt;
@@ -79,7 +79,7 @@ right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %
 &lt;p&gt;Notice regardless of which temporal direction is selected, an outer-left join is always performed (i.e., all timestamp values and &lt;code&gt;u&lt;/code&gt; values of &lt;code&gt;left&lt;/code&gt; from above will always be present in the output, and the &lt;code&gt;v&lt;/code&gt; column in the output will contain &lt;code&gt;NA&lt;/code&gt; whenever there is no record from &lt;code&gt;right&lt;/code&gt; that meets the matching criteria).&lt;/p&gt;
 &lt;h2 id="ols-regression"&gt;OLS Regression&lt;/h2&gt;
 &lt;p&gt;You might be wondering whether the version of this functionality in Flint is more or less identical to &lt;code&gt;lm()&lt;/code&gt; in R. Turns out it has much more to offer than &lt;code&gt;lm()&lt;/code&gt; does. An OLS regression in Flint will compute useful metrics such as &lt;a href="https://en.wikipedia.org/wiki/Akaike_information_criterion"&gt;Akaike information criterion&lt;/a&gt; and &lt;a href="https://en.wikipedia.org/wiki/Bayesian_information_criterion"&gt;Bayesian information criterion&lt;/a&gt;, both of which are useful for model selection purposes, and the calculations of both are parallelized by Flint to fully utilize computational power available in a Spark cluster. In addition, Flint supports ignoring regressors that are constant or nearly constant, which becomes useful when an intercept term is included. To see why this is the case, we need to briefly examine the goal of the OLS regression, which is to find some column vector of coefficients &lt;span class="math inline"&gt;\(\mathbf{\beta}\)&lt;/span&gt; that minimizes &lt;span class="math inline"&gt;\(\|\mathbf{y} - \mathbf{X} \mathbf{\beta}\|^2\)&lt;/span&gt;, where &lt;span class="math inline"&gt;\(\mathbf{y}\)&lt;/span&gt; is the column vector of response variables, and &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; is a matrix consisting of columns of regressors plus an entire column of &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s representing the intercept terms. The solution to this problem is &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt;, assuming the Gram matrix &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; is non-singular. However, if &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; contains a column of all &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s of intercept terms, and another column formed by a regressor that is constant (or nearly so), then columns of &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; will be linearly dependent (or nearly so) and &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; will be singular (or nearly so), which presents an issue computation-wise. However, if a regressor is constant, then it essentially plays the same role as the intercept terms do. So simply excluding such a constant regressor in &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; solves the problem. Also, speaking of inverting the Gram matrix, readers remembering the concept of “condition number” from numerical analysis must be thinking to themselves how computing &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt; could be numerically unstable if &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; has a large condition number. This is why Flint also outputs the condition number of the Gram matrix in the OLS regression result, so that one can sanity-check the underlying quadratic minimization problem being solved is well-conditioned.&lt;/p&gt;
-&lt;p&gt;So, to summarize, the OLS regression functionality implemented in Flint not only outputs the solution to the problem, but also calculates useful metrics that help data scentists assess the sanity and predictive quality of the resulting model.&lt;/p&gt;
+&lt;p&gt;So, to summarize, the OLS regression functionality implemented in Flint not only outputs the solution to the problem, but also calculates useful metrics that help data scientists assess the sanity and predictive quality of the resulting model.&lt;/p&gt;
 &lt;p&gt;To see OLS regression in action with &lt;code&gt;sparklyr.flint&lt;/code&gt;, one can run the following example:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;mtcars_sdf &amp;lt;- copy_to(sc, mtcars, overwrite = TRUE) %&amp;gt;%
   dplyr::mutate(time = 0L)
@@ -107,8 +107,7 @@ print(model %&amp;gt;% dplyr::pull(beta))
 &lt;p&gt;We have presented a number of new features and improvements introduced in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 and dug into some of them in this blog post. We hope you are as excited about them as we are. Thanks for reading!&lt;/p&gt;
 &lt;h2 id="acknowledgement"&gt;Acknowledgement&lt;/h2&gt;
 &lt;p&gt;The author would like to thank Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for their fantastic editorial inputs on this blog post!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
-</description>
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
       <distill:md5 xmlns:distill="https://distill.pub/journal/">7cab2074a632a78f28014593cf071b77</distill:md5>
       <category>R</category>
       <category>Packages/Releases</category>
@@ -377,7 +376,7 @@ for (t in 1:200) {
   
   ### -------- Update weights -------- 
   
-  # Wrap in with_no_grad() because this is a part we DON'T want to record
+  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T want to record
   # for automatic gradient computation
   # Update each parameter by its `grad`
   
@@ -387,8 +386,7 @@ for (t in 1:200) {
   
 }&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;The forward pass looks a lot better now; however, we still loop through the model’s parameters and update each one by hand. Furthermore, you may be already be suspecting that &lt;code&gt;torch&lt;/code&gt; provides abstractions for common loss functions. In the next and last installment of this series, we’ll address both points, making use of &lt;code&gt;torch&lt;/code&gt; losses and optimizers. See you then!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
-</description>
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
       <distill:md5 xmlns:distill="https://distill.pub/journal/">a1b469c50fc6b6237ccbd72dae5d21ef</distill:md5>
       <category>Torch</category>
       <category>R</category>
@@ -558,7 +556,7 @@ for (t in 1:200) {
   
   ### -------- Update weights -------- 
   
-  # Wrap in with_no_grad() because this is a part we DON'T 
+  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T 
   # want to record for automatic gradient computation
    with_no_grad({
      w1 &amp;lt;- w1$sub_(learning_rate * w1$grad)
@@ -566,7 +564,7 @@ for (t in 1:200) {
      b1 &amp;lt;- b1$sub_(learning_rate * b1$grad)
      b2 &amp;lt;- b2$sub_(learning_rate * b2$grad)  
      
-     # Zero gradients after every pass, as they'd accumulate otherwise
+     # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
      w1$grad$zero_()
      w2$grad$zero_()
      b1$grad$zero_()
@@ -587,8 +585,7 @@ for (t in 1:200) {
 &lt;li id="fn1"&gt;&lt;p&gt;Unless we &lt;em&gt;want&lt;/em&gt; to change the data, as when generating adversarial examples.&lt;a href="#fnref1" class="footnote-back"&gt;↩&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;li id="fn2"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref2" class="footnote-back"&gt;↩&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
-&lt;/div&gt;
-</description>
+&lt;/div&gt;</description>
       <distill:md5 xmlns:distill="https://distill.pub/journal/">41157fcdcb4597569652d31b6abb7d3d</distill:md5>
       <category>Torch</category>
       <category>R</category>

@@ -12,7 +12,182 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Thu, 08 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 12 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>sparklyr.flint 0.2: ASOF Joins, OLS Regression, and Additional Summarizers</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released</link>
+      <description>
+
+
+&lt;div class="container-fluid main-container"&gt;
+
+
+
+
+&lt;div class="fluid-row" id="header"&gt;
+
+
+
+
+&lt;/div&gt;
+
+
+&lt;p&gt;Since &lt;a href="https://cran.r-project.org/web/packages/sparklyr.flint/index.html"&gt;&lt;code&gt;sparklyr.flint&lt;/code&gt;&lt;/a&gt;, a &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; extension for leveraging &lt;a href="https://github.com/twosigma/flint"&gt;Flint&lt;/a&gt; time series functionalities through &lt;code&gt;sparklyr&lt;/code&gt;, was &lt;a href="https://blogs.rstudio.com/ai/posts/2020-09-07-sparklyr-flint"&gt;introduced&lt;/a&gt; in September, we have made a number of enhancements to it, and have successfully submitted &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 to CRAN.&lt;/p&gt;
+&lt;p&gt;In this blog post, we highlight the following new features and improvements from &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#asof-joins"&gt;ASOF Joins&lt;/a&gt; of Timeseries RDDs&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ols-regression"&gt;OLS Regression&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#additional-summarizers"&gt;Additional Summarizers&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#better-integration-with-sparklyr"&gt;Better Integration With &lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div id="asof-joins" class="section level2"&gt;
+&lt;h2&gt;ASOF Joins&lt;/h2&gt;
+&lt;p&gt;For those unfamiliar with the term, ASOF joins are temporal join operations based on inexact matching of timestamps. Within the context of &lt;a href="https://spark.apache.org"&gt;Apache Spark&lt;/a&gt;, a join operation, loosely speaking, matches records from two data frames (let’s call them &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;) based on some criteria. A temporal join implies matching records in &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; based on timestamps, and with inexact matching of timestamps permitted, it is typically useful to join &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt; along one of the following temporal directions:&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;Looking behind: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t&lt;/code&gt;, then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the most recent timestamp less than or equal to &lt;code&gt;t&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Looking ahead: if a record from &lt;code&gt;left&lt;/code&gt; has timestamp &lt;code&gt;t,&lt;/code&gt; then it gets matched with ones from &lt;code&gt;right&lt;/code&gt; having the smallest timestamp greater than or equal to (or alternatively, strictly greater than) &lt;code&gt;t&lt;/code&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;However, oftentimes it is not useful to consider two timestamps as “matching” if they are too far apart. Therefore, an additional constraint on the maximum amount of time to look behind or look ahead is usually also part of an ASOF join operation.&lt;/p&gt;
+&lt;p&gt;In &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2, all ASOF join functionalities of Flint are accessible via the &lt;code&gt;asof_join()&lt;/code&gt; method. For example, given 2 timeseries RDDs &lt;code&gt;left&lt;/code&gt; and &lt;code&gt;right&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;library(sparklyr)
+library(sparklyr.flint)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+left &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10), u = seq(10))) %&amp;gt;%
+  from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)
+right &amp;lt;- copy_to(sc, tibble::tibble(t = seq(10) + 1, v = seq(10) + 1L)) %&amp;gt;%
+  from_sdf(is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;, time_column = &amp;quot;t&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The following prints the result of matching each record from &lt;code&gt;left&lt;/code&gt; with the most recent record(s) from &lt;code&gt;right&lt;/code&gt; that are at most 1 second behind.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;gt;=&amp;quot;) %&amp;gt;% to_sdf())
+
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##    time                    u     v
+##    &amp;lt;dttm&amp;gt;              &amp;lt;int&amp;gt; &amp;lt;int&amp;gt;
+##  1 1970-01-01 00:00:01     1    NA
+##  2 1970-01-01 00:00:02     2     2
+##  3 1970-01-01 00:00:03     3     3
+##  4 1970-01-01 00:00:04     4     4
+##  5 1970-01-01 00:00:05     5     5
+##  6 1970-01-01 00:00:06     6     6
+##  7 1970-01-01 00:00:07     7     7
+##  8 1970-01-01 00:00:08     8     8
+##  9 1970-01-01 00:00:09     9     9
+## 10 1970-01-01 00:00:10    10    10&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Whereas if we change the temporal direction to “&amp;lt;”, then each record from &lt;code&gt;left&lt;/code&gt; will be matched with any record(s) from &lt;code&gt;right&lt;/code&gt; that is strictly in the future and is at most 1 second ahead of the current record from &lt;code&gt;left&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;print(asof_join(left, right, tol = &amp;quot;1s&amp;quot;, direction = &amp;quot;&amp;lt;&amp;quot;) %&amp;gt;% to_sdf())
+
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##    time                    u     v
+##    &amp;lt;dttm&amp;gt;              &amp;lt;int&amp;gt; &amp;lt;int&amp;gt;
+##  1 1970-01-01 00:00:01     1     2
+##  2 1970-01-01 00:00:02     2     3
+##  3 1970-01-01 00:00:03     3     4
+##  4 1970-01-01 00:00:04     4     5
+##  5 1970-01-01 00:00:05     5     6
+##  6 1970-01-01 00:00:06     6     7
+##  7 1970-01-01 00:00:07     7     8
+##  8 1970-01-01 00:00:08     8     9
+##  9 1970-01-01 00:00:09     9    10
+## 10 1970-01-01 00:00:10    10    11&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Notice regardless of which temporal direction is selected, an outer-left join is always performed (i.e., all timestamp values and &lt;code&gt;u&lt;/code&gt; values of &lt;code&gt;left&lt;/code&gt; from above will always be present in the output, and the &lt;code&gt;v&lt;/code&gt; column in the output will contain &lt;code&gt;NA&lt;/code&gt; whenever there is no record from &lt;code&gt;right&lt;/code&gt; that meets the matching criteria).&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ols-regression" class="section level2"&gt;
+&lt;h2&gt;OLS Regression&lt;/h2&gt;
+&lt;p&gt;You might be wondering whether the version of this functionality in Flint is more or less identical to &lt;code&gt;lm()&lt;/code&gt; in R. Turns out it has much more to offer than &lt;code&gt;lm()&lt;/code&gt; does. An OLS regression in Flint will compute useful metrics such as &lt;a href="https://en.wikipedia.org/wiki/Akaike_information_criterion"&gt;Akaike information criterion&lt;/a&gt; and &lt;a href="https://en.wikipedia.org/wiki/Bayesian_information_criterion"&gt;Bayesian information criterion&lt;/a&gt;, both of which are useful for model selection purposes, and the calculations of both are parallelized by Flint to fully utilize computational power available in a Spark cluster. In addition, Flint supports ignoring regressors that are constant or nearly constant, which becomes useful when an intercept term is included. To see why this is the case, we need to briefly examine the goal of the OLS regression, which is to find some column vector of coefficients &lt;span class="math inline"&gt;\(\mathbf{\beta}\)&lt;/span&gt; that minimizes &lt;span class="math inline"&gt;\(\|\mathbf{y} - \mathbf{X} \mathbf{\beta}\|^2\)&lt;/span&gt;, where &lt;span class="math inline"&gt;\(\mathbf{y}\)&lt;/span&gt; is the column vector of response variables, and &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; is a matrix consisting of columns of regressors plus an entire column of &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s representing the intercept terms. The solution to this problem is &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt;, assuming the Gram matrix &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; is non-singular. However, if &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; contains a column of all &lt;span class="math inline"&gt;\(1\)&lt;/span&gt;s of intercept terms, and another column formed by a regressor that is constant (or nearly so), then columns of &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; will be linearly dependent (or nearly so) and &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; will be singular (or nearly so), which presents an issue computation-wise. However, if a regressor is constant, then it essentially plays the same role as the intercept terms do. So simply excluding such a constant regressor in &lt;span class="math inline"&gt;\(\mathbf{X}\)&lt;/span&gt; solves the problem. Also, speaking of inverting the Gram matrix, readers remembering the concept of “condition number” from numerical analysis must be thinking to themselves how computing &lt;span class="math inline"&gt;\(\mathbf{\beta} = (\mathbf{X}^\intercal\mathbf{X})^{-1}\mathbf{X}^\intercal\mathbf{y}\)&lt;/span&gt; could be numerically unstable if &lt;span class="math inline"&gt;\(\mathbf{X}^\intercal\mathbf{X}\)&lt;/span&gt; has a large condition number. This is why Flint also outputs the condition number of the Gram matrix in the OLS regression result, so that one can sanity-check the underlying quadratic minimization problem being solved is well-conditioned.&lt;/p&gt;
+&lt;p&gt;So, to summarize, the OLS regression functionality implemented in Flint not only outputs the solution to the problem, but also calculates useful metrics that help data scientists assess the sanity and predictive quality of the resulting model.&lt;/p&gt;
+&lt;p&gt;To see OLS regression in action with &lt;code&gt;sparklyr.flint&lt;/code&gt;, one can run the following example:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;mtcars_sdf &amp;lt;- copy_to(sc, mtcars, overwrite = TRUE) %&amp;gt;%
+  dplyr::mutate(time = 0L)
+mtcars_ts &amp;lt;- from_sdf(mtcars_sdf, is_sorted = TRUE, time_unit = &amp;quot;SECONDS&amp;quot;)
+model &amp;lt;- ols_regression(mtcars_ts, mpg ~ hp + wt) %&amp;gt;% to_sdf()
+
+print(model %&amp;gt;% dplyr::select(akaikeIC, bayesIC, cond))
+
+## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##   akaikeIC bayesIC    cond
+##      &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;   &amp;lt;dbl&amp;gt;
+## 1     155.    159. 345403.
+
+# ^ output says condition number of the Gram matrix was within reason&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;and obtain &lt;span class="math inline"&gt;\(\mathbf{\beta}\)&lt;/span&gt;, the vector of optimal coefficients, with the following:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;print(model %&amp;gt;% dplyr::pull(beta))
+
+## [[1]]
+## [1] -0.03177295 -3.87783074&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div id="additional-summarizers" class="section level2"&gt;
+&lt;h2&gt;Additional Summarizers&lt;/h2&gt;
+&lt;p&gt;The EWMA (Exponential Weighted Moving Average), EMA half-life, and the standardized moment summarizers (namely, skewness and kurtosis) along with a few others which were missing in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.1 are now fully supported in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="better-integration-with-sparklyr" class="section level2"&gt;
+&lt;h2&gt;Better Integration With &lt;code&gt;sparklyr&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;While &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.1 included a &lt;code&gt;collect()&lt;/code&gt; method for exporting data from a Flint time-series RDD to an R data frame, it did not have a similar method for extracting the underlying Spark data frame from a Flint time-series RDD. This was clearly an oversight. In &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2, one can call &lt;code&gt;to_sdf()&lt;/code&gt; on a timeseries RDD to get back a Spark data frame that is usable in &lt;code&gt;sparklyr&lt;/code&gt; (e.g., as shown by &lt;code&gt;model %&amp;gt;% to_sdf() %&amp;gt;% dplyr::select(...)&lt;/code&gt; examples from above). One can also get to the underlying Spark data frame JVM object reference by calling &lt;code&gt;spark_dataframe()&lt;/code&gt; on a Flint time-series RDD (this is usually unnecessary in vast majority of &lt;code&gt;sparklyr&lt;/code&gt; use cases though).&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="conclusion" class="section level2"&gt;
+&lt;h2&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have presented a number of new features and improvements introduced in &lt;code&gt;sparklyr.flint&lt;/code&gt; 0.2 and deep-dived into some of them in this blog post. We hope you are as excited about them as we are.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="acknowledgement" class="section level2"&gt;
+&lt;h2&gt;Acknowledgement&lt;/h2&gt;
+&lt;p&gt;The author would like to thank Mara (&lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;), Sigrid (&lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt;), and Javier (&lt;a href="https://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;) for their fantastic editorial inputs on this blog post!&lt;/p&gt;
+&lt;/div&gt;
+
+
+
+
+&lt;/div&gt;
+
+&lt;script&gt;
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+&lt;/script&gt;
+
+&lt;!-- tabsets --&gt;
+
+&lt;script&gt;
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+&lt;/script&gt;
+
+&lt;!-- code folding --&gt;
+
+
+&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
+&lt;script&gt;
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+&lt;/script&gt;
+
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">7cab2074a632a78f28014593cf071b77</distill:md5>
+      <category>R</category>
+      <category>Packages/Releases</category>
+      <category>Time Series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released</guid>
+      <pubDate>Mon, 12 Oct 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-12-sparklyr-flint-0.2.0-released/images/sparklyr-flint-0.2.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Optimizers in torch</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
@@ -20,206 +195,74 @@
       <description>
 
 
-&lt;p&gt;This is the fourth and last installment in a series introducing &lt;code&gt;torch&lt;/code&gt; basics. Initially, we &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch/"&gt;focused on &lt;em&gt;tensors&lt;/em&gt;&lt;/a&gt;. To illustrate their power, we coded a complete (if toy-size) neural network from scratch. We didn’t make use of any of &lt;code&gt;torch&lt;/code&gt;’s higher-level capabilities – not even &lt;em&gt;autograd&lt;/em&gt;, its automatic-differentiation feature.&lt;/p&gt;
-&lt;p&gt;This changed in the &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd"&gt;follow-up post&lt;/a&gt;. No more thinking about derivatives and the chain rule; a single call to &lt;code&gt;backward()&lt;/code&gt; did it all.&lt;/p&gt;
-&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-07-torch-modules"&gt;In the third post&lt;/a&gt;, the code again saw a major simplification. Instead of tediously assembling a DAG&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt; by hand, we let &lt;em&gt;modules&lt;/em&gt; take care of the logic.&lt;/p&gt;
-&lt;p&gt;Based on that last state, there are just two more things to do. For one, we still compute the loss by hand. And secondly, even though we get the gradients all nicely computed from &lt;em&gt;autograd&lt;/em&gt;, we still loop over the model’s parameters, updating them all ourselves. You won’t be surprised to hear that none of this is necessary.&lt;/p&gt;
-&lt;h2 id="losses-and-loss-functions"&gt;Losses and loss functions&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; comes with all the usual loss functions, such as mean squared error, cross entropy, Kullback-Leibler divergence, and the like. In general, there are two usage modes.&lt;/p&gt;
-&lt;p&gt;Take the example of calculating mean squared error. One way is to call &lt;code&gt;nnf_mse_loss()&lt;/code&gt; directly on the prediction and ground truth tensors. For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x &amp;lt;- torch_randn(c(3, 2, 3))
-y &amp;lt;- torch_zeros(c(3, 2, 3))
-
-nnf_mse_loss(x, y)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-0.682362
-[ CPUFloatType{} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Other loss functions designed to be called directly start with &lt;code&gt;nnf_&lt;/code&gt; as well: &lt;code&gt;nnf_binary_cross_entropy()&lt;/code&gt;, &lt;code&gt;nnf_nll_loss()&lt;/code&gt;, &lt;code&gt;nnf_kl_div()&lt;/code&gt; … and so on.&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;The second way is to define the algorithm in advance and call it at some later time. Here, respective constructors all start with &lt;code&gt;nn_&lt;/code&gt; and end in &lt;code&gt;_loss&lt;/code&gt;. For example: &lt;code&gt;nn_bce_loss()&lt;/code&gt;, &lt;code&gt;nn_nll_loss(),&lt;/code&gt; &lt;code&gt;nn_kl_div_loss()&lt;/code&gt; …&lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;loss &amp;lt;- nn_mse_loss()
-
-loss(x, y)&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-0.682362
-[ CPUFloatType{} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This method may be preferable when one and the same algorithm should be applied to more than one pair of tensors.&lt;/p&gt;
-&lt;h2 id="optimizers"&gt;Optimizers&lt;/h2&gt;
-&lt;p&gt;So far, we’ve been updating model parameters following a simple strategy: The gradients told us which direction on the loss curve was downward; the learning rate told us how big of a step to take. What we did was a straightforward implementation of &lt;em&gt;gradient descent&lt;/em&gt;.&lt;/p&gt;
-&lt;p&gt;However, optimization algorithms used in deep learning get a lot more sophisticated than that. Below, we’ll see how to replace our manual updates using &lt;code&gt;optim_adam()&lt;/code&gt;, &lt;code&gt;torch&lt;/code&gt;’s implementation of the Adam algorithm &lt;span class="citation"&gt;(Kingma and Ba 2017)&lt;/span&gt;. First though, let’s take a quick look at how &lt;code&gt;torch&lt;/code&gt; optimizers work.&lt;/p&gt;
-&lt;p&gt;Here is a very simple network, consisting of just one linear layer, to be called on a single data point.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;data &amp;lt;- torch_randn(1, 3)
-
-model &amp;lt;- nn_linear(3, 1)
-model$parameters&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;$weight
-torch_tensor 
--0.0385  0.1412 -0.5436
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.1950
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;When we create an optimizer, we tell it what parameters it is supposed to work on.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(model$parameters, lr = 0.01)
-optimizer&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;&amp;lt;optim_adam&amp;gt;
-  Inherits from: &amp;lt;torch_Optimizer&amp;gt;
-  Public:
-    add_param_group: function (param_group) 
-    clone: function (deep = FALSE) 
-    defaults: list
-    initialize: function (params, lr = 0.001, betas = c(0.9, 0.999), eps = 1e-08, 
-    param_groups: list
-    state: list
-    step: function (closure = NULL) 
-    zero_grad: function () &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;At any time, we can inspect those parameters:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;optimizer$param_groups[[1]]$params&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;$weight
-torch_tensor 
--0.0385  0.1412 -0.5436
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.1950
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now we perform the forward and backward passes. The backward pass calculates the gradients, but does &lt;em&gt;not&lt;/em&gt; update the parameters, as we can see both from the model &lt;em&gt;and&lt;/em&gt; the optimizer objects:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out &amp;lt;- model(data)
-out$backward()
-
-optimizer$param_groups[[1]]$params
-model$parameters&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;$weight
-torch_tensor 
--0.0385  0.1412 -0.5436
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.1950
-[ CPUFloatType{1} ]
-
-$weight
-torch_tensor 
--0.0385  0.1412 -0.5436
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.1950
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Calling &lt;code&gt;step()&lt;/code&gt; on the optimizer actually &lt;em&gt;performs&lt;/em&gt; the updates. Again, let’s check that both model and optimizer now hold the updated values:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;optimizer$step()
-
-optimizer$param_groups[[1]]$params
-model$parameters&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;NULL
-$weight
-torch_tensor 
--0.0285  0.1312 -0.5536
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.2050
-[ CPUFloatType{1} ]
-
-$weight
-torch_tensor 
--0.0285  0.1312 -0.5536
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.2050
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;If we perform optimization in a loop, we need to make sure to call &lt;code&gt;optimizer$zero_grad()&lt;/code&gt; on every step, as otherwise gradients would be accumulated. You can see this in our final version of the network.&lt;/p&gt;
-&lt;h2 id="simple-network-final-version"&gt;Simple network: final version&lt;/h2&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-
-### generate training data -----------------------------------------------------
-
-# input dimensionality (number of input features)
-d_in &amp;lt;- 3
-# output dimensionality (number of predicted features)
-d_out &amp;lt;- 1
-# number of observations in training set
-n &amp;lt;- 100
-
-
-# create random data
-x &amp;lt;- torch_randn(n, d_in)
-y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
+&lt;div class="container-fluid main-container"&gt;
 
 
 
-### define the network ---------------------------------------------------------
 
-# dimensionality of hidden layer
-d_hidden &amp;lt;- 32
+&lt;div class="fluid-row" id="header"&gt;
 
-model &amp;lt;- nn_sequential(
-  nn_linear(d_in, d_hidden),
-  nn_relu(),
-  nn_linear(d_hidden, d_out)
-)
 
-### network parameters ---------------------------------------------------------
 
-# for adam, need to choose a much higher learning rate in this problem
-learning_rate &amp;lt;- 0.08
 
-optimizer &amp;lt;- optim_adam(model$parameters, lr = learning_rate)
+&lt;/div&gt;
 
-### training loop --------------------------------------------------------------
 
-for (t in 1:200) {
-  
-  ### -------- Forward pass -------- 
-  
-  y_pred &amp;lt;- model(x)
-  
-  ### -------- compute loss -------- 
-  loss &amp;lt;- nnf_mse_loss(y_pred, y, reduction = &amp;quot;sum&amp;quot;)
-  if (t %% 10 == 0)
-    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
-  
-  ### -------- Backpropagation -------- 
-  
-  # Still need to zero out the gradients before the backward pass, only this time,
-  # on the optimizer object
-  optimizer$zero_grad()
-  
-  # gradients are still computed on the loss tensor (no change here)
-  loss$backward()
-  
-  ### -------- Update weights -------- 
-  
-  # use the optimizer to update model parameters
-  optimizer$step()
-}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;# use the optimizer to update model parameters optimizer$step() }&lt;/p&gt;
+&lt;p&gt;```&lt;/p&gt;
 &lt;p&gt;And that’s it! We’ve seen all the major actors on stage: tensors, &lt;em&gt;autograd&lt;/em&gt;, modules, loss functions, and optimizers. In future posts, we’ll explore how to use &lt;em&gt;torch&lt;/em&gt; for standard deep learning tasks involving images, text, tabular data, and more. Thanks for reading!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="refs" class="references hanging-indent"&gt;
-&lt;div id="ref-kingma2017adam"&gt;
-&lt;p&gt;Kingma, Diederik P., and Jimmy Ba. 2017. “Adam: A Method for Stochastic Optimization.” &lt;a href="http://arxiv.org/abs/1412.6980"&gt;http://arxiv.org/abs/1412.6980&lt;/a&gt;.&lt;/p&gt;
+
+
+
+
 &lt;/div&gt;
-&lt;/div&gt;
-&lt;div class="footnotes"&gt;
-&lt;hr /&gt;
-&lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;directed acyclic graph&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn2"&gt;&lt;p&gt;The prefix &lt;code&gt;nnf_&lt;/code&gt; was chosen because in PyTorch, the corresponding functions live in &lt;a href="https://pytorch.org/docs/stable/nn.functional.html"&gt;torch.nn.functional&lt;/a&gt;.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn3"&gt;&lt;p&gt;This time, the corresponding PyTorch module is &lt;a href="https://pytorch.org/docs/stable/nn.html"&gt;torch.nn&lt;/a&gt;.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/div&gt;</description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">36d30c81f9e7940880a94bc0db25151b</distill:md5>
+
+&lt;script&gt;
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+&lt;/script&gt;
+
+&lt;!-- tabsets --&gt;
+
+&lt;script&gt;
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+&lt;/script&gt;
+
+&lt;!-- code folding --&gt;
+
+
+&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
+&lt;script&gt;
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+&lt;/script&gt;
+
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">a9f22c1320e5202ac5cfbc46348e0cbb</distill:md5>
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-09-torch-optim</guid>
-      <pubDate>Thu, 08 Oct 2020 00:00:00 +0000</pubDate>
+      <pubDate>Fri, 09 Oct 2020 00:00:00 +0000</pubDate>
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-10-09-torch-optim/images/preview.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
@@ -229,271 +272,71 @@ for (t in 1:200) {
       <description>
 
 
-&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;Initially&lt;/a&gt;, we started learning about &lt;code&gt;torch&lt;/code&gt; basics by coding a simple neural network from scratch, making use of just a single of &lt;code&gt;torch&lt;/code&gt;’s features: &lt;em&gt;tensors&lt;/em&gt;. &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd"&gt;Then&lt;/a&gt;, we immensely simplified the task, replacing manual backpropagation with &lt;em&gt;autograd&lt;/em&gt;. Today, we &lt;em&gt;modularize&lt;/em&gt; the network - in both the habitual and a very literal sense: Low-level matrix operations are swapped out for &lt;code&gt;torch&lt;/code&gt; &lt;code&gt;module&lt;/code&gt;s.&lt;/p&gt;
-&lt;h2 id="modules"&gt;Modules&lt;/h2&gt;
-&lt;p&gt;From other frameworks (Keras, say), you may be used to distinguishing between &lt;em&gt;models&lt;/em&gt; and &lt;em&gt;layers&lt;/em&gt;. In &lt;code&gt;torch&lt;/code&gt;, both are instances of &lt;code&gt;nn_Module()&lt;/code&gt;, and thus, have some methods in common. For those thinking in terms of “models” and “layers”, I’m artificially splitting up this section into two parts. In reality though, there is no dichotomy: New modules may be composed of existing ones up to arbitrary levels of recursion.&lt;/p&gt;
-&lt;h3 id="base-modules-layers"&gt;Base modules (“layers”)&lt;/h3&gt;
-&lt;p&gt;Instead of writing out an affine operation by hand – &lt;code&gt;x$mm(w1) + b1&lt;/code&gt;, say –, as we’ve been doing so far, we can create a linear module. The following snippet instantiates a linear layer that expects three-feature inputs and returns a single output per observation:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-l &amp;lt;- nn_linear(3, 1)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The module has two parameters, “weight” and “bias”. Both now come pre-initialized:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;l$parameters&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;$weight
-torch_tensor 
--0.0385  0.1412 -0.5436
-[ CPUFloatType{1,3} ]
-
-$bias
-torch_tensor 
--0.1950
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Modules are callable; calling a module executes its &lt;code&gt;forward()&lt;/code&gt; method, which, for a linear layer, matrix-multiplies input and weights, and adds the bias.&lt;/p&gt;
-&lt;p&gt;Let’s try this:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;data  &amp;lt;- torch_randn(10, 3)
-out &amp;lt;- l(data)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Unsurprisingly, &lt;code&gt;out&lt;/code&gt; now holds some data:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$data()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 0.2711
--1.8151
--0.0073
- 0.1876
--0.0930
- 0.7498
--0.2332
--0.0428
- 0.3849
--0.2618
-[ CPUFloatType{10,1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In addition though, this tensor knows what will need to be done, should ever it be asked to calculate gradients:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$grad_fn&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;AddmmBackward&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Note the difference between tensors returned by modules and self-created ones. When creating tensors ourselves, we need to pass &lt;code&gt;requires_grad = TRUE&lt;/code&gt; to trigger gradient calculation. With modules, &lt;code&gt;torch&lt;/code&gt; correctly assumes that we’ll want to perform backpropagation at some point.&lt;/p&gt;
-&lt;p&gt;By now though, we haven’t called &lt;code&gt;backward()&lt;/code&gt; yet. Thus, no gradients have yet been computed:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;l$weight$grad
-l$bias$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-[ Tensor (undefined) ]
-torch_tensor 
-[ Tensor (undefined) ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Let’s change this:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$backward()&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;Error in (function (self, gradient, keep_graph, create_graph)  : 
-  grad can be implicitly created only for scalar outputs (_make_grads at ../torch/csrc/autograd/autograd.cpp:47)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Why the error? &lt;em&gt;Autograd&lt;/em&gt; expects the output tensor to be a scalar, while in our example, we have a tensor of size &lt;code&gt;(10, 1)&lt;/code&gt;. This error won’t often occur in practice, where we work with &lt;em&gt;batches&lt;/em&gt; of inputs (sometimes, just a single batch). But still, it’s interesting to see how to resolve this.&lt;/p&gt;
-&lt;p&gt;To make the example work, we introduce a – virtual – final aggregation step – taking the mean, say. Let’s call it &lt;code&gt;avg&lt;/code&gt;. If such a mean were taken, its gradient with respect to &lt;code&gt;l$weight&lt;/code&gt; would be obtained via the chain rule:&lt;/p&gt;
-&lt;p&gt;&lt;span class="math display"&gt;\[
-\begin{equation*} 
- \frac{\partial \ avg}{\partial w} = \frac{\partial \ avg}{\partial \ out}  \ \frac{\partial \ out}{\partial w}
-\end{equation*}
-\]&lt;/span&gt;&lt;/p&gt;
-&lt;p&gt;Of the quantities on the right side, we’re interested in the second. We need to provide the first one, the way it would look &lt;em&gt;if really we were taking the mean&lt;/em&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;d_avg_d_out &amp;lt;- torch_tensor(10)$`repeat`(10)$unsqueeze(1)$t()
-out$backward(gradient = d_avg_d_out)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now, &lt;code&gt;l$weight$grad&lt;/code&gt; and &lt;code&gt;l$bias$grad&lt;/code&gt; &lt;em&gt;do&lt;/em&gt; contain gradients:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;l$weight$grad
-l$bias$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 1.3410  6.4343 -30.7135
-[ CPUFloatType{1,3} ]
-torch_tensor 
- 100
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;In addition to &lt;code&gt;nn_linear()&lt;/code&gt; , &lt;code&gt;torch&lt;/code&gt; provides pretty much all the common layers you might hope for. But few tasks are solved by a single layer. How do you combine them? Or, in the usual lingo: How do you build &lt;em&gt;models&lt;/em&gt;?&lt;/p&gt;
-&lt;h3 id="container-modules-models"&gt;Container modules (“models”)&lt;/h3&gt;
-&lt;p&gt;Now, &lt;em&gt;models&lt;/em&gt; are just modules that contain other modules. For example, if all inputs are supposed to flow through the same nodes and along the same edges, then &lt;code&gt;nn_sequential()&lt;/code&gt; can be used to build a simple graph.&lt;/p&gt;
-&lt;p&gt;For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- nn_sequential(
-    nn_linear(3, 16),
-    nn_relu(),
-    nn_linear(16, 1)
-)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We can use the same technique as above to get an overview of all model parameters (two weight matrices and two bias vectors):&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model$parameters&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;$`0.weight`
-torch_tensor 
--0.1968 -0.1127 -0.0504
- 0.0083  0.3125  0.0013
- 0.4784 -0.2757  0.2535
--0.0898 -0.4706 -0.0733
--0.0654  0.5016  0.0242
- 0.4855 -0.3980 -0.3434
--0.3609  0.1859 -0.4039
- 0.2851  0.2809 -0.3114
--0.0542 -0.0754 -0.2252
--0.3175  0.2107 -0.2954
--0.3733  0.3931  0.3466
- 0.5616 -0.3793 -0.4872
- 0.0062  0.4168 -0.5580
- 0.3174 -0.4867  0.0904
--0.0981 -0.0084  0.3580
- 0.3187 -0.2954 -0.5181
-[ CPUFloatType{16,3} ]
-
-$`0.bias`
-torch_tensor 
--0.3714
- 0.5603
--0.3791
- 0.4372
--0.1793
--0.3329
- 0.5588
- 0.1370
- 0.4467
- 0.2937
- 0.1436
- 0.1986
- 0.4967
- 0.1554
--0.3219
--0.0266
-[ CPUFloatType{16} ]
-
-$`2.weight`
-torch_tensor 
-Columns 1 to 10-0.0908 -0.1786  0.0812 -0.0414 -0.0251 -0.1961  0.2326  0.0943 -0.0246  0.0748
-
-Columns 11 to 16 0.2111 -0.1801 -0.0102 -0.0244  0.1223 -0.1958
-[ CPUFloatType{1,16} ]
-
-$`2.bias`
-torch_tensor 
- 0.2470
-[ CPUFloatType{1} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To inspect an individual parameter, make use of its position in the sequential model. For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model[[1]]$bias&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
--0.3714
- 0.5603
--0.3791
- 0.4372
--0.1793
--0.3329
- 0.5588
- 0.1370
- 0.4467
- 0.2937
- 0.1436
- 0.1986
- 0.4967
- 0.1554
--0.3219
--0.0266
-[ CPUFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And just like &lt;code&gt;nn_linear()&lt;/code&gt; above, this module can be called directly on data:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out &amp;lt;- model(data)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;On a composite module like this one, calling &lt;code&gt;backward()&lt;/code&gt; will backpropagate through all the layers:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$backward(gradient = torch_tensor(10)$`repeat`(10)$unsqueeze(1)$t())
-
-# e.g.
-model[[1]]$bias$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  0.0000
--17.8578
-  1.6246
- -3.7258
- -0.2515
- -5.8825
- 23.2624
-  8.4903
- -2.4604
-  6.7286
- 14.7760
--14.4064
- -1.0206
- -1.7058
-  0.0000
- -9.7897
-[ CPUFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;And placing the composite module on the GPU will move all tensors there:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;model$cuda()
-model[[1]]$bias$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
-  0.0000
--17.8578
-  1.6246
- -3.7258
- -0.2515
- -5.8825
- 23.2624
-  8.4903
- -2.4604
-  6.7286
- 14.7760
--14.4064
- -1.0206
- -1.7058
-  0.0000
- -9.7897
-[ CUDAFloatType{16} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now let’s see how using &lt;code&gt;nn_sequential()&lt;/code&gt; can simplify our example network.&lt;/p&gt;
-&lt;h2 id="simple-network-using-modules"&gt;Simple network using modules&lt;/h2&gt;
-&lt;pre class="r"&gt;&lt;code&gt;### generate training data -----------------------------------------------------
-
-# input dimensionality (number of input features)
-d_in &amp;lt;- 3
-# output dimensionality (number of predicted features)
-d_out &amp;lt;- 1
-# number of observations in training set
-n &amp;lt;- 100
+&lt;div class="container-fluid main-container"&gt;
 
 
-# create random data
-x &amp;lt;- torch_randn(n, d_in)
-y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
 
 
-### define the network ---------------------------------------------------------
+&lt;div class="fluid-row" id="header"&gt;
 
-# dimensionality of hidden layer
-d_hidden &amp;lt;- 32
 
-model &amp;lt;- nn_sequential(
-  nn_linear(d_in, d_hidden),
-  nn_relu(),
-  nn_linear(d_hidden, d_out)
-)
 
-### network parameters ---------------------------------------------------------
 
-learning_rate &amp;lt;- 1e-4
+&lt;/div&gt;
 
-### training loop --------------------------------------------------------------
 
-for (t in 1:200) {
-  
-  ### -------- Forward pass -------- 
-  
-  y_pred &amp;lt;- model(x)
-  
-  ### -------- compute loss -------- 
-  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
-  if (t %% 10 == 0)
-    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
-  
-  ### -------- Backpropagation -------- 
-  
-  # Zero the gradients before running the backward pass.
-  model$zero_grad()
-  
-  # compute gradient of the loss w.r.t. all learnable parameters of the model
-  loss$backward()
-  
-  ### -------- Update weights -------- 
-  
-  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T want to record
-  # for automatic gradient computation
-  # Update each parameter by its `grad`
-  
-  with_no_grad({
-    model$parameters %&amp;gt;% purrr::walk(function(param) param$sub_(learning_rate * param$grad))
-  })
-  
-}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;# Wrap in with_no_grad() because this is a part we DON’T want to record # for automatic gradient computation # Update each parameter by its &lt;code&gt;grad&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;with_no_grad({ model&lt;span class="math inline"&gt;\(parameters %&amp;gt;% purrr::walk(function(param) param\)&lt;/span&gt;sub_(learning_rate * param$grad)) })&lt;/p&gt;
+&lt;p&gt;} ```&lt;/p&gt;
 &lt;p&gt;The forward pass looks a lot better now; however, we still loop through the model’s parameters and update each one by hand. Furthermore, you may be already be suspecting that &lt;code&gt;torch&lt;/code&gt; provides abstractions for common loss functions. In the next and last installment of this series, we’ll address both points, making use of &lt;code&gt;torch&lt;/code&gt; losses and optimizers. See you then!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">89db528ec58a4b4da856d3b6eea438b7</distill:md5>
+
+
+
+
+&lt;/div&gt;
+
+&lt;script&gt;
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+&lt;/script&gt;
+
+&lt;!-- tabsets --&gt;
+
+&lt;script&gt;
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+&lt;/script&gt;
+
+&lt;!-- code folding --&gt;
+
+
+&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
+&lt;script&gt;
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+&lt;/script&gt;
+
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">a1b469c50fc6b6237ccbd72dae5d21ef</distill:md5>
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules</guid>
@@ -507,192 +350,89 @@ for (t in 1:200) {
       <description>
 
 
-&lt;p&gt;Last week, we saw how to code &lt;a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch"&gt;a simple network from scratch&lt;/a&gt;, using nothing but &lt;code&gt;torch&lt;/code&gt; &lt;em&gt;tensors&lt;/em&gt;. Predictions, loss, gradients, weight updates – all these things we’ve been computing ourselves. Today, we make a significant change: Namely, we spare ourselves the cumbersome calculation of gradients, and have &lt;code&gt;torch&lt;/code&gt; do it for us.&lt;/p&gt;
-&lt;p&gt;Prior to that though, let’s get some background.&lt;/p&gt;
-&lt;h2 id="automatic-differentiation-with-autograd"&gt;Automatic differentiation with &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;torch&lt;/code&gt; uses a module called &lt;em&gt;autograd&lt;/em&gt; to&lt;/p&gt;
-&lt;ol style="list-style-type: decimal"&gt;
-&lt;li&gt;&lt;p&gt;record operations performed on tensors, and&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;store what will have to be done to obtain the corresponding gradients, once we’re entering the backward pass.&lt;/p&gt;&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;These prospective actions are stored internally as functions, and when it’s time to compute the gradients, these functions are applied in order: Application starts from the output node, and calculated gradients are successively &lt;em&gt;propagated&lt;/em&gt; &lt;em&gt;back&lt;/em&gt; through the network. This is a form of &lt;em&gt;reverse mode automatic differentiation&lt;/em&gt;.&lt;/p&gt;
-&lt;h4 id="autograd-basics"&gt;&lt;em&gt;Autograd&lt;/em&gt; basics&lt;/h4&gt;
-&lt;p&gt;As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with &lt;code&gt;requires_grad = TRUE&lt;/code&gt;. For example:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-
-x &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To be clear, &lt;code&gt;x&lt;/code&gt; now is a tensor &lt;em&gt;with respect to which&lt;/em&gt; gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data &lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. If we subsequently perform some operation on that tensor, assigning the result to &lt;code&gt;y&lt;/code&gt;,&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y &amp;lt;- x$mean()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;we find that &lt;code&gt;y&lt;/code&gt; now has a non-empty &lt;code&gt;grad_fn&lt;/code&gt; that tells &lt;code&gt;torch&lt;/code&gt; how to compute the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$grad_fn&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Actual &lt;em&gt;computation&lt;/em&gt; of gradients is triggered by calling &lt;code&gt;backward()&lt;/code&gt; on the output tensor.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$backward()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;After &lt;code&gt;backward()&lt;/code&gt; has been called, &lt;code&gt;x&lt;/code&gt; has a non-null field termed &lt;code&gt;grad&lt;/code&gt; that stores the gradient of &lt;code&gt;y&lt;/code&gt; with respect to &lt;code&gt;x&lt;/code&gt;:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 0.2500  0.2500
- 0.2500  0.2500
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;With longer chains of computations, we can take a glance at how &lt;code&gt;torch&lt;/code&gt; builds up a graph of backward operations. Here is a slightly more complex example – feel free to skip if you’re not the type who just &lt;em&gt;has&lt;/em&gt; to peek into things for them to make sense.&lt;/p&gt;
-&lt;h4 id="digging-deeper"&gt;Digging deeper&lt;/h4&gt;
-&lt;p&gt;We build up a simple graph of tensors, with inputs &lt;code&gt;x1&lt;/code&gt; and &lt;code&gt;x2&lt;/code&gt; being connected to output &lt;code&gt;out&lt;/code&gt; by intermediaries &lt;code&gt;y&lt;/code&gt; and &lt;code&gt;z&lt;/code&gt;.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;x1 &amp;lt;- torch_ones(2, 2, requires_grad = TRUE)
-x2 &amp;lt;- torch_tensor(1.1, requires_grad = TRUE)
-
-y &amp;lt;- x1 * (x2 + 2)
-
-z &amp;lt;- y$pow(2) * 3
-
-out &amp;lt;- z$mean()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;To save memory, intermediate gradients are normally not being stored. Calling &lt;code&gt;retain_grad()&lt;/code&gt; on a tensor allows one to deviate from this default. Let’s do this here, for the sake of demonstration:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y$retain_grad()
-
-z$retain_grad()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Now we can go backwards through the graph and inspect &lt;code&gt;torch&lt;/code&gt;’s action plan for backprop, starting from &lt;code&gt;out$grad_fn&lt;/code&gt;, like so:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for mean, the last operation executed
-out$grad_fn&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;MeanBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3
-out$grad_fn$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-MulBackward1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for pow in z = y.pow(2) * 3
-out$grad_fn$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-PowBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the multiplication in y = x * (x + 2)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-MulBackward0&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# how to compute the gradient for the two branches of y = x * (x + 2),
-# where the left branch is a leaf node (AccumulateGrad for x1)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-torch::autograd::AccumulateGrad
-[[2]]
-AddBackward1&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class="r"&gt;&lt;code&gt;# here we arrive at the other leaf node (AccumulateGrad for x2)
-out$grad_fn$next_functions[[1]]$next_functions[[1]]$next_functions[[1]]$next_functions[[2]]$next_functions&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;[[1]]
-torch::autograd::AccumulateGrad&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;If we now call &lt;code&gt;out$backward()&lt;/code&gt;, all tensors in the graph will have their respective gradients calculated.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;out$backward()
-
-z$grad
-y$grad
-x2$grad
-x1$grad&lt;/code&gt;&lt;/pre&gt;
-&lt;pre&gt;&lt;code&gt;torch_tensor 
- 0.2500  0.2500
- 0.2500  0.2500
-[ CPUFloatType{2,2} ]
-torch_tensor 
- 4.6500  4.6500
- 4.6500  4.6500
-[ CPUFloatType{2,2} ]
-torch_tensor 
- 18.6000
-[ CPUFloatType{1} ]
-torch_tensor 
- 14.4150  14.4150
- 14.4150  14.4150
-[ CPUFloatType{2,2} ]&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;After this nerdy excursion, let’s see how &lt;em&gt;autograd&lt;/em&gt; makes our network simpler.&lt;/p&gt;
-&lt;h2 id="the-simple-network-now-using-autograd"&gt;The simple network, now using &lt;em&gt;autograd&lt;/em&gt;&lt;/h2&gt;
-&lt;p&gt;Thanks to &lt;em&gt;autograd&lt;/em&gt;, we say good-bye to the tedious, error-prone process of coding backpropagation ourselves. A single method call does it all: &lt;code&gt;loss$backward()&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;With &lt;code&gt;torch&lt;/code&gt; keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. We can code forward pass, loss calculation, and backward pass in just three lines:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
-  
-loss &amp;lt;- (y_pred - y)$pow(2)$sum()
-
-loss$backward()&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;library(torch)
-
-### generate training data -----------------------------------------------------
-
-# input dimensionality (number of input features)
-d_in &amp;lt;- 3
-# output dimensionality (number of predicted features)
-d_out &amp;lt;- 1
-# number of observations in training set
-n &amp;lt;- 100
+&lt;div class="container-fluid main-container"&gt;
 
 
-# create random data
-x &amp;lt;- torch_randn(n, d_in)
-y &amp;lt;- x[, 1, NULL] * 0.2 - x[, 2, NULL] * 1.3 - x[, 3, NULL] * 0.5 + torch_randn(n, 1)
 
 
-### initialize weights ---------------------------------------------------------
+&lt;div class="fluid-row" id="header"&gt;
 
-# dimensionality of hidden layer
-d_hidden &amp;lt;- 32
-# weights connecting input to hidden layer
-w1 &amp;lt;- torch_randn(d_in, d_hidden, requires_grad = TRUE)
-# weights connecting hidden to output layer
-w2 &amp;lt;- torch_randn(d_hidden, d_out, requires_grad = TRUE)
 
-# hidden layer bias
-b1 &amp;lt;- torch_zeros(1, d_hidden, requires_grad = TRUE)
-# output layer bias
-b2 &amp;lt;- torch_zeros(1, d_out, requires_grad = TRUE)
 
-### network parameters ---------------------------------------------------------
 
-learning_rate &amp;lt;- 1e-4
+&lt;/div&gt;
 
-### training loop --------------------------------------------------------------
 
-for (t in 1:200) {
-  ### -------- Forward pass --------
-  
-  y_pred &amp;lt;- x$mm(w1)$add(b1)$clamp(min = 0)$mm(w2)$add(b2)
-  
-  ### -------- compute loss -------- 
-  loss &amp;lt;- (y_pred - y)$pow(2)$sum()
-  if (t %% 10 == 0)
-    cat(&amp;quot;Epoch: &amp;quot;, t, &amp;quot;   Loss: &amp;quot;, loss$item(), &amp;quot;\n&amp;quot;)
-  
-  ### -------- Backpropagation --------
-  
-  # compute gradient of loss w.r.t. all tensors with requires_grad = TRUE
-  loss$backward()
-  
-  ### -------- Update weights -------- 
-  
-  # Wrap in with_no_grad() because this is a part we DON&amp;#39;T 
-  # want to record for automatic gradient computation
-   with_no_grad({
-     w1 &amp;lt;- w1$sub_(learning_rate * w1$grad)
-     w2 &amp;lt;- w2$sub_(learning_rate * w2$grad)
-     b1 &amp;lt;- b1$sub_(learning_rate * b1$grad)
-     b2 &amp;lt;- b2$sub_(learning_rate * b2$grad)  
-     
-     # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
-     w1$grad$zero_()
-     w2$grad$zero_()
-     b1$grad$zero_()
-     b2$grad$zero_()  
-   })
-
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;As explained above, after &lt;code&gt;some_tensor$backward()&lt;/code&gt;, all tensors preceding it in the graph&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt; will have their &lt;code&gt;grad&lt;/code&gt; fields populated. We make use of these fields to update the weights. But now that &lt;em&gt;autograd&lt;/em&gt; is “on”, whenever we execute an operation we &lt;em&gt;don’t&lt;/em&gt; want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to &lt;code&gt;with_no_grad()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;# Wrap in with_no_grad() because this is a part we DON’T # want to record for automatic gradient computation with_no_grad({ w1 &amp;lt;- w1&lt;span class="math inline"&gt;\(sub_(learning_rate * w1\)&lt;/span&gt;grad) w2 &amp;lt;- w2&lt;span class="math inline"&gt;\(sub_(learning_rate * w2\)&lt;/span&gt;grad) b1 &amp;lt;- b1&lt;span class="math inline"&gt;\(sub_(learning_rate * b1\)&lt;/span&gt;grad) b2 &amp;lt;- b2&lt;span class="math inline"&gt;\(sub_(learning_rate * b2\)&lt;/span&gt;grad)&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt; # Zero gradients after every pass, as they&amp;#39;d accumulate otherwise
+ w1$grad$zero_()
+ w2$grad$zero_()
+ b1$grad$zero_()
+ b2$grad$zero_()  &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;})&lt;/p&gt;
+&lt;p&gt;} ```&lt;/p&gt;
+&lt;p&gt;As explained above, after &lt;code&gt;some_tensor$backward()&lt;/code&gt;, all tensors preceding it in the graph&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt; will have their &lt;code&gt;grad&lt;/code&gt; fields populated. We make use of these fields to update the weights. But now that &lt;em&gt;autograd&lt;/em&gt; is “on”, whenever we execute an operation we &lt;em&gt;don’t&lt;/em&gt; want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to &lt;code&gt;with_no_grad()&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;While this is something you may file under “nice to know” – after all, once we arrive at the last post in the series, this manual updating of weights will be gone – the idiom of &lt;em&gt;zeroing gradients&lt;/em&gt; is here to stay: Values stored in &lt;code&gt;grad&lt;/code&gt; fields accumulate; whenever we’re done using them, we need to zero them out before reuse.&lt;/p&gt;
-&lt;h2 id="outlook"&gt;Outlook&lt;/h2&gt;
+&lt;div id="outlook" class="section level2"&gt;
+&lt;h2&gt;Outlook&lt;/h2&gt;
 &lt;p&gt;So where do we stand? We started out coding a network completely from scratch, making use of nothing but &lt;code&gt;torch&lt;/code&gt; tensors. Today, we got significant help from &lt;em&gt;autograd&lt;/em&gt;.&lt;/p&gt;
 &lt;p&gt;But we’re still manually updating the weights, – and aren’t deep learning frameworks known to provide abstractions (“layers”, or: “modules”) on top of tensor computations …?&lt;/p&gt;
 &lt;p&gt;We address both issues in the follow-up installments. Thanks for reading!&lt;/p&gt;
-&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
 &lt;div class="footnotes"&gt;
 &lt;hr /&gt;
 &lt;ol&gt;
-&lt;li id="fn1"&gt;&lt;p&gt;Unless we &lt;em&gt;want&lt;/em&gt; to change the data, as when generating adversarial examples.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li id="fn2"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;All that have &lt;code&gt;requires_grad&lt;/code&gt; set to &lt;code&gt;TRUE&lt;/code&gt;, to be precise.&lt;a href="#fnref1" class="footnote-back"&gt;↩&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
-&lt;/div&gt;</description>
-      <distill:md5 xmlns:distill="https://distill.pub/journal/">68b4457f4594ac1a742e88e6d9c790b4</distill:md5>
+&lt;/div&gt;
+
+
+
+
+&lt;/div&gt;
+
+&lt;script&gt;
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+&lt;/script&gt;
+
+&lt;!-- tabsets --&gt;
+
+&lt;script&gt;
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown &gt; .nav-tabs &gt; li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+&lt;/script&gt;
+
+&lt;!-- code folding --&gt;
+
+
+&lt;!-- dynamically load mathjax for compatibility with self-contained --&gt;
+&lt;script&gt;
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+&lt;/script&gt;
+
+</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">41157fcdcb4597569652d31b6abb7d3d</distill:md5>
       <category>Torch</category>
       <category>R</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-05-torch-network-with-autograd</guid>

@@ -12,7 +12,374 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 19 Oct 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 03 Nov 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch for tabular data</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-11-03-torch-tabular</link>
+      <description>
+
+
+&lt;p&gt;Machine learning on image-like data can be many things: Fun (dogs vs. cats), societally useful (medical imaging), or societally harmful (surveillance). In comparison, tabular data – the bread and butter of data science – may seem more mundane.&lt;/p&gt;
+&lt;p&gt;What’s more, if you’re interested in deep learning (DL) particularly, and looking for the extra benefits to be gotten from big data, big architectures, and big compute, you’re much more likely to build an impressive showcase on the former instead of the latter.&lt;/p&gt;
+&lt;p&gt;So for tabular data, why not just go with random forests, or gradient boosting, or other classical methods? I can think of at least a few reasons to learn about DL for tabular data:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;Even if all your features are interval-scale or ordinal, thus requiring “just” some form of (not necessarily linear) regression, applying DL may result in performance benefits due to sophisticated optimization algorithms, activation functions, layer depth, and more (plus interactions of all of these).&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;If, in addition, there are categorical features, DL models may profit from &lt;em&gt;embedding&lt;/em&gt; those in continuous space, discovering similarities and relationships that go unnoticed in one-hot encoded representations.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;What if most features are numeric or categorical, but there’s also text in column F and an image in column G? With DL, different modalities can be worked on by different modules that feed their outputs into a common module, to take over from there.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="agenda"&gt;Agenda&lt;/h2&gt;
+&lt;p&gt;In this introductory post, we keep the architecture straightforward. We don’t experiment with fancy optimizers or nonlinearities. However, we do make use of embeddings, and pretty prominently at that. Thus from the above bullet list, we’ll shed a light on the second, while leaving the other two for future posts.&lt;/p&gt;
+&lt;p&gt;In a nutshell, what we’ll see is&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;How to create a custom &lt;em&gt;dataset&lt;/em&gt;, tailored to the specific data you have.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;How to handle a mix of numeric and categorical data.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;How to extract the continuous-space representations from the embedding modules.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="dataset"&gt;Dataset&lt;/h2&gt;
+&lt;p&gt;The dataset, &lt;a href="https://archive.ics.uci.edu/ml/datasets/Mushroom"&gt;Mushrooms&lt;/a&gt;, was chosen for its abundance of categorical columns. It is an unusual dataset to use in DL: It was designed for machine learning models to infer logical rules, as in: IF &lt;em&gt;a&lt;/em&gt; AND NOT &lt;em&gt;b&lt;/em&gt; OR &lt;em&gt;c&lt;/em&gt; […], then it’s an &lt;em&gt;x&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Concretely, mushrooms are classified into two groups: edible and non-edible. The dataset description lists five possible rules with their resulting accuracies. While the least we want to go into here is the hotly debated topic of whether DL is suited to, or how it could be made more suited to, rule learning, we’ll allow ourselves some curiosity and check out what happens if we successively remove all columns used to construct those five rules.&lt;/p&gt;
+&lt;p&gt;Oh, and before you start copy-pasting: Here is the example in a &lt;a href="https://colab.research.google.com/drive/1bfyoD13YaLPLVcQVOLimv6vq9y4CKMM2?usp=sharing"&gt;Google Colaboratory notebook&lt;/a&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(purrr)
+library(readr)
+library(dplyr)
+library(ggplot2)
+
+download.file(
+  &amp;quot;https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.data&amp;quot;,
+  destfile = &amp;quot;agaricus-lepiota.data&amp;quot;
+)
+
+mushroom_data &amp;lt;- read_csv(
+  &amp;quot;agaricus-lepiota.data&amp;quot;,
+  col_names = c(
+    &amp;quot;poisonous&amp;quot;,
+    &amp;quot;cap-shape&amp;quot;,
+    &amp;quot;cap-surface&amp;quot;,
+    &amp;quot;cap-color&amp;quot;,
+    &amp;quot;bruises&amp;quot;,
+    &amp;quot;odor&amp;quot;,
+    &amp;quot;gill-attachment&amp;quot;,
+    &amp;quot;gill-spacing&amp;quot;,
+    &amp;quot;gill-size&amp;quot;,
+    &amp;quot;gill-color&amp;quot;,
+    &amp;quot;stalk-shape&amp;quot;,
+    &amp;quot;stalk-root&amp;quot;,
+    &amp;quot;stalk-surface-above-ring&amp;quot;,
+    &amp;quot;stalk-surface-below-ring&amp;quot;,
+    &amp;quot;stalk-color-above-ring&amp;quot;,
+    &amp;quot;stalk-color-below-ring&amp;quot;,
+    &amp;quot;veil-type&amp;quot;,
+    &amp;quot;veil-color&amp;quot;,
+    &amp;quot;ring-type&amp;quot;,
+    &amp;quot;ring-number&amp;quot;,
+    &amp;quot;spore-print-color&amp;quot;,
+    &amp;quot;population&amp;quot;,
+    &amp;quot;habitat&amp;quot;
+  ),
+  col_types = rep(&amp;quot;c&amp;quot;, 23) %&amp;gt;% paste(collapse = &amp;quot;&amp;quot;)
+) %&amp;gt;%
+  # can as well remove because there&amp;#39;s just 1 unique value
+  select(-`veil-type`)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt;, &lt;code&gt;dataset()&lt;/code&gt; creates an R6 class. Like with most R6 classes, there will usually be a need for an &lt;code&gt;initialize()&lt;/code&gt; method. Below, we use &lt;code&gt;initialize()&lt;/code&gt; to preprocess the data and store it in convenient pieces. More on that in a minute. Prior to that, please note the two other methods a &lt;code&gt;dataset&lt;/code&gt; has to implement:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;.getitem(i)&lt;/code&gt; . This is the whole purpose of a &lt;code&gt;dataset&lt;/code&gt;: Retrieve and return the observation located at some index it is asked for. Which index? That’s to be decided by the caller, a &lt;code&gt;dataloader&lt;/code&gt;. During training, usually we want to permute the order in which observations are used, while not caring about order in case of validation or test data.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;code&gt;.length()&lt;/code&gt;. This method, again for use of a &lt;code&gt;dataloader&lt;/code&gt;, indicates how many observations there are.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;In our example, both methods are straightforward to implement. &lt;code&gt;.getitem(i)&lt;/code&gt; just directly uses its argument to index into the data, and &lt;code&gt;.length()&lt;/code&gt; just returns the number of observations:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;mushroom_dataset &amp;lt;- dataset(
+  name = &amp;quot;mushroom_dataset&amp;quot;,
+
+  initialize = function(indices) {
+    data &amp;lt;- self$prepare_mushroom_data(mushroom_data[indices, ])
+    self$xcat &amp;lt;- data[[1]][[1]]
+    self$xnum &amp;lt;- data[[1]][[2]]
+    self$y &amp;lt;- data[[2]]
+  },
+
+  .getitem = function(i) {
+    xcat &amp;lt;- self$xcat[i, ]
+    xnum &amp;lt;- self$xnum[i, ]
+    y &amp;lt;- self$y[i, ]
+    
+    list(x = list(xcat, xnum), y = y)
+  },
+  
+  .length = function() {
+    dim(self$y)[1]
+  },
+  
+  prepare_mushroom_data = function(input) {
+    
+    input &amp;lt;- input %&amp;gt;%
+      mutate(across(.fns = as.factor)) 
+    
+    target_col &amp;lt;- input$poisonous %&amp;gt;% 
+      as.integer() %&amp;gt;%
+      `-`(1) %&amp;gt;%
+      as.matrix()
+    
+    categorical_cols &amp;lt;- input %&amp;gt;% 
+      select(-poisonous) %&amp;gt;%
+      select(where(function(x) nlevels(x) != 2)) %&amp;gt;%
+      mutate(across(.fns = as.integer)) %&amp;gt;%
+      as.matrix()
+
+    numerical_cols &amp;lt;- input %&amp;gt;%
+      select(-poisonous) %&amp;gt;%
+      select(where(function(x) nlevels(x) == 2)) %&amp;gt;%
+      mutate(across(.fns = as.integer)) %&amp;gt;%
+      as.matrix()
+    
+    list(list(torch_tensor(categorical_cols), torch_tensor(numerical_cols)),
+         torch_tensor(target_col))
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As for data storage, there is a field for the target, &lt;code&gt;self$y&lt;/code&gt;, but instead of the naturally to-be-expected &lt;code&gt;self$x&lt;/code&gt; we see separate fields for numerical features (&lt;code&gt;self$xnum&lt;/code&gt;) and categorical ones (&lt;code&gt;self$xcat&lt;/code&gt;). This is just for convenience: The latter will be passed into embedding modules, which require its inputs to be of type &lt;code&gt;torch_long()&lt;/code&gt;, as opposed to most other modules that, by default, work with &lt;code&gt;torch_float()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Accordingly, then, all &lt;code&gt;prepare_mushroom_data()&lt;/code&gt; does is break apart the data into those three parts. &lt;em&gt;Indispensable aside:&lt;/em&gt; In this dataset, really &lt;em&gt;all&lt;/em&gt; features happen to be categorical – it’s just that for some, there are but two types. Technically, we could just have treated them the same as the non-binary features. But since normally in DL, we just leave binary features the way they are, we use this as an occasion to show how to handle a mix of various data types.&lt;/p&gt;
+&lt;p&gt;Our custom &lt;code&gt;dataset&lt;/code&gt; defined, we create instances for training and validation each; and each gets their companion &lt;code&gt;dataloader&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;train_indices &amp;lt;- sample(1:nrow(mushroom_data), size = floor(0.8 * nrow(mushroom_data)))
+valid_indices &amp;lt;- setdiff(1:nrow(mushroom_data), train_indices)
+
+train_ds &amp;lt;- mushroom_dataset(train_indices)
+train_dl &amp;lt;- train_ds %&amp;gt;% dataloader(batch_size = 256, shuffle = TRUE)
+
+valid_ds &amp;lt;- mushroom_dataset(valid_indices)
+valid_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = 256, shuffle = FALSE)&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="model"&gt;Model&lt;/h2&gt;
+&lt;p&gt;In &lt;code&gt;torch&lt;/code&gt;, how much you &lt;em&gt;modularize&lt;/em&gt; your models is up to you. Often, high degrees of modularization enhance readability and help with troubleshooting.&lt;/p&gt;
+&lt;p&gt;Here we factor out the embedding functionality. An &lt;code&gt;embedding_module&lt;/code&gt;, to be passed the categorical features only, will call &lt;code&gt;torch&lt;/code&gt;’s &lt;code&gt;nn_embedding()&lt;/code&gt; on each of them:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;embedding_module &amp;lt;- nn_module(
+  
+  initialize = function(cardinalities) {
+    self$embeddings = nn_module_list(lapply(cardinalities, function(x) nn_embedding(num_embeddings = x, embedding_dim = ceiling(x/2))))
+  },
+  
+  forward = function(x) {
+    embedded &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = length(self$embeddings))
+    for (i in 1:length(self$embeddings)) {
+      embedded[[i]] &amp;lt;- self$embeddings[[i]](x[ , i])
+    }
+    torch_cat(embedded, dim = 2)
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The main model, when called, starts by embedding the categorical features, then appends the numerical input and continues processing:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net &amp;lt;- nn_module(
+  &amp;quot;mushroom_net&amp;quot;,
+
+  initialize = function(cardinalities,
+                        num_numerical,
+                        fc1_dim,
+                        fc2_dim) {
+    self$embedder &amp;lt;- embedding_module(cardinalities)
+    self$fc1 &amp;lt;- nn_linear(sum(map(cardinalities, function(x) ceiling(x/2)) %&amp;gt;% unlist()) + num_numerical, fc1_dim)
+    self$fc2 &amp;lt;- nn_linear(fc1_dim, fc2_dim)
+    self$output &amp;lt;- nn_linear(fc2_dim, 1)
+  },
+
+  forward = function(xcat, xnum) {
+    embedded &amp;lt;- self$embedder(xcat)
+    all &amp;lt;- torch_cat(list(embedded, xnum$to(dtype = torch_float())), dim = 2)
+    all %&amp;gt;% self$fc1() %&amp;gt;%
+      nnf_relu() %&amp;gt;%
+      self$fc2() %&amp;gt;%
+      self$output() %&amp;gt;%
+      nnf_sigmoid()
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now instantiate this model, passing in, on the one hand, output sizes for the linear layers, and on the other, feature cardinalities. The latter will be used by the embedding modules to determine their output sizes, following a simple rule “embed into a space of size half the number of input values”:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;cardinalities &amp;lt;- map(
+  mushroom_data[ , 2:ncol(mushroom_data)], compose(nlevels, as.factor)) %&amp;gt;%
+  keep(function(x) x &amp;gt; 2) %&amp;gt;%
+  unlist() %&amp;gt;%
+  unname()
+
+num_numerical &amp;lt;- ncol(mushroom_data) - length(cardinalities) - 1
+
+fc1_dim &amp;lt;- 16
+fc2_dim &amp;lt;- 16
+
+model &amp;lt;- net(
+  cardinalities,
+  num_numerical,
+  fc1_dim,
+  fc2_dim
+)
+
+device &amp;lt;- if (cuda_is_available()) torch_device(&amp;quot;cuda:0&amp;quot;) else &amp;quot;cpu&amp;quot;
+
+model &amp;lt;- model$to(device = device)&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="training"&gt;Training&lt;/h2&gt;
+&lt;p&gt;The training loop now is “business as usual”:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(model$parameters, lr = 0.1)
+
+for (epoch in 1:20) {
+
+  model$train()
+  train_losses &amp;lt;- c()  
+
+  for (b in enumerate(train_dl)) {
+    optimizer$zero_grad()
+    output &amp;lt;- model(b$x[[1]]$to(device = device), b$x[[2]]$to(device = device))
+    loss &amp;lt;- nnf_binary_cross_entropy(output, b$y$to(dtype = torch_float(), device = device))
+    loss$backward()
+    optimizer$step()
+    train_losses &amp;lt;- c(train_losses, loss$item())
+  }
+
+  model$eval()
+  valid_losses &amp;lt;- c()
+
+  for (b in enumerate(valid_dl)) {
+    output &amp;lt;- model(b$x[[1]]$to(device = device), b$x[[2]]$to(device = device))
+    loss &amp;lt;- nnf_binary_cross_entropy(output, b$y$to(dtype = torch_float(), device = device))
+    valid_losses &amp;lt;- c(valid_losses, loss$item())
+  }
+
+  cat(sprintf(&amp;quot;Loss at epoch %d: training: %3f, validation: %3f\n&amp;quot;, epoch, mean(train_losses), mean(valid_losses)))
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Loss at epoch 1: training: 0.274634, validation: 0.111689
+Loss at epoch 2: training: 0.057177, validation: 0.036074
+Loss at epoch 3: training: 0.025018, validation: 0.016698
+Loss at epoch 4: training: 0.010819, validation: 0.010996
+Loss at epoch 5: training: 0.005467, validation: 0.002849
+Loss at epoch 6: training: 0.002026, validation: 0.000959
+Loss at epoch 7: training: 0.000458, validation: 0.000282
+Loss at epoch 8: training: 0.000231, validation: 0.000190
+Loss at epoch 9: training: 0.000172, validation: 0.000144
+Loss at epoch 10: training: 0.000120, validation: 0.000110
+Loss at epoch 11: training: 0.000098, validation: 0.000090
+Loss at epoch 12: training: 0.000079, validation: 0.000074
+Loss at epoch 13: training: 0.000066, validation: 0.000064
+Loss at epoch 14: training: 0.000058, validation: 0.000055
+Loss at epoch 15: training: 0.000052, validation: 0.000048
+Loss at epoch 16: training: 0.000043, validation: 0.000042
+Loss at epoch 17: training: 0.000038, validation: 0.000038
+Loss at epoch 18: training: 0.000034, validation: 0.000034
+Loss at epoch 19: training: 0.000032, validation: 0.000031
+Loss at epoch 20: training: 0.000028, validation: 0.000027&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;While loss on the validation set is still decreasing, we’ll soon see that this is good enough for 100% accuracy.&lt;/p&gt;
+&lt;h2 id="evaluation"&gt;Evaluation&lt;/h2&gt;
+&lt;p&gt;To check classification accuracy, we re-use the validation set, seeing how we haven’t employed it for tuning anyway.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model$eval()
+
+test_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = valid_ds$.length(), shuffle = FALSE)
+iter &amp;lt;- test_dl$.iter()
+b &amp;lt;- iter$.next()
+
+output &amp;lt;- model(b$x[[1]]$to(device = device), b$x[[2]]$to(device = device))
+preds &amp;lt;- output$to(device = &amp;quot;cpu&amp;quot;) %&amp;gt;% as.array()
+preds &amp;lt;- ifelse(preds &amp;gt; 0.5, 1, 0)
+
+comp_df &amp;lt;- data.frame(preds = preds, y = b[[2]] %&amp;gt;% as_array())
+num_correct &amp;lt;- sum(comp_df$preds == comp_df$y)
+num_total &amp;lt;- nrow(comp_df)
+accuracy &amp;lt;- num_correct/num_total
+accuracy&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;1&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Phew. No embarrassing failure for the DL approach on a task where straightforward rules are sufficient. Plus, we’ve really been parsimonious as to network size.&lt;/p&gt;
+&lt;p&gt;Before concluding with an inspection of the learned embeddings, let’s have some fun obscuring things.&lt;/p&gt;
+&lt;h2 id="making-the-task-harder"&gt;Making the task harder&lt;/h2&gt;
+&lt;p&gt;The following rules (with accompanying accuracies) are reported in the dataset description.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;Disjunctive rules for poisonous mushrooms, from most general
+    to most specific:
+
+    P_1) odor=NOT(almond.OR.anise.OR.none)
+         120 poisonous cases missed, 98.52% accuracy
+
+    P_2) spore-print-color=green
+         48 cases missed, 99.41% accuracy
+         
+    P_3) odor=none.AND.stalk-surface-below-ring=scaly.AND.
+              (stalk-color-above-ring=NOT.brown) 
+         8 cases missed, 99.90% accuracy
+         
+    P_4) habitat=leaves.AND.cap-color=white
+             100% accuracy     
+
+    Rule P_4) may also be
+
+    P_4&amp;#39;) population=clustered.AND.cap_color=white
+
+    These rule involve 6 attributes (out of 22). &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Evidently, there’s no distinction being made between training and test sets; but we’ll stay with our 80:20 split anyway. We’ll successively remove all mentioned attributes, starting with the three that enabled 100% accuracy and continuing our way up. Here are the results I obtained seeding the random number generator like so:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;torch_manual_seed(777)&lt;/code&gt;&lt;/pre&gt;
+&lt;table&gt;
+&lt;colgroup&gt;
+&lt;col width="90%" /&gt;
+&lt;col width="9%" /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr class="header"&gt;
+&lt;th align="left"&gt;without&lt;/th&gt;
+&lt;th align="right"&gt;accuracy&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr class="odd"&gt;
+&lt;td align="left"&gt;&lt;code&gt;cap-color, population, habitat&lt;/code&gt;&lt;/td&gt;
+&lt;td align="right"&gt;0.9938&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="even"&gt;
+&lt;td align="left"&gt;&lt;code&gt;cap-color, population, habitat, stalk-surface-below-ring, stalk-color-above-ring&lt;/code&gt;&lt;/td&gt;
+&lt;td align="right"&gt;1&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="odd"&gt;
+&lt;td align="left"&gt;&lt;code&gt;cap-color, population, habitat, stalk-surface-below-ring, stalk-color-above-ring, spore-print-color&lt;/code&gt;&lt;/td&gt;
+&lt;td align="right"&gt;0.9994&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="even"&gt;
+&lt;td align="left"&gt;&lt;code&gt;cap-color, population, habitat, stalk-surface-below-ring, stalk-color-above-ring, spore-print-color, odor&lt;/code&gt;&lt;/td&gt;
+&lt;td align="right"&gt;0.9526&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Still 95% correct … While experiments like this are fun, it looks like they can also tell us something serious: Imagine the case of so-called “debiasing” by removing features like race, gender, or income. How many proxy variables may still be left that allow for inferring the masked attributes?&lt;/p&gt;
+&lt;h2 id="a-look-at-the-hidden-representations"&gt;A look at the hidden representations&lt;/h2&gt;
+&lt;p&gt;Looking at the weight matrix of an embedding module, what we see are the learned representations of a feature’s values. The first categorical column was &lt;code&gt;cap-shape&lt;/code&gt;; let’s extract its corresponding embeddings:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;embedding_weights &amp;lt;- vector(mode = &amp;quot;list&amp;quot;)
+for (i in 1: length(model$embedder$embeddings)) {
+  embedding_weights[[i]] &amp;lt;- model$embedder$embeddings[[i]]$parameters$weight$to(device = &amp;quot;cpu&amp;quot;)
+}
+
+cap_shape_repr &amp;lt;- embedding_weights[[1]]
+cap_shape_repr&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor
+-0.0025 -0.1271  1.8077
+-0.2367 -2.6165 -0.3363
+-0.5264 -0.9455 -0.6702
+ 0.3057 -1.8139  0.3762
+-0.8583 -0.7752  1.0954
+ 0.2740 -0.7513  0.4879
+[ CPUFloatType{6,3} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The number of columns is three, since that’s what we chose when creating the embedding layer. The number of rows is six, matching the number of available categories. We may look up per-feature categories in the dataset description (&lt;em&gt;agaricus-lepiota.names&lt;/em&gt;):&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;cap_shapes &amp;lt;- c(&amp;quot;bell&amp;quot;, &amp;quot;conical&amp;quot;, &amp;quot;convex&amp;quot;, &amp;quot;flat&amp;quot;, &amp;quot;knobbed&amp;quot;, &amp;quot;sunken&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For visualization, it’s convenient to do principal components analysis (but there are other options, like t-SNE). Here are the six cap shapes in two-dimensional space:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;pca &amp;lt;- prcomp(cap_shape_repr, center = TRUE, scale. = TRUE, rank = 2)$x[, c(&amp;quot;PC1&amp;quot;, &amp;quot;PC2&amp;quot;)]
+
+pca %&amp;gt;%
+  as.data.frame() %&amp;gt;%
+  mutate(class = cap_shapes) %&amp;gt;%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_label_repel(aes(label = class)) + 
+  coord_cartesian(xlim = c(-2, 2), ylim = c(-2, 2)) +
+  theme(aspect.ratio = 1) +
+  theme_classic()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-11-03-torch-tabular/images/cap-shape.png" width="414" /&gt;&lt;/p&gt;
+&lt;p&gt;Naturally, how interesting you find the results depends on how much you care about the hidden representation of a variable. Naturally as well, analyses like these may quickly turn into an activity where extreme caution is to be applied, as any biases in the data will immediately translate into biased representations. Moreover, reduction to two-dimensional space may or may not be adequate.&lt;/p&gt;
+&lt;p&gt;This concludes our introduction to &lt;code&gt;torch&lt;/code&gt; for tabular data. While the conceptual focus was on categorical features, and how to make use of them in combination with numerical ones, we’ve taken care to also provide background on something that will come up time and again: defining a &lt;code&gt;dataset&lt;/code&gt; tailored to the task at hand.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5>8c3d6688da92f23379e7fea1592ed4ff</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Tabular Data</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-11-03-torch-tabular</guid>
+      <pubDate>Tue, 03 Nov 2020 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-11-03-torch-tabular/images/preview.jpeg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Classifying images with torch</title>
       <dc:creator>Sigrid Keydana</dc:creator>
@@ -194,7 +561,7 @@ images %&amp;gt;%
   purrr::set_names(class_names[as_array(classes)]) %&amp;gt;%
   purrr::map(as.raster, max = 255) %&amp;gt;%
   purrr::iwalk(~{plot(.x); title(.y)})&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-10-19-torch-image-classification/images/image_classif_birds.png" width="576" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2020-10-19-torch-image-classification/images/image_classif_birds.png" width="250" /&gt;&lt;/p&gt;
 &lt;h2 id="model"&gt;Model&lt;/h2&gt;
 &lt;p&gt;The backbone of our model is a pre-trained instance of ResNet.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- model_resnet18(pretrained = TRUE)&lt;/code&gt;&lt;/pre&gt;
@@ -406,7 +773,7 @@ test_accuracy&lt;/code&gt;&lt;/pre&gt;
       <category>Image Recognition &amp; Image Processing</category>
       <guid>https://blogs.rstudio.com/tensorflow/posts/2020-10-19-torch-image-classification</guid>
       <pubDate>Mon, 19 Oct 2020 00:00:00 +0000</pubDate>
-      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-10-19-torch-image-classification/images/image_classif_birds.png" medium="image" type="image/png" width="1152" height="768"/>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-10-19-torch-image-classification/images/image_classif_birds.png" medium="image" type="image/png" width="500" height="333"/>
     </item>
     <item>
       <title>sparklyr.flint 0.2: ASOF Joins, OLS Regression, and additional summarizers</title>
@@ -4036,8 +4403,8 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-ce3a43b9aee1b4dbc61f" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-ce3a43b9aee1b4dbc61f"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;div id="htmlwidget-ce18e5660ffb53ffae6a" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-ce18e5660ffb53ffae6a"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
 &lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 &lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;

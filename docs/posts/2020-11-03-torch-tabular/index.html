@@ -1883,8 +1883,8 @@ gtag('config', 'UA-20375833-3');
 </ul>
 </nav>
 </div>
-<p>Machine learning on image-like data can be many things: Fun (dogs vs. cats), societally useful (medical imaging), or societally harmful (surveillance). In comparison, tabular data – the bread and butter of data science – may seem more mundane.</p>
-<p>What’s more, if you’re interested in deep learning (DL) particularly, and looking for the extra benefits to be gotten from big data, big architectures, and big compute, you’re much more likely to build an impressive showcase on the former instead of the latter.</p>
+<p>Machine learning on image-like data can be many things: fun (dogs vs. cats), societally useful (medical imaging), or societally harmful (surveillance). In comparison, tabular data – the bread and butter of data science – may seem more mundane.</p>
+<p>What’s more, if you’re particularly interested in deep learning (DL), and looking for the extra benefits to be gained from big data, big architectures, and big compute, you’re much more likely to build an impressive showcase on the former instead of the latter.</p>
 <p>So for tabular data, why not just go with random forests, or gradient boosting, or other classical methods? I can think of at least a few reasons to learn about DL for tabular data:</p>
 <ul>
 <li><p>Even if all your features are interval-scale or ordinal, thus requiring “just” some form of (not necessarily linear) regression, applying DL may result in performance benefits due to sophisticated optimization algorithms, activation functions, layer depth, and more (plus interactions of all of these).</p></li>
@@ -1892,16 +1892,16 @@ gtag('config', 'UA-20375833-3');
 <li><p>What if most features are numeric or categorical, but there’s also text in column F and an image in column G? With DL, different modalities can be worked on by different modules that feed their outputs into a common module, to take over from there.</p></li>
 </ul>
 <h2 id="agenda">Agenda</h2>
-<p>In this introductory post, we keep the architecture straightforward. We don’t experiment with fancy optimizers or nonlinearities. However, we do make use of embeddings, and pretty prominently at that. Thus from the above bullet list, we’ll shed a light on the second, while leaving the other two for future posts.</p>
+<p>In this introductory post, we keep the architecture straightforward. We don’t experiment with fancy optimizers or nonlinearities. Nor do we add in text or image processing. However, we do make use of embeddings, and pretty prominently at that. Thus from the above bullet list, we’ll shed a light on the second, while leaving the other two for future posts.</p>
 <p>In a nutshell, what we’ll see is</p>
 <ul>
 <li><p>How to create a custom <em>dataset</em>, tailored to the specific data you have.</p></li>
 <li><p>How to handle a mix of numeric and categorical data.</p></li>
-<li><p>How to extract the continuous-space representations from the embedding modules.</p></li>
+<li><p>How to extract continuous-space representations from the embedding modules.</p></li>
 </ul>
 <h2 id="dataset">Dataset</h2>
 <p>The dataset, <a href="https://archive.ics.uci.edu/ml/datasets/Mushroom">Mushrooms</a>, was chosen for its abundance of categorical columns. It is an unusual dataset to use in DL: It was designed for machine learning models to infer logical rules, as in: IF <em>a</em> AND NOT <em>b</em> OR <em>c</em> […], then it’s an <em>x</em>.</p>
-<p>Concretely, mushrooms are classified into two groups: edible and non-edible. The dataset description lists five possible rules with their resulting accuracies. While the least we want to go into here is the hotly debated topic of whether DL is suited to, or how it could be made more suited to, rule learning, we’ll allow ourselves some curiosity and check out what happens if we successively remove all columns used to construct those five rules.</p>
+<p>Mushrooms are classified into two groups: edible and non-edible. The dataset description lists five possible rules with their resulting accuracies. While the least we want to go into here is the hotly debated topic of whether DL is suited to, or how it could be made more suited to rule learning, we’ll allow ourselves some curiosity and check out what happens if we successively remove all columns used to construct those five rules.</p>
 <p>Oh, and before you start copy-pasting: Here is the example in a <a href="https://colab.research.google.com/drive/1bfyoD13YaLPLVcQVOLimv6vq9y4CKMM2?usp=sharing">Google Colaboratory notebook</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -1950,12 +1950,12 @@ gtag('config', 'UA-20375833-3');
 </code></pre>
 </div>
 </div>
-<p>In <code>torch</code>, <code>dataset()</code> creates an R6 class. Like with most R6 classes, there will usually be a need for an <code>initialize()</code> method. Below, we use <code>initialize()</code> to preprocess the data and store it in convenient pieces. More on that in a minute. Prior to that, please note the two other methods a <code>dataset</code> has to implement:</p>
+<p>In <code>torch</code>, <code>dataset()</code> creates an R6 class. As with most R6 classes, there will usually be a need for an <code>initialize()</code> method. Below, we use <code>initialize()</code> to preprocess the data and store it in convenient pieces. More on that in a minute. Prior to that, please note the two other methods a <code>dataset</code> has to implement:</p>
 <ul>
 <li><p><code>.getitem(i)</code> . This is the whole purpose of a <code>dataset</code>: Retrieve and return the observation located at some index it is asked for. Which index? That’s to be decided by the caller, a <code>dataloader</code>. During training, usually we want to permute the order in which observations are used, while not caring about order in case of validation or test data.</p></li>
 <li><p><code>.length()</code>. This method, again for use of a <code>dataloader</code>, indicates how many observations there are.</p></li>
 </ul>
-<p>In our example, both methods are straightforward to implement. <code>.getitem(i)</code> just directly uses its argument to index into the data, and <code>.length()</code> just returns the number of observations:</p>
+<p>In our example, both methods are straightforward to implement. <code>.getitem(i)</code> directly uses its argument to index into the data, and <code>.length()</code> returns the number of observations:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre><code><span class='va'>mushroom_dataset</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://torch.mlverse.org/docs/reference/dataset.html'>dataset</a></span><span class='op'>(</span>
@@ -2009,9 +2009,10 @@ gtag('config', 'UA-20375833-3');
 </code></pre>
 </div>
 </div>
-<p>As for data storage, there is a field for the target, <code>self$y</code>, but instead of the naturally to-be-expected <code>self$x</code> we see separate fields for numerical features (<code>self$xnum</code>) and categorical ones (<code>self$xcat</code>). This is just for convenience: The latter will be passed into embedding modules, which require its inputs to be of type <code>torch_long()</code>, as opposed to most other modules that, by default, work with <code>torch_float()</code>.</p>
-<p>Accordingly, then, all <code>prepare_mushroom_data()</code> does is break apart the data into those three parts. <em>Indispensable aside:</em> In this dataset, really <em>all</em> features happen to be categorical – it’s just that for some, there are but two types. Technically, we could just have treated them the same as the non-binary features. But since normally in DL, we just leave binary features the way they are, we use this as an occasion to show how to handle a mix of various data types.</p>
-<p>Our custom <code>dataset</code> defined, we create instances for training and validation each; and each gets their companion <code>dataloader</code>:</p>
+<p>As for data storage, there is a field for the target, <code>self$y</code>, but instead of the expected <code>self$x</code> we see separate fields for numerical features (<code>self$xnum</code>) and categorical ones (<code>self$xcat</code>). This is just for convenience: The latter will be passed into embedding modules, which require its inputs to be of type <code>torch_long()</code>, as opposed to most other modules that, by default, work with <code>torch_float()</code>.</p>
+<p>Accordingly, then, all <code>prepare_mushroom_data()</code> does is break apart the data into those three parts.</p>
+<p><em>Indispensable aside:</em> In this dataset, really <em>all</em> features happen to be categorical – it’s just that for some, there are but two types. Technically, we could just have treated them the same as the non-binary features. But since normally in DL, we just leave binary features the way they are, we use this as an occasion to show how to handle a mix of various data types.</p>
+<p>Our custom <code>dataset</code> defined, we create instances for training and validation; each gets its companion <code>dataloader</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre><code><span class='va'>train_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>mushroom_data</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>floor</a></span><span class='op'>(</span><span class='fl'>0.8</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>mushroom_data</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
@@ -2157,7 +2158,7 @@ Loss at epoch 17: training: 0.000038, validation: 0.000038
 Loss at epoch 18: training: 0.000034, validation: 0.000034
 Loss at epoch 19: training: 0.000032, validation: 0.000031
 Loss at epoch 20: training: 0.000028, validation: 0.000027</code></pre>
-<p>While loss on the validation set is still decreasing, we’ll soon see that this is good enough for 100% accuracy.</p>
+<p>While loss on the validation set is still decreasing, we’ll soon see that the network has learned enough to obtain an accuracy of 100%.</p>
 <h2 id="evaluation">Evaluation</h2>
 <p>To check classification accuracy, we re-use the validation set, seeing how we haven’t employed it for tuning anyway.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2206,7 +2207,7 @@ Loss at epoch 20: training: 0.000028, validation: 0.000027</code></pre>
     P_4&#39;) population=clustered.AND.cap_color=white
 
     These rule involve 6 attributes (out of 22). </code></pre>
-<p>Evidently, there’s no distinction being made between training and test sets; but we’ll stay with our 80:20 split anyway. We’ll successively remove all mentioned attributes, starting with the three that enabled 100% accuracy and continuing our way up. Here are the results I obtained seeding the random number generator like so:</p>
+<p>Evidently, there’s no distinction being made between training and test sets; but we’ll stay with our 80:20 split anyway. We’ll successively remove all mentioned attributes, starting with the three that enabled 100% accuracy, and continuing our way up. Here are the results I obtained seeding the random number generator like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre><code><span class='fu'><a href='https://torch.mlverse.org/docs/reference/torch_manual_seed.html'>torch_manual_seed</a></span><span class='op'>(</span><span class='fl'>777</span><span class='op'>)</span>
@@ -2293,7 +2294,7 @@ Loss at epoch 20: training: 0.000028, validation: 0.000027</code></pre>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/cap-shape.png" width="414" /></p>
 </div>
-<p>Naturally, how interesting you find the results depends on how much you care about the hidden representation of a variable. Naturally as well, analyses like these may quickly turn into an activity where extreme caution is to be applied, as any biases in the data will immediately translate into biased representations. Moreover, reduction to two-dimensional space may or may not be adequate.</p>
+<p>Naturally, how interesting you find the results depends on how much you care about the hidden representation of a variable. Analyses like these may quickly turn into an activity where extreme caution is to be applied, as any biases in the data will immediately translate into biased representations. Moreover, reduction to two-dimensional space may or may not be adequate.</p>
 <p>This concludes our introduction to <code>torch</code> for tabular data. While the conceptual focus was on categorical features, and how to make use of them in combination with numerical ones, we’ve taken care to also provide background on something that will come up time and again: defining a <code>dataset</code> tailored to the task at hand.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>

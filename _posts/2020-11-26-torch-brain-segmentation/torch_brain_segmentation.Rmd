@@ -301,7 +301,7 @@ train_ds <- brainseg_dataset(
   random_sampling = TRUE
 )
 
-train_ds$.length()
+length(train_ds)
 # 2977
 
 valid_ds <- brainseg_dataset(
@@ -310,7 +310,7 @@ valid_ds <- brainseg_dataset(
   random_sampling = FALSE
 )
 
-valid_ds$.length() 
+length(valid_ds)
 # 952
 ```
 
@@ -319,7 +319,7 @@ As a correctness check, let's plot an image and associated mask:
 ```{r}
 par(mfrow = c(1, 2), mar = c(0, 1, 0, 1))
 
-img_and_mask <- valid_ds$.getitem(27)
+img_and_mask <- valid_ds[27]
 img <- img_and_mask[[1]]
 mask <- img_and_mask[[2]]
 
@@ -336,7 +336,7 @@ With `torch`, it is straightforward to inspect what happens when you change augm
 [^1]: Yes, we did a few experiments, confirming that more augmentation isn't better ... what did I say about inevitably ending up doing optimization on the validation set ...
 
 ```{r}
-img_and_mask <- valid_ds$.getitem(77)
+img_and_mask <- valid_ds[77]
 img <- img_and_mask[[1]]
 mask <- img_and_mask[[2]]
 
@@ -403,7 +403,7 @@ unet <- nn_module(
       prev_channels <- 2 ^ (n_filters + i -1)
     }
     
-    self$up_path = nn_module_list()
+    self$up_path <- nn_module_list()
     
     for (i in ((depth - 1):1)) {
       self$up_path$append(up_block(prev_channels, 2 ^ (n_filters + i - 1)))
@@ -479,21 +479,17 @@ conv_block <- nn_module(
   
   initialize = function(in_size, out_size) {
     
-    self$block <- nn_module_list()
-    self$block$append(nn_conv2d(in_size, out_size, kernel_size = 3, padding = 1))
-    self$block$append(nn_relu())
-    self$block$append(nn_dropout(0.6))
-    self$block$append(nn_conv2d(out_size, out_size, kernel_size = 3, padding = 1))
-    self$block$append(nn_relu())
-    self$block$append(nn_dropout(0.6))
+    self$conv_block <- nn_sequential(
+      nn_conv2d(in_size, out_size, kernel_size = 3, padding = 1),
+      nn_relu(),
+      nn_dropout(0.6),
+      nn_conv2d(out_size, out_size, kernel_size = 3, padding = 1),
+      nn_relu()
+    )
   },
   
   forward = function(x){
-    
-    for (i in 1:length(self$block)) {
-      x <- self$block[[i]](x)
-    }
-    x
+    self$conv_block(x)
   }
 )
 ```
@@ -535,7 +531,7 @@ num_epochs <- 20
 scheduler <- lr_one_cycle(
   optimizer,
   max_lr = 0.1,
-  steps_per_epoch = train_dl$.length(),
+  steps_per_epoch = length(train_dl),
   epochs = num_epochs
 )
 ```
@@ -652,15 +648,15 @@ Now, since we don't have a separate test set, we already know the average out-of
 eval_ds <- brainseg_dataset(valid_dir, augmentation_params = NULL, random_sampling = TRUE)
 eval_dl <- dataloader(eval_ds, batch_size = 8)
 
-batch <- eval_dl$.iter()$.next()
+batch <- eval_dl %>% dataloader_make_iter() %>% dataloader_next()
 
 par(mfcol = c(3, 8), mar = c(0, 1, 0, 1))
 
 for (i in 1:8) {
   
-  img <- batch[[1]][i, , , , drop = FALSE]
+  img <- batch[[1]][i, .., drop = FALSE]
   inferred_mask <- model(img$to(device = device))
-  true_mask <- batch[[2]][i, , , , drop = FALSE]$to(device = device)
+  true_mask <- batch[[2]][i, .., drop = FALSE]$to(device = device)
   
   bce <- nnf_binary_cross_entropy(inferred_mask, true_mask)$to(device = "cpu") %>%
     as.numeric()
@@ -672,8 +668,8 @@ for (i in 1:8) {
   
   inferred_mask <- ifelse(inferred_mask > 0.5, 1, 0)
   
-  img %>% as.array() %>% .[1, 1, ,] %>% as.raster() %>% plot()
-  true_mask$to(device = "cpu") %>% as.array() %>% .[1, 1, , ] %>% as.raster() %>% plot()
+  img[1, 1, ,] %>% as.array() %>% as.raster() %>% plot()
+  true_mask$to(device = "cpu")[1, 1, ,] %>% as.array() %>% as.raster() %>% plot()
   inferred_mask %>% as.raster() %>% plot()
 }
 ```

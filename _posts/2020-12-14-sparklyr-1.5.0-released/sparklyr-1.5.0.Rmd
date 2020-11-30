@@ -8,7 +8,7 @@ author:
     affiliation: RStudio
     affiliation_url: https://www.rstudio.com
 slug: sparklyr-1.5
-date: 12-10-2020
+date: 12-14-2020
 categories:
   - R
   - Packages/Releases
@@ -16,7 +16,7 @@ categories:
 output:
   distill::distill_article:
     self_contained: false
-preview: images/sparklyr-1.5.png
+preview: images/sparklyr-1.5.jpg
 ---
 
 ```{r setup, include=FALSE}
@@ -129,10 +129,11 @@ mtcars_sdf %>%
 ### Row sums
 
 The `rowSums()` functionality offered by `dplyr` is handy when one needs to sum up
-a large number of columns within an R dataframe, and it is impractical to individually
-enumerate all columns that need to be summed up. For example, here we have a six-column
-dataframe of random real numbers, where the `partial_sum` column in the result
-contains the sum of columns `b` through `d` within each row:
+a large number of columns within an R dataframe that are impractical to be enumerated
+individually.
+For example, here we have a six-column dataframe of random real numbers, where the
+`partial_sum` column in the result contains the sum of columns `b` through `d` within
+each row:
 
 ```{r echo=TRUE, eval=FALSE}
 ncols <- 6
@@ -181,10 +182,10 @@ sdf %>%
 ```
 
 As a bonus from implementing the `rowSums` feature for Spark dataframes,
-`sparklyr` 1.5 now also offers limited support for a column subsetting operator 
-on Spark dataframes.
+`sparklyr` 1.5 now also offers limited support for the column-subsetting
+operator on Spark dataframes.
 For example, all code snippets below will return some subset of columns from
-the above dataframe named `sdf`:
+the dataframe named `sdf`:
 
 ```{r echo=TRUE, eval=FALSE}
 # select columns `b` through `e`
@@ -306,10 +307,10 @@ sdf_len(sc, 1000, repartition = 5) %>%
 ### `sdf_unnest_longer()` and `sdf_unnest_wider()`
 
 `sdf_unnest_longer()` and `sdf_unnest_wider()` are the equivalents of
-`tidyr::unnest_longer()` and `tidyr::unnest_wider()`.
+`tidyr::unnest_longer()` and `tidyr::unnest_wider()` for Spark dataframes.
 `sdf_unnest_longer()` expands all elements in a struct column into multiple rows, and
-`sdf_unnest_wider()` expands them into multiple columns. As illustrated with the following example
-dataframe,
+`sdf_unnest_wider()` expands them into multiple columns. As illustrated with an example
+dataframe below,
 
 ```{r echo=TRUE, eval=FALSE}
 library(sparklyr)
@@ -370,7 +371,7 @@ evaluates to
 ## RDS-based serialization routines
 
 Some readers must be wondering why a brand new serialization format would need to be implemented in `sparklyr` at all.
-Long story short, the reason is that RDS serialization is a strictly better replacement for its CSV predecessor:
+Long story short, the reason is that RDS serialization is a strictly better replacement for its CSV predecessor.
 It possesses all desirable attributes the CSV format has,
 while avoiding a number of disadvantages that are common among text-based data formats.
 
@@ -386,10 +387,11 @@ Unfortunately, not many serialization formats satisfy this requirement,
 and among the ones that do are text-based formats such as CSV and JSON,
 and binary formats such as Apache Arrow, Protobuf, and as of recent, a small subset of RDS version 2.
 Further complicating the matter is the additional consideration that
-`sparklyr` should support at least one serialization format whose implementation can be fully self-contained within the `sparklyr` code base.
+`sparklyr` should support at least one serialization format whose implementation can be fully self-contained within the `sparklyr` code base,
 i.e., such serialization should not depend on any external R package or system library,
-Like that, it can accommodate users who want to use `sparklyr` but who do not necessarily have the required C++ compiler tool chain and
-other system dependencies for setting up R packages such as [`arrow`](https://cran.r-project.org/web/packages/arrow/index.html) or [`protolite`](https://cran.r-project.org/web/packages/protolite/index.html).
+so that it can accommodate users who want to use `sparklyr` but who do not necessarily have the required C++ compiler tool chain and
+other system dependencies for setting up R packages such as [`arrow`](https://cran.r-project.org/web/packages/arrow/index.html) or
+[`protolite`](https://cran.r-project.org/web/packages/protolite/index.html).
 Prior to `sparklyr` 1.5, CSV-based serialization was the default alternative to fallback to when users do not have the `arrow` package installed or
 when the type of data being transported from R to Spark is unsupported by the version of `arrow` available.
 
@@ -432,30 +434,32 @@ deserialized_df %>% dplyr::mutate(is_nan = is.nan(x)) %>% print()
 
 Another correctness issue very much similar to the one above was the fact that
 `"NA"` and `NA` within a string column of an R dataframe become indistinguishable
-once serialized in CSV format, as correctly pointed out in [this Github issue](https://github.com/sparklyr/sparklyr/issues/2031)
+once serialized in CSV format, as correctly pointed out in
+[this Github issue](https://github.com/sparklyr/sparklyr/issues/2031)
 by [\@caewok](https://github.com/caewok) and others.
-Demonstrating this is the case is left as an exercise for the readers.
 
 ### RDS to the rescue!
 
 RDS format is one of the most widely used binary formats for serializing R objects.
-It is described in some detail in chapter 1, section 8 of [this document](https://cran.r-project.org/doc/manuals/r-patched/R-ints.pdf).
+It is described in some detail in chapter 1, section 8 of
+[this document](https://cran.r-project.org/doc/manuals/r-patched/R-ints.pdf).
 Among advantages of the RDS format are efficiency and accuracy: it has a reasonably
 efficient implementation in base R, and supports all R data types.
 
-Also worth noticing is the fact that when an R dataframe containing only data types that
-have sensible equivalents in Apache Spark (e.g., `RAWSXP`, `LGLSXP`, `CHARSXP`, `REALSXP`, etc)
+Also worth noticing is the fact that when an R dataframe containing only data types
+with sensible equivalents in Apache Spark (e.g., `RAWSXP`, `LGLSXP`, `CHARSXP`, `REALSXP`, etc)
 is saved using RDS version 2,
 (e.g., `serialize(mtcars, connection = NULL, version = 2L, xdr = TRUE)`),
-only a tiny subset of the RDS format will be used during the serialization process,
+only a tiny subset of the RDS format will be involved in the serialization process,
 and implementing deserialization routines in Scala capable of decoding such a restricted
 subset of RDS constructs is in fact a reasonably simple and straightforward task
-(as shown in [here](https://github.com/sparklyr/sparklyr/blob/5e27668f16faa4852deae2db14828cfd1614c982/java/spark-1.5.2/rutils.scala#L47)).
+(as shown in
+[here](https://github.com/sparklyr/sparklyr/blob/5e27668f16faa4852deae2db14828cfd1614c982/java/spark-1.5.2/rutils.scala#L47)
+).
 
 Last but not least, because RDS is a binary format, it allows `NA_character_`, `"NA"`,
-`NA_real_`, and `NaN` to all be encoded in an unambiguous manner, so that correctness
-issues mentioned in the previous section stopped happening once `sparklyr` switched over
-from CSV to RDS for non-`arrow` serialization use cases.
+`NA_real_`, and `NaN` to all be encoded in an unambiguous manner, hence allowing `sparklyr`
+1.5 to avoid all correctness issues detailed above in non-`arrow` serialization use cases.
 
 ### Other benefits of RDS serialization
 
@@ -464,12 +468,12 @@ In addition to correctness guarantees, RDS format also offers quite a few other 
 One advantage is of course performance: for example, importing a non-trivially-sized dataset
 such as `nycflights13::flights` from R to Spark using the RDS format in sparklyr 1.5 is
 roughly 40%-50% faster compared to CSV-based serialization in sparklyr 1.4. The
-current RDS-based implementation is still no where as fast as `arrow`-based serialization
+current RDS-based implementation is still nowhere as fast as `arrow`-based serialization
 though (`arrow` is about 3-4x faster), so for performance-sensitive tasks involving
 heavy serialization, `arrow` should still be the top choice.
 
-Another advantage is with RDS serialization, `sparklyr` can import R dataframes containing
-`raw` columns directly into binary columns in Spark. Thus, use cases like the one below
+Another advantage is that with RDS serialization, `sparklyr` can import R dataframes containing
+`raw` columns directly into binary columns in Spark. Thus, use cases such as the one below
 will work in `sparklyr` 1.5
 
 ```{r echo=TRUE, eval=FALSE}
@@ -484,15 +488,16 @@ sdf <- copy_to(sc, tbl)
 ```
 
 While most `sparklyr` users probably won't find this capability of importing binary columns
-to Spark immediately useful in typical `sparklyr::copy_to()` or `sparklyr::collect()` scenarios,
-it does play a crucial role in reducing serialization overheads in the Spark-based
+to Spark immediately useful in their typical `sparklyr::copy_to()` or `sparklyr::collect()`
+usages, it does play a crucial role in reducing serialization overheads in the Spark-based
 [`foreach`](https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach) parallel backend that
-was first introduced in `sparklyr` 1.2. This is because Spark workers can directly fetch the serialized R
-closures to be computed from a binary Spark column instead of extracting those serialized bytes
-from less efficient intermediate representations, such as base64-encoded strings. Similarly,
-the R results from executing worker closures will be directly available in RDS format which can be
-efficiently deserialized in R, rather than being delivered in other less efficient
-formats.
+was first introduced in `sparklyr` 1.2.
+This is because Spark workers can directly fetch the serialized R closures to be computed
+from a binary Spark column instead of extracting those serialized bytes from intermediate
+representations such as base64-encoded strings.
+Similarly, the R results from executing worker closures will be directly available in RDS
+format which can be efficiently deserialized in R, rather than being delivered in other
+less efficient formats.
 
 ## Acknowledgement
 
@@ -503,11 +508,12 @@ requests part of `sparklyr` 1.5:
 * [\@yitao-li](https://github.com/yitao-li)
 * [\@falaki](https://github.com/falaki)
 * [\@nathaneastwood](https://github.com/nathaneastwood)
+* [\@pgramme](https://github.com/pgramme)
 
 We would also like to express our gratitude towards numerous bug reports and feature requests for
 `sparklyr` from a fantastic open-source community.
 
-Finally, the author of this blog post is thankful for
+Finally, the author of this blog post is indebted to
 [\@javierluraschi](https:://github.com/javierluraschi),
 [\@batpigandme](https://github.com/batpigandme),
 and [\@skeydan](https://github.com/skeydan) for their valuable editorial inputs.

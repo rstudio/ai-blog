@@ -1,0 +1,244 @@
+---
+title: "torch 0.2.0 - Initial JIT support and many bug fixes"
+description: > 
+  The torch 0.2.0 release includes many bug fixes and some
+  nice new features like initial JIT support, Multi-worker
+  dataloaders, new optimizers and a new print method for 
+  `nn_modules`.
+
+author:
+  - name: Daniel Falbel
+    affiliation: RStudio
+    affiliation_url: https://www.rstudio.com/
+slug: torchzero2
+date: 12-11-2020
+categories:
+  - Torch
+  - R
+bibliography: bibliography.bib
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+preview: images/scans.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE)
+```
+
+We are happy to announce that the version 0.2.0 of {torch}
+just landed on CRAN.
+
+This release includes many bug fixes and some nice new features 
+that we will present in this blog post. You can see the full changelog
+in the [NEWS.md](https://github.com/mlverse/torch/blob/master/NEWS.md) file.
+
+The features that we will discuss in details are:
+
+- Initial support for JIT tracing
+- Multiworker dataloaders
+- Print methods for `nn_modules`
+
+## Multi-worker dataloaders
+
+`dataloaders` now respond to the `num_workers` argument and
+will run the pre-processing in parallel workers. 
+
+For example if we have the following dummy dataset that does
+a long computation:
+
+```{r}
+library(torch)
+dat <- dataset(
+  "mydataset",
+  initialize = function(time, len = 10) {
+    self$time <- time
+    self$len <- len
+  },
+  .getitem = function(i) {
+    Sys.sleep(self$time)
+    torch_randn(1)
+  },
+  .length = function() {
+    self$len
+  }
+)
+ds <- dat(1)
+system.time(ds[1])
+```
+We will now create 2 dataloaders, one that executes
+sequentially and another executing in parallel.
+
+```{r}
+seq_dl <- dataloader(ds, batch_size = 5)
+par_dl <- dataloader(ds, batch_size = 5, num_workers = 2)
+```
+
+We can now compare the time to take 2 batches sequentially
+and the time that it takes in parallel:
+
+```{r}
+seq_it <- dataloader_make_iter(seq_dl)
+par_it <- dataloader_make_iter(par_dl)
+
+two_batches <- function(it) {
+  dataloader_next(it)
+  dataloader_next(it)
+  "ok"
+}
+
+system.time(two_batches(seq_it))
+system.time(two_batches(par_it))
+```
+Note that batches are obtained in parallel, not individual observations. This is to support, in the future, other kinds
+of datasets that might have variable batch sizes.
+
+Using multiple workers is **not** necessarily faster than serial execution because there's a considerable overhead 
+when passing tensors from a worker to the main session as
+well as when initializing the workers. 
+
+This feature is powered by the powerful {callr} package 
+and works in all OS's supported by {torch}. {callr} let's
+us create persistent R sessions thus, we only pay only once, the overhead of transferring potentially large datasets
+objects to workers.
+
+In the process of implementing this feature we have made 
+dataloaders behave like {coro} iterators. This means that  
+you can now use {coro}'s syntax to loop trough the dataloaders:
+
+```{r}
+coro::loop(for(batch in par_dl) {
+  print(batch$shape)
+})
+```
+This is the first {torch} release including the multiworker
+dataloaders feature and you might run into edge cases when
+using it. Do let us know if you find any problem.
+
+## Initial JIT support
+
+Programs that make use of the {torch} package are inevitably
+R programs thus, they always need an R installation in order
+to execute.
+
+As of version 0.2.0, {torch} allows users to JIT *trace* 
+{torch} R functions into TorchScript. The nice thing about
+this is that TorchScript programs are easily serializable, 
+optimizable and they can be loaded in another program writen
+in PyTorch or LibTorch without requiring any R dependency.
+
+Suppose you have the following R function that takes a tensor
+and does a matrix multiplication with a fixed weight matrix and
+then adds a bias term:
+
+```{r}
+w <- torch_randn(10, 1)
+b <- torch_randn(1)
+fn <- function(x) {
+  a <- torch_mm(x, w)
+  a + b
+}
+```
+
+This function can be JIT traced into TorchScript with `jit_trace` by passing the function and example inputs: 
+
+```{r}
+x <- torch_ones(2, 10)
+tr_fn <- jit_trace(fn, x)
+tr_fn(x)
+```
+Now all {torch} operations that happened when computing the result of 
+this function were traced and transformed into a graph:
+
+```{r}
+tr_fn$graph
+```
+
+The traced function can be serialized with `jit_save`:
+
+```{r}
+jit_save(tr_fn, "linear.pt")
+```
+
+It can be reloaded in R with `jit_load`, but it can also be reloaded in Python
+with `torch.jit.load`:
+
+```{python}
+import torch
+fn = torch.jit.load("linear.pt")
+fn(torch.ones(2, 10))
+```
+
+How cool is that?!
+
+This is just the initial support for the JIT in R. We will continue developing 
+this, specially, in the next version of {torch} we plan to support tracing `nn_modules` directly. Currently, you need to detach all parameters before 
+tracing them, see an example [here](https://github.com/mlverse/torch/blob/master/tests/testthat/test-trace.R#L27-L71). This will allow you also to take benefit of TorchScript to make your models
+run faster!
+
+## New printing method for `nn_modules`
+
+In this release we have also improved the `nn_module` printing methods in order
+to make it easier to understand what they are holding.
+
+For example, if you create an instance of an `nn_linear` module you will
+see:
+
+```{r}
+nn_linear(10, 1)
+```
+You will quickly find the total number of parameters in the module as well as 
+the their name and shape.
+
+This also works for custom modules, that might also include sub-modules, for example:
+
+```{r}
+my_module <- nn_module(
+  initialize = function() {
+    self$linear <- nn_linear(10, 1)
+    self$param <- nn_parameter(torch_randn(5,1))
+    self$buff <- nn_buffer(torch_randn(5))
+  }
+)
+my_module()
+```
+We hope that it makes easier to navigate understand the  `nn_module` objects. 
+We have also improved autocomplete support for `nn_modules` and we will now
+show all sub-modules, parameters and buffers while you type.
+
+## torchaudio
+
+{torchaudio} is an extension for {torch} developed by [Athos Damiani](https://github.com/athospd) (@athospd), providing audio loading, transformations, common architectures for signal processing, pre-trained weights and access to commonly used datasets. An almost literal translation from PyTorch’s Torchaudio library to R.
+
+{torchaudio} is not yet on CRAN but you can already try the development version
+available [here](https://github.com/curso-r/torchaudio).
+
+You can also visit the {pkgdown} [website](https://curso-r.github.io/torchaudio/) for examples and reference documentation.
+
+## Other features and bug fixes
+
+Thanks to community contributions we have found and fixed many bugs in {torch}.
+We have also added new features including:
+
+- `element_size` and `bool` Tensor methods by @dirkschumacher
+- checking the MD5 hashes of downloaded LibTorch binaries by @dirkschumacher
+- initial development for the Distributions module by @krzjoa
+- the `nn_batch_norm3d` module implemented by @mattwarkentin
+- a Dcokerfile with GPU support as well as an [installation guide](https://github.com/mlverse/torch/blob/master/docker/build_env_guide.md) by @y-vectorfield 
+
+You can see the full list of changes in the [NEWS.md](https://github.com/mlverse/torch/blob/master/NEWS.md) file.
+
+Thanks very much for reading this blog post and feel free to reach out on GitHub for help or discussions!
+
+
+
+
+
+
+
+
+
+
+
+

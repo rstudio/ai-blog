@@ -12,7 +12,280 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 30 Nov 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 14 Dec 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>sparklyr 1.5: better dplyr interface, more sdf_* functions, and RDS-based serialization routines</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-12-14-sparklyr-1.5.0-released</link>
+      <description>
+
+
+&lt;p&gt;We are thrilled to announce &lt;a href="https://sparklyr.ai"&gt;&lt;code&gt;sparklyr&lt;/code&gt;&lt;/a&gt; 1.5 is now available on &lt;a href="https://cran.r-project.org/web/packages/sparklyr/index.html"&gt;CRAN&lt;/a&gt;!&lt;/p&gt;
+&lt;p&gt;To install &lt;code&gt;sparklyr&lt;/code&gt; 1.5 from CRAN, run&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;install.packages(&amp;quot;sparklyr&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In this blog post, we will highlight the following aspects of &lt;code&gt;sparklyr&lt;/code&gt; 1.5:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#better-dplyr-interface"&gt;Better &lt;code&gt;dplyr&lt;/code&gt; interface&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#new-additions-to-the-sdf_-family-of-functions"&gt;4 useful additions to the &lt;code&gt;sdf_*&lt;/code&gt; family of functions&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;New &lt;a href="#rds-based-serialization-routines"&gt;RDS-based serialization routines&lt;/a&gt; along with several serialization-related improvements and bug fixes&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="better-dplyr-interface"&gt;Better dplyr interface&lt;/h2&gt;
+&lt;p&gt;A large fraction of pull requests that went into the &lt;code&gt;sparklyr&lt;/code&gt; 1.5 release were focused on making Spark dataframes work with various &lt;code&gt;dplyr&lt;/code&gt; verbs in the same way that R dataframes do. The full list of &lt;code&gt;dplyr&lt;/code&gt;-related bugs and feature requests that were resolved in &lt;code&gt;sparklyr&lt;/code&gt; 1.5 can be found in &lt;a href="https://github.com/sparklyr/sparklyr/issues?q=is%3Aissue+is%3Aclosed+label%3Adplyr+milestone%3A1.5.0"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In this section, we will showcase three new dplyr functionalities that were shipped with &lt;code&gt;sparklyr&lt;/code&gt; 1.5.&lt;/p&gt;
+&lt;h3 id="stratified-sampling"&gt;Stratified sampling&lt;/h3&gt;
+&lt;p&gt;Stratified sampling on an R dataframe can be accomplished with a combination of &lt;code&gt;dplyr::group_by()&lt;/code&gt; followed by &lt;code&gt;dplyr::sample_n()&lt;/code&gt; or &lt;code&gt;dplyr::sample_frac()&lt;/code&gt;, where the grouping variables specified in the &lt;code&gt;dplyr::group_by()&lt;/code&gt; step are the ones that define each stratum. For instance, the following query will group &lt;code&gt;mtcars&lt;/code&gt; by number of cylinders and return a weighted random sample of size two from each group, without replacement, and weighted by the &lt;code&gt;mpg&lt;/code&gt; column:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;mtcars %&amp;gt;%
+  dplyr::group_by(cyl) %&amp;gt;%
+  dplyr::sample_n(size = 2, weight = mpg, replace = FALSE) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # A tibble: 6 x 11
+## # Groups:   cyl [3]
+##     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+##   &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;
+## 1  33.9     4  71.1    65  4.22  1.84  19.9     1     1     4     1
+## 2  22.8     4 108      93  3.85  2.32  18.6     1     1     4     1
+## 3  21.4     6 258     110  3.08  3.22  19.4     1     0     3     1
+## 4  21       6 160     110  3.9   2.62  16.5     0     1     4     4
+## 5  15.5     8 318     150  2.76  3.52  16.9     0     0     3     2
+## 6  19.2     8 400     175  3.08  3.84  17.0     0     0     3     2&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Starting from &lt;code&gt;sparklyr&lt;/code&gt; 1.5, the same can also be done for Spark dataframes with Spark 3.0 or above, e.g.,:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;, version = &amp;quot;3.0.0&amp;quot;)
+mtcars_sdf &amp;lt;- copy_to(sc, mtcars, replace = TRUE, repartition = 3)
+
+mtcars_sdf %&amp;gt;%
+  dplyr::group_by(cyl) %&amp;gt;%
+  dplyr::sample_n(size = 2, weight = mpg, replace = FALSE) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# Source: spark&amp;lt;?&amp;gt; [?? x 11]
+# Groups: cyl
+    mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+  &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;
+1  21       6 160     110  3.9   2.62  16.5     0     1     4     4
+2  21.4     6 258     110  3.08  3.22  19.4     1     0     3     1
+3  27.3     4  79      66  4.08  1.94  18.9     1     1     4     1
+4  32.4     4  78.7    66  4.08  2.2   19.5     1     1     4     1
+5  16.4     8 276.    180  3.07  4.07  17.4     0     0     3     3
+6  18.7     8 360     175  3.15  3.44  17.0     0     0     3     2&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;or&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;mtcars_sdf %&amp;gt;%
+  dplyr::group_by(cyl) %&amp;gt;%
+  dplyr::sample_frac(size = 0.2, weight = mpg, replace = FALSE) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 11]
+## # Groups: cyl
+##     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+##   &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;
+## 1  21       6 160     110  3.9   2.62  16.5     0     1     4     4
+## 2  21.4     6 258     110  3.08  3.22  19.4     1     0     3     1
+## 3  22.8     4 141.     95  3.92  3.15  22.9     1     0     4     2
+## 4  33.9     4  71.1    65  4.22  1.84  19.9     1     1     4     1
+## 5  30.4     4  95.1   113  3.77  1.51  16.9     1     1     5     2
+## 6  15.5     8 318     150  2.76  3.52  16.9     0     0     3     2
+## 7  18.7     8 360     175  3.15  3.44  17.0     0     0     3     2
+## 8  16.4     8 276.    180  3.07  4.07  17.4     0     0     3     3&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="row-sums"&gt;Row sums&lt;/h3&gt;
+&lt;p&gt;The &lt;code&gt;rowSums()&lt;/code&gt; functionality offered by &lt;code&gt;dplyr&lt;/code&gt; is handy when one needs to sum up a large number of columns within an R dataframe that are impractical to be enumerated individually. For example, here we have a six-column dataframe of random real numbers, where the &lt;code&gt;partial_sum&lt;/code&gt; column in the result contains the sum of columns &lt;code&gt;b&lt;/code&gt; through &lt;code&gt;d&lt;/code&gt; within each row:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;ncols &amp;lt;- 6
+nums &amp;lt;- seq(ncols) %&amp;gt;% lapply(function(x) runif(5))
+names(nums) &amp;lt;- letters[1:ncols]
+tbl &amp;lt;- tibble::as_tibble(nums)
+
+tbl %&amp;gt;%
+  dplyr::mutate(partial_sum = rowSums(.[2:5])) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # A tibble: 5 x 7
+##         a     b     c      d     e      f partial_sum
+##     &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt;       &amp;lt;dbl&amp;gt;
+## 1 0.781   0.801 0.157 0.0293 0.169 0.0978        1.16
+## 2 0.696   0.412 0.221 0.941  0.697 0.675         2.27
+## 3 0.802   0.410 0.516 0.923  0.190 0.904         2.04
+## 4 0.200   0.590 0.755 0.494  0.273 0.807         2.11
+## 5 0.00149 0.711 0.286 0.297  0.107 0.425         1.40&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Beginning with &lt;code&gt;sparklyr&lt;/code&gt; 1.5, the same operation can be performed with Spark dataframes:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+sdf &amp;lt;- copy_to(sc, tbl, overwrite = TRUE)
+
+sdf %&amp;gt;%
+  dplyr::mutate(partial_sum = rowSums(.[2:5])) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 7]
+##         a     b     c      d     e      f partial_sum
+##     &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt; &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt;       &amp;lt;dbl&amp;gt;
+## 1 0.781   0.801 0.157 0.0293 0.169 0.0978        1.16
+## 2 0.696   0.412 0.221 0.941  0.697 0.675         2.27
+## 3 0.802   0.410 0.516 0.923  0.190 0.904         2.04
+## 4 0.200   0.590 0.755 0.494  0.273 0.807         2.11
+## 5 0.00149 0.711 0.286 0.297  0.107 0.425         1.40&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As a bonus from implementing the &lt;code&gt;rowSums&lt;/code&gt; feature for Spark dataframes, &lt;code&gt;sparklyr&lt;/code&gt; 1.5 now also offers limited support for the column-subsetting operator on Spark dataframes. For example, all code snippets below will return some subset of columns from the dataframe named &lt;code&gt;sdf&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# select columns `b` through `e`
+sdf[2:5]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# select columns `b` and `c`
+sdf[c(&amp;quot;b&amp;quot;, &amp;quot;c&amp;quot;)]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# drop the first and third columns and return the rest
+sdf[c(-1, -3)]&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="weighted-mean-summarizer"&gt;Weighted-mean summarizer&lt;/h3&gt;
+&lt;p&gt;Similar to the two &lt;code&gt;dplyr&lt;/code&gt; functions mentioned above, the &lt;code&gt;weighted.mean()&lt;/code&gt; summarizer is another useful function that has become part of the &lt;code&gt;dplyr&lt;/code&gt; interface for Spark dataframes in &lt;code&gt;sparklyr&lt;/code&gt; 1.5. One can see it in action by, for example, comparing the output from the following&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+mtcars_sdf &amp;lt;- copy_to(sc, mtcars, replace = TRUE)
+mtcars_sdf %&amp;gt;%
+  dplyr::group_by(cyl) %&amp;gt;%
+  dplyr::summarize(mpg_wm = weighted.mean(mpg, wt)) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;with output from the equivalent operation on &lt;code&gt;mtcars&lt;/code&gt; in R:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;mtcars %&amp;gt;%
+  dplyr::group_by(cyl) %&amp;gt;%
+  dplyr::summarize(mpg_wm = weighted.mean(mpg, wt)) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;both of them should evaluate to the following:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;##     cyl mpg_wm
+##   &amp;lt;dbl&amp;gt;  &amp;lt;dbl&amp;gt;
+## 1     4   25.9
+## 2     6   19.6
+## 3     8   14.8&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="new-additions-to-the-sdf_-family-of-functions"&gt;New additions to the &lt;code&gt;sdf_*&lt;/code&gt; family of functions&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;sparklyr&lt;/code&gt; provides a large number of convenience functions for working with Spark dataframes, and all of them have names starting with the &lt;code&gt;sdf_&lt;/code&gt; prefix.&lt;/p&gt;
+&lt;p&gt;In this section we will briefly mention four new additions and show some example scenarios in which those functions are useful.&lt;/p&gt;
+&lt;h3 id="sdf_expand_grid"&gt;&lt;code&gt;sdf_expand_grid()&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;As the name suggests, &lt;code&gt;sdf_expand_grid()&lt;/code&gt; is simply the Spark equivalent of &lt;code&gt;expand.grid()&lt;/code&gt;. Rather than running &lt;code&gt;expand.grid()&lt;/code&gt; in R and importing the resulting R dataframe to Spark, one can now run &lt;code&gt;sdf_expand_grid()&lt;/code&gt;, which accepts both R vectors and Spark dataframes and supports hints for broadcast hash joins. The example below shows &lt;code&gt;sdf_expand_grid()&lt;/code&gt; creating a 100-by-100-by-10-by-10 grid in Spark over 1000 Spark partitions, with broadcast hash join hints on variables with small cardinalities:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+grid_sdf &amp;lt;- sdf_expand_grid(
+  sc,
+  var1 = seq(100),
+  var2 = seq(100),
+  var3 = seq(10),
+  var4 = seq(10),
+  broadcast_vars = c(var3, var4),
+  repartition = 1000
+)
+
+grid_sdf %&amp;gt;% sdf_nrow() %&amp;gt;% print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;## [1] 1e+06&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="sdf_partition_sizes"&gt;&lt;code&gt;sdf_partition_sizes()&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;As &lt;code&gt;sparklyr&lt;/code&gt; user &lt;a href="https://github.com/sbottelli"&gt;@sbottelli&lt;/a&gt; suggested &lt;a href="https://github.com/sparklyr/sparklyr/issues/2791"&gt;here&lt;/a&gt;, one thing that would be great to have in &lt;code&gt;sparklyr&lt;/code&gt; is an efficient way to query partition sizes of a Spark dataframe. In &lt;code&gt;sparklyr&lt;/code&gt; 1.5, &lt;code&gt;sdf_partition_sizes()&lt;/code&gt; does exactly that:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+sdf_len(sc, 1000, repartition = 5) %&amp;gt;%
+  sdf_partition_sizes() %&amp;gt;%
+  print(row.names = FALSE)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;##  partition_index partition_size
+##                0            200
+##                1            200
+##                2            200
+##                3            200
+##                4            200&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="sdf_unnest_longer-and-sdf_unnest_wider"&gt;&lt;code&gt;sdf_unnest_longer()&lt;/code&gt; and &lt;code&gt;sdf_unnest_wider()&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;sdf_unnest_longer()&lt;/code&gt; and &lt;code&gt;sdf_unnest_wider()&lt;/code&gt; are the equivalents of &lt;code&gt;tidyr::unnest_longer()&lt;/code&gt; and &lt;code&gt;tidyr::unnest_wider()&lt;/code&gt; for Spark dataframes. &lt;code&gt;sdf_unnest_longer()&lt;/code&gt; expands all elements in a struct column into multiple rows, and &lt;code&gt;sdf_unnest_wider()&lt;/code&gt; expands them into multiple columns. As illustrated with an example dataframe below,&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+sdf &amp;lt;- copy_to(
+  sc,
+  tibble::tibble(
+    id = seq(3),
+    attribute = list(
+      list(name = &amp;quot;Alice&amp;quot;, grade = &amp;quot;A&amp;quot;),
+      list(name = &amp;quot;Bob&amp;quot;, grade = &amp;quot;B&amp;quot;),
+      list(name = &amp;quot;Carol&amp;quot;, grade = &amp;quot;C&amp;quot;)
+    )
+  )
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sdf %&amp;gt;%
+  sdf_unnest_longer(col = record, indices_to = &amp;quot;key&amp;quot;, values_to = &amp;quot;value&amp;quot;) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;evaluates to&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##      id value key
+##   &amp;lt;int&amp;gt; &amp;lt;chr&amp;gt; &amp;lt;chr&amp;gt;
+## 1     1 A     grade
+## 2     1 Alice name
+## 3     2 B     grade
+## 4     2 Bob   name
+## 5     3 C     grade
+## 6     3 Carol name&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;whereas&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sdf %&amp;gt;%
+  sdf_unnest_wider(col = record) %&amp;gt;%
+  print()&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;evaluates to&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;## # Source: spark&amp;lt;?&amp;gt; [?? x 3]
+##      id grade name
+##   &amp;lt;int&amp;gt; &amp;lt;chr&amp;gt; &amp;lt;chr&amp;gt;
+## 1     1 A     Alice
+## 2     2 B     Bob
+## 3     3 C     Carol&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="rds-based-serialization-routines"&gt;RDS-based serialization routines&lt;/h2&gt;
+&lt;p&gt;Some readers must be wondering why a brand new serialization format would need to be implemented in &lt;code&gt;sparklyr&lt;/code&gt; at all. Long story short, the reason is that RDS serialization is a strictly better replacement for its CSV predecessor. It possesses all desirable attributes the CSV format has, while avoiding a number of disadvantages that are common among text-based data formats.&lt;/p&gt;
+&lt;p&gt;In this section, we will briefly outline why &lt;code&gt;sparklyr&lt;/code&gt; should support at least one serialization format other than &lt;code&gt;arrow&lt;/code&gt;, deep-dive into issues with CSV-based serialization, and then show how the new RDS-based serialization is free from those issues.&lt;/p&gt;
+&lt;h3 id="why-arrow-is-not-for-everyone"&gt;Why &lt;code&gt;arrow&lt;/code&gt; is not for everyone?&lt;/h3&gt;
+&lt;p&gt;To transfer data between Spark and R correctly and efficiently, &lt;code&gt;sparklyr&lt;/code&gt; must rely on some data serialization format that is well-supported by both Spark and R. Unfortunately, not many serialization formats satisfy this requirement, and among the ones that do are text-based formats such as CSV and JSON, and binary formats such as Apache Arrow, Protobuf, and as of recent, a small subset of RDS version 2. Further complicating the matter is the additional consideration that &lt;code&gt;sparklyr&lt;/code&gt; should support at least one serialization format whose implementation can be fully self-contained within the &lt;code&gt;sparklyr&lt;/code&gt; code base, i.e., such serialization should not depend on any external R package or system library, so that it can accommodate users who want to use &lt;code&gt;sparklyr&lt;/code&gt; but who do not necessarily have the required C++ compiler tool chain and other system dependencies for setting up R packages such as &lt;a href="https://cran.r-project.org/web/packages/arrow/index.html"&gt;&lt;code&gt;arrow&lt;/code&gt;&lt;/a&gt; or &lt;a href="https://cran.r-project.org/web/packages/protolite/index.html"&gt;&lt;code&gt;protolite&lt;/code&gt;&lt;/a&gt;. Prior to &lt;code&gt;sparklyr&lt;/code&gt; 1.5, CSV-based serialization was the default alternative to fallback to when users do not have the &lt;code&gt;arrow&lt;/code&gt; package installed or when the type of data being transported from R to Spark is unsupported by the version of &lt;code&gt;arrow&lt;/code&gt; available.&lt;/p&gt;
+&lt;h3 id="why-is-the-csv-format-not-ideal"&gt;Why is the CSV format not ideal?&lt;/h3&gt;
+&lt;p&gt;There are at least three reasons to believe CSV format is not the best choice when it comes to exporting data from R to Spark.&lt;/p&gt;
+&lt;p&gt;One reason is efficiency. For example, a double-precision floating point number such as &lt;code&gt;.Machine$double.eps&lt;/code&gt; needs to be expressed as &lt;code&gt;"2.22044604925031e-16"&lt;/code&gt; in CSV format in order to not incur any loss of precision, thus taking up 20 bytes rather than 8 bytes.&lt;/p&gt;
+&lt;p&gt;But more important than efficiency are correctness concerns. In a R dataframe, one can store both &lt;code&gt;NA_real_&lt;/code&gt; and &lt;code&gt;NaN&lt;/code&gt; in a column of floating point numbers. &lt;code&gt;NA_real_&lt;/code&gt; should ideally translate to &lt;code&gt;null&lt;/code&gt; within a Spark dataframe, whereas &lt;code&gt;NaN&lt;/code&gt; should continue to be &lt;code&gt;NaN&lt;/code&gt; when transported from R to Spark. Unfortunately, &lt;code&gt;NA_real_&lt;/code&gt; in R becomes indistinguishable from &lt;code&gt;NaN&lt;/code&gt; once serialized in CSV format, as evident from a quick demo shown below:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;original_df &amp;lt;- data.frame(x = c(NA_real_, NaN))
+original_df %&amp;gt;% dplyr::mutate(is_nan = is.nan(x)) %&amp;gt;% print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;##     x is_nan
+## 1  NA  FALSE
+## 2 NaN   TRUE&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;csv_file &amp;lt;- &amp;quot;/tmp/data.csv&amp;quot;
+write.csv(original_df, file = csv_file, row.names = FALSE)
+deserialized_df &amp;lt;- read.csv(csv_file)
+deserialized_df %&amp;gt;% dplyr::mutate(is_nan = is.nan(x)) %&amp;gt;% print()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;##    x is_nan
+## 1 NA  FALSE
+## 2 NA  FALSE&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Another correctness issue very much similar to the one above was the fact that &lt;code&gt;"NA"&lt;/code&gt; and &lt;code&gt;NA&lt;/code&gt; within a string column of an R dataframe become indistinguishable once serialized in CSV format, as correctly pointed out in &lt;a href="https://github.com/sparklyr/sparklyr/issues/2031"&gt;this Github issue&lt;/a&gt; by &lt;a href="https://github.com/caewok"&gt;@caewok&lt;/a&gt; and others.&lt;/p&gt;
+&lt;h3 id="rds-to-the-rescue"&gt;RDS to the rescue!&lt;/h3&gt;
+&lt;p&gt;RDS format is one of the most widely used binary formats for serializing R objects. It is described in some detail in chapter 1, section 8 of &lt;a href="https://cran.r-project.org/doc/manuals/r-patched/R-ints.pdf"&gt;this document&lt;/a&gt;. Among advantages of the RDS format are efficiency and accuracy: it has a reasonably efficient implementation in base R, and supports all R data types.&lt;/p&gt;
+&lt;p&gt;Also worth noticing is the fact that when an R dataframe containing only data types with sensible equivalents in Apache Spark (e.g., &lt;code&gt;RAWSXP&lt;/code&gt;, &lt;code&gt;LGLSXP&lt;/code&gt;, &lt;code&gt;CHARSXP&lt;/code&gt;, &lt;code&gt;REALSXP&lt;/code&gt;, etc) is saved using RDS version 2, (e.g., &lt;code&gt;serialize(mtcars, connection = NULL, version = 2L, xdr = TRUE)&lt;/code&gt;), only a tiny subset of the RDS format will be involved in the serialization process, and implementing deserialization routines in Scala capable of decoding such a restricted subset of RDS constructs is in fact a reasonably simple and straightforward task (as shown in &lt;a href="https://github.com/sparklyr/sparklyr/blob/5e27668f16faa4852deae2db14828cfd1614c982/java/spark-1.5.2/rutils.scala#L47"&gt;here&lt;/a&gt; ).&lt;/p&gt;
+&lt;p&gt;Last but not least, because RDS is a binary format, it allows &lt;code&gt;NA_character_&lt;/code&gt;, &lt;code&gt;"NA"&lt;/code&gt;, &lt;code&gt;NA_real_&lt;/code&gt;, and &lt;code&gt;NaN&lt;/code&gt; to all be encoded in an unambiguous manner, hence allowing &lt;code&gt;sparklyr&lt;/code&gt; 1.5 to avoid all correctness issues detailed above in non-&lt;code&gt;arrow&lt;/code&gt; serialization use cases.&lt;/p&gt;
+&lt;h3 id="other-benefits-of-rds-serialization"&gt;Other benefits of RDS serialization&lt;/h3&gt;
+&lt;p&gt;In addition to correctness guarantees, RDS format also offers quite a few other advantages.&lt;/p&gt;
+&lt;p&gt;One advantage is of course performance: for example, importing a non-trivially-sized dataset such as &lt;code&gt;nycflights13::flights&lt;/code&gt; from R to Spark using the RDS format in sparklyr 1.5 is roughly 40%-50% faster compared to CSV-based serialization in sparklyr 1.4. The current RDS-based implementation is still nowhere as fast as &lt;code&gt;arrow&lt;/code&gt;-based serialization though (&lt;code&gt;arrow&lt;/code&gt; is about 3-4x faster), so for performance-sensitive tasks involving heavy serialization, &lt;code&gt;arrow&lt;/code&gt; should still be the top choice.&lt;/p&gt;
+&lt;p&gt;Another advantage is that with RDS serialization, &lt;code&gt;sparklyr&lt;/code&gt; can import R dataframes containing &lt;code&gt;raw&lt;/code&gt; columns directly into binary columns in Spark. Thus, use cases such as the one below will work in &lt;code&gt;sparklyr&lt;/code&gt; 1.5&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(sparklyr)
+
+sc &amp;lt;- spark_connect(master = &amp;quot;local&amp;quot;)
+
+tbl &amp;lt;- tibble::tibble(
+  x = list(serialize(&amp;quot;sparklyr&amp;quot;, NULL), serialize(c(123456, 789), NULL))
+)
+sdf &amp;lt;- copy_to(sc, tbl)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;While most &lt;code&gt;sparklyr&lt;/code&gt; users probably won’t find this capability of importing binary columns to Spark immediately useful in their typical &lt;code&gt;sparklyr::copy_to()&lt;/code&gt; or &lt;code&gt;sparklyr::collect()&lt;/code&gt; usages, it does play a crucial role in reducing serialization overheads in the Spark-based &lt;a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"&gt;&lt;code&gt;foreach&lt;/code&gt;&lt;/a&gt; parallel backend that was first introduced in &lt;code&gt;sparklyr&lt;/code&gt; 1.2. This is because Spark workers can directly fetch the serialized R closures to be computed from a binary Spark column instead of extracting those serialized bytes from intermediate representations such as base64-encoded strings. Similarly, the R results from executing worker closures will be directly available in RDS format which can be efficiently deserialized in R, rather than being delivered in other less efficient formats.&lt;/p&gt;
+&lt;h2 id="acknowledgement"&gt;Acknowledgement&lt;/h2&gt;
+&lt;p&gt;In chronological order, we would like to thank the following contributors for making their pull requests part of &lt;code&gt;sparklyr&lt;/code&gt; 1.5:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://github.com/wkdavis"&gt;@wkdavis&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/yitao-li"&gt;@yitao-li&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/falaki"&gt;@falaki&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/nathaneastwood"&gt;@nathaneastwood&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/pgramme"&gt;@pgramme&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We would also like to express our gratitude towards numerous bug reports and feature requests for &lt;code&gt;sparklyr&lt;/code&gt; from a fantastic open-source community.&lt;/p&gt;
+&lt;p&gt;Finally, the author of this blog post is indebted to &lt;a href="https:://github.com/javierluraschi"&gt;@javierluraschi&lt;/a&gt;, &lt;a href="https://github.com/batpigandme"&gt;@batpigandme&lt;/a&gt;, and &lt;a href="https://github.com/skeydan"&gt;@skeydan&lt;/a&gt; for their valuable editorial inputs.&lt;/p&gt;
+&lt;p&gt;If you wish to learn more about &lt;code&gt;sparklyr&lt;/code&gt;, check out &lt;a href="https://sparklyr.ai"&gt;sparklyr.ai&lt;/a&gt;, &lt;a href="https://spark.rstudio.com"&gt;spark.rstudio.com&lt;/a&gt;, and some of the previous release posts such as &lt;a href="https://blogs.rstudio.com/ai/posts/2020-09-30-sparklyr-1.4.0-released"&gt;sparklyr 1.4&lt;/a&gt; and &lt;a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/"&gt;sparklyr 1.3&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">f66005f09b360e10041e6189115af0b3</distill:md5>
+      <category>R</category>
+      <category>Packages/Releases</category>
+      <category>Distributed Computing</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-12-14-sparklyr-1.5.0-released</guid>
+      <pubDate>Mon, 14 Dec 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-12-14-sparklyr-1.5.0-released/images/sparklyr-1.5.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>sparklyr.flint 0.2: ASOF Joins, OLS Regression, and additional summarizers</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>

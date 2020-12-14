@@ -24,7 +24,7 @@ preview: images/scans.png
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = TRUE)
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
 We are happy to announce that the version 0.2.0 of {torch}
@@ -67,6 +67,11 @@ dat <- dataset(
 ds <- dat(1)
 system.time(ds[1])
 ```
+```
+   user  system elapsed 
+  0.029   0.005   1.027 
+```
+
 We will now create 2 dataloaders, one that executes
 sequentially and another executing in parallel.
 
@@ -91,6 +96,13 @@ two_batches <- function(it) {
 system.time(two_batches(seq_it))
 system.time(two_batches(par_it))
 ```
+```
+   user  system elapsed 
+  0.098   0.032  10.086 
+   user  system elapsed 
+  0.065   0.008   5.134 
+```
+
 Note that batches are obtained in parallel, not individual observations. This is to support, in the future, other kinds
 of datasets that might have variable batch sizes.
 
@@ -113,6 +125,12 @@ coro::loop(for(batch in par_dl) {
   print(batch$shape)
 })
 ```
+
+```
+[1] 5 1
+[1] 5 1
+```
+
 This is the first {torch} release including the multiworker
 dataloaders feature and you might run into edge cases when
 using it. Do let us know if you find any problem.
@@ -149,11 +167,27 @@ x <- torch_ones(2, 10)
 tr_fn <- jit_trace(fn, x)
 tr_fn(x)
 ```
+```
+torch_tensor
+-0.6880
+-0.6880
+[ CPUFloatType{2,1} ]
+```
+
 Now all {torch} operations that happened when computing the result of 
 this function were traced and transformed into a graph:
 
 ```{r}
 tr_fn$graph
+```
+```
+graph(%0 : Float(2:10, 10:1, requires_grad=0, device=cpu)):
+  %1 : Float(10:1, 1:1, requires_grad=0, device=cpu) = prim::Constant[value=-0.3532  0.6490 -0.9255  0.9452 -1.2844  0.3011  0.4590 -0.2026 -1.2983  1.5800 [ CPUFloatType{10,1} ]]()
+  %2 : Float(2:1, 1:1, requires_grad=0, device=cpu) = aten::mm(%0, %1)
+  %3 : Float(1:1, requires_grad=0, device=cpu) = prim::Constant[value={-0.558343}]()
+  %4 : int = prim::Constant[value=1]()
+  %5 : Float(2:1, 1:1, requires_grad=0, device=cpu) = aten::add(%2, %3, %4)
+  return (%5)
 ```
 
 The traced function can be serialized with `jit_save`:
@@ -169,6 +203,11 @@ with `torch.jit.load`:
 import torch
 fn = torch.jit.load("linear.pt")
 fn(torch.ones(2, 10))
+```
+
+```
+tensor([[-0.6880],
+        [-0.6880]])
 ```
 
 How cool is that?!
@@ -193,6 +232,14 @@ see:
 ```{r}
 nn_linear(10, 1)
 ```
+```
+An `nn_module` containing 11 parameters.
+
+── Parameters ──────────────────────────────────────────────────────────────────
+● weight: Float [1:1, 1:10]
+● bias: Float [1:1]
+```
+
 You will quickly find the total number of parameters in the module as well as 
 the their name and shape.
 
@@ -208,6 +255,19 @@ my_module <- nn_module(
 )
 my_module()
 ```
+```
+An `nn_module` containing 16 parameters.
+
+── Modules ─────────────────────────────────────────────────────────────────────
+● linear: <nn_linear> #11 parameters
+
+── Parameters ──────────────────────────────────────────────────────────────────
+● param: Float [1:5, 1:1]
+
+── Buffers ─────────────────────────────────────────────────────────────────────
+● buff: Float [1:5]
+```
+
 We hope that it makes easier to navigate understand the  `nn_module` objects. 
 We have also improved autocomplete support for `nn_modules` and we will now
 show all sub-modules, parameters and buffers while you type.

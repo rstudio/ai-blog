@@ -12,7 +12,167 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Mon, 14 Dec 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 15 Dec 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch 0.2.0 - Initial JIT support and many bug fixes</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Daniel Falbel</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-12-15-torch-0.2.0-released</link>
+      <description>
+
+
+&lt;p&gt;We are happy to announce that the version 0.2.0 of &lt;code&gt;torch&lt;/code&gt; just landed on CRAN.&lt;/p&gt;
+&lt;p&gt;This release includes many bug fixes and some nice new features that we will present in this blog post. You can see the full changelog in the &lt;a href="https://github.com/mlverse/torch/blob/master/NEWS.md"&gt;NEWS.md&lt;/a&gt; file.&lt;/p&gt;
+&lt;p&gt;The features that we will discuss in detail are:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Initial support for JIT tracing&lt;/li&gt;
+&lt;li&gt;Multi-worker dataloaders&lt;/li&gt;
+&lt;li&gt;Print methods for &lt;code&gt;nn_modules&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="multi-worker-dataloaders"&gt;Multi-worker dataloaders&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;dataloaders&lt;/code&gt; now respond to the &lt;code&gt;num_workers&lt;/code&gt; argument and will run the pre-processing in parallel workers.&lt;/p&gt;
+&lt;p&gt;For example, say we have the following dummy dataset that does a long computation:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+dat &amp;lt;- dataset(
+  &amp;quot;mydataset&amp;quot;,
+  initialize = function(time, len = 10) {
+    self$time &amp;lt;- time
+    self$len &amp;lt;- len
+  },
+  .getitem = function(i) {
+    Sys.sleep(self$time)
+    torch_randn(1)
+  },
+  .length = function() {
+    self$len
+  }
+)
+ds &amp;lt;- dat(1)
+system.time(ds[1])&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;   user  system elapsed 
+  0.029   0.005   1.027 &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We will now create two dataloaders, one that executes sequentially and another executing in parallel.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;seq_dl &amp;lt;- dataloader(ds, batch_size = 5)
+par_dl &amp;lt;- dataloader(ds, batch_size = 5, num_workers = 2)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can now compare the time it takes to process two batches sequentially to the time it takes in parallel:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;seq_it &amp;lt;- dataloader_make_iter(seq_dl)
+par_it &amp;lt;- dataloader_make_iter(par_dl)
+
+two_batches &amp;lt;- function(it) {
+  dataloader_next(it)
+  dataloader_next(it)
+  &amp;quot;ok&amp;quot;
+}
+
+system.time(two_batches(seq_it))
+system.time(two_batches(par_it))&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;   user  system elapsed 
+  0.098   0.032  10.086 
+   user  system elapsed 
+  0.065   0.008   5.134 &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Note that it is batches that are obtained in parallel, not individual observations. Like that, we will be able to support datasets with variable batch sizes in the future.&lt;/p&gt;
+&lt;p&gt;Using multiple workers is &lt;strong&gt;not&lt;/strong&gt; necessarily faster than serial execution because there’s a considerable overhead when passing tensors from a worker to the main session as well as when initializing the workers.&lt;/p&gt;
+&lt;p&gt;This feature is enabled by the powerful &lt;a href="https://github.com/r-lib/callr"&gt;&lt;code&gt;callr&lt;/code&gt;&lt;/a&gt; package and works in all operating systems supported by &lt;code&gt;torch&lt;/code&gt;. &lt;a href="https://github.com/r-lib/callr"&gt;&lt;code&gt;callr&lt;/code&gt;&lt;/a&gt; let’s us create persistent R sessions, and thus, we only pay once the overhead of transferring potentially large dataset objects to workers.&lt;/p&gt;
+&lt;p&gt;In the process of implementing this feature we have made dataloaders behave like &lt;a href="https://github.com/r-lib/coro"&gt;&lt;code&gt;coro&lt;/code&gt;&lt;/a&gt; iterators. This means that you can now use &lt;a href="https://github.com/r-lib/coro"&gt;&lt;code&gt;coro&lt;/code&gt;&lt;/a&gt;’s syntax for looping through the dataloaders:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;coro::loop(for(batch in par_dl) {
+  print(batch$shape)
+})&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;[1] 5 1
+[1] 5 1&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is the first &lt;code&gt;torch&lt;/code&gt; release including the multi-worker dataloaders feature, and you might run into edge cases when using it. Do let us know if you find any problems.&lt;/p&gt;
+&lt;h2 id="initial-jit-support"&gt;Initial JIT support&lt;/h2&gt;
+&lt;p&gt;Programs that make use of the &lt;code&gt;torch&lt;/code&gt; package are inevitably R programs and thus, they always need an R installation in order to execute.&lt;/p&gt;
+&lt;p&gt;As of version 0.2.0, &lt;code&gt;torch&lt;/code&gt; allows users to JIT &lt;em&gt;trace&lt;/em&gt; &lt;code&gt;torch&lt;/code&gt; R functions into TorchScript. JIT (Just in time) tracing will invoke an R function with example inputs, record all operations that occured when the function was run and return a &lt;code&gt;script_function&lt;/code&gt; object containing the TorchScript representation.&lt;/p&gt;
+&lt;p&gt;The nice thing about this is that TorchScript programs are easily serializable, optimizable, and they can be loaded by another program written in PyTorch or LibTorch without requiring any R dependency.&lt;/p&gt;
+&lt;p&gt;Suppose you have the following R function that takes a tensor, and does a matrix multiplication with a fixed weight matrix and then adds a bias term:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;w &amp;lt;- torch_randn(10, 1)
+b &amp;lt;- torch_randn(1)
+fn &amp;lt;- function(x) {
+  a &amp;lt;- torch_mm(x, w)
+  a + b
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This function can be JIT-traced into TorchScript with &lt;code&gt;jit_trace&lt;/code&gt; by passing the function and example inputs:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;x &amp;lt;- torch_ones(2, 10)
+tr_fn &amp;lt;- jit_trace(fn, x)
+tr_fn(x)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor
+-0.6880
+-0.6880
+[ CPUFloatType{2,1} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now all &lt;code&gt;torch&lt;/code&gt; operations that happened when computing the result of this function were traced and transformed into a graph:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;tr_fn$graph&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;graph(%0 : Float(2:10, 10:1, requires_grad=0, device=cpu)):
+  %1 : Float(10:1, 1:1, requires_grad=0, device=cpu) = prim::Constant[value=-0.3532  0.6490 -0.9255  0.9452 -1.2844  0.3011  0.4590 -0.2026 -1.2983  1.5800 [ CPUFloatType{10,1} ]]()
+  %2 : Float(2:1, 1:1, requires_grad=0, device=cpu) = aten::mm(%0, %1)
+  %3 : Float(1:1, requires_grad=0, device=cpu) = prim::Constant[value={-0.558343}]()
+  %4 : int = prim::Constant[value=1]()
+  %5 : Float(2:1, 1:1, requires_grad=0, device=cpu) = aten::add(%2, %3, %4)
+  return (%5)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The traced function can be serialized with &lt;code&gt;jit_save&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;jit_save(tr_fn, &amp;quot;linear.pt&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It can be reloaded in R with &lt;code&gt;jit_load&lt;/code&gt;, but it can also be reloaded in Python with &lt;code&gt;torch.jit.load&lt;/code&gt;:&lt;/p&gt;
+&lt;pre class="python"&gt;&lt;code&gt;import torch
+fn = torch.jit.load(&amp;quot;linear.pt&amp;quot;)
+fn(torch.ones(2, 10))&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;tensor([[-0.6880],
+        [-0.6880]])&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;How cool is that?!&lt;/p&gt;
+&lt;p&gt;This is just the initial support for JIT in R. We will continue developing this. Specifically, in the next version of &lt;code&gt;torch&lt;/code&gt; we plan to support tracing &lt;code&gt;nn_modules&lt;/code&gt; directly. Currently, you need to detach all parameters before tracing them; see an example &lt;a href="https://github.com/mlverse/torch/blob/master/tests/testthat/test-trace.R#L27-L71"&gt;here&lt;/a&gt;. This will allow you also to take benefit of TorchScript to make your models run faster!&lt;/p&gt;
+&lt;p&gt;Also note that tracing has some limitations, especially when your code has loops or control flow statements that depend on tensor data. See &lt;code&gt;?jit_trace&lt;/code&gt; to learn more.&lt;/p&gt;
+&lt;h2 id="new-print-method-for-nn_modules"&gt;New print method for &lt;code&gt;nn_modules&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;In this release we have also improved the &lt;code&gt;nn_module&lt;/code&gt; printing methods in order to make it easier to understand what’s inside.&lt;/p&gt;
+&lt;p&gt;For example, if you create an instance of an &lt;code&gt;nn_linear&lt;/code&gt; module you will see:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;nn_linear(10, 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;An `nn_module` containing 11 parameters.
+
+── Parameters ──────────────────────────────────────────────────────────────────
+● weight: Float [1:1, 1:10]
+● bias: Float [1:1]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;You immediately see the total number of parameters in the module as well as their names and shapes.&lt;/p&gt;
+&lt;p&gt;This also works for custom modules (possibly including sub-modules). For example:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;my_module &amp;lt;- nn_module(
+  initialize = function() {
+    self$linear &amp;lt;- nn_linear(10, 1)
+    self$param &amp;lt;- nn_parameter(torch_randn(5,1))
+    self$buff &amp;lt;- nn_buffer(torch_randn(5))
+  }
+)
+my_module()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;An `nn_module` containing 16 parameters.
+
+── Modules ─────────────────────────────────────────────────────────────────────
+● linear: &amp;lt;nn_linear&amp;gt; #11 parameters
+
+── Parameters ──────────────────────────────────────────────────────────────────
+● param: Float [1:5, 1:1]
+
+── Buffers ─────────────────────────────────────────────────────────────────────
+● buff: Float [1:5]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We hope this makes it easier to understand &lt;code&gt;nn_module&lt;/code&gt; objects. We have also improved autocomplete support for &lt;code&gt;nn_modules&lt;/code&gt; and we will now show all sub-modules, parameters and buffers while you type.&lt;/p&gt;
+&lt;h2 id="torchaudio"&gt;torchaudio&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://github.com/curso-r/torchaudio"&gt;&lt;code&gt;torchaudio&lt;/code&gt;&lt;/a&gt; is an extension for &lt;code&gt;torch&lt;/code&gt; developed by &lt;a href="https://github.com/athospd"&gt;Athos Damiani&lt;/a&gt; (&lt;a href="https://github.com/athospd"&gt;&lt;code&gt;@athospd&lt;/code&gt;&lt;/a&gt;), providing audio loading, transformations, common architectures for signal processing, pre-trained weights and access to commonly used datasets. An almost literal translation from PyTorch’s Torchaudio library to R.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;torchaudio&lt;/code&gt; is not yet on CRAN, but you can already try the development version available &lt;a href="https://github.com/curso-r/torchaudio"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;You can also visit the &lt;code&gt;pkgdown&lt;/code&gt; &lt;a href="https://curso-r.github.io/torchaudio/"&gt;website&lt;/a&gt; for examples and reference documentation.&lt;/p&gt;
+&lt;h2 id="other-features-and-bug-fixes"&gt;Other features and bug fixes&lt;/h2&gt;
+&lt;p&gt;Thanks to community contributions we have found and fixed many bugs in &lt;code&gt;torch&lt;/code&gt;. We have also added new features including:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;element_size&lt;/code&gt; and &lt;code&gt;bool&lt;/code&gt; Tensor methods by &lt;a href="https://github.com/dirkschumacher"&gt;&lt;code&gt;@dirkschumacher&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;checking the MD5 hashes of downloaded LibTorch binaries by &lt;a href="https://github.com/dirkschumacher"&gt;&lt;code&gt;@dirkschumacher&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;initial development for the Distributions module by &lt;a href="https://github.com/krzjoa"&gt;&lt;code&gt;@krzjoa&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;the &lt;code&gt;nn_batch_norm3d&lt;/code&gt; module implemented by &lt;a href="https://github.com/mattwarkentin"&gt;&lt;code&gt;@mattwarkentin&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;a Dockerfile with GPU support as well as an &lt;a href="https://github.com/mlverse/torch/blob/master/docker/build_env_guide.md"&gt;installation guide&lt;/a&gt; by &lt;a href="https://github.com/y-vectorfield"&gt;&lt;code&gt;@y-vectorfield&lt;/code&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;You can see the full list of changes in the &lt;a href="https://github.com/mlverse/torch/blob/master/NEWS.md"&gt;NEWS.md&lt;/a&gt; file.&lt;/p&gt;
+&lt;p&gt;Thanks very much for reading this blog post, and feel free to reach out on GitHub for help or discussions!&lt;/p&gt;
+&lt;p&gt;&lt;span&gt;The photo used in this post preview is by &lt;a href="https://unsplash.com/@illarionov?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;Oleg Illarionov&lt;/a&gt; on &lt;a href="https://unsplash.com/s/photos/torch?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;Unsplash&lt;/a&gt;&lt;/span&gt;&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">bb54b5ee0d487411b4fb88abfb52f70b</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Packages/Releases</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-12-15-torch-0.2.0-released</guid>
+      <pubDate>Tue, 15 Dec 2020 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2020-12-15-torch-0.2.0-released/images/torch.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>sparklyr 1.5: better dplyr interface, more sdf_* functions, and RDS-based serialization routines</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Yitao Li</dc:creator>

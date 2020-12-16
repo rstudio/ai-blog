@@ -1,7 +1,7 @@
 ---
-title: "Getting ready for spatial forecasting: Convolutional LSTM with torch"
+title: "Convolutional LSTM for spatial forecasting"
 description: > 
-  tbd
+  In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations, while efficiently extracting spatial features, as usually done using convolutions. Ideally, we'd have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch.
 
 author:
   - name: Sigrid Keydana
@@ -29,27 +29,27 @@ This post is the first in a loose series aimed at exploring forecasting of spati
 
 For example, the input could be atmospheric measurements, such as sea surface temperature or pressure, given at some set of latitudes and longitudes. The target to be predicted could then span that same (or another) grid. Alternatively, it could be a univariate time series, like a meteorological index.
 
-But wait a second, you may be thinking. For time series prediction, we have that time-honored set of recurrent architectures, right -- LSTM, GRU ...? Right. We have; but once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter *convolutional RNNs*.
+But wait a second, you may be thinking. For time series prediction, we have that time-honored set of recurrent architectures, right -- LSTM, GRU ...? Right. We do; but once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter *convolutional RNNs*.
 
 ## What to expect from this post
 
-Today, we won't jump into real-world applications just yet. Instead, we'll take our time to build a convolutional LSTM (convLSTM) in `torch`. For one, we'll need to -- there is no official PyTorch implementation. (As opposed to Keras, by the way -- if you're interested in quickly playing around with a Keras convLSTM, check out [this nice example](https://tensorflow.rstudio.com/guide/keras/examples/conv_lstm/).)
+Today, we won't jump into real-world applications just yet. Instead, we'll take our time to build a convolutional LSTM (henceforth: convLSTM) in `torch`. For one, we have to -- there is no official PyTorch implementation. (As opposed to Keras, by the way. If you're interested in quickly playing around with a Keras convLSTM, check out [this nice example](https://tensorflow.rstudio.com/guide/keras/examples/conv_lstm/).)
 
-Secondly, this will serve as an introduction to building your own modules. This is something you may be familiar with from Keras or not -- depending on whether you've used custom models or rather, preferred the declarative way *define -\> compile -\> fit* style. (Yes, I'm implying there's some transfer happening if coming to torch from Keras custom training. Respective syntaxes, as well as types of objects created, may be different; but both share the object-oriented style that allows for great flexibility and control.)
+Secondly, this post can serve as an introduction to building your own modules. This is something you may be familiar with from Keras or not -- depending on whether you've used custom models or rather, preferred the declarative *define -\> compile -\> fit* style. (Yes, I'm implying there's some transfer going on if one comes to `torch` from Keras custom training. Syntactic and semantic details may be different, but both share the object-oriented style that allows for great flexibility and control.)
 
 Last not least, we'll also use this as a hands-on experience with RNN architectures (the LSTM, specifically). While the general concept of recurrence may be easy to grasp, it is not necessarily self-evident how those architectures should, or could, be coded. Personally, I find that independently of the framework used, RNN-related documentation leaves me confused. What exactly *is* being returned from calling an LSTM, or a GRU? (In Keras this depends on how you've defined the layer in question.) I suspect that once we've decided what we *want* to return, the actual code won't be that complicated. Consequently, it should be worth our time to take a detour clarifying what it is that `torch` and Keras are giving us. Implementing our convLSTM will be a lot more straightforward thereafter.
 
 ## A `torch` convLSTM
 
-The code discussed here may be found on [Github](https://github.com/skeydan/convlstm). (Depending on when you're reading this, the code in that repo may have evolved though.)
+The code discussed here may be found on [Github](https://github.com/skeydan/convlstm). (Depending on when you're reading this, the code in that repository may have evolved though.)
 
-My starting point was one of the PyTorch implementations found on the net, namely, [this one](https://github.com/ndrplz/ConvLSTM_pytorch/blob/master/convlstm.py). If you search for "PyTorch convGRU" or "PyTorch convLSTM", you will find stunning discrepancies in how these are realized -- discrepancies not just in syntax and/or engineering ambition, but on the semantic level, right at the center of what the architectures may be expected to do. As they say, let the buyer beware. As to the realization I ended up porting, I am confident that while numerous optimizations will be possible, the basic mechanism matches my expectations.
+My starting point was one of the PyTorch implementations found on the net, namely, [this one](https://github.com/ndrplz/ConvLSTM_pytorch/blob/master/convlstm.py). If you search for "PyTorch convGRU" or "PyTorch convLSTM", you will find stunning discrepancies in how these are realized -- discrepancies not just in syntax and/or engineering ambition, but on the semantic level, right at the center of what the architectures may be expected to do. As they say, let the buyer beware. (Regarding the realization I ended up porting, I am confident that while numerous optimizations will be possible, the basic mechanism matches my expectations.
 
 What do I expect? Let's approach this task in a top-down way.
 
 ### Input and output
 
-The convLSTM's input will be a time series of spatial data, each observation being of size `(timesteps, channels, height, width)`.
+The convLSTM's input will be a time series of spatial data, each observation being of size `(time steps, channels, height, width)`.
 
 Compare this with the usual RNN input format, be it in `torch` or Keras. In both frameworks, RNNs expect tensors of size `(timesteps, input_dim)`[^1]. `input_dim` is $1$ for univariate time series and greater than $1$ for multivariate ones. Conceptually, we may match this to convLSTM's `channels` dimension: There could be a single channel, for temperature, say -- or there could be several, such as for pressure, temperature, and humidity. The two additional dimensions found in convLSTM, `height` and `width`, are spatial indexes into the data.
 
@@ -63,15 +63,15 @@ In sum, we want to be able to pass data that
 
 -   are indexed in two spatial dimensions.
 
-How about the output? We want to be able to return forecasts for as many timesteps as we have in the input sequence. This is something that `torch` RNNs do by default, while Keras equivalents do not. (You have to pass `return_sequences = TRUE` to obtain that effect). If we're interested in predictions for just a single point in time, we can always pick the last time step in the output tensor.
+How about the output? We want to be able to return forecasts for as many time steps as we have in the input sequence. This is something that `torch` RNNs do by default, while Keras equivalents do not. (You have to pass `return_sequences = TRUE` to obtain that effect.) If we're interested in predictions for just a single point in time, we can always pick the last time step in the output tensor.
 
 However, with RNNs, it is not all about outputs. RNN architectures, in addition, carry through hidden states.
 
 What are hidden states? I carefully phrased that sentence to be as general as possible -- deliberately circling around the confusion that, in my view, often arises at this point. We'll attempt to clear up some of that confusion in a second, but let's first finish our high-level requirements specification.
 
-Requirements-wise, we want our convLSTM to be usable in different contexts and applications. Various architectures exist that make use of hidden states, most prominently perhaps, encoder-decoder architectures. Thus, we want our convLSTM to return those as well. Again, this is something a `torch` LSTM does by default, while in Keras it is achieved using `return_state = TRUE`.
+We want our convLSTM to be usable in different contexts and applications. Various architectures exist that make use of hidden states, most prominently perhaps, encoder-decoder architectures. Thus, we want our convLSTM to return those as well. Again, this is something a `torch` LSTM does by default, while in Keras it is achieved using `return_state = TRUE`.
 
-Now though, it really is time for that interlude. We'll sort out the ways things are called by both `torch` and Keras, and inspect what you get when calling their respective GRUs and LSTMs.
+Now though, it really is time for that interlude. We'll sort out the ways things are called by both `torch` and Keras, and inspect what you get back from their respective GRUs and LSTMs.
 
 ### Interlude: Outputs, states, hidden values ... what's what?
 
@@ -94,7 +94,7 @@ lstm <- nn_lstm(
 )
 ```
 
-Don't focus on `torch`'s `input_size` parameter for this discussion. (It's the number of features in the input tensor.) The parallel occurs between Keras' `units` and `torch`'s `hidden_size`. If you've been using Keras, you're probably thinking of `units` as the thing that determines output size (equivalently, the number of features in the output). So when `torch` lets us arrive at the same result using `hidden_size`, what does that mean? It means that somehow we're specifying the same thing, using different terminology. And it does make sense, since at every timestep current input and previous hidden state are transformed and added[^2]:
+Don't focus on `torch`'s `input_size` parameter for this discussion. (It's the number of features in the input tensor.) The parallel occurs between Keras' `units` and `torch`'s `hidden_size`. If you've been using Keras, you're probably thinking of `units` as the thing that determines output size (equivalently, the number of features in the output). So when `torch` lets us arrive at the same result using `hidden_size`, what does that mean? It means that somehow we're specifying the same thing, using different terminology. And it does make sense, since at every time step current input and previous hidden state are added[^2]:
 
 [^2]: In theory, it would be possible for them to be of different sizes if the respective weight matrices transformed their operands to the same output size.
 
@@ -106,7 +106,9 @@ Now, *about those hidden states*.
 
 When a Keras LSTM is defined with `return_state = TRUE`, its return value is a structure of three entities called output, memory state, and carry state. In `torch`, the same entities are referred to as output, hidden state, and cell state. (In `torch`, we always get all of them.)
 
-So are we dealing with three different types of entities? We aren't. The cell, or carry, state is that special thing setting apart LSTMs from GRUs that is deemed responsible for the "long" in "long short-term memory". Technically, it could be reported to the user at all points in time; as we'll see shortly though, it is not.
+So are we dealing with three different types of entities? We are not.
+
+The cell, or carry, state is that special thing setting apart LSTMs from GRUs deemed responsible for the "long" in "long short-term memory". Technically, it could be reported to the user at all points in time; as we'll see shortly though, it is not.
 
 What about outputs and hidden, or memory, states? Confusingly, these really are the same thing. Recall that for each input *item* in the input *sequence*, we're combining it with the previous state, resulting in a new state, to be made used of in the next step[^3]:
 
@@ -116,35 +118,39 @@ $$
 \mathbf{h}_t = \mathbf{W}_{x}\mathbf{x}_t + \mathbf{W}_{h}\mathbf{h}_{t-1}
 $$
 
-Now, say that we're interested in looking at just the final timestep -- that is, the default output of a Keras LSTM. From that point of view, we can consider those intermediate computations as "hidden". Seen like that, hidden states and outputs are different.
+Now, say that we're interested in looking at just the final time step -- that is, the default output of a Keras LSTM. From that point of view, we can consider those intermediate computations as "hidden". Seen like that, output and hidden states feel different.
 
-However, we can also request to see the outputs for every timestep. If we do so, there is no difference -- the output**s** (plural) equal the hidden states. This can easily be seen using the code in the appendix.
+However, we can also request to see the outputs for every time step. If we do so, there is no difference -- the output**s** (plural) equal the hidden states. This can easily be verified using the code in the appendix.
 
 Thus of the three things returned by an LSTM, two are really the same. How about the GRU, then? As there is no "cell state", we really have just one type of thing left over -- call it outputs or hidden states.
 
 Let's summarize this in a table.
 
+<br />
+
 ::: {.l-page}
-+-----------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
-| Referring to this entity:                                                                                                         | `torch` says: | Keras says:  |
-+===================================================================================================================================+===============+==============+
-| *Number of features in the output*                                                                                                | `hidden_size` | `units`      |
-|                                                                                                                                   |               |              |
-| This determines both how many output features there are *and* the dimensionality of the hidden state(s)!                          |               |              |
-+-----------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
-| *Per-timestep output; latent state; intermediate state ...*                                                                       | hidden state  | memory state |
-|                                                                                                                                   |               |              |
-| This could be named "public state" in the sense that we, the users, are able to obtain *all values.*                              |               |              |
-+-----------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
-| *Cell state; inner state ... (LSTM only)*                                                                                         | cell state    | carry state  |
-|                                                                                                                                   |               |              |
-| This could be named "private state" in that we are able to obtain a value *only for the last timestep*. More on that in a second. |               |              |
-+-----------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
++------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
+| Referring to this entity:                                                                                                          | `torch` says: | Keras says:  |
++====================================================================================================================================+===============+==============+
+| *Number of features in the output*                                                                                                 | `hidden_size` | `units`      |
+|                                                                                                                                    |               |              |
+| This determines both how many output features there are *and* the dimensionality of the hidden states.                             |               |              |
++------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
+| *Per-time-step output; latent state; intermediate state ...*                                                                       | hidden state  | memory state |
+|                                                                                                                                    |               |              |
+| This could be named "public state" in the sense that we, the users, are able to obtain *all values.*                               |               |              |
++------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
+| *Cell state; inner state ... (LSTM only)*                                                                                          | cell state    | carry state  |
+|                                                                                                                                    |               |              |
+| This could be named "private state" in that we are able to obtain a value *only for the last time step*. More on that in a second. |               |              |
++------------------------------------------------------------------------------------------------------------------------------------+---------------+--------------+
 
 : Table 1: RNN terminology. Comparing torch-speak and Keras-speak. In row 1, the terms are parameter names. In rows 2 and 3, they are pulled from current documentation.
 :::
 
-Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every timestep. The cell state, however, we can access only for the very last timestep. This, it need be said, is purely an implementation decision. As we'll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.
+<br />
+
+Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every time step. The cell state, however, we can access only for the very last time step. This, it need be said, is purely an implementation decision. As we'll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.
 
 If you dislike the pragmatism of this distinction, you can always go with the math. When a new cell state has been computed (based on prior cell state, input, forget, and cell gates -- the specifics of which we are not going to get into here), it is transformed to the hidden (a.k.a. output) state making use of yet another, the output gate:
 
@@ -156,25 +162,29 @@ Definitely, then, hidden state (output, resp.) builds on cell state, adding addi
 
 Now it is time to get back to our original goal and build that convLSTM. First though, let's summarize the return values obtainable from `torch` and Keras.
 
+<br />
+
 ::: {.l-page}
-+----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
-| To achieve this goal:                                                            | in `torch` do:    | in Keras do:                                   |
-+==================================================================================+===================+================================================+
-| access all intermediate outputs ( = per-timestep outputs)                        | `ret[[1]]`        | `return_sequences = TRUE`                      |
-+----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
-| access both "hidden state" (output) and "cell state" from final timestep (only!) | `ret[[2]]`        | `return_state = TRUE`                          |
-+----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
-| access all intermediate outputs and the final "cell state"                       | both of the above | `return_sequences = TRUE, return_state = TRUE` |
-+----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
-| access all intermediate outputs and "cell states" from all timesteps             | no way            | no way                                         |
-+----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
++-----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
+| To achieve this goal:                                                             | in `torch` do:    | in Keras do:                                   |
++===================================================================================+===================+================================================+
+| access all intermediate outputs ( = per-time-step outputs)                        | `ret[[1]]`        | `return_sequences = TRUE`                      |
++-----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
+| access both "hidden state" (output) and "cell state" from final time step (only!) | `ret[[2]]`        | `return_state = TRUE`                          |
++-----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
+| access all intermediate outputs and the final "cell state"                        | both of the above | `return_sequences = TRUE, return_state = TRUE` |
++-----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
+| access all intermediate outputs and "cell states" from all time steps             | no way            | no way                                         |
++-----------------------------------------------------------------------------------+-------------------+------------------------------------------------+
 
 : Table 2: Contrasting ways of obtaining various return values in `torch` vs. Keras. Cf. the appendix for complete examples.
 :::
 
+<br />
+
 ### `convLSTM`, the plan
 
-In both `torch` and Keras RNN architectures, single timesteps are processed by corresponding `Cell` classes: There is an LSTM Cell matching the LSTM, a GRU Cell matching the GRU, and so on. We do the same for ConvLSTM. In `convlstm_cell()`, we first define what should happen to a single observation; then in `convlstm()`, we build up the recurrence logic.
+In both `torch` and Keras RNN architectures, single time steps are processed by corresponding `Cell` classes: There is an LSTM Cell matching the LSTM, a GRU Cell matching the GRU, and so on. We do the same for ConvLSTM. In `convlstm_cell()`, we first define what should happen to a single observation; then in `convlstm()`, we build up the recurrence logic.
 
 Once we're done, we create a dummy dataset, as reduced-to-the-essential as can be. With more complex datasets, even artificial ones, chances are that if we don't see any training progress, there are hundreds of possible explanations. We want a sanity check that, if we fail it, leaves no excuses. Realistic applications are left to future posts.
 
@@ -240,13 +250,13 @@ convlstm_cell <- nn_module(
 
 ```
 
-Now `convlstm_cell` has to be called for every timestep. This is done by `convlstm`.
+Now `convlstm_cell` has to be called for every time step. This is done by `convlstm`.
 
-### Iteration over timesteps: `convlstm`
+### Iteration over time steps: `convlstm`
 
 A `convlstm` may consist of several layers, just like a `torch` LSTM. For each layer, we are able to specify hidden and kernel sizes individually.
 
-During initialization, each layer gets its own `convlstm_cell`. On call, `convlstm` executes two loops. The outer one iterates over layers. At the end of each iteration, we store the final pair `(hidden state, cell state)` for later reporting. The inner loop runs over input sequences, calling `convlstm_cell` at each timestep.
+During initialization, each layer gets its own `convlstm_cell`. On call, `convlstm` executes two loops. The outer one iterates over layers. At the end of each iteration, we store the final pair `(hidden state, cell state)` for later reporting. The inner loop runs over input sequences, calling `convlstm_cell` at each time step.
 
 We also keep track of intermediate outputs, so we'll be able to return the complete list of `hidden_state`s seen during the process. Unlike a `torch` LSTM, we do this *for every layer*.
 
@@ -296,15 +306,15 @@ convlstm <- nn_module(
       # equivalently, list of h states for each time step
       output_sequence <- vector(mode = "list", length = seq_len)
       
-      # loop over timesteps
+      # loop over time steps
       for (t in 1:seq_len) {
         c(h, c) %<-% self$cell_list[[i]](cur_layer_input[ , t, , , ], list(h, c))
-        # keep track of output (h) for every timestep
+        # keep track of output (h) for every time step
         # h has dim (batch_size, hidden_size, height, width)
         output_sequence[[t]] <- h
       }
 
-      # stack hs for all timesteps over seq_len dimension
+      # stack hs for all time steps over seq_len dimension
       # stacked_outputs has dim (batch_size, seq_len, hidden_size, height, width)
       # same as input to forward (x)
       stacked_outputs <- torch_stack(output_sequence, dim = 2)
@@ -393,7 +403,7 @@ Now we want to sanity-check this module with the simplest-possible dummy data.
 
 We generate black-and-white "movies" of diagonal beams successively translated in space.
 
-Each sequence consists of six timesteps, and each beam, of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:
+Each sequence consists of six time steps, and each beam, of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:
 
 ```{r}
 library(torchvision)
@@ -403,7 +413,7 @@ beam <- torch_eye(6) %>% nnf_pad(c(6, 12, 12, 6)) # left, right, top, bottom
 beams[[1]] <- beam
 ```
 
-Using `torch_roll()` , we create a pattern where this beam moves up diagonally, and stack the individual tensors along the `timesteps` dimension.
+Using `torch_roll()` , we create a pattern where this beam moves up diagonally, and stack the individual tensors along the `time steps` dimension.
 
 ```{r}
 for (i in 2:6) {
@@ -428,7 +438,7 @@ dim(input)
 # [1] 100   6  24  24
 ```
 
-That's it for the raw data. Now we still need a `dataset` and a `dataloader`. Of the six timesteps, we use the first five as input and try to predict the last one.
+That's it for the raw data. Now we still need a `dataset` and a `dataloader`. Of the six time steps, we use the first five as input and try to predict the last one.
 
 ```{r}
 dummy_ds <- dataset(
@@ -470,7 +480,7 @@ for (epoch in 1:num_epochs) {
     
     optimizer$zero_grad()
     
-    # last-timestep output from last layer
+    # last-time-step output from last layer
     preds <- model(b$x)[[2]][[2]][[1]]
   
     loss <- nnf_mse_loss(preds, b$y)
@@ -508,7 +518,7 @@ for (epoch in 1:num_epochs) {
 
 Loss decreases, but that in itself is not a guarantee the model has learned anything. Has it? Let's inspect its forecast for the very first sequence and see.
 
-For printing, I'm zooming in on the relevant region in the 24x24-pixel frame. Here is the ground truth for timestep six:
+For printing, I'm zooming in on the relevant region in the 24x24-pixel frame. Here is the ground truth for time step six:
 
 ```{r}
 b$y[1, 1, 6:15, 10:19]
@@ -558,7 +568,7 @@ This appendix contains the code used to create tables 1 and 2 above.
 ```{r}
 library(keras)
 
-# batch of 3, with 4 timesteps each and a single feature
+# batch of 3, with 4 time steps each and a single feature
 input <- k_random_normal(shape = c(3L, 4L, 1L))
 input
 
@@ -572,9 +582,9 @@ lstm <- layer_lstm(
 lstm(input)
 
 # return_sequences = TRUE
-# return shape = (batch_size, timesteps, units)
+# return shape = (batch_size, time steps, units)
 #
-# note how for each item in the batch, the value for timestep 4 equals that obtained above
+# note how for each item in the batch, the value for time step 4 equals that obtained above
 lstm <- layer_lstm(
   units = 1,
   return_sequences = TRUE,
@@ -587,8 +597,8 @@ lstm(input)
 # return_state = TRUE
 # return shape = list of:
 #                - outputs, of shape: (batch_size, units)
-#                - "memory states" for the last timestep, of shape: (batch_size, units)
-#                - "carry states" for the last timestep, of shape: (batch_size, units)
+#                - "memory states" for the last time step, of shape: (batch_size, units)
+#                - "carry states" for the last time step, of shape: (batch_size, units)
 #
 # note how the first and second list items are identical!
 lstm <- layer_lstm(
@@ -601,11 +611,11 @@ lstm(input)
 
 # return_state = TRUE, return_sequences = TRUE
 # return shape = list of:
-#                - outputs, of shape: (batch_size, timesteps, units)
-#                - "memory" states for the last timestep, of shape: (batch_size, units)
-#                - "carry states" for the last timestep, of shape: (batch_size, units)
+#                - outputs, of shape: (batch_size, time steps, units)
+#                - "memory" states for the last time step, of shape: (batch_size, units)
+#                - "carry states" for the last time step, of shape: (batch_size, units)
 #
-# note how again, the "memory" state found in list item 2 matches the final-timestep outputs reported in item 1
+# note how again, the "memory" state found in list item 2 matches the final-time step outputs reported in item 1
 lstm <- layer_lstm(
   units = 1,
   return_sequences = TRUE,
@@ -629,9 +639,9 @@ gru <- layer_gru(
 gru(input)
 
 # return_sequences = TRUE
-# return shape = (batch_size, timesteps, units)
+# return shape = (batch_size, time steps, units)
 #
-# note how for each item in the batch, the value for timestep 4 equals that obtained above
+# note how for each item in the batch, the value for time step 4 equals that obtained above
 gru <- layer_gru(
   units = 1,
   return_sequences = TRUE,
@@ -643,7 +653,7 @@ gru(input)
 # return_state = TRUE
 # return shape = list of:
 #    - outputs, of shape: (batch_size, units)
-#    - "memory" states for the last timestep, of shape: (batch_size, units)
+#    - "memory" states for the last time step, of shape: (batch_size, units)
 #
 # note how the list items are identical!
 gru <- layer_gru(
@@ -656,10 +666,10 @@ gru(input)
 
 # return_state = TRUE, return_sequences = TRUE
 # return shape = list of:
-#    - outputs, of shape: (batch_size, timesteps, units)
-#    - "memory states" for the last timestep, of shape: (batch_size, units)
+#    - outputs, of shape: (batch_size, time steps, units)
+#    - "memory states" for the last time step, of shape: (batch_size, units)
 #
-# note how again, the "memory state" found in list item 2 matches the final-timestep outputs reported in item 1
+# note how again, the "memory state" found in list item 2 matches the final-time-step outputs reported in item 1
 gru <- layer_gru(
   units = 1,
   return_sequences = TRUE,
@@ -677,7 +687,7 @@ gru(input)
 ```{r}
 library(torch)
 
-# batch of 3, with 4 timesteps each and a single feature
+# batch of 3, with 4 time steps each and a single feature
 # we will specify batch_first = TRUE when creating the LSTM
 input <- torch_randn(c(3, 4, 1))
 input
@@ -699,13 +709,13 @@ nn_init_constant_(lstm$bias_ih_l1, 0)
 nn_init_constant_(lstm$bias_hh_l1, 0)
 
 # returns a list of length 2, namely
-#   - outputs, of shape (batch_size, timesteps, hidden_size) - given we specified batch_first
+#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first
 #       Note 1: If this is a stacked LSTM, these are the outputs from the last layer only.
 #               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer LSTMs.
 #       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features
 #  - list of:
-#    - hidden state for the last timestep, of shape (num_layers, batch_size, hidden_size)
-#    - cell state for the last timestep, of shape (num_layers, batch_size, hidden_size)
+#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)
 #      Note 3: For a single-layer LSTM, the hidden states are already provided in the first list item.
 
 lstm(input)
@@ -731,13 +741,13 @@ nn_init_constant_(gru$bias_ih_l1, 0)
 nn_init_constant_(gru$bias_hh_l1, 0)
 
 # returns a list of length 2, namely
-#   - outputs, of shape (batch_size, timesteps, hidden_size) - given we specified batch_first
+#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first
 #       Note 1: If this is a stacked GRU, these are the outputs from the last layer only.
 #               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer GRUs.
 #       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features
 #  - list of:
-#    - hidden state for the last timestep, of shape (num_layers, batch_size, hidden_size)
-#    - cell state for the last timestep, of shape (num_layers, batch_size, hidden_size)
+#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)
 #       Note 3: For a single-layer GRU, these values are already provided in the first list item.
 gru(input)
 ```

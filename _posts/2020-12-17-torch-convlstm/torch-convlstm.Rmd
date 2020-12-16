@@ -25,11 +25,11 @@ preview: images/preview.jpeg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-This post is the first in a loose series aimed at exploring forecasting of spatially-determined data over time. By spatially-determined I mean that whatever the quantities we're trying to predict -- be they univariate or multivariate time series, of spatial dimensionality or not -- the *input* data are given on a spatial grid.
+This post is the first in a loose series exploring forecasting of spatially-determined data over time. By spatially-determined I mean that whatever the quantities we're trying to predict -- be they univariate or multivariate time series, of spatial dimensionality or not -- the *input* data are given on a spatial grid.
 
 For example, the input could be atmospheric measurements, such as sea surface temperature or pressure, given at some set of latitudes and longitudes. The target to be predicted could then span that same (or another) grid. Alternatively, it could be a univariate time series, like a meteorological index.
 
-But wait a second, you may be thinking. For time series prediction, we have that time-honored set of recurrent architectures, right -- LSTM, GRU ...? Right. We do; but once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter *convolutional RNNs*.
+But wait a second, you may be thinking. For time-series prediction, we have that time-honored set of recurrent architectures (e.g., LSTM, GRU), right? Right. We do; but, once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter *convolutional RNNs*.
 
 ## What to expect from this post
 
@@ -37,11 +37,11 @@ Today, we won't jump into real-world applications just yet. Instead, we'll take 
 
 Secondly, this post can serve as an introduction to building your own modules. This is something you may be familiar with from Keras or not -- depending on whether you've used custom models or rather, preferred the declarative *define -\> compile -\> fit* style. (Yes, I'm implying there's some transfer going on if one comes to `torch` from Keras custom training. Syntactic and semantic details may be different, but both share the object-oriented style that allows for great flexibility and control.)
 
-Last not least, we'll also use this as a hands-on experience with RNN architectures (the LSTM, specifically). While the general concept of recurrence may be easy to grasp, it is not necessarily self-evident how those architectures should, or could, be coded. Personally, I find that independently of the framework used, RNN-related documentation leaves me confused. What exactly *is* being returned from calling an LSTM, or a GRU? (In Keras this depends on how you've defined the layer in question.) I suspect that once we've decided what we *want* to return, the actual code won't be that complicated. Consequently, it should be worth our time to take a detour clarifying what it is that `torch` and Keras are giving us. Implementing our convLSTM will be a lot more straightforward thereafter.
+Last but not least, we'll also use this as a hands-on experience with RNN architectures (the LSTM, specifically). While the general concept of recurrence may be easy to grasp, it is not necessarily self-evident how those architectures should, or could, be coded. Personally, I find that independent of the framework used, RNN-related documentation leaves me confused. What exactly *is* being returned from calling an LSTM, or a GRU? (In Keras this depends on how you've defined the layer in question.) I suspect that once we've decided what we *want* to return, the actual code won't be that complicated. Consequently, we'll take a detour clarifying what it is that `torch` and Keras are giving us. Implementing our convLSTM will be a lot more straightforward thereafter.
 
 ## A `torch` convLSTM
 
-The code discussed here may be found on [Github](https://github.com/skeydan/convlstm). (Depending on when you're reading this, the code in that repository may have evolved though.)
+The code discussed here may be found on [GitHub](https://github.com/skeydan/convlstm). (Depending on when you're reading this, the code in that repository may have evolved though.)
 
 My starting point was one of the PyTorch implementations found on the net, namely, [this one](https://github.com/ndrplz/ConvLSTM_pytorch/blob/master/convlstm.py). If you search for "PyTorch convGRU" or "PyTorch convLSTM", you will find stunning discrepancies in how these are realized -- discrepancies not just in syntax and/or engineering ambition, but on the semantic level, right at the center of what the architectures may be expected to do. As they say, let the buyer beware. (Regarding the realization I ended up porting, I am confident that while numerous optimizations will be possible, the basic mechanism matches my expectations.
 
@@ -75,7 +75,7 @@ Now though, it really is time for that interlude. We'll sort out the ways things
 
 ### Interlude: Outputs, states, hidden values ... what's what?
 
-For this to remain an interlude, I intend to summarize findings on a high level. The code snippets in the appendix show how to arrive at these results. Heavily commented, they probe return values from both Keras and `torch` GRUs and LSTMs. Running these will make the upcoming summaries seem a lot less abstract.
+For this to remain an interlude, I summarize findings on a high level. The code snippets in the appendix show how to arrive at these results. Heavily commented, they probe return values from both Keras and `torch` GRUs and LSTMs. Running these will make the upcoming summaries seem a lot less abstract.
 
 First, let's look at the ways you create an LSTM in both frameworks. (I will generally use LSTM as the "prototypical RNN example", and just mention GRUs when there are differences significant in the context in question.)
 
@@ -108,9 +108,9 @@ When a Keras LSTM is defined with `return_state = TRUE`, its return value is a s
 
 So are we dealing with three different types of entities? We are not.
 
-The cell, or carry, state is that special thing setting apart LSTMs from GRUs deemed responsible for the "long" in "long short-term memory". Technically, it could be reported to the user at all points in time; as we'll see shortly though, it is not.
+The cell, or carry state is that special thing that sets apart LSTMs from GRUs deemed responsible for the "long" in "long short-term memory". Technically, it could be reported to the user at all points in time; as we'll see shortly though, it is not.
 
-What about outputs and hidden, or memory, states? Confusingly, these really are the same thing. Recall that for each input *item* in the input *sequence*, we're combining it with the previous state, resulting in a new state, to be made used of in the next step[^3]:
+What about outputs and hidden, or memory states? Confusingly, these really are the same thing. Recall that for each input *item* in the input *sequence*, we're combining it with the previous state, resulting in a new state, to be made used of in the next step[^3]:
 
 [^3]: Yes, this is the same formula as above.
 
@@ -120,9 +120,9 @@ $$
 
 Now, say that we're interested in looking at just the final time step -- that is, the default output of a Keras LSTM. From that point of view, we can consider those intermediate computations as "hidden". Seen like that, output and hidden states feel different.
 
-However, we can also request to see the outputs for every time step. If we do so, there is no difference -- the output**s** (plural) equal the hidden states. This can easily be verified using the code in the appendix.
+However, we can also request to see the outputs for every time step. If we do so, there is no difference -- the output**s** (plural) equal the hidden states. This can be verified using the code in the appendix.
 
-Thus of the three things returned by an LSTM, two are really the same. How about the GRU, then? As there is no "cell state", we really have just one type of thing left over -- call it outputs or hidden states.
+Thus, of the three things returned by an LSTM, two are really the same. How about the GRU, then? As there is no "cell state", we really have just one type of thing left over -- call it outputs or hidden states.
 
 Let's summarize this in a table.
 
@@ -150,7 +150,7 @@ Let's summarize this in a table.
 
 <br />
 
-Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every time step. The cell state, however, we can access only for the very last time step. This, it need be said, is purely an implementation decision. As we'll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.
+Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every time step. The cell state, however, we can access only for the very last time step. This is purely an implementation decision. As we'll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.
 
 If you dislike the pragmatism of this distinction, you can always go with the math. When a new cell state has been computed (based on prior cell state, input, forget, and cell gates -- the specifics of which we are not going to get into here), it is transformed to the hidden (a.k.a. output) state making use of yet another, the output gate:
 
@@ -186,13 +186,13 @@ Now it is time to get back to our original goal and build that convLSTM. First t
 
 In both `torch` and Keras RNN architectures, single time steps are processed by corresponding `Cell` classes: There is an LSTM Cell matching the LSTM, a GRU Cell matching the GRU, and so on. We do the same for ConvLSTM. In `convlstm_cell()`, we first define what should happen to a single observation; then in `convlstm()`, we build up the recurrence logic.
 
-Once we're done, we create a dummy dataset, as reduced-to-the-essential as can be. With more complex datasets, even artificial ones, chances are that if we don't see any training progress, there are hundreds of possible explanations. We want a sanity check that, if we fail it, leaves no excuses. Realistic applications are left to future posts.
+Once we're done, we create a dummy dataset, as reduced-to-the-essentials as can be. With more complex datasets, even artificial ones, chances are that if we don't see any training progress, there are hundreds of possible explanations. We want a sanity check that, if failed, leaves no excuses. Realistic applications are left to future posts.
 
 ### A single step: `convlstm_cell`
 
 Our `convlstm_cell`'s constructor takes arguments `input_dim` , `hidden_dim`, and `bias`, just like a `torch` LSTM Cell.
 
-But we're processing two-dimensional input data. Instead of the usual affine combination of new input and previous state, we use a convolution, of kernel size `kernel_size`. Inside `convlstm_cell`, it is `self$conv` that takes care of this.
+But we're processing two-dimensional input data. Instead of the usual affine combination of new input and previous state, we use a convolution of kernel size `kernel_size`. Inside `convlstm_cell`, it is `self$conv` that takes care of this.
 
 Note how the `channels` dimension, which in the original input data would correspond to different variables, is creatively used to consolidate four convolutions into one: Each channel output will be passed to just one of the four cell gates. Once in possession of the convolution output, `forward()` applies the gate logic, resulting in the two types of states it needs to send back to the caller.
 
@@ -403,7 +403,7 @@ Now we want to sanity-check this module with the simplest-possible dummy data.
 
 We generate black-and-white "movies" of diagonal beams successively translated in space.
 
-Each sequence consists of six time steps, and each beam, of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:
+Each sequence consists of six time steps, and each beam of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:
 
 ```{r}
 library(torchvision)

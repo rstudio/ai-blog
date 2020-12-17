@@ -1,0 +1,2986 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ad0000; } /* Alert */
+code span.an { color: #5e5e5e; } /* Annotation */
+code span.at { color: #20794d; } /* Attribute */
+code span.bn { color: #ad0000; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007ba5; } /* ControlFlow */
+code span.ch { color: #20794d; } /* Char */
+code span.cn { color: #8f5902; } /* Constant */
+code span.co { color: #5e5e5e; } /* Comment */
+code span.cv { color: #5e5e5e; font-style: italic; } /* CommentVar */
+code span.do { color: #5e5e5e; font-style: italic; } /* Documentation */
+code span.dt { color: #ad0000; } /* DataType */
+code span.dv { color: #ad0000; } /* DecVal */
+code span.er { color: #ad0000; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #ad0000; } /* Float */
+code span.fu { color: #4758ab; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #5e5e5e; } /* Information */
+code span.kw { color: #007ba5; } /* Keyword */
+code span.op { color: #5e5e5e; } /* Operator */
+code span.ot { color: #007ba5; } /* Other */
+code span.pp { color: #ad0000; } /* Preprocessor */
+code span.sc { color: #20794d; } /* SpecialChar */
+code span.ss { color: #20794d; } /* SpecialString */
+code span.st { color: #20794d; } /* String */
+code span.va { color: #111111; } /* Variable */
+code span.vs { color: #20794d; } /* VerbatimString */
+code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
+</style>
+
+  <!--radix_placeholder_meta_tags-->
+<title>RStudio AI Blog: Convolutional LSTM for spatial forecasting</title>
+
+<meta property="description" itemprop="description" content="In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we&#39;d like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we&#39;d have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="../../images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2020-12-17"/>
+<meta property="article:created" itemprop="dateCreated" content="2020-12-17"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="RStudio AI Blog: Convolutional LSTM for spatial forecasting"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we&#39;d like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we&#39;d have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/images/preview.jpeg"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="RStudio AI Blog"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="RStudio AI Blog: Convolutional LSTM for spatial forecasting"/>
+<meta property="twitter:description" content="In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we&#39;d like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we&#39;d have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/images/preview.jpeg"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="RStudio AI Blog: Convolutional LSTM for spatial forecasting"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2020/12/17"/>
+<meta name="citation_publication_date" content="2020/12/17"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","slug","date","categories","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["Convolutional LSTM for spatial forecasting"]},{"type":"character","attributes":{},"value":["In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we'd like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we'd have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydanatorchconvlstm"]},{"type":"character","attributes":{},"value":["12-17-2020"]},{"type":"character","attributes":{},"value":["Torch","R","Image Recognition & Image Processing","Time series"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained","toc"]}},"value":[{"type":"logical","attributes":{},"value":[false]},{"type":"logical","attributes":{},"value":[true]}]}]},{"type":"character","attributes":{},"value":["images/preview.jpeg"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["images/preview.jpeg"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+<meta name="distill:offset" content="../.."/>
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      tolerance: 5,
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.distill-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.distill-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #0F2E3D;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.distill-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.distill-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .distill-site-nav {
+    display: none;
+  }
+}
+
+.distill-site-header {
+
+}
+
+.distill-site-footer {
+
+}
+
+
+/* Site Header */
+
+.distill-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.distill-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.distill-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.distill-site-header a,
+.distill-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.distill-site-header .title {
+  font-size: 18px;
+  min-width: 150px;
+}
+
+.distill-site-header .logo {
+  padding: 0;
+}
+
+.distill-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.distill-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .distill-site-header .logo img {
+    display: inline-block;
+  }
+  .distill-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .distill-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.distill-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a, .nav-dropdown-content .nav-dropdown-header {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown-content .nav-dropdown-header {
+  display: block;
+  padding: 5px 24px;
+  padding-bottom: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header a, .distill-site-header .nav-dropdown  {display: none;}
+  .distill-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .distill-site-header .title {
+    margin-left: 0;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 0;
+  }
+  .distill-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-header.responsive {position: relative; min-height: 500px; }
+  .distill-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .distill-site-header.responsive a,
+  .distill-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .distill-site-header.responsive .nav-left,
+  .distill-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .distill-site-header.responsive .nav-dropdown {float: none;}
+  .distill-site-header.responsive .nav-dropdown-content {position: relative;}
+  .distill-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.distill-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+</style>
+
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<script src="../../site_libs/autocomplete-0.37.1/autocomplete.min.js"></script>
+<script src="../../site_libs/fuse-6.4.1/fuse.min.js"></script>
+
+<script type="application/javascript">
+
+function getMeta(metaName) {
+  var metas = document.getElementsByTagName('meta');
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute('name') === metaName) {
+      return metas[i].getAttribute('content');
+    }
+  }
+  return '';
+}
+
+function offsetURL(url) {
+  var offset = getMeta('distill:offset');
+  return offset ? offset + '/' + url : url;
+}
+
+function createFuseIndex() {
+
+  // create fuse index
+  var options = {
+    keys: [
+      { name: 'title', weight: 20 },
+      { name: 'categories', weight: 15 },
+      { name: 'description', weight: 10 },
+      { name: 'contents', weight: 5 },
+    ],
+    ignoreLocation: true,
+    threshold: 0
+  };
+  var fuse = new window.Fuse([], options);
+
+  // fetch the main search.json
+  return fetch(offsetURL('search.json'))
+    .then(function(response) {
+      if (response.status == 200) {
+        return response.json().then(function(json) {
+          // index main articles
+          json.articles.forEach(function(article) {
+            fuse.add(article);
+          });
+          // download collections and index their articles
+          return Promise.all(json.collections.map(function(collection) {
+            return fetch(offsetURL(collection)).then(function(response) {
+              if (response.status === 200) {
+                return response.json().then(function(articles) {
+                  articles.forEach(function(article) {
+                    fuse.add(article);
+                  });
+                })
+              } else {
+                return Promise.reject(
+                  new Error('Unexpected status from search index request: ' +
+                            response.status)
+                );
+              }
+            });
+          })).then(function() {
+            return fuse;
+          });
+        });
+
+      } else {
+        return Promise.reject(
+          new Error('Unexpected status from search index request: ' +
+                      response.status)
+        );
+      }
+    });
+}
+
+window.document.addEventListener("DOMContentLoaded", function (event) {
+
+  // get search element (bail if we don't have one)
+  var searchEl = window.document.getElementById('distill-search');
+  if (!searchEl)
+    return;
+
+  createFuseIndex()
+    .then(function(fuse) {
+
+      // make search box visible
+      searchEl.classList.remove('hidden');
+
+      // initialize autocomplete
+      var options = {
+        autoselect: true,
+        hint: false,
+        minLength: 2,
+      };
+      window.autocomplete(searchEl, options, [{
+        source: function(query, callback) {
+          const searchOptions = {
+            isCaseSensitive: false,
+            shouldSort: true,
+            minMatchCharLength: 2,
+            limit: 10,
+          };
+          var results = fuse.search(query, searchOptions);
+          callback(results
+            .map(function(result) { return result.item; })
+            .filter(function(item) { return !!item.description; })
+          );
+        },
+        templates: {
+          suggestion: function(suggestion) {
+            var html = `
+              <div class="search-item">
+                <h3>${suggestion.title}</h3>
+                <div class="search-item-description">
+                  ${suggestion.description}
+                </div>
+                <div class="search-item-preview">
+                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                </div>
+              </div>
+            `;
+            return html;
+          }
+        }
+      }]).on('autocomplete:selected', function(event, suggestion) {
+        window.location.href = offsetURL(suggestion.path);
+      });
+      // remove inline display style on autocompleter (we want to
+      // manage responsive display via css)
+      $('.algolia-autocomplete').css("display", "");
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
+
+});
+
+</script>
+
+<style type="text/css">
+
+/* Algolioa Autocomplete */
+
+.algolia-autocomplete {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: sub;
+  background-color: white;
+  color: black;
+  padding: 6px;
+  padding-top: 8px;
+  padding-bottom: 0;
+  border-radius: 6px;
+  border: 1px #0F2E3D solid;
+  width: 180px;
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-nav .algolia-autocomplete {
+    display: none;
+    visibility: hidden;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete {
+    display: inline-block;
+    visibility: visible;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete .aa-dropdown-menu {
+    margin-left: 0;
+    width: 400px;
+    max-height: 400px;
+  }
+}
+
+.algolia-autocomplete .aa-input, .algolia-autocomplete .aa-hint {
+  width: 90%;
+  outline: none;
+  border: none;
+}
+
+.algolia-autocomplete .aa-hint {
+  color: #999;
+}
+.algolia-autocomplete .aa-dropdown-menu {
+  width: 550px;
+  max-height: 70vh;
+  overflow-x: visible;
+  overflow-y: scroll;
+  padding: 5px;
+  margin-top: 3px;
+  margin-left: -150px;
+  background-color: #fff;
+  border-radius: 5px;
+  border: 1px solid #999;
+  border-top: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion {
+  cursor: pointer;
+  padding: 5px 4px;
+  border-bottom: 1px solid #eee;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion:last-of-type {
+  border-bottom: none;
+  margin-bottom: 2px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item {
+  overflow: hidden;
+  font-size: 0.8em;
+  line-height: 1.4em;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  margin-block-start: 0;
+  margin-block-end: 5px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-description {
+  display: inline-block;
+  overflow: hidden;
+  height: 2.8em;
+  width: 80%;
+  margin-right: 4%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview {
+  display: inline-block;
+  width: 15%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img {
+  height: 3em;
+  width: auto;
+  display: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img[src] {
+  display: initial;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion.aa-cursor {
+  background-color: #eee;
+}
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion em {
+  font-weight: bold;
+  font-style: normal;
+}
+
+</style>
+
+
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table>caption {
+  margin-bottom: 10px;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+d-byline .byline {
+  grid-template-columns: 2fr 2fr;
+}
+
+d-byline .byline h3 {
+  margin-block-start: 1.5em;
+}
+
+d-byline .byline .authors-affiliations h3 {
+  margin-block-start: 0.5em;
+}
+
+.authors-affiliations .orcid-id {
+  width: 16px;
+  height:16px;
+  margin-left: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+  padding-bottom: 2px;
+}
+
+d-title .dt-tags {
+  margin-top: 1em;
+  grid-column: text;
+}
+
+.dt-tags .dt-tag {
+  text-decoration: none;
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0em 0.4em;
+  margin-right: 0.5em;
+  margin-bottom: 0.4em;
+  font-size: 70%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+d-article table.gt_table td,
+d-article table.gt_table th {
+  border-bottom: none;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.l-screen .caption {
+  margin-left: 10px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-top: 2.5rem;
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article h2 {
+  margin: 1rem 0 1.5rem 0;
+}
+
+d-article h3 {
+  margin-top: 1.5rem;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+/* Tweak code blocks */
+
+d-article div.sourceCode code,
+d-article pre code {
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: auto;
+}
+
+d-article div.sourceCode {
+  background-color: white;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+d-article pre {
+  font-size: 12px;
+  color: black;
+  background: none;
+  margin-top: 0;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+d-article pre a {
+  border-bottom: none;
+}
+
+d-article pre a:hover {
+  border-bottom: none;
+  text-decoration: underline;
+}
+
+@media(min-width: 768px) {
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: visible !important;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+d-article pre {
+  font-size: 14px;
+}
+
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for d-contents */
+
+.d-contents {
+  grid-column: text;
+  color: rgba(0,0,0,0.8);
+  font-size: 0.9em;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+  padding-bottom: 0.5em;
+  margin-bottom: 1em;
+  padding-left: 0.25em;
+  justify-self: start;
+}
+
+@media(min-width: 1000px) {
+  .d-contents.d-contents-float {
+    height: 0;
+    grid-column-start: 1;
+    grid-column-end: 4;
+    justify-self: center;
+    padding-right: 3em;
+    padding-left: 2em;
+  }
+}
+
+.d-contents nav h3 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.d-contents li {
+  list-style-type: none
+}
+
+.d-contents nav > ul {
+  padding-left: 0;
+}
+
+.d-contents ul {
+  padding-left: 1em
+}
+
+.d-contents nav ul li {
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
+}
+
+.d-contents nav a {
+  font-size: 13px;
+  border-bottom: none;
+  text-decoration: none
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.d-contents nav a:hover {
+  text-decoration: underline solid rgba(0, 0, 0, 0.6)
+}
+
+.d-contents nav > ul > li > a {
+  font-weight: 600;
+}
+
+.d-contents nav > ul > li > ul {
+  font-weight: inherit;
+}
+
+.d-contents nav > ul > li > ul > li {
+  margin-top: 0.2em;
+}
+
+
+.d-contents nav ul {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+
+.d-article-with-toc h2:nth-child(2) {
+  margin-top: 0;
+}
+
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure img {
+  width: 100%;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+/* Citations */
+
+d-article .citation {
+  color: inherit;
+  cursor: inherit;
+}
+
+div.hanging-indent{
+  margin-left: 1em; text-indent: -1em;
+}
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Include appendix styles here so they can be overridden */
+
+d-appendix {
+  contain: layout style;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-top: 60px;
+  margin-bottom: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  color: rgba(0,0,0,0.5);
+  padding-top: 60px;
+  padding-bottom: 48px;
+}
+
+d-appendix h3 {
+  grid-column: page-start / text-start;
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 1em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.65);
+}
+
+d-appendix h3 + * {
+  margin-top: 1em;
+}
+
+d-appendix ol {
+  padding: 0 0 0 15px;
+}
+
+@media (min-width: 768px) {
+  d-appendix ol {
+    padding: 0 0 0 30px;
+    margin-left: -30px;
+  }
+}
+
+d-appendix li {
+  margin-bottom: 1em;
+}
+
+d-appendix a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+d-appendix > * {
+  grid-column: text;
+}
+
+d-appendix > d-footnote-list,
+d-appendix > d-citation-list,
+d-appendix > distill-appendix {
+  grid-column: screen;
+}
+
+/* Include footnote styles here so they can be overridden */
+
+d-footnote-list {
+  contain: layout style;
+}
+
+d-footnote-list > * {
+  grid-column: text;
+}
+
+d-footnote-list a.footnote-backlink {
+  color: rgba(0,0,0,0.3);
+  padding-left: 0.5em;
+}
+
+
+
+/* Anchor.js */
+
+.anchorjs-link {
+  /*transition: all .25s linear; */
+  text-decoration: none;
+  border-bottom: none;
+}
+*:hover > .anchorjs-link {
+  margin-left: -1.125em !important;
+  text-decoration: none;
+  border-bottom: none;
+}
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+.sidebar-section.custom {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.custom p {
+  margin-bottom: 0.5em;
+}
+
+/* Styles for listing layout (hide title) */
+.layout-listing d-title, .layout-listing .d-title {
+  display: none;
+}
+
+/* Styles for posts lists (not auto-injected) */
+
+
+.posts-with-sidebar {
+  padding-left: 45px;
+  padding-right: 45px;
+}
+
+.posts-list .description h2,
+.posts-list .description p {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.posts-list .description h2 {
+  font-weight: 700;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.posts-list h2.post-tag {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  padding-bottom: 12px;
+}
+.posts-list {
+  margin-top: 60px;
+  margin-bottom: 24px;
+}
+
+.posts-list .post-preview {
+  text-decoration: none;
+  overflow: hidden;
+  display: block;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 24px 0;
+}
+
+.post-preview-last {
+  border-bottom: none !important;
+}
+
+.posts-list .posts-list-caption {
+  grid-column: screen;
+  font-weight: 400;
+}
+
+.posts-list .post-preview h2 {
+  margin: 0 0 6px 0;
+  line-height: 1.2em;
+  font-style: normal;
+  font-size: 24px;
+}
+
+.posts-list .post-preview p {
+  margin: 0 0 12px 0;
+  line-height: 1.4em;
+  font-size: 16px;
+}
+
+.posts-list .post-preview .thumbnail {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  position: relative;
+  max-width: 500px;
+}
+.posts-list .post-preview img {
+  width: 100%;
+  display: block;
+}
+
+.posts-list .metadata {
+  font-size: 12px;
+  line-height: 1.4em;
+  margin-bottom: 18px;
+}
+
+.posts-list .metadata > * {
+  display: inline-block;
+}
+
+.posts-list .metadata .publishedDate {
+  margin-right: 2em;
+}
+
+.posts-list .metadata .dt-authors {
+  display: block;
+  margin-top: 0.3em;
+  margin-right: 2em;
+}
+
+.posts-list .dt-tags {
+  display: block;
+  line-height: 1em;
+}
+
+.posts-list .dt-tags .dt-tag {
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0.3em 0.4em;
+  margin-right: 0.2em;
+  margin-bottom: 0.4em;
+  font-size: 60%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.posts-list img {
+  opacity: 1;
+}
+
+.posts-list img[data-src] {
+  opacity: 0;
+}
+
+.posts-more {
+  clear: both;
+}
+
+
+.posts-sidebar {
+  font-size: 16px;
+}
+
+.posts-sidebar h3 {
+  font-size: 16px;
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.sidebar-section {
+  margin-bottom: 30px;
+}
+
+.categories ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.categories li {
+  color: rgba(0, 0, 0, 0.8);
+  margin-bottom: 0;
+}
+
+.categories li>a {
+  border-bottom: none;
+}
+
+.categories li>a:hover {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.categories .active {
+  font-weight: 600;
+}
+
+.categories .category-count {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+
+@media(min-width: 768px) {
+  .posts-list .post-preview h2 {
+    font-size: 26px;
+  }
+  .posts-list .post-preview .thumbnail {
+    float: right;
+    width: 30%;
+    margin-bottom: 0;
+  }
+  .posts-list .post-preview .description {
+    float: left;
+    width: 45%;
+  }
+  .posts-list .post-preview .metadata {
+    float: left;
+    width: 20%;
+    margin-top: 8px;
+  }
+  .posts-list .post-preview p {
+    margin: 0 0 12px 0;
+    line-height: 1.5em;
+    font-size: 16px;
+  }
+  .posts-with-sidebar .posts-list {
+    float: left;
+    width: 75%;
+  }
+  .posts-with-sidebar .posts-sidebar {
+    float: right;
+    width: 20%;
+    margin-top: 60px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+.downlevel .posts-list .post-preview {
+  color: inherit;
+}
+
+
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // add anchors
+  if (window.anchors) {
+    window.anchors.options.placement = 'left';
+    window.anchors.add('d-article > h2, d-article > h3, d-article > h4, d-article > h5');
+  }
+
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.html();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.html(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  // move refs into #references-listing
+  $('#references-listing').replaceWith($('#refs'));
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-contents a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('div.sourceCode, pre, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // remove code block used to force  highlighting css
+  $('.distill-force-highlighting-css').parent().remove();
+
+  // remove empty line numbers inserted by pandoc when using a
+  // custom syntax highlighting theme
+  $('code.sourceCode a:empty').remove();
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // article with toc class
+    $('.d-contents').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // add orcid ids
+    $('.authors-affiliations').find('.author').each(function(i, el) {
+      var orcid_id = front_matter.authors[i].orcidID;
+      if (orcid_id) {
+        var a = $('<a></a>');
+        a.attr('href', 'https://orcid.org/' + orcid_id);
+        var img = $('<img></img>');
+        img.addClass('orcid-id');
+        img.attr('alt', 'ORCID ID');
+        img.attr('src','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2ZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo1N0NEMjA4MDI1MjA2ODExOTk0QzkzNTEzRjZEQTg1NyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDozM0NDOEJGNEZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDozM0NDOEJGM0ZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkZDN0YxMTc0MDcyMDY4MTE5NUZFRDc5MUM2MUUwNEREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjU3Q0QyMDgwMjUyMDY4MTE5OTRDOTM1MTNGNkRBODU3Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+84NovQAAAR1JREFUeNpiZEADy85ZJgCpeCB2QJM6AMQLo4yOL0AWZETSqACk1gOxAQN+cAGIA4EGPQBxmJA0nwdpjjQ8xqArmczw5tMHXAaALDgP1QMxAGqzAAPxQACqh4ER6uf5MBlkm0X4EGayMfMw/Pr7Bd2gRBZogMFBrv01hisv5jLsv9nLAPIOMnjy8RDDyYctyAbFM2EJbRQw+aAWw/LzVgx7b+cwCHKqMhjJFCBLOzAR6+lXX84xnHjYyqAo5IUizkRCwIENQQckGSDGY4TVgAPEaraQr2a4/24bSuoExcJCfAEJihXkWDj3ZAKy9EJGaEo8T0QSxkjSwORsCAuDQCD+QILmD1A9kECEZgxDaEZhICIzGcIyEyOl2RkgwAAhkmC+eAm0TAAAAABJRU5ErkJggg==');
+        a.append(img);
+        $(this).append(a);
+      }
+    });
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // remove d-appendix and d-footnote-list local styles
+    $('d-appendix > style:first-child').remove();
+    $('d-footnote-list > style:first-child').remove();
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-contents').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark non-body figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    var figures = $(this).find('img, .html-widget');
+    if ($(this).attr('data-layout') !== "l-body") {
+      figures.css('width', '100%');
+    } else {
+      figures.css('max-width', '100%');
+      figures.filter("[width]").each(function(i, val) {
+        var fig = $(this);
+        fig.css('width', fig.attr('width') + 'px');
+      });
+
+    }
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.distill-site-header a[href]').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace("index.html", "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+  // add figcaption style to table captions
+  $('caption').parent('table').addClass("figcaption");
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $(window).resize();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
+  <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-20375833-3');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Convolutional LSTM for spatial forecasting","description":"In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we'd like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we'd have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/","orcidID":""}],"publishedDate":"2020-12-17T00:00:00.000+00:00","citationText":"Keydana, 2020"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="distill-site-nav distill-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">AI Blog</a>
+<input id="distill-search" class="nav-search hidden" type="text" placeholder="Search..."/>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss" aria-hidden="true"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Convolutional LSTM for spatial forecasting</h1>
+<!--radix_placeholder_categories-->
+<div class="dt-tags">
+  <a href="../../index.html#category:Torch" class="dt-tag">Torch</a>
+  <a href="../../index.html#category:R" class="dt-tag">R</a>
+  <a href="../../index.html#category:Image_Recognition_&amp;_Image_Processing" class="dt-tag">Image Recognition &amp; Image Processing</a>
+  <a href="../../index.html#category:Time_series" class="dt-tag">Time series</a>
+</div>
+<!--/radix_placeholder_categories-->
+<p><p>In forecasting spatially-determined phenomena (the weather, say, or the next frame in a movie), we want to model temporal evolution, ideally using recurrence relations. At the same time, we’d like to efficiently extract spatial features, something that is normally done with convolutional filters. Ideally then, we’d have at our disposal an architecture that is both recurrent and convolutional. In this post, we build a convolutional LSTM with torch.</p></p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>12-17-2020
+</div>
+
+<div class="d-article">
+<div class="d-contents d-contents-float">
+<nav class="l-text toc figcaption" id="TOC">
+<h3>Contents</h3>
+<ul>
+<li><a href="#what-to-expect-from-this-post">What to expect from this post</a></li>
+<li><a href="#a-torch-convlstm">A <code>torch</code> convLSTM</a>
+<ul>
+<li><a href="#input-and-output">Input and output</a></li>
+<li><a href="#interlude-outputs-states-hidden-values-whats-what">Interlude: Outputs, states, hidden values … what’s what?</a></li>
+<li><a href="#convlstm-the-plan"><code>convLSTM</code>, the plan</a></li>
+<li><a href="#a-single-step-convlstm_cell">A single step: <code>convlstm_cell</code></a></li>
+<li><a href="#iteration-over-time-steps-convlstm">Iteration over time steps: <code>convlstm</code></a></li>
+<li><a href="#calling-the-convlstm">Calling the <code>convlstm</code></a></li>
+<li><a href="#sanity-checking-the-convlstm">Sanity-checking the <code>convlstm</code></a></li>
+</ul></li>
+<li><a href="#appendix">Appendix</a>
+<ul>
+<li><a href="#keras">Keras</a></li>
+<li><a href="#torch"><code>torch</code></a></li>
+</ul></li>
+</ul>
+</nav>
+</div>
+<p>This post is the first in a loose series exploring forecasting of spatially-determined data over time. By spatially-determined I mean that whatever the quantities we’re trying to predict – be they univariate or multivariate time series, of spatial dimensionality or not – the <em>input</em> data are given on a spatial grid.</p>
+<p>For example, the input could be atmospheric measurements, such as sea surface temperature or pressure, given at some set of latitudes and longitudes. The target to be predicted could then span that same (or another) grid. Alternatively, it could be a univariate time series, like a meteorological index.</p>
+<p>But wait a second, you may be thinking. For time-series prediction, we have that time-honored set of recurrent architectures (e.g., LSTM, GRU), right? Right. We do; but, once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter <em>convolutional RNNs</em>.</p>
+<h2 id="what-to-expect-from-this-post">What to expect from this post</h2>
+<p>Today, we won’t jump into real-world applications just yet. Instead, we’ll take our time to build a convolutional LSTM (henceforth: convLSTM) in <code>torch</code>. For one, we have to – there is no official PyTorch implementation.</p>
+<aside>
+Keras, on the other hand, has one. If you’re interested in quickly playing around with a Keras convLSTM, check out <a href="https://tensorflow.rstudio.com/guide/keras/examples/conv_lstm/">this nice example</a>.
+</aside>
+<p>What’s more, this post can serve as an introduction to building your own modules. This is something you may be familiar with from Keras or not – depending on whether you’ve used custom models or rather, preferred the declarative <em>define -&gt; compile -&gt; fit</em> style. (Yes, I’m implying there’s some transfer going on if one comes to <code>torch</code> from Keras custom training. Syntactic and semantic details may be different, but both share the object-oriented style that allows for great flexibility and control.)</p>
+<p>Last but not least, we’ll also use this as a hands-on experience with RNN architectures (the LSTM, specifically). While the general concept of recurrence may be easy to grasp, it is not necessarily self-evident how those architectures should, or could, be coded. Personally, I find that independent of the framework used, RNN-related documentation leaves me confused. What exactly <em>is</em> being returned from calling an LSTM, or a GRU? (In Keras this depends on how you’ve defined the layer in question.) I suspect that once we’ve decided what we <em>want</em> to return, the actual code won’t be that complicated. Consequently, we’ll take a detour clarifying what it is that <code>torch</code> and Keras are giving us. Implementing our convLSTM will be a lot more straightforward thereafter.</p>
+<h2 id="a-torch-convlstm">A <code>torch</code> convLSTM</h2>
+<p>The code discussed here may be found on <a href="https://github.com/skeydan/convlstm">GitHub</a>. (Depending on when you’re reading this, the code in that repository may have evolved though.)</p>
+<p>My starting point was one of the PyTorch implementations found on the net, namely, <a href="https://github.com/ndrplz/ConvLSTM_pytorch/blob/master/convlstm.py">this one</a>. If you search for “PyTorch convGRU” or “PyTorch convLSTM”, you will find stunning discrepancies in how these are realized – discrepancies not just in syntax and/or engineering ambition, but on the semantic level, right at the center of what the architectures may be expected to do. As they say, let the buyer beware. (Regarding the implementation I ended up porting, I am confident that while numerous optimizations will be possible, the basic mechanism matches my expectations.)</p>
+<p>What do I expect? Let’s approach this task in a top-down way.</p>
+<h3 id="input-and-output">Input and output</h3>
+<p>The convLSTM’s input will be a time series of spatial data, each observation being of size <code>(time steps, channels, height, width)</code>.</p>
+<p>Compare this with the usual RNN input format, be it in <code>torch</code> or Keras. In both frameworks, RNNs expect tensors of size <code>(timesteps, input_dim)</code><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>. <code>input_dim</code> is <span class="math inline">\(1\)</span> for univariate time series and greater than <span class="math inline">\(1\)</span> for multivariate ones. Conceptually, we may match this to convLSTM’s <code>channels</code> dimension: There could be a single channel, for temperature, say – or there could be several, such as for pressure, temperature, and humidity. The two additional dimensions found in convLSTM, <code>height</code> and <code>width</code>, are spatial indexes into the data.</p>
+<p>In sum, we want to be able to pass data that:</p>
+<ul>
+<li><p>consist of one or more features,</p></li>
+<li><p>evolve in time, and</p></li>
+<li><p>are indexed in two spatial dimensions.</p></li>
+</ul>
+<p>How about the output? We want to be able to return forecasts for as many time steps as we have in the input sequence. This is something that <code>torch</code> RNNs do by default, while Keras equivalents do not. (You have to pass <code>return_sequences = TRUE</code> to obtain that effect.) If we’re interested in predictions for just a single point in time, we can always pick the last time step in the output tensor.</p>
+<p>However, with RNNs, it is not all about outputs. RNN architectures also carry through hidden states.</p>
+<p>What are hidden states? I carefully phrased that sentence to be as general as possible – deliberately circling around the confusion that, in my view, often arises at this point. We’ll attempt to clear up some of that confusion in a second, but let’s first finish our high-level requirements specification.</p>
+<p>We want our convLSTM to be usable in different contexts and applications. Various architectures exist that make use of hidden states, most prominently perhaps, encoder-decoder architectures. Thus, we want our convLSTM to return those as well. Again, this is something a <code>torch</code> LSTM does by default, while in Keras it is achieved using <code>return_state = TRUE</code>.</p>
+<p>Now though, it really is time for that interlude. We’ll sort out the ways things are called by both <code>torch</code> and Keras, and inspect what you get back from their respective GRUs and LSTMs.</p>
+<h3 id="interlude-outputs-states-hidden-values-whats-what">Interlude: Outputs, states, hidden values … what’s what?</h3>
+<p>For this to remain an interlude, I summarize findings on a high level. The code snippets in the appendix show how to arrive at these results. Heavily commented, they probe return values from both Keras and <code>torch</code> GRUs and LSTMs. Running these will make the upcoming summaries seem a lot less abstract.</p>
+<p>First, let’s look at the ways you create an LSTM in both frameworks. (I will generally use LSTM as the “prototypical RNN example”, and just mention GRUs when there are differences significant in the context in question.)</p>
+<p>In Keras, to create an LSTM you may write something like this:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>The <code>torch</code> equivalent would be:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span>
+  input_size <span class='op'>=</span> <span class='fl'>2</span>, <span class='co'># number of input features</span>
+  hidden_size <span class='op'>=</span> <span class='fl'>1</span> <span class='co'># number of hidden (and output!) features</span>
+<span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>Don’t focus on <code>torch</code>‘s <code>input_size</code> parameter for this discussion. (It’s the number of features in the input tensor.) The parallel occurs between Keras’ <code>units</code> and <code>torch</code>’s <code>hidden_size</code>. If you’ve been using Keras, you’re probably thinking of <code>units</code> as the thing that determines output size (equivalently, the number of features in the output). So when <code>torch</code> lets us arrive at the same result using <code>hidden_size</code>, what does that mean? It means that somehow we’re specifying the same thing, using different terminology. And it does make sense, since at every time step current input and previous hidden state are added<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>:</p>
+<p><span class="math display">\[
+\mathbf{h}_t = \mathbf{W}_{x}\mathbf{x}_t + \mathbf{W}_{h}\mathbf{h}_{t-1}
+\]</span></p>
+<p>Now, <em>about those hidden states</em>.</p>
+<p>When a Keras LSTM is defined with <code>return_state = TRUE</code>, its return value is a structure of three entities called output, memory state, and carry state. In <code>torch</code>, the same entities are referred to as output, hidden state, and cell state. (In <code>torch</code>, we always get all of them.)</p>
+<p>So are we dealing with three different types of entities? We are not.</p>
+<p>The cell, or carry state is that special thing that sets apart LSTMs from GRUs deemed responsible for the “long” in “long short-term memory”. Technically, it could be reported to the user at all points in time; as we’ll see shortly though, it is not.</p>
+<p>What about outputs and hidden, or memory states? Confusingly, these really are the same thing. Recall that for each input <em>item</em> in the input <em>sequence</em>, we’re combining it with the previous state, resulting in a new state, to be made used of in the next step<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>:</p>
+<p><span class="math display">\[
+\mathbf{h}_t = \mathbf{W}_{x}\mathbf{x}_t + \mathbf{W}_{h}\mathbf{h}_{t-1}
+\]</span></p>
+<p>Now, say that we’re interested in looking at just the final time step – that is, the default output of a Keras LSTM. From that point of view, we can consider those intermediate computations as “hidden”. Seen like that, output and hidden states feel different.</p>
+<p>However, we can also request to see the outputs for every time step. If we do so, there is no difference – the output<strong>s</strong> (plural) equal the hidden states. This can be verified using the code in the appendix.</p>
+<p>Thus, of the three things returned by an LSTM, two are really the same. How about the GRU, then? As there is no “cell state”, we really have just one type of thing left over – call it outputs or hidden states.</p>
+<p>Let’s summarize this in a table.</p>
+<p><br /></p>
+<div class="l-page">
+<table style="width:100%;">
+<caption>Table 1: RNN terminology. Comparing torch-speak and Keras-speak. In row 1, the terms are parameter names. In rows 2 and 3, they are pulled from current documentation.</caption>
+<colgroup>
+<col style="width: 80%" />
+<col style="width: 9%" />
+<col style="width: 9%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Referring to this entity:</th>
+<th><code>torch</code> says:</th>
+<th>Keras says:</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><p><em>Number of features in the output</em></p>
+<p>This determines both how many output features there are <em>and</em> the dimensionality of the hidden states.</p></td>
+<td><code>hidden_size</code></td>
+<td><code>units</code></td>
+</tr>
+<tr class="even">
+<td><p><em>Per-time-step output; latent state; intermediate state …</em></p>
+<p>This could be named “public state” in the sense that we, the users, are able to obtain <em>all values.</em></p></td>
+<td>hidden state</td>
+<td>memory state</td>
+</tr>
+<tr class="odd">
+<td><p><em>Cell state; inner state … (LSTM only)</em></p>
+<p>This could be named “private state” in that we are able to obtain a value <em>only for the last time step</em>. More on that in a second.</p></td>
+<td>cell state</td>
+<td>carry state</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><br /></p>
+<p>Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every time step. The cell state, however, we can access only for the very last time step. This is purely an implementation decision. As we’ll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.</p>
+<p>If you dislike the pragmatism of this distinction, you can always go with the math. When a new cell state has been computed (based on prior cell state, input, forget, and cell gates – the specifics of which we are not going to get into here), it is transformed to the hidden (a.k.a. output) state making use of yet another, namely, the output gate:</p>
+<p><span class="math display">\[
+h_t = o_t \odot \tanh(c_t)
+\]</span></p>
+<p>Definitely, then, hidden state (output, resp.) builds on cell state, adding additional modeling power.</p>
+<p>Now it is time to get back to our original goal and build that convLSTM. First though, let’s summarize the return values obtainable from <code>torch</code> and Keras.</p>
+<p><br /></p>
+<div class="l-page">
+<table>
+<caption>Table 2: Contrasting ways of obtaining various return values in <code>torch</code> vs. Keras. Cf. the appendix for complete examples.</caption>
+<colgroup>
+<col style="width: 54%" />
+<col style="width: 13%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>To achieve this goal:</th>
+<th>in <code>torch</code> do:</th>
+<th>in Keras do:</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>access all intermediate outputs ( = per-time-step outputs)</td>
+<td><code>ret[[1]]</code></td>
+<td><code>return_sequences = TRUE</code></td>
+</tr>
+<tr class="even">
+<td>access both “hidden state” (output) and “cell state” from final time step (only!)</td>
+<td><code>ret[[2]]</code></td>
+<td><code>return_state = TRUE</code></td>
+</tr>
+<tr class="odd">
+<td>access all intermediate outputs and the final “cell state”</td>
+<td>both of the above</td>
+<td><code>return_sequences = TRUE, return_state = TRUE</code></td>
+</tr>
+<tr class="even">
+<td>access all intermediate outputs and “cell states” from all time steps</td>
+<td>no way</td>
+<td>no way</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><br /></p>
+<h3 id="convlstm-the-plan"><code>convLSTM</code>, the plan</h3>
+<p>In both <code>torch</code> and Keras RNN architectures, single time steps are processed by corresponding <code>Cell</code> classes: There is an LSTM Cell matching the LSTM, a GRU Cell matching the GRU, and so on. We do the same for ConvLSTM. In <code>convlstm_cell()</code>, we first define what should happen to a single observation; then in <code>convlstm()</code>, we build up the recurrence logic.</p>
+<p>Once we’re done, we create a dummy dataset, as reduced-to-the-essentials as can be. With more complex datasets, even artificial ones, chances are that if we don’t see any training progress, there are hundreds of possible explanations. We want a sanity check that, if failed, leaves no excuses. Realistic applications are left to future posts.</p>
+<h3 id="a-single-step-convlstm_cell">A single step: <code>convlstm_cell</code></h3>
+<p>Our <code>convlstm_cell</code>’s constructor takes arguments <code>input_dim</code> , <code>hidden_dim</code>, and <code>bias</code>, just like a <code>torch</code> LSTM Cell.</p>
+<p>But we’re processing two-dimensional input data. Instead of the usual affine combination of new input and previous state, we use a convolution of kernel size <code>kernel_size</code>. Inside <code>convlstm_cell</code>, it is <code>self$conv</code> that takes care of this.</p>
+<p>Note how the <code>channels</code> dimension, which in the original input data would correspond to different variables, is creatively used to consolidate four convolutions into one: Each channel output will be passed to just one of the four cell gates. Once in possession of the convolution output, <code>forward()</code> applies the gate logic, resulting in the two types of states it needs to send back to the caller.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torch</span><span class='op'>)</span>
+<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>zeallot</span><span class='op'>)</span>
+
+<span class='va'>convlstm_cell</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
+  
+  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dim</span>, <span class='va'>kernel_size</span>, <span class='va'>bias</span><span class='op'>)</span> <span class='op'>{</span>
+    
+    <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span> <span class='op'>&lt;-</span> <span class='va'>hidden_dim</span>
+    
+    <span class='va'>padding</span> <span class='op'>&lt;-</span> <span class='va'>kernel_size</span> <span class='op'>%/%</span> <span class='fl'>2</span>
+    
+    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv2d</span><span class='op'>(</span>
+      in_channels <span class='op'>=</span> <span class='va'>input_dim</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,
+      <span class='co'># for each of input, forget, output, and cell gates</span>
+      out_channels <span class='op'>=</span> <span class='fl'>4</span> <span class='op'>*</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,
+      kernel_size <span class='op'>=</span> <span class='va'>kernel_size</span>,
+      padding <span class='op'>=</span> <span class='va'>padding</span>,
+      bias <span class='op'>=</span> <span class='va'>bias</span>
+    <span class='op'>)</span>
+  <span class='op'>}</span>,
+  
+  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>prev_states</span><span class='op'>)</span> <span class='op'>{</span>
+
+    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h_prev</span>, <span class='va'>c_prev</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>prev_states</span>
+    
+    <span class='va'>combined</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>h_prev</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>  <span class='co'># concatenate along channel axis</span>
+    <span class='va'>combined_conv</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv</span><span class='op'>(</span><span class='va'>combined</span><span class='op'>)</span>
+    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>cc_i</span>, <span class='va'>cc_f</span>, <span class='va'>cc_o</span>, <span class='va'>cc_g</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>torch_split</span><span class='op'>(</span><span class='va'>combined_conv</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
+    
+    <span class='co'># input, forget, output, and cell gates (corresponding to torch's LSTM)</span>
+    <span class='va'>i</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_i</span><span class='op'>)</span>
+    <span class='va'>f</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_f</span><span class='op'>)</span>
+    <span class='va'>o</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_o</span><span class='op'>)</span>
+    <span class='va'>g</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>cc_g</span><span class='op'>)</span>
+    
+    <span class='co'># cell state</span>
+    <span class='va'>c_next</span> <span class='op'>&lt;-</span> <span class='va'>f</span> <span class='op'>*</span> <span class='va'>c_prev</span> <span class='op'>+</span> <span class='va'>i</span> <span class='op'>*</span> <span class='va'>g</span>
+    <span class='co'># hidden state</span>
+    <span class='va'>h_next</span> <span class='op'>&lt;-</span> <span class='va'>o</span> <span class='op'>*</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>c_next</span><span class='op'>)</span>
+    
+    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h_next</span>, <span class='va'>c_next</span><span class='op'>)</span>
+  <span class='op'>}</span>,
+  
+  init_hidden <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>{</span>
+    
+    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
+      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span>,
+      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span><span class='op'>)</span>
+  <span class='op'>}</span>
+<span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>Now <code>convlstm_cell</code> has to be called for every time step. This is done by <code>convlstm</code>.</p>
+<h3 id="iteration-over-time-steps-convlstm">Iteration over time steps: <code>convlstm</code></h3>
+<p>A <code>convlstm</code> may consist of several layers, just like a <code>torch</code> LSTM. For each layer, we are able to specify hidden and kernel sizes individually.</p>
+<p>During initialization, each layer gets its own <code>convlstm_cell</code>. On call, <code>convlstm</code> executes two loops. The outer one iterates over layers. At the end of each iteration, we store the final pair <code>(hidden state, cell state)</code> for later reporting. The inner loop runs over input sequences, calling <code>convlstm_cell</code> at each time step.</p>
+<p>We also keep track of intermediate outputs, so we’ll be able to return the complete list of <code>hidden_state</code>s seen during the process. Unlike a <code>torch</code> LSTM, we do this <em>for every layer</em>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>convlstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
+  
+  <span class='co'># hidden_dims and kernel_sizes are vectors, with one element for each layer in n_layers</span>
+  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dims</span>, <span class='va'>kernel_sizes</span>, <span class='va'>n_layers</span>, <span class='va'>bias</span> <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>{</span>
+ 
+    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span> <span class='op'>&lt;-</span> <span class='va'>n_layers</span>
+    
+    <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='op'>)</span>
+    
+    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
+      <span class='va'>cur_input_dim</span> <span class='op'>&lt;-</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>i</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span> <span class='va'>input_dim</span> <span class='kw'>else</span> <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>]</span>
+      <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>$</span><span class='fu'>append</span><span class='op'>(</span><span class='fu'>convlstm_cell</span><span class='op'>(</span><span class='va'>cur_input_dim</span>, <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>kernel_sizes</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>bias</span><span class='op'>)</span><span class='op'>)</span>
+    <span class='op'>}</span>
+  <span class='op'>}</span>,
+  
+  <span class='co'># we always assume batch-first</span>
+  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
+    
+    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>seq_len</span>, <span class='va'>num_channels</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>size</span><span class='op'>(</span><span class='op'>)</span>
+   
+    <span class='co'># initialize hidden states</span>
+    <span class='va'>init_hidden</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
+    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
+      <span class='va'>init_hidden</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>init_hidden</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span>
+    <span class='op'>}</span>
+    
+    <span class='co'># list containing the outputs, of length seq_len, for each layer</span>
+    <span class='co'># this is the same as h, at each step in the sequence</span>
+    <span class='va'>layer_output_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
+    
+    <span class='co'># list containing the last states (h, c) for each layer</span>
+    <span class='va'>layer_state_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
+
+    <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>x</span>
+    <span class='va'>hidden_states</span> <span class='op'>&lt;-</span> <span class='va'>init_hidden</span>
+    
+    <span class='co'># loop over layers</span>
+    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
+      
+      <span class='co'># every layer's hidden state starts from 0 (non-stateful)</span>
+      <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>hidden_states</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span>
+      <span class='co'># outputs, of length seq_len, for this layer</span>
+      <span class='co'># equivalently, list of h states for each time step</span>
+      <span class='va'>output_sequence</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>seq_len</span><span class='op'>)</span>
+      
+      <span class='co'># loop over time steps</span>
+      <span class='kw'>for</span> <span class='op'>(</span><span class='va'>t</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>seq_len</span><span class='op'>)</span> <span class='op'>{</span>
+        <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>cur_layer_input</span><span class='op'>[</span> , <span class='va'>t</span>, , , <span class='op'>]</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span><span class='op'>)</span>
+        <span class='co'># keep track of output (h) for every time step</span>
+        <span class='co'># h has dim (batch_size, hidden_size, height, width)</span>
+        <span class='va'>output_sequence</span><span class='op'>[[</span><span class='va'>t</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>h</span>
+      <span class='op'>}</span>
+
+      <span class='co'># stack hs for all time steps over seq_len dimension</span>
+      <span class='co'># stacked_outputs has dim (batch_size, seq_len, hidden_size, height, width)</span>
+      <span class='co'># same as input to forward (x)</span>
+      <span class='va'>stacked_outputs</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>output_sequence</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
+      
+      <span class='co'># pass the list of outputs (hs) to next layer</span>
+      <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span>
+      
+      <span class='co'># keep track of list of outputs or this layer</span>
+      <span class='va'>layer_output_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span>
+      <span class='co'># keep track of last state for this layer</span>
+      <span class='va'>layer_state_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span>
+    <span class='op'>}</span>
+ 
+    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>layer_output_list</span>, <span class='va'>layer_state_list</span><span class='op'>)</span>
+  <span class='op'>}</span>
+    
+<span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<h3 id="calling-the-convlstm">Calling the <code>convlstm</code></h3>
+<p>Let’s see the input format expected by <code>convlstm</code>, and how to access its different outputs.</p>
+<p>Here is a suitable input tensor.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='co'># batch_size, seq_len, channels, height, width</span>
+<span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_rand</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span>, <span class='fl'>3</span>, <span class='fl'>16</span>, <span class='fl'>16</span><span class='op'>)</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>First we make use of a single layer.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fl'>5</span>, kernel_sizes <span class='op'>=</span> <span class='fl'>3</span>, n_layers <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+
+<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>We get back a list of length two, which we immediately split up into the two types of output returned: intermediate outputs from all layers, and final states (of both types) for the last layer.</p>
+<p>With just a single layer, <code>layer_outputs[[1]]</code>holds all of the layer’s intermediate outputs, stacked on dimension two.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># [1]  2  4  5 16 16</span>
+</code></pre>
+</div>
+</div>
+<p><code>layer_last_states[[1]]</code>is a list of tensors, the first of which holds the single layer’s final hidden state, and the second, its final cell state.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># [1]  2  5 16 16</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># [1]  2  5 16 16</span>
+</code></pre>
+</div>
+</div>
+<p>For comparison, this is how return values look for a multi-layer architecture.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
+<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
+
+<span class='co'># for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># 2  4  5 16 16</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># 2  4  1 16 16</span>
+
+<span class='co'># list of 2 tensors for each layer</span>
+<span class='fu'><a href='https://rdrr.io/r/utils/str.html'>str</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>)</span>
+<span class='co'># List of 3</span>
+<span class='co'>#  $ :List of 2</span>
+<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
+<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
+<span class='co'>#  $ :List of 2</span>
+<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
+<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
+<span class='co'>#  $ :List of 2</span>
+<span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span>
+<span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span>
+
+<span class='co'># h, of size (batch_size, hidden_size, height, width)</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># 2  1 16 16</span>
+
+<span class='co'># c, of size (batch_size, hidden_size, height, width)</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
+<span class='co'># 2  1 16 16</span>
+</code></pre>
+</div>
+</div>
+<p>Now we want to sanity-check this module with the simplest-possible dummy data.</p>
+<h3 id="sanity-checking-the-convlstm">Sanity-checking the <code>convlstm</code></h3>
+<p>We generate black-and-white “movies” of diagonal beams successively translated in space.</p>
+<p>Each sequence consists of six time steps, and each beam of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torchvision</span><span class='op'>)</span>
+
+<span class='va'>beams</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>6</span><span class='op'>)</span>
+<span class='va'>beam</span> <span class='op'>&lt;-</span> <span class='fu'>torch_eye</span><span class='op'>(</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>nnf_pad</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>6</span>, <span class='fl'>12</span>, <span class='fl'>12</span>, <span class='fl'>6</span><span class='op'>)</span><span class='op'>)</span> <span class='co'># left, right, top, bottom</span>
+<span class='va'>beams</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>beam</span>
+</code></pre>
+</div>
+</div>
+<p>Using <code>torch_roll()</code> , we create a pattern where this beam moves up diagonally, and stack the individual tensors along the <code>timesteps</code> dimension.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>{</span>
+  <span class='va'>beams</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>torch_roll</span><span class='op'>(</span><span class='va'>beam</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='op'>(</span><span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>,<span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span>
+<span class='op'>}</span>
+
+<span class='va'>init_sequence</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>beams</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>That’s a single sequence. Thanks to <code>torchvision::transform_random_affine()</code>, we almost effortlessly produce a dataset of a hundred sequences. Moving beams start at random points in the spatial frame, but they all share that upward-diagonal motion.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>sequences</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span>
+<span class='va'>sequences</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>init_sequence</span>
+
+<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>100</span><span class='op'>)</span> <span class='op'>{</span>
+  <span class='va'>sequences</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>transform_random_affine</span><span class='op'>(</span><span class='va'>init_sequence</span>, degrees <span class='op'>=</span> <span class='fl'>0</span>, translate <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.5</span>, <span class='fl'>0.5</span><span class='op'>)</span><span class='op'>)</span>
+<span class='op'>}</span>
+
+<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>sequences</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+
+<span class='co'># add channels dimension</span>
+<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='va'>input</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>3</span><span class='op'>)</span>
+<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+<span class='co'># [1] 100   6  1  24  24</span>
+</code></pre>
+</div>
+</div>
+<p>That’s it for the raw data. Now we still need a <code>dataset</code> and a <code>dataloader</code>. Of the six time steps, we use the first five as input and try to predict the last one.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>dummy_ds</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span>
+  
+  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>{</span>
+    <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='va'>data</span>
+  <span class='op'>}</span>,
+  
+  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
+    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>5</span>, <span class='va'>..</span><span class='op'>]</span>, y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>6</span>, <span class='va'>..</span><span class='op'>]</span><span class='op'>)</span>
+  <span class='op'>}</span>,
+  
+  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
+    <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>)</span>
+  <span class='op'>}</span>
+<span class='op'>)</span>
+
+<span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>dummy_ds</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+<span class='va'>dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>ds</span>, batch_size <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<p>Here is a tiny-ish convLSTM, trained for motion prediction:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>1</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
+
+<span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optim_adam</span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span><span class='op'>)</span>
+
+<span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
+
+<span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
+  
+  <span class='va'>model</span><span class='op'>$</span><span class='fu'>train</span><span class='op'>(</span><span class='op'>)</span>
+  <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span>
+  
+  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='fu'>enumerate</span><span class='op'>(</span><span class='va'>dl</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
+    
+    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>zero_grad</span><span class='op'>(</span><span class='op'>)</span>
+    
+    <span class='co'># last-time-step output from last layer</span>
+    <span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
+  
+    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>preds</span>, <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>)</span>
+    <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_losses</span>, <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
+    
+    <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
+    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>step</span><span class='op'>(</span><span class='op'>)</span>
+  <span class='op'>}</span>
+  
+  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='op'>%%</span> <span class='fl'>10</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span>
+    <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, training loss:%3f\n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>batch_losses</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
+<span class='op'>}</span>
+</code></pre>
+</div>
+</div>
+<pre><code>Epoch 10, training loss:0.008522
+
+Epoch 20, training loss:0.008079
+
+Epoch 30, training loss:0.006187
+
+Epoch 40, training loss:0.003828
+
+Epoch 50, training loss:0.002322
+
+Epoch 60, training loss:0.001594
+
+Epoch 70, training loss:0.001376
+
+Epoch 80, training loss:0.001258
+
+Epoch 90, training loss:0.001218
+
+Epoch 100, training loss:0.001171</code></pre>
+<p>Loss decreases, but that in itself is not a guarantee the model has learned anything. Has it? Let’s inspect its forecast for the very first sequence and see.</p>
+<p>For printing, I’m zooming in on the relevant region in the 24x24-pixel frame. Here is the ground truth for time step six:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span>
+</code></pre>
+</div>
+</div>
+<pre><code>0  0  0  0  0  0  0  0  0  0
+0  0  0  0  0  0  0  0  0  0
+0  0  1  0  0  0  0  0  0  0
+0  0  0  1  0  0  0  0  0  0
+0  0  0  0  1  0  0  0  0  0
+0  0  0  0  0  1  0  0  0  0
+0  0  0  0  0  0  1  0  0  0
+0  0  0  0  0  0  0  1  0  0
+0  0  0  0  0  0  0  0  0  0
+0  0  0  0  0  0  0  0  0  0</code></pre>
+<p>And here is the forecast. This does not look bad at all, given there was neither experimentation nor tuning involved.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>preds</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span><span class='op'>)</span>, <span class='fl'>2</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<pre><code>       [,1]  [,2]  [,3]  [,4]  [,5]  [,6]  [,7]  [,8]  [,9] [,10]
+ [1,]  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00     0
+ [2,] -0.02  0.36  0.01  0.06  0.00  0.00  0.00  0.00  0.00     0
+ [3,]  0.00 -0.01  0.71  0.01  0.06  0.00  0.00  0.00  0.00     0
+ [4,] -0.01  0.04  0.00  0.75  0.01  0.06  0.00  0.00  0.00     0
+ [5,]  0.00 -0.01 -0.01 -0.01  0.75  0.01  0.06  0.00  0.00     0
+ [6,]  0.00  0.01  0.00 -0.07 -0.01  0.75  0.01  0.06  0.00     0
+ [7,]  0.00  0.01 -0.01 -0.01 -0.07 -0.01  0.75  0.01  0.06     0
+ [8,]  0.00  0.00  0.01  0.00  0.00 -0.01  0.00  0.71  0.00     0
+ [9,]  0.00  0.00  0.00  0.01  0.01  0.00  0.03 -0.01  0.37     0
+[10,]  0.00  0.00  0.00  0.00  0.00  0.00 -0.01 -0.01 -0.01     0</code></pre>
+<p>This should suffice for a sanity check. If you made it till the end, thanks for your patience! In the best case, you’ll be able to apply this architecture (or a similar one) to your own data – but even if not, I hope you’ve enjoyed learning about <code>torch</code> model coding and/or RNN weirdness ;-)</p>
+<p>I, for one, am certainly looking forward to exploring convLSTMs on real-world problems in the near future. Thanks for reading!</p>
+<h2 id="appendix">Appendix</h2>
+<p>This appendix contains the code used to create tables 1 and 2 above.</p>
+<h3 id="keras">Keras</h3>
+<h4 id="lstm">LSTM</h4>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+
+<span class='co'># batch of 3, with 4 time steps each and a single feature</span>
+<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_normal</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3L</span>, <span class='fl'>4L</span>, <span class='fl'>1L</span><span class='op'>)</span><span class='op'>)</span>
+<span class='va'>input</span>
+
+<span class='co'># default args</span>
+<span class='co'># return shape = (batch_size, units)</span>
+<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_sequences = TRUE</span>
+<span class='co'># return shape = (batch_size, time steps, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span>
+<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+  <span class='co'># bias is by default initialized to 0</span>
+<span class='op'>)</span>
+<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_state = TRUE</span>
+<span class='co'># return shape = list of:</span>
+<span class='co'>#                - outputs, of shape: (batch_size, units)</span>
+<span class='co'>#                - "memory states" for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how the first and second list items are identical!</span>
+<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_state = TRUE, return_sequences = TRUE</span>
+<span class='co'># return shape = list of:</span>
+<span class='co'>#                - outputs, of shape: (batch_size, time steps, units)</span>
+<span class='co'>#                - "memory" states for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how again, the "memory" state found in list item 2 matches the final-time step outputs reported in item 1</span>
+<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<h4 id="gru">GRU</h4>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='co'># default args</span>
+<span class='co'># return shape = (batch_size, units)</span>
+<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_sequences = TRUE</span>
+<span class='co'># return shape = (batch_size, time steps, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span>
+<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_state = TRUE</span>
+<span class='co'># return shape = list of:</span>
+<span class='co'>#    - outputs, of shape: (batch_size, units)</span>
+<span class='co'>#    - "memory" states for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how the list items are identical!</span>
+<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+
+<span class='co'># return_state = TRUE, return_sequences = TRUE</span>
+<span class='co'># return shape = list of:</span>
+<span class='co'>#    - outputs, of shape: (batch_size, time steps, units)</span>
+<span class='co'>#    - "memory states" for the last time step, of shape: (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note how again, the "memory state" found in list item 2 matches the final-time-step outputs reported in item 1</span>
+<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
+  units <span class='op'>=</span> <span class='fl'>1</span>,
+  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<span class='op'>)</span>
+<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<h3 id="torch"><code>torch</code></h3>
+<h4 id="lstm-non-stacked-architecture">LSTM (non-stacked architecture)</h4>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torch</span><span class='op'>)</span>
+
+<span class='co'># batch of 3, with 4 time steps each and a single feature</span>
+<span class='co'># we will specify batch_first = TRUE when creating the LSTM</span>
+<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>4</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>
+<span class='va'>input</span>
+
+<span class='co'># default args</span>
+<span class='co'># return shape = (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked LSTM - effectively composing two LSTM modules</span>
+<span class='co'># default for num_layers is 1 though </span>
+<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span>
+  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span>
+  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span>
+  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span>
+<span class='op'>)</span>
+
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
+
+<span class='co'># returns a list of length 2, namely</span>
+<span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span>
+<span class='co'>#       Note 1: If this is a stacked LSTM, these are the outputs from the last layer only.</span>
+<span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer LSTMs.</span>
+<span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span>
+<span class='co'>#  - list of:</span>
+<span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
+<span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
+<span class='co'>#      Note 3: For a single-layer LSTM, the hidden states are already provided in the first list item.</span>
+
+<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<h4 id="gru-non-stacked-architecture">GRU (non-stacked architecture)</h4>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre><code><span class='co'># default args</span>
+<span class='co'># return shape = (batch_size, units)</span>
+<span class='co'>#</span>
+<span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked GRU - effectively composing two GRU modules</span>
+<span class='co'># default for num_layers is 1 though </span>
+<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>nn_gru</span><span class='op'>(</span>
+  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span>
+  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span>
+  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span>
+<span class='op'>)</span>
+
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
+<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
+
+<span class='co'># returns a list of length 2, namely</span>
+<span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span>
+<span class='co'>#       Note 1: If this is a stacked GRU, these are the outputs from the last layer only.</span>
+<span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer GRUs.</span>
+<span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span>
+<span class='co'>#  - list of:</span>
+<span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
+<span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
+<span class='co'>#       Note 3: For a single-layer GRU, these values are already provided in the first list item.</span>
+<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
+</code></pre>
+</div>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>Leaving aside the batch dimension in this discussion.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>In theory, it would be possible for them to be of different sizes if the respective weight matrices transformed their operands to the same output size.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3" role="doc-endnote"><p>Yes, this is the same formula as above.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2020-12-17-torch-convlstm/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=Convolutional%20LSTM%20for%20spatial%20forecasting&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2020-12-17-torch-convlstm%2F">
+        <i class="fab fa-twitter"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2020-12-17-torch-convlstm%2F&amp;title=Convolutional%20LSTM%20for%20spatial%20forecasting">
+        <i class="fab fa-linkedin"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script>
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/';
+  this.page.identifier = 'posts/2020-12-17-torch-convlstm/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+Posts also available at <a href="https://www.r-bloggers.com">r-bloggers</a>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function(){
+    var menulink = document.querySelector("a[href='#category:R']");
+    if (menulink) menulink.parentNode.style.display = "None";
+    
+    for (var e of document.querySelectorAll(".dt-tag")) {
+      if (e.innerHTML == 'R') e.style.display = "None";
+    }
+  });
+</script>
+</div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2020, Dec. 17). RStudio AI Blog: Convolutional LSTM for spatial forecasting. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydanatorchconvlstm,
+  author = {Keydana, Sigrid},
+  title = {RStudio AI Blog: Convolutional LSTM for spatial forecasting},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/},
+  year = {2020}
+}</pre>
+</div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

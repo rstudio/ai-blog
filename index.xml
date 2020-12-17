@@ -12,7 +12,652 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Tue, 15 Dec 2020 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 17 Dec 2020 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Convolutional LSTM for spatial forecasting</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm</link>
+      <description>
+
+
+&lt;p&gt;This post is the first in a loose series exploring forecasting of spatially-determined data over time. By spatially-determined I mean that whatever the quantities we’re trying to predict – be they univariate or multivariate time series, of spatial dimensionality or not – the &lt;em&gt;input&lt;/em&gt; data are given on a spatial grid.&lt;/p&gt;
+&lt;p&gt;For example, the input could be atmospheric measurements, such as sea surface temperature or pressure, given at some set of latitudes and longitudes. The target to be predicted could then span that same (or another) grid. Alternatively, it could be a univariate time series, like a meteorological index.&lt;/p&gt;
+&lt;p&gt;But wait a second, you may be thinking. For time-series prediction, we have that time-honored set of recurrent architectures (e.g., LSTM, GRU), right? Right. We do; but, once we feed spatial data to an RNN, treating different locations as different input features, we lose an essential structural relationship. Importantly, we need to operate in both space and time. We want both: recurrence relations and convolutional filters. Enter &lt;em&gt;convolutional RNNs&lt;/em&gt;.&lt;/p&gt;
+&lt;h2 id="what-to-expect-from-this-post"&gt;What to expect from this post&lt;/h2&gt;
+&lt;p&gt;Today, we won’t jump into real-world applications just yet. Instead, we’ll take our time to build a convolutional LSTM (henceforth: convLSTM) in &lt;code&gt;torch&lt;/code&gt;. For one, we have to – there is no official PyTorch implementation.&lt;/p&gt;
+&lt;aside&gt;
+Keras, on the other hand, has one. If you’re interested in quickly playing around with a Keras convLSTM, check out &lt;a href="https://tensorflow.rstudio.com/guide/keras/examples/conv_lstm/"&gt;this nice example&lt;/a&gt;.
+&lt;/aside&gt;
+&lt;p&gt;What’s more, this post can serve as an introduction to building your own modules. This is something you may be familiar with from Keras or not – depending on whether you’ve used custom models or rather, preferred the declarative &lt;em&gt;define -&amp;gt; compile -&amp;gt; fit&lt;/em&gt; style. (Yes, I’m implying there’s some transfer going on if one comes to &lt;code&gt;torch&lt;/code&gt; from Keras custom training. Syntactic and semantic details may be different, but both share the object-oriented style that allows for great flexibility and control.)&lt;/p&gt;
+&lt;p&gt;Last but not least, we’ll also use this as a hands-on experience with RNN architectures (the LSTM, specifically). While the general concept of recurrence may be easy to grasp, it is not necessarily self-evident how those architectures should, or could, be coded. Personally, I find that independent of the framework used, RNN-related documentation leaves me confused. What exactly &lt;em&gt;is&lt;/em&gt; being returned from calling an LSTM, or a GRU? (In Keras this depends on how you’ve defined the layer in question.) I suspect that once we’ve decided what we &lt;em&gt;want&lt;/em&gt; to return, the actual code won’t be that complicated. Consequently, we’ll take a detour clarifying what it is that &lt;code&gt;torch&lt;/code&gt; and Keras are giving us. Implementing our convLSTM will be a lot more straightforward thereafter.&lt;/p&gt;
+&lt;h2 id="a-torch-convlstm"&gt;A &lt;code&gt;torch&lt;/code&gt; convLSTM&lt;/h2&gt;
+&lt;p&gt;The code discussed here may be found on &lt;a href="https://github.com/skeydan/convlstm"&gt;GitHub&lt;/a&gt;. (Depending on when you’re reading this, the code in that repository may have evolved though.)&lt;/p&gt;
+&lt;p&gt;My starting point was one of the PyTorch implementations found on the net, namely, &lt;a href="https://github.com/ndrplz/ConvLSTM_pytorch/blob/master/convlstm.py"&gt;this one&lt;/a&gt;. If you search for “PyTorch convGRU” or “PyTorch convLSTM”, you will find stunning discrepancies in how these are realized – discrepancies not just in syntax and/or engineering ambition, but on the semantic level, right at the center of what the architectures may be expected to do. As they say, let the buyer beware. (Regarding the implementation I ended up porting, I am confident that while numerous optimizations will be possible, the basic mechanism matches my expectations.)&lt;/p&gt;
+&lt;p&gt;What do I expect? Let’s approach this task in a top-down way.&lt;/p&gt;
+&lt;h3 id="input-and-output"&gt;Input and output&lt;/h3&gt;
+&lt;p&gt;The convLSTM’s input will be a time series of spatial data, each observation being of size &lt;code&gt;(time steps, channels, height, width)&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Compare this with the usual RNN input format, be it in &lt;code&gt;torch&lt;/code&gt; or Keras. In both frameworks, RNNs expect tensors of size &lt;code&gt;(timesteps, input_dim)&lt;/code&gt;&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;. &lt;code&gt;input_dim&lt;/code&gt; is &lt;span class="math inline"&gt;\(1\)&lt;/span&gt; for univariate time series and greater than &lt;span class="math inline"&gt;\(1\)&lt;/span&gt; for multivariate ones. Conceptually, we may match this to convLSTM’s &lt;code&gt;channels&lt;/code&gt; dimension: There could be a single channel, for temperature, say – or there could be several, such as for pressure, temperature, and humidity. The two additional dimensions found in convLSTM, &lt;code&gt;height&lt;/code&gt; and &lt;code&gt;width&lt;/code&gt;, are spatial indexes into the data.&lt;/p&gt;
+&lt;p&gt;In sum, we want to be able to pass data that:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;consist of one or more features,&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;evolve in time, and&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;are indexed in two spatial dimensions.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;How about the output? We want to be able to return forecasts for as many time steps as we have in the input sequence. This is something that &lt;code&gt;torch&lt;/code&gt; RNNs do by default, while Keras equivalents do not. (You have to pass &lt;code&gt;return_sequences = TRUE&lt;/code&gt; to obtain that effect.) If we’re interested in predictions for just a single point in time, we can always pick the last time step in the output tensor.&lt;/p&gt;
+&lt;p&gt;However, with RNNs, it is not all about outputs. RNN architectures also carry through hidden states.&lt;/p&gt;
+&lt;p&gt;What are hidden states? I carefully phrased that sentence to be as general as possible – deliberately circling around the confusion that, in my view, often arises at this point. We’ll attempt to clear up some of that confusion in a second, but let’s first finish our high-level requirements specification.&lt;/p&gt;
+&lt;p&gt;We want our convLSTM to be usable in different contexts and applications. Various architectures exist that make use of hidden states, most prominently perhaps, encoder-decoder architectures. Thus, we want our convLSTM to return those as well. Again, this is something a &lt;code&gt;torch&lt;/code&gt; LSTM does by default, while in Keras it is achieved using &lt;code&gt;return_state = TRUE&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Now though, it really is time for that interlude. We’ll sort out the ways things are called by both &lt;code&gt;torch&lt;/code&gt; and Keras, and inspect what you get back from their respective GRUs and LSTMs.&lt;/p&gt;
+&lt;h3 id="interlude-outputs-states-hidden-values-whats-what"&gt;Interlude: Outputs, states, hidden values … what’s what?&lt;/h3&gt;
+&lt;p&gt;For this to remain an interlude, I summarize findings on a high level. The code snippets in the appendix show how to arrive at these results. Heavily commented, they probe return values from both Keras and &lt;code&gt;torch&lt;/code&gt; GRUs and LSTMs. Running these will make the upcoming summaries seem a lot less abstract.&lt;/p&gt;
+&lt;p&gt;First, let’s look at the ways you create an LSTM in both frameworks. (I will generally use LSTM as the “prototypical RNN example”, and just mention GRUs when there are differences significant in the context in question.)&lt;/p&gt;
+&lt;p&gt;In Keras, to create an LSTM you may write something like this:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;lstm &amp;lt;- layer_lstm(units = 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;code&gt;torch&lt;/code&gt; equivalent would be:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;lstm &amp;lt;- nn_lstm(
+  input_size = 2, # number of input features
+  hidden_size = 1 # number of hidden (and output!) features
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Don’t focus on &lt;code&gt;torch&lt;/code&gt;‘s &lt;code&gt;input_size&lt;/code&gt; parameter for this discussion. (It’s the number of features in the input tensor.) The parallel occurs between Keras’ &lt;code&gt;units&lt;/code&gt; and &lt;code&gt;torch&lt;/code&gt;’s &lt;code&gt;hidden_size&lt;/code&gt;. If you’ve been using Keras, you’re probably thinking of &lt;code&gt;units&lt;/code&gt; as the thing that determines output size (equivalently, the number of features in the output). So when &lt;code&gt;torch&lt;/code&gt; lets us arrive at the same result using &lt;code&gt;hidden_size&lt;/code&gt;, what does that mean? It means that somehow we’re specifying the same thing, using different terminology. And it does make sense, since at every time step current input and previous hidden state are added&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;:&lt;/p&gt;
+&lt;p&gt;&lt;span class="math display"&gt;\[
+\mathbf{h}_t = \mathbf{W}_{x}\mathbf{x}_t + \mathbf{W}_{h}\mathbf{h}_{t-1}
+\]&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Now, &lt;em&gt;about those hidden states&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;When a Keras LSTM is defined with &lt;code&gt;return_state = TRUE&lt;/code&gt;, its return value is a structure of three entities called output, memory state, and carry state. In &lt;code&gt;torch&lt;/code&gt;, the same entities are referred to as output, hidden state, and cell state. (In &lt;code&gt;torch&lt;/code&gt;, we always get all of them.)&lt;/p&gt;
+&lt;p&gt;So are we dealing with three different types of entities? We are not.&lt;/p&gt;
+&lt;p&gt;The cell, or carry state is that special thing that sets apart LSTMs from GRUs deemed responsible for the “long” in “long short-term memory”. Technically, it could be reported to the user at all points in time; as we’ll see shortly though, it is not.&lt;/p&gt;
+&lt;p&gt;What about outputs and hidden, or memory states? Confusingly, these really are the same thing. Recall that for each input &lt;em&gt;item&lt;/em&gt; in the input &lt;em&gt;sequence&lt;/em&gt;, we’re combining it with the previous state, resulting in a new state, to be made used of in the next step&lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;:&lt;/p&gt;
+&lt;p&gt;&lt;span class="math display"&gt;\[
+\mathbf{h}_t = \mathbf{W}_{x}\mathbf{x}_t + \mathbf{W}_{h}\mathbf{h}_{t-1}
+\]&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Now, say that we’re interested in looking at just the final time step – that is, the default output of a Keras LSTM. From that point of view, we can consider those intermediate computations as “hidden”. Seen like that, output and hidden states feel different.&lt;/p&gt;
+&lt;p&gt;However, we can also request to see the outputs for every time step. If we do so, there is no difference – the output&lt;strong&gt;s&lt;/strong&gt; (plural) equal the hidden states. This can be verified using the code in the appendix.&lt;/p&gt;
+&lt;p&gt;Thus, of the three things returned by an LSTM, two are really the same. How about the GRU, then? As there is no “cell state”, we really have just one type of thing left over – call it outputs or hidden states.&lt;/p&gt;
+&lt;p&gt;Let’s summarize this in a table.&lt;/p&gt;
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;div class="l-page"&gt;
+&lt;table style="width:100%;"&gt;
+&lt;caption&gt;Table 1: RNN terminology. Comparing torch-speak and Keras-speak. In row 1, the terms are parameter names. In rows 2 and 3, they are pulled from current documentation.&lt;/caption&gt;
+&lt;colgroup&gt;
+&lt;col width="80%" /&gt;
+&lt;col width="9%" /&gt;
+&lt;col width="9%" /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr class="header"&gt;
+&lt;th&gt;Referring to this entity:&lt;/th&gt;
+&lt;th&gt;&lt;code&gt;torch&lt;/code&gt; says:&lt;/th&gt;
+&lt;th&gt;Keras says:&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr class="odd"&gt;
+&lt;td&gt;&lt;p&gt;&lt;em&gt;Number of features in the output&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;This determines both how many output features there are &lt;em&gt;and&lt;/em&gt; the dimensionality of the hidden states.&lt;/p&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;hidden_size&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;units&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="even"&gt;
+&lt;td&gt;&lt;p&gt;&lt;em&gt;Per-time-step output; latent state; intermediate state …&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;This could be named “public state” in the sense that we, the users, are able to obtain &lt;em&gt;all values.&lt;/em&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td&gt;hidden state&lt;/td&gt;
+&lt;td&gt;memory state&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="odd"&gt;
+&lt;td&gt;&lt;p&gt;&lt;em&gt;Cell state; inner state … (LSTM only)&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;This could be named “private state” in that we are able to obtain a value &lt;em&gt;only for the last time step&lt;/em&gt;. More on that in a second.&lt;/p&gt;&lt;/td&gt;
+&lt;td&gt;cell state&lt;/td&gt;
+&lt;td&gt;carry state&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p&gt;Now, about that public vs. private distinction. In both frameworks, we can obtain outputs (hidden states) for every time step. The cell state, however, we can access only for the very last time step. This is purely an implementation decision. As we’ll see when building our own recurrent module, there are no obstacles inherent in keeping track of cell states and passing them back to the user.&lt;/p&gt;
+&lt;p&gt;If you dislike the pragmatism of this distinction, you can always go with the math. When a new cell state has been computed (based on prior cell state, input, forget, and cell gates – the specifics of which we are not going to get into here), it is transformed to the hidden (a.k.a. output) state making use of yet another, namely, the output gate:&lt;/p&gt;
+&lt;p&gt;&lt;span class="math display"&gt;\[
+h_t = o_t \odot \tanh(c_t)
+\]&lt;/span&gt;&lt;/p&gt;
+&lt;p&gt;Definitely, then, hidden state (output, resp.) builds on cell state, adding additional modeling power.&lt;/p&gt;
+&lt;p&gt;Now it is time to get back to our original goal and build that convLSTM. First though, let’s summarize the return values obtainable from &lt;code&gt;torch&lt;/code&gt; and Keras.&lt;/p&gt;
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;div class="l-page"&gt;
+&lt;table&gt;
+&lt;caption&gt;Table 2: Contrasting ways of obtaining various return values in &lt;code&gt;torch&lt;/code&gt; vs. Keras. Cf. the appendix for complete examples.&lt;/caption&gt;
+&lt;colgroup&gt;
+&lt;col width="54%" /&gt;
+&lt;col width="13%" /&gt;
+&lt;col width="32%" /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr class="header"&gt;
+&lt;th&gt;To achieve this goal:&lt;/th&gt;
+&lt;th&gt;in &lt;code&gt;torch&lt;/code&gt; do:&lt;/th&gt;
+&lt;th&gt;in Keras do:&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr class="odd"&gt;
+&lt;td&gt;access all intermediate outputs ( = per-time-step outputs)&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;ret[[1]]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;return_sequences = TRUE&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="even"&gt;
+&lt;td&gt;access both “hidden state” (output) and “cell state” from final time step (only!)&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;ret[[2]]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;return_state = TRUE&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="odd"&gt;
+&lt;td&gt;access all intermediate outputs and the final “cell state”&lt;/td&gt;
+&lt;td&gt;both of the above&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;return_sequences = TRUE, return_state = TRUE&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr class="even"&gt;
+&lt;td&gt;access all intermediate outputs and “cell states” from all time steps&lt;/td&gt;
+&lt;td&gt;no way&lt;/td&gt;
+&lt;td&gt;no way&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;h3 id="convlstm-the-plan"&gt;&lt;code&gt;convLSTM&lt;/code&gt;, the plan&lt;/h3&gt;
+&lt;p&gt;In both &lt;code&gt;torch&lt;/code&gt; and Keras RNN architectures, single time steps are processed by corresponding &lt;code&gt;Cell&lt;/code&gt; classes: There is an LSTM Cell matching the LSTM, a GRU Cell matching the GRU, and so on. We do the same for ConvLSTM. In &lt;code&gt;convlstm_cell()&lt;/code&gt;, we first define what should happen to a single observation; then in &lt;code&gt;convlstm()&lt;/code&gt;, we build up the recurrence logic.&lt;/p&gt;
+&lt;p&gt;Once we’re done, we create a dummy dataset, as reduced-to-the-essentials as can be. With more complex datasets, even artificial ones, chances are that if we don’t see any training progress, there are hundreds of possible explanations. We want a sanity check that, if failed, leaves no excuses. Realistic applications are left to future posts.&lt;/p&gt;
+&lt;h3 id="a-single-step-convlstm_cell"&gt;A single step: &lt;code&gt;convlstm_cell&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Our &lt;code&gt;convlstm_cell&lt;/code&gt;’s constructor takes arguments &lt;code&gt;input_dim&lt;/code&gt; , &lt;code&gt;hidden_dim&lt;/code&gt;, and &lt;code&gt;bias&lt;/code&gt;, just like a &lt;code&gt;torch&lt;/code&gt; LSTM Cell.&lt;/p&gt;
+&lt;p&gt;But we’re processing two-dimensional input data. Instead of the usual affine combination of new input and previous state, we use a convolution of kernel size &lt;code&gt;kernel_size&lt;/code&gt;. Inside &lt;code&gt;convlstm_cell&lt;/code&gt;, it is &lt;code&gt;self$conv&lt;/code&gt; that takes care of this.&lt;/p&gt;
+&lt;p&gt;Note how the &lt;code&gt;channels&lt;/code&gt; dimension, which in the original input data would correspond to different variables, is creatively used to consolidate four convolutions into one: Each channel output will be passed to just one of the four cell gates. Once in possession of the convolution output, &lt;code&gt;forward()&lt;/code&gt; applies the gate logic, resulting in the two types of states it needs to send back to the caller.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(zeallot)
+
+convlstm_cell &amp;lt;- nn_module(
+  
+  initialize = function(input_dim, hidden_dim, kernel_size, bias) {
+    
+    self$hidden_dim &amp;lt;- hidden_dim
+    
+    padding &amp;lt;- kernel_size %/% 2
+    
+    self$conv &amp;lt;- nn_conv2d(
+      in_channels = input_dim + self$hidden_dim,
+      # for each of input, forget, output, and cell gates
+      out_channels = 4 * self$hidden_dim,
+      kernel_size = kernel_size,
+      padding = padding,
+      bias = bias
+    )
+  },
+  
+  forward = function(x, prev_states) {
+
+    c(h_prev, c_prev) %&amp;lt;-% prev_states
+    
+    combined &amp;lt;- torch_cat(list(x, h_prev), dim = 2)  # concatenate along channel axis
+    combined_conv &amp;lt;- self$conv(combined)
+    c(cc_i, cc_f, cc_o, cc_g) %&amp;lt;-% torch_split(combined_conv, self$hidden_dim, dim = 2)
+    
+    # input, forget, output, and cell gates (corresponding to torch&amp;#39;s LSTM)
+    i &amp;lt;- torch_sigmoid(cc_i)
+    f &amp;lt;- torch_sigmoid(cc_f)
+    o &amp;lt;- torch_sigmoid(cc_o)
+    g &amp;lt;- torch_tanh(cc_g)
+    
+    # cell state
+    c_next &amp;lt;- f * c_prev + i * g
+    # hidden state
+    h_next &amp;lt;- o * torch_tanh(c_next)
+    
+    list(h_next, c_next)
+  },
+  
+  init_hidden = function(batch_size, height, width) {
+    
+    list(
+      torch_zeros(batch_size, self$hidden_dim, height, width, device = self$conv$weight$device),
+      torch_zeros(batch_size, self$hidden_dim, height, width, device = self$conv$weight$device))
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now &lt;code&gt;convlstm_cell&lt;/code&gt; has to be called for every time step. This is done by &lt;code&gt;convlstm&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id="iteration-over-time-steps-convlstm"&gt;Iteration over time steps: &lt;code&gt;convlstm&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;A &lt;code&gt;convlstm&lt;/code&gt; may consist of several layers, just like a &lt;code&gt;torch&lt;/code&gt; LSTM. For each layer, we are able to specify hidden and kernel sizes individually.&lt;/p&gt;
+&lt;p&gt;During initialization, each layer gets its own &lt;code&gt;convlstm_cell&lt;/code&gt;. On call, &lt;code&gt;convlstm&lt;/code&gt; executes two loops. The outer one iterates over layers. At the end of each iteration, we store the final pair &lt;code&gt;(hidden state, cell state)&lt;/code&gt; for later reporting. The inner loop runs over input sequences, calling &lt;code&gt;convlstm_cell&lt;/code&gt; at each time step.&lt;/p&gt;
+&lt;p&gt;We also keep track of intermediate outputs, so we’ll be able to return the complete list of &lt;code&gt;hidden_state&lt;/code&gt;s seen during the process. Unlike a &lt;code&gt;torch&lt;/code&gt; LSTM, we do this &lt;em&gt;for every layer&lt;/em&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;convlstm &amp;lt;- nn_module(
+  
+  # hidden_dims and kernel_sizes are vectors, with one element for each layer in n_layers
+  initialize = function(input_dim, hidden_dims, kernel_sizes, n_layers, bias = TRUE) {
+ 
+    self$n_layers &amp;lt;- n_layers
+    
+    self$cell_list &amp;lt;- nn_module_list()
+    
+    for (i in 1:n_layers) {
+      cur_input_dim &amp;lt;- if (i == 1) input_dim else hidden_dims[i - 1]
+      self$cell_list$append(convlstm_cell(cur_input_dim, hidden_dims[i], kernel_sizes[i], bias))
+    }
+  },
+  
+  # we always assume batch-first
+  forward = function(x) {
+    
+    c(batch_size, seq_len, num_channels, height, width) %&amp;lt;-% x$size()
+   
+    # initialize hidden states
+    init_hidden &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = self$n_layers)
+    for (i in 1:self$n_layers) {
+      init_hidden[[i]] &amp;lt;- self$cell_list[[i]]$init_hidden(batch_size, height, width)
+    }
+    
+    # list containing the outputs, of length seq_len, for each layer
+    # this is the same as h, at each step in the sequence
+    layer_output_list &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = self$n_layers)
+    
+    # list containing the last states (h, c) for each layer
+    layer_state_list &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = self$n_layers)
+
+    cur_layer_input &amp;lt;- x
+    hidden_states &amp;lt;- init_hidden
+    
+    # loop over layers
+    for (i in 1:self$n_layers) {
+      
+      # every layer&amp;#39;s hidden state starts from 0 (non-stateful)
+      c(h, c) %&amp;lt;-% hidden_states[[i]]
+      # outputs, of length seq_len, for this layer
+      # equivalently, list of h states for each time step
+      output_sequence &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = seq_len)
+      
+      # loop over time steps
+      for (t in 1:seq_len) {
+        c(h, c) %&amp;lt;-% self$cell_list[[i]](cur_layer_input[ , t, , , ], list(h, c))
+        # keep track of output (h) for every time step
+        # h has dim (batch_size, hidden_size, height, width)
+        output_sequence[[t]] &amp;lt;- h
+      }
+
+      # stack hs for all time steps over seq_len dimension
+      # stacked_outputs has dim (batch_size, seq_len, hidden_size, height, width)
+      # same as input to forward (x)
+      stacked_outputs &amp;lt;- torch_stack(output_sequence, dim = 2)
+      
+      # pass the list of outputs (hs) to next layer
+      cur_layer_input &amp;lt;- stacked_outputs
+      
+      # keep track of list of outputs or this layer
+      layer_output_list[[i]] &amp;lt;- stacked_outputs
+      # keep track of last state for this layer
+      layer_state_list[[i]] &amp;lt;- list(h, c)
+    }
+ 
+    list(layer_output_list, layer_state_list)
+  }
+    
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="calling-the-convlstm"&gt;Calling the &lt;code&gt;convlstm&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;Let’s see the input format expected by &lt;code&gt;convlstm&lt;/code&gt;, and how to access its different outputs.&lt;/p&gt;
+&lt;p&gt;Here is a suitable input tensor.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# batch_size, seq_len, channels, height, width
+x &amp;lt;- torch_rand(c(2, 4, 3, 16, 16))&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;First we make use of a single layer.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- convlstm(input_dim = 3, hidden_dims = 5, kernel_sizes = 3, n_layers = 1)
+
+c(layer_outputs, layer_last_states) %&amp;lt;-% model(x)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We get back a list of length two, which we immediately split up into the two types of output returned: intermediate outputs from all layers, and final states (of both types) for the last layer.&lt;/p&gt;
+&lt;p&gt;With just a single layer, &lt;code&gt;layer_outputs[[1]]&lt;/code&gt;holds all of the layer’s intermediate outputs, stacked on dimension two.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dim(layer_outputs[[1]])
+# [1]  2  4  5 16 16&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;layer_last_states[[1]]&lt;/code&gt;is a list of tensors, the first of which holds the single layer’s final hidden state, and the second, its final cell state.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dim(layer_last_states[[1]][[1]])
+# [1]  2  5 16 16
+dim(layer_last_states[[1]][[2]])
+# [1]  2  5 16 16&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For comparison, this is how return values look for a multi-layer architecture.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- convlstm(input_dim = 3, hidden_dims = c(5, 5, 1), kernel_sizes = rep(3, 3), n_layers = 3)
+c(layer_outputs, layer_last_states) %&amp;lt;-% model(x)
+
+# for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)
+dim(layer_outputs[[1]])
+# 2  4  5 16 16
+dim(layer_outputs[[3]])
+# 2  4  1 16 16
+
+# list of 2 tensors for each layer
+str(layer_last_states)
+# List of 3
+#  $ :List of 2
+#   ..$ :Float [1:2, 1:5, 1:16, 1:16]
+#   ..$ :Float [1:2, 1:5, 1:16, 1:16]
+#  $ :List of 2
+#   ..$ :Float [1:2, 1:5, 1:16, 1:16]
+#   ..$ :Float [1:2, 1:5, 1:16, 1:16]
+#  $ :List of 2
+#   ..$ :Float [1:2, 1:1, 1:16, 1:16]
+#   ..$ :Float [1:2, 1:1, 1:16, 1:16]
+
+# h, of size (batch_size, hidden_size, height, width)
+dim(layer_last_states[[3]][[1]])
+# 2  1 16 16
+
+# c, of size (batch_size, hidden_size, height, width)
+dim(layer_last_states[[3]][[2]])
+# 2  1 16 16&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now we want to sanity-check this module with the simplest-possible dummy data.&lt;/p&gt;
+&lt;h3 id="sanity-checking-the-convlstm"&gt;Sanity-checking the &lt;code&gt;convlstm&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;We generate black-and-white “movies” of diagonal beams successively translated in space.&lt;/p&gt;
+&lt;p&gt;Each sequence consists of six time steps, and each beam of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torchvision)
+
+beams &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = 6)
+beam &amp;lt;- torch_eye(6) %&amp;gt;% nnf_pad(c(6, 12, 12, 6)) # left, right, top, bottom
+beams[[1]] &amp;lt;- beam&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Using &lt;code&gt;torch_roll()&lt;/code&gt; , we create a pattern where this beam moves up diagonally, and stack the individual tensors along the &lt;code&gt;timesteps&lt;/code&gt; dimension.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;for (i in 2:6) {
+  beams[[i]] &amp;lt;- torch_roll(beam, c(-(i-1),i-1), c(1, 2))
+}
+
+init_sequence &amp;lt;- torch_stack(beams, dim = 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;That’s a single sequence. Thanks to &lt;code&gt;torchvision::transform_random_affine()&lt;/code&gt;, we almost effortlessly produce a dataset of a hundred sequences. Moving beams start at random points in the spatial frame, but they all share that upward-diagonal motion.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sequences &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = 100)
+sequences[[1]] &amp;lt;- init_sequence
+
+for (i in 2:100) {
+  sequences[[i]] &amp;lt;- transform_random_affine(init_sequence, degrees = 0, translate = c(0.5, 0.5))
+}
+
+input &amp;lt;- torch_stack(sequences, dim = 1)
+
+# add channels dimension
+input &amp;lt;- input$unsqueeze(3)
+dim(input)
+# [1] 100   6  1  24  24&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;That’s it for the raw data. Now we still need a &lt;code&gt;dataset&lt;/code&gt; and a &lt;code&gt;dataloader&lt;/code&gt;. Of the six time steps, we use the first five as input and try to predict the last one.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dummy_ds &amp;lt;- dataset(
+  
+  initialize = function(data) {
+    self$data &amp;lt;- data
+  },
+  
+  .getitem = function(i) {
+    list(x = self$data[i, 1:5, ..], y = self$data[i, 6, ..])
+  },
+  
+  .length = function() {
+    nrow(self$data)
+  }
+)
+
+ds &amp;lt;- dummy_ds(input)
+dl &amp;lt;- dataloader(ds, batch_size = 100)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Here is a tiny-ish convLSTM, trained for motion prediction:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- convlstm(input_dim = 1, hidden_dims = c(64, 1), kernel_sizes = c(3, 3), n_layers = 2)
+
+optimizer &amp;lt;- optim_adam(model$parameters)
+
+num_epochs &amp;lt;- 100
+
+for (epoch in 1:num_epochs) {
+  
+  model$train()
+  batch_losses &amp;lt;- c()
+  
+  for (b in enumerate(dl)) {
+    
+    optimizer$zero_grad()
+    
+    # last-time-step output from last layer
+    preds &amp;lt;- model(b$x)[[2]][[2]][[1]]
+  
+    loss &amp;lt;- nnf_mse_loss(preds, b$y)
+    batch_losses &amp;lt;- c(batch_losses, loss$item())
+    
+    loss$backward()
+    optimizer$step()
+  }
+  
+  if (epoch %% 10 == 0)
+    cat(sprintf(&amp;quot;\nEpoch %d, training loss:%3f\n&amp;quot;, epoch, mean(batch_losses)))
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Epoch 10, training loss:0.008522
+
+Epoch 20, training loss:0.008079
+
+Epoch 30, training loss:0.006187
+
+Epoch 40, training loss:0.003828
+
+Epoch 50, training loss:0.002322
+
+Epoch 60, training loss:0.001594
+
+Epoch 70, training loss:0.001376
+
+Epoch 80, training loss:0.001258
+
+Epoch 90, training loss:0.001218
+
+Epoch 100, training loss:0.001171&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Loss decreases, but that in itself is not a guarantee the model has learned anything. Has it? Let’s inspect its forecast for the very first sequence and see.&lt;/p&gt;
+&lt;p&gt;For printing, I’m zooming in on the relevant region in the 24x24-pixel frame. Here is the ground truth for time step six:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;b$y[1, 1, 6:15, 10:19]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;0  0  0  0  0  0  0  0  0  0
+0  0  0  0  0  0  0  0  0  0
+0  0  1  0  0  0  0  0  0  0
+0  0  0  1  0  0  0  0  0  0
+0  0  0  0  1  0  0  0  0  0
+0  0  0  0  0  1  0  0  0  0
+0  0  0  0  0  0  1  0  0  0
+0  0  0  0  0  0  0  1  0  0
+0  0  0  0  0  0  0  0  0  0
+0  0  0  0  0  0  0  0  0  0&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And here is the forecast. This does not look bad at all, given there was neither experimentation nor tuning involved.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;round(as.matrix(preds[1, 1, 6:15, 10:19]), 2)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;       [,1]  [,2]  [,3]  [,4]  [,5]  [,6]  [,7]  [,8]  [,9] [,10]
+ [1,]  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00  0.00     0
+ [2,] -0.02  0.36  0.01  0.06  0.00  0.00  0.00  0.00  0.00     0
+ [3,]  0.00 -0.01  0.71  0.01  0.06  0.00  0.00  0.00  0.00     0
+ [4,] -0.01  0.04  0.00  0.75  0.01  0.06  0.00  0.00  0.00     0
+ [5,]  0.00 -0.01 -0.01 -0.01  0.75  0.01  0.06  0.00  0.00     0
+ [6,]  0.00  0.01  0.00 -0.07 -0.01  0.75  0.01  0.06  0.00     0
+ [7,]  0.00  0.01 -0.01 -0.01 -0.07 -0.01  0.75  0.01  0.06     0
+ [8,]  0.00  0.00  0.01  0.00  0.00 -0.01  0.00  0.71  0.00     0
+ [9,]  0.00  0.00  0.00  0.01  0.01  0.00  0.03 -0.01  0.37     0
+[10,]  0.00  0.00  0.00  0.00  0.00  0.00 -0.01 -0.01 -0.01     0&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This should suffice for a sanity check. If you made it till the end, thanks for your patience! In the best case, you’ll be able to apply this architecture (or a similar one) to your own data – but even if not, I hope you’ve enjoyed learning about &lt;code&gt;torch&lt;/code&gt; model coding and/or RNN weirdness ;-)&lt;/p&gt;
+&lt;p&gt;I, for one, am certainly looking forward to exploring convLSTMs on real-world problems in the near future. Thanks for reading!&lt;/p&gt;
+&lt;h2 id="appendix"&gt;Appendix&lt;/h2&gt;
+&lt;p&gt;This appendix contains the code used to create tables 1 and 2 above.&lt;/p&gt;
+&lt;h3 id="keras"&gt;Keras&lt;/h3&gt;
+&lt;h4 id="lstm"&gt;LSTM&lt;/h4&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(keras)
+
+# batch of 3, with 4 time steps each and a single feature
+input &amp;lt;- k_random_normal(shape = c(3L, 4L, 1L))
+input
+
+# default args
+# return shape = (batch_size, units)
+lstm &amp;lt;- layer_lstm(
+  units = 1,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+lstm(input)
+
+# return_sequences = TRUE
+# return shape = (batch_size, time steps, units)
+#
+# note how for each item in the batch, the value for time step 4 equals that obtained above
+lstm &amp;lt;- layer_lstm(
+  units = 1,
+  return_sequences = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+  # bias is by default initialized to 0
+)
+lstm(input)
+
+# return_state = TRUE
+# return shape = list of:
+#                - outputs, of shape: (batch_size, units)
+#                - &amp;quot;memory states&amp;quot; for the last time step, of shape: (batch_size, units)
+#                - &amp;quot;carry states&amp;quot; for the last time step, of shape: (batch_size, units)
+#
+# note how the first and second list items are identical!
+lstm &amp;lt;- layer_lstm(
+  units = 1,
+  return_state = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+lstm(input)
+
+# return_state = TRUE, return_sequences = TRUE
+# return shape = list of:
+#                - outputs, of shape: (batch_size, time steps, units)
+#                - &amp;quot;memory&amp;quot; states for the last time step, of shape: (batch_size, units)
+#                - &amp;quot;carry states&amp;quot; for the last time step, of shape: (batch_size, units)
+#
+# note how again, the &amp;quot;memory&amp;quot; state found in list item 2 matches the final-time step outputs reported in item 1
+lstm &amp;lt;- layer_lstm(
+  units = 1,
+  return_sequences = TRUE,
+  return_state = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+lstm(input)&lt;/code&gt;&lt;/pre&gt;
+&lt;h4 id="gru"&gt;GRU&lt;/h4&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# default args
+# return shape = (batch_size, units)
+gru &amp;lt;- layer_gru(
+  units = 1,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+gru(input)
+
+# return_sequences = TRUE
+# return shape = (batch_size, time steps, units)
+#
+# note how for each item in the batch, the value for time step 4 equals that obtained above
+gru &amp;lt;- layer_gru(
+  units = 1,
+  return_sequences = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+gru(input)
+
+# return_state = TRUE
+# return shape = list of:
+#    - outputs, of shape: (batch_size, units)
+#    - &amp;quot;memory&amp;quot; states for the last time step, of shape: (batch_size, units)
+#
+# note how the list items are identical!
+gru &amp;lt;- layer_gru(
+  units = 1,
+  return_state = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+gru(input)
+
+# return_state = TRUE, return_sequences = TRUE
+# return shape = list of:
+#    - outputs, of shape: (batch_size, time steps, units)
+#    - &amp;quot;memory states&amp;quot; for the last time step, of shape: (batch_size, units)
+#
+# note how again, the &amp;quot;memory state&amp;quot; found in list item 2 matches the final-time-step outputs reported in item 1
+gru &amp;lt;- layer_gru(
+  units = 1,
+  return_sequences = TRUE,
+  return_state = TRUE,
+  kernel_initializer = initializer_constant(value = 1),
+  recurrent_initializer = initializer_constant(value = 1)
+)
+gru(input)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="torch"&gt;&lt;code&gt;torch&lt;/code&gt;&lt;/h3&gt;
+&lt;h4 id="lstm-non-stacked-architecture"&gt;LSTM (non-stacked architecture)&lt;/h4&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+
+# batch of 3, with 4 time steps each and a single feature
+# we will specify batch_first = TRUE when creating the LSTM
+input &amp;lt;- torch_randn(c(3, 4, 1))
+input
+
+# default args
+# return shape = (batch_size, units)
+#
+# note: there is an additional argument num_layers that we could use to specify a stacked LSTM - effectively composing two LSTM modules
+# default for num_layers is 1 though 
+lstm &amp;lt;- nn_lstm(
+  input_size = 1, # number of input features
+  hidden_size = 1, # number of hidden (and output!) features
+  batch_first = TRUE # for easy comparability with Keras
+)
+
+nn_init_constant_(lstm$weight_ih_l1, 1)
+nn_init_constant_(lstm$weight_hh_l1, 1)
+nn_init_constant_(lstm$bias_ih_l1, 0)
+nn_init_constant_(lstm$bias_hh_l1, 0)
+
+# returns a list of length 2, namely
+#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first
+#       Note 1: If this is a stacked LSTM, these are the outputs from the last layer only.
+#               For our current purpose, this is irrelevant, as we&amp;#39;re restricting ourselves to single-layer LSTMs.
+#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features
+#  - list of:
+#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#      Note 3: For a single-layer LSTM, the hidden states are already provided in the first list item.
+
+lstm(input)&lt;/code&gt;&lt;/pre&gt;
+&lt;h4 id="gru-non-stacked-architecture"&gt;GRU (non-stacked architecture)&lt;/h4&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# default args
+# return shape = (batch_size, units)
+#
+# note: there is an additional argument num_layers that we could use to specify a stacked GRU - effectively composing two GRU modules
+# default for num_layers is 1 though 
+gru &amp;lt;- nn_gru(
+  input_size = 1, # number of input features
+  hidden_size = 1, # number of hidden (and output!) features
+  batch_first = TRUE # for easy comparability with Keras
+)
+
+nn_init_constant_(gru$weight_ih_l1, 1)
+nn_init_constant_(gru$weight_hh_l1, 1)
+nn_init_constant_(gru$bias_ih_l1, 0)
+nn_init_constant_(gru$bias_hh_l1, 0)
+
+# returns a list of length 2, namely
+#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first
+#       Note 1: If this is a stacked GRU, these are the outputs from the last layer only.
+#               For our current purpose, this is irrelevant, as we&amp;#39;re restricting ourselves to single-layer GRUs.
+#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features
+#  - list of:
+#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)
+#       Note 3: For a single-layer GRU, these values are already provided in the first list item.
+gru(input)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;Leaving aside the batch dimension in this discussion.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;In theory, it would be possible for them to be of different sizes if the respective weight matrices transformed their operands to the same output size.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn3"&gt;&lt;p&gt;Yes, this is the same formula as above.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5>058e5a4758ecae885682bbb882a80a32</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Image Recognition &amp; Image Processing</category>
+      <category>Time series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm</guid>
+      <pubDate>Thu, 17 Dec 2020 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2020-12-17-torch-convlstm/images/preview.jpeg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>torch 0.2.0 - Initial JIT support and many bug fixes</title>
       <dc:creator>Daniel Falbel</dc:creator>
@@ -5425,8 +6070,8 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-fb2de0d1ad94dd284235" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-fb2de0d1ad94dd284235"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;div id="htmlwidget-f055d8a72a0ce62097fb" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-f055d8a72a0ce62097fb"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
 &lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 &lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;

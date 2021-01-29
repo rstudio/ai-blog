@@ -1,20 +1,30 @@
 ---
-title: "Simple Audio Classification with Torch"
-description: |
-  A short description of the post.
-Athos Damiani
-date: 01-22-2021
+title: "Simple audio classification with torch"
+description: > 
+  This article attempts to translate the [Daniel Falbel's](https://github.com/dfalbel) ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `{tensorflow}+{keras}` to `{torch}+{torchaudio}`.
+author:
+  - name: Athos Damiani
+    affiliation: Curso-R
+    affiliation_url: https://curso-r.com/
+slug: athossimpleaudioclassification
+date: 01-29-2021
+categories:
+  - Torch
+  - R
+  - Audio Classification & Audio Processing
 output:
   distill::distill_article:
     self_contained: false
+    toc: true
+preview: images/preview.jpeg
+editor_options: 
+  chunk_output_type: console
 ---
 
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  eval = identical(Sys.getenv("TORCH_TEST", unset = "0"), "1")
+  echo = TRUE
 )
 ```
 
@@ -23,8 +33,8 @@ This article attempts to translate the [Daniel Falbel's](https://github.com/dfal
 <!-- https://towardsdatascience.com/a-tale-of-two-frameworks-985fa7fcec#6f89 -->
 
 ```{r setup}
-library(torchaudio)
 library(torch)
+library(torchaudio)
 ```
 
 ## Downloading and Importing
@@ -33,7 +43,7 @@ torchaudio has `speechcommand_dataset` built in. It filter out `_backgroud_noise
 
 ```{r}
 # set a existing folder here to cache the dataset
-DATASETS_PATH <- "/media/athos/DATA/OneDrive/Documents/datasets/"
+DATASETS_PATH <- "~/datasets/"
 
 # 1.4GB download
 df <- speechcommand_dataset(
@@ -127,7 +137,6 @@ pad_sequence <- function(batch) {
 collate_fn <- function(batch) {
  # Input structure:
  # list of 32 lists: list(waveform, sample_rate, label, speaker_id, utterance_number)
-  
  # Transpose it
  batch <- purrr::transpose(batch)
  tensors <- batch$waveform
@@ -151,11 +160,11 @@ Batch structure is:
 ```{r}
 ds_train <- dataloader(
   train_subset, 
-  batch_size = 64, 
+  batch_size = 128, 
   shuffle = TRUE, 
-  drop_last = TRUE,
   collate_fn = collate_fn,
-  num_workers = 16,
+  num_workers = 8,
+  worker_init_fn = function(x){library(torchaudio);set_audio_backend("tuneR_loader")},
   worker_globals = c("pad_sequence") # pad_sequence is needed for collect_fn
 )
 
@@ -164,10 +173,12 @@ ds_test <- dataloader(
   batch_size = 64, 
   shuffle = FALSE, 
   collate_fn = collate_fn,
-  num_workers = 12,
+  num_workers = 8,
   worker_globals = c("pad_sequence") # pad_sequence is needed for collect_fn
 )
 ```
+
+
 
 ## Model definition
 
@@ -245,6 +256,7 @@ model$to(device = device)
 print(model)
 ```
 
+
 ## Model fitting
 
 Unlike tensorflow, there is no `model %>% compile(...)` step in torch, so are going to set `loss criterion`, `optimizer strategy` and `evaluation metrics` explicitly in the training loop.
@@ -273,18 +285,18 @@ set_progress_bar <- function(total) {
 }
 ```
 
+{torchaudio} comes with 3 loaders, av_loader, tuner_loader, and audiofile_loader - more to come. The `set_audio_backend()` is used to set one of them as the audio loader. Their performances differs from audio format (mp3 or wav). There is no perfect world yet: tuner_loader is the best for mp3, audiofile_loader is the best for wav, but both do not have de option of partial load a sample from audio file without bringing all the data to memory first.
 
 ```{r}
 epochs <- 10
 losses <- c()
 accs <- c()
 
-
-coro::loop(for(epoch in seq_len(epochs)) {
-  
+# set_audio_backend("tuneR_loader")
+for(epoch in seq_len(epochs)) {
   pb <- set_progress_bar(length(ds_train))
   pb$message(glue("Epoch {epoch}/{epochs}"))
-  for(batch in enumerate(ds_train)) {
+  coro::loop(for(batch in ds_train) {
     optimizer$zero_grad()
     predictions <- model(batch[[1]]$to(device = device))
     targets <- batch[[2]]$to(device = device)
@@ -301,27 +313,25 @@ coro::loop(for(epoch in seq_len(epochs)) {
     losses <- c(losses, loss_r)
     
     pb$tick(tokens = list(loss = round(mean(losses), 4), acc = round(mean(accs), 4)))
-  }
+  })
   
   # test
   predictions_r <- c()
   targets_r <- c()
-  for(batch_test in enumerate(ds_test)) {
+  coro::loop(for(batch_test in ds_test) {
     predictions <- model(batch_test[[1]]$to(device = device))
     targets <- batch_test[[2]]$to(device = device)
     predictions_r <- c(predictions_r, pred_to_r(predictions$argmax(dim = 2)))
     targets_r <- c(targets_r, pred_to_r(targets))
-  }
-  predictions_r <- predictions_r[predictions_r >= 0]
-  targets_r <- targets_r[targets_r >= 0]
+  })
   val_acc <- metrics$acc(factor(targets_r, levels = 1:30), factor(predictions_r, levels = 1:30))
-  cat(glue("val_acc: {val_acc}\n"))
-})
+  cat(glue("val_acc: {val_acc}\n\n"))
+}
 ```
 
 ## Making predictions
 
-We alaready have all predictions calculated for `test_subset`, let's recreate the alluvial plot from original article.
+We already have all predictions calculated for `test_subset`, let's recreate the alluvial plot from original article.
 
 ```{r}
 library(dplyr)

@@ -474,8 +474,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -583,19 +590,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -618,6 +627,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -693,6 +706,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -920,6 +934,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1074,6 +1093,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1741,7 +1771,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1856,6 +1886,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2018,13 +2062,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2106,7 +2154,7 @@ gtag('config', 'UA-20375833-3');
 <p>Following is the code to do this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>original_dataset_dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/Downloads/kaggle_original_data"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>original_dataset_dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/Downloads/kaggle_original_data"</span>
 
 <span class='va'>base_dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/Downloads/cats_and_dogs_small"</span>
 <span class='fu'><a href='https://rdrr.io/r/base/files2.html'>dir.create</a></span><span class='op'>(</span><span class='va'>base_dir</span><span class='op'>)</span>
@@ -2187,7 +2235,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s instantiate the VGG16 model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 
 <span class='va'>conv_base</span> <span class='op'>&lt;-</span> <span class='fu'>application_vgg16</span><span class='op'>(</span>
   weights <span class='op'>=</span> <span class='st'>"imagenet"</span>,
@@ -2206,7 +2254,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here’s the detail of the architecture of the VGG16 convolutional base. It’s similar to the simple convnets you’re already familiar with:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2264,7 +2312,7 @@ Non-trainable params: 0</code></pre>
 <p>Because models behave just like layers, you can add a model (like <code>conv_base</code>) to a sequential model just like you would add a layer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='va'>conv_base</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>256</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2275,7 +2323,7 @@ Non-trainable params: 0</code></pre>
 <p>This is what the model looks like now:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2297,14 +2345,14 @@ Non-trainable params: 0</code></pre>
 <p>In Keras, you freeze a network using the <code>freeze_weights()</code> function:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>trainable_weights</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>trainable_weights</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <pre><code>[1] 30</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>freeze_weights</span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>freeze_weights</span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>trainable_weights</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2316,7 +2364,7 @@ Non-trainable params: 0</code></pre>
 <p>In Keras, this can be done by configuring a number of random transformations to be performed on the images read by an <code>image_data_generator()</code>. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_datagen</span> <span class='op'>=</span> <span class='fu'>image_data_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_datagen</span> <span class='op'>=</span> <span class='fu'>image_data_generator</span><span class='op'>(</span>
   rescale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>/</span><span class='fl'>255</span>,
   rotation_range <span class='op'>=</span> <span class='fl'>40</span>,
   width_shift_range <span class='op'>=</span> <span class='fl'>0.2</span>,
@@ -2341,7 +2389,7 @@ Non-trainable params: 0</code></pre>
 <p>Now we can train our model using the image data generator:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Note that the validation data shouldn't be augmented!</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Note that the validation data shouldn't be augmented!</span>
 <span class='va'>test_datagen</span> <span class='op'>&lt;-</span> <span class='fu'>image_data_generator</span><span class='op'>(</span>rescale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>/</span><span class='fl'>255</span><span class='op'>)</span>  
 
 <span class='va'>train_generator</span> <span class='op'>&lt;-</span> <span class='fu'>flow_images_from_directory</span><span class='op'>(</span>
@@ -2393,7 +2441,7 @@ Non-trainable params: 0</code></pre>
 <p>As a reminder, this is what your convolutional base looks like:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>conv_base</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2446,14 +2494,14 @@ Total params: 14714688</code></pre>
 <p>Thus, in this situation, it’s a good strategy to fine-tune only some of the layers in the convolutional base. Let’s set this up, starting from where you left off in the previous example.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>unfreeze_weights</span><span class='op'>(</span><span class='va'>conv_base</span>, from <span class='op'>=</span> <span class='st'>"block3_conv1"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>unfreeze_weights</span><span class='op'>(</span><span class='va'>conv_base</span>, from <span class='op'>=</span> <span class='st'>"block3_conv1"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Now you can begin fine-tuning the network. You’ll do this with the RMSProp optimizer, using a very low learning rate. The reason for using a low learning rate is that you want to limit the magnitude of the modifications you make to the representations of the three layers you’re fine-tuning. Updates that are too large may harm these representations.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   loss <span class='op'>=</span> <span class='st'>"binary_crossentropy"</span>,
   optimizer <span class='op'>=</span> <span class='fu'>optimizer_rmsprop</span><span class='op'>(</span>lr <span class='op'>=</span> <span class='fl'>1e-5</span><span class='op'>)</span>,
   metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"accuracy"</span><span class='op'>)</span>
@@ -2476,7 +2524,7 @@ Total params: 14714688</code></pre>
 <p>You can now finally evaluate this model on the test data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>test_generator</span> <span class='op'>&lt;-</span> <span class='fu'>flow_images_from_directory</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>test_generator</span> <span class='op'>&lt;-</span> <span class='fu'>flow_images_from_directory</span><span class='op'>(</span>
   <span class='va'>test_dir</span>,
   <span class='va'>test_datagen</span>,
   target_size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>150</span>, <span class='fl'>150</span><span class='op'>)</span>,
@@ -2488,7 +2536,7 @@ Total params: 14714688</code></pre>
 </div>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>evaluate_generator</span><span class='op'>(</span><span class='va'>test_generator</span>, steps <span class='op'>=</span> <span class='fl'>50</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>evaluate_generator</span><span class='op'>(</span><span class='va'>test_generator</span>, steps <span class='op'>=</span> <span class='fl'>50</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2528,7 +2576,7 @@ $acc
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2017-12-14-image-classification-on-small-datasets/';
   this.page.identifier = 'posts/2017-12-14-image-classification-on-small-datasets/';

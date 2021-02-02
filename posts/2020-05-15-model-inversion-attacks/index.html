@@ -479,8 +479,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -588,19 +595,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -623,6 +632,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -698,6 +711,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -925,6 +939,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1079,6 +1098,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1746,7 +1776,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1861,6 +1891,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2023,13 +2067,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2134,7 +2182,7 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <p>Conveniently, we can use <a href="https://github.com/rstudio/tfds">tfds</a>, the R wrapper to TensorFlow Datasets, to load those subsets:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/reticulate'>reticulate</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/reticulate'>reticulate</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfautograph</span><span class='op'>)</span>
@@ -2162,7 +2210,7 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <p>We thus throw out all unneeded features, keeping just the alphabet id and the image itself:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># normalize and work with a single channel (images are black-and-white anyway)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># normalize and work with a single channel (images are black-and-white anyway)</span>
 <span class='va'>preprocess_image</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>image</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>image</span> <span class='op'>%&gt;%</span>
     <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span>dtype <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2194,7 +2242,7 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <p>We link both together as a <em>TargetModel</em> that when called normally, will run both steps in succession. However, we’ll be able to call <code>target_model$mobile_step()</code> separately, thereby intercepting intermediate results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>on_device_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>on_device_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_conv_2d</span><span class='op'>(</span>filters <span class='op'>=</span> <span class='fl'>32</span>, kernel_size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>7</span>, <span class='fl'>7</span><span class='op'>)</span>,
                 input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>105</span>, <span class='fl'>105</span>, <span class='fl'>1</span><span class='op'>)</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2246,7 +2294,7 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <p>The overall model is a Keras custom model, so we train it <a href="https://tensorflow.rstudio.com/tutorials/advanced/">TensorFlow 2.x - style</a>. After ten epochs, training and validation accuracy are at ~0.84 and ~0.73, respectively – not bad at all for a 20-class discrimination task.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>loss_sparse_categorical_crossentropy</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>loss_sparse_categorical_crossentropy</span>
 <span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name<span class='op'>=</span><span class='st'>'train_loss'</span><span class='op'>)</span>
@@ -2323,7 +2371,7 @@ Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
 <p>This is exactly what’s happening in the attacker model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attack_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attack_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>"AttackModel"</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
     
@@ -2363,7 +2411,7 @@ Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
 <p>To train the adversary, we use one of the small (five-alphabet) subsets. To reiterate what was said above, there is no overlap with the data used to train the target model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attacker_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_spy</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attacker_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_spy</span> <span class='op'>%&gt;%</span> 
 <span class='fu'>dataset_map</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>record</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>record</span><span class='op'>$</span><span class='va'>image</span> <span class='op'>&lt;-</span> <span class='fu'>preprocess_image</span><span class='op'>(</span><span class='va'>record</span><span class='op'>$</span><span class='va'>image</span><span class='op'>)</span>
     <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>record</span><span class='op'>$</span><span class='va'>image</span>, <span class='va'>record</span><span class='op'>$</span><span class='va'>alphabet</span><span class='op'>)</span><span class='op'>}</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2374,7 +2422,7 @@ Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
 <p>Here, then, is the attacker training loop, striving to refine the decoding process over a hundred – short – epochs:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attacker_criterion</span> <span class='op'>&lt;-</span> <span class='va'>loss_mean_squared_error</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attacker_criterion</span> <span class='op'>&lt;-</span> <span class='va'>loss_mean_squared_error</span>
 <span class='va'>attacker_optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>attacker_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name<span class='op'>=</span><span class='st'>'attacker_loss'</span><span class='op'>)</span>
 <span class='va'>attacker_mse</span> <span class='op'>&lt;-</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>name<span class='op'>=</span><span class='st'>'attacker_mse'</span><span class='op'>)</span>
@@ -2429,7 +2477,7 @@ Epoch:  100  -----------
 <p>To test the adversary, we use the third dataset we downloaded, containing images from five yet-unseen alphabets. For display, we select just the first sixteen records – a completely arbitrary decision, of course.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>test_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_test</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>test_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_test</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>dataset_map</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>record</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>record</span><span class='op'>$</span><span class='va'>image</span> <span class='op'>&lt;-</span> <span class='fu'>preprocess_image</span><span class='op'>(</span><span class='va'>record</span><span class='op'>$</span><span class='va'>image</span><span class='op'>)</span>
     <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>record</span><span class='op'>$</span><span class='va'>image</span>, <span class='va'>record</span><span class='op'>$</span><span class='va'>alphabet</span><span class='op'>)</span><span class='op'>}</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2454,7 +2502,7 @@ Epoch:  100  -----------
 <p>Just like during the training process, the adversary queries the target model (stage one), obtains the compressed representation, and attempts to reconstruct the original image. (Of course, in the real world, the setup would be different in that the attacker would <em>not</em> be able to simply inspect the images, as is the case here. There would thus have to be some way to intercept, and make sense of, network traffic.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attack_input</span> <span class='op'>&lt;-</span> <span class='va'>model</span><span class='op'>$</span><span class='fu'>mobile_step</span><span class='op'>(</span><span class='va'>images</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attack_input</span> <span class='op'>&lt;-</span> <span class='va'>model</span><span class='op'>$</span><span class='fu'>mobile_step</span><span class='op'>(</span><span class='va'>images</span><span class='op'>)</span>
 <span class='va'>generated</span> <span class='op'>&lt;-</span> <span class='fu'>attacker</span><span class='op'>(</span><span class='va'>attack_input</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>generated</span><span class='op'>[</span><span class='va'>generated</span> <span class='op'>&gt;</span> <span class='fl'>1</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
@@ -2495,7 +2543,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>First, load (and possibly, install) libraries, taking care to disable TensorFlow V2 behavior.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='co'># still necessary when working with TensorFlow Privacy, as of this writing</span>
 <span class='va'>tf</span><span class='op'>$</span><span class='va'>compat</span><span class='op'>$</span><span class='va'>v1</span><span class='op'>$</span><span class='fu'>disable_v2_behavior</span><span class='op'>(</span><span class='op'>)</span>
@@ -2514,7 +2562,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>The training set is loaded, preprocessed and batched (nearly) as before.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>omni_train</span> <span class='op'>&lt;-</span> <span class='va'>tfds</span><span class='op'>$</span><span class='fu'>load</span><span class='op'>(</span><span class='st'>"omniglot"</span>, split <span class='op'>=</span> <span class='st'>"test"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>omni_train</span> <span class='op'>&lt;-</span> <span class='va'>tfds</span><span class='op'>$</span><span class='fu'>load</span><span class='op'>(</span><span class='st'>"omniglot"</span>, split <span class='op'>=</span> <span class='st'>"test"</span><span class='op'>)</span>
 
 <span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
 
@@ -2534,7 +2582,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>To train the target, we put the layers from both stages – “mobile” and “server” – into one sequential model. Note how we remove the dropout. This is because noise will be added during optimization anyway.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>complete_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>complete_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_conv_2d</span><span class='op'>(</span>filters <span class='op'>=</span> <span class='fl'>32</span>, kernel_size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>7</span>, <span class='fl'>7</span><span class='op'>)</span>,
                 input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>105</span>, <span class='fl'>105</span>, <span class='fl'>1</span><span class='op'>)</span>,
                 activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2563,7 +2611,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>Using TFP mainly means using a TFP optimizer, one that clips gradients according to some defined magnitude and adds noise of defined size. <code>noise_multiplier</code> is the parameter we are going to vary to arrive at different <span class="math inline">\(\epsilon\)</span>s:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>l2_norm_clip</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>l2_norm_clip</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
 
 <span class='co'># ratio of the standard deviation to the clipping norm</span>
 <span class='co'># we run training for each of the three values</span>
@@ -2587,7 +2635,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>In training the model, the second important change for TFP we need to make is to have loss and gradients computed on the individual level.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># need to add noise to every individual contribution</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># need to add noise to every individual contribution</span>
 <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>SparseCategoricalCrossentropy</span><span class='op'>(</span>reduction <span class='op'>=</span>   <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>NONE</span><span class='op'>)</span>
 
 <span class='va'>complete_model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>loss <span class='op'>=</span> <span class='va'>loss</span>, optimizer <span class='op'>=</span> <span class='va'>optimizer</span>, metrics <span class='op'>=</span> <span class='st'>"sparse_categorical_accuracy"</span><span class='op'>)</span>
@@ -2608,7 +2656,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>Here is a synopsis, where <span class="math inline">\(\epsilon\)</span> was computed like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>compute_priv</span> <span class='op'>&lt;-</span> <span class='va'>tfp</span><span class='op'>$</span><span class='va'>privacy</span><span class='op'>$</span><span class='va'>analysis</span><span class='op'>$</span><span class='va'>compute_dp_sgd_privacy</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>compute_priv</span> <span class='op'>&lt;-</span> <span class='va'>tfp</span><span class='op'>$</span><span class='va'>privacy</span><span class='op'>$</span><span class='va'>analysis</span><span class='op'>$</span><span class='va'>compute_dp_sgd_privacy</span>
 
 <span class='va'>compute_priv</span><span class='op'>$</span><span class='fu'>compute_dp_sgd_privacy</span><span class='op'>(</span>
   <span class='co'># number of records in training set</span>
@@ -2652,7 +2700,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>Now, as the adversary won’t call the complete model, we need to “cut off” the second-stage layers. This leaves us with a model that executes stage-one logic only. We save its weights, so we can later call it from the adversary:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>intercepted</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>intercepted</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span>
   <span class='va'>complete_model</span><span class='op'>$</span><span class='va'>input</span>,
   <span class='va'>complete_model</span><span class='op'>$</span><span class='fu'>get_layer</span><span class='op'>(</span><span class='st'>"mobile_output"</span><span class='op'>)</span><span class='op'>$</span><span class='va'>output</span>
 <span class='op'>)</span>
@@ -2693,7 +2741,7 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>But now, we load the trained target’s weights into the freshly defined model’s “mobile stage”:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>intercepted</span><span class='op'>$</span><span class='va'>on_device_model</span><span class='op'>$</span><span class='fu'>load_weights</span><span class='op'>(</span><span class='st'>"intercepted.hdf5"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>intercepted</span><span class='op'>$</span><span class='va'>on_device_model</span><span class='op'>$</span><span class='fu'>load_weights</span><span class='op'>(</span><span class='st'>"intercepted.hdf5"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2777,7 +2825,7 @@ Figure 8: Reconstruction attempts from a setup where the target model was traine
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-05-15-model-inversion-attacks/';
   this.page.identifier = 'posts/2020-05-15-model-inversion-attacks/';

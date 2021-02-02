@@ -478,8 +478,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -587,19 +594,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -622,6 +631,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -697,6 +710,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -924,6 +938,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1078,6 +1097,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1745,7 +1775,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1860,6 +1890,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2022,13 +2066,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2110,7 +2158,7 @@ gtag('config', 'UA-20375833-3');
 <p>When loading libraries, we already use the versions we’ll need very soon: Tensorflow 2 (&gt;= beta 1), and the development (= Github) versions of <code>tfdatasets</code> and <code>keras</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>tensorflow</span><span class='fu'>::</span><span class='fu'>install_tensorflow</span><span class='op'>(</span>version <span class='op'>=</span> <span class='st'>"2.0.0-beta1"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>tensorflow</span><span class='fu'>::</span><span class='fu'>install_tensorflow</span><span class='op'>(</span>version <span class='op'>=</span> <span class='st'>"2.0.0-beta1"</span><span class='op'>)</span>
 
 <span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"rstudio/tfdatasets"</span><span class='op'>)</span>
 <span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"rstudio/keras"</span><span class='op'>)</span>
@@ -2125,7 +2173,7 @@ gtag('config', 'UA-20375833-3');
 <p>In this first version of preparing the data, we make our lives easier by assigning different R types, based on what the features represent (categorical, binary, or numeric qualities):<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># downloaded from https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># downloaded from https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/data</span>
 <span class='va'>path</span> <span class='op'>&lt;-</span> <span class='st'>"train.csv"</span>
 
 <span class='va'>porto</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='va'>path</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2202,7 +2250,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>We split off 25% for validation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># train-test split</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># train-test split</span>
 <span class='va'>id_training</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>porto</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fl'>0.75</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>porto</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>porto</span><span class='op'>[</span><span class='va'>id_training</span>,<span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>target</span><span class='op'>)</span>
@@ -2216,7 +2264,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>Here is the scaling.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_means</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>sapply</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>is.double</span><span class='op'>)</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/unname.html'>unname</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_means</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>sapply</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>is.double</span><span class='op'>)</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/unname.html'>unname</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>train_sds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>sapply</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>is.double</span><span class='op'>)</span><span class='op'>]</span>, <span class='fl'>2</span>, <span class='va'>sd</span><span class='op'>)</span>  <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/unname.html'>unname</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>train_sds</span><span class='op'>[</span><span class='va'>train_sds</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fl'>0.000001</span>
 
@@ -2239,7 +2287,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>So as part one of the network, here we build up the embedding layers in a loop, each wired to the input layer that feeds it:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># number of levels per factor, required to specify input dimensionality for</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># number of levels per factor, required to specify input dimensionality for</span>
 <span class='co'># the embedding layers</span>
 <span class='va'>n_levels_in</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>x_train</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select_all.html'>select_if</a></span><span class='op'>(</span><span class='va'>is.factor</span><span class='op'>)</span>, <span class='fu'><a href='https://purrr.tidyverse.org/reference/compose.html'>compose</a></span><span class='op'>(</span><span class='va'>length</span>, <span class='va'>levels</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='op'>)</span> 
@@ -2266,7 +2314,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>In order to be able to combine it with anything, we have to actually construct that dense layer first. It will be connected to a single input layer, of shape 43, that takes in the numeric features we scaled as well as the binary features we left untouched:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># create a single input and a dense layer for the numeric data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># create a single input and a dense layer for the numeric data</span>
 <span class='va'>quant_input</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fl'>43</span><span class='op'>)</span>
   
 <span class='va'>quant_dense</span> <span class='op'>&lt;-</span> <span class='va'>quant_input</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>64</span><span class='op'>)</span>
@@ -2276,7 +2324,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>Are parts assembled, we wire them together using <code>layer_concatenate</code>, and we’re good to call <code>keras_model</code> to create the final graph.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>intermediate_layers</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>embedding_layers</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>quant_dense</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/flatten.html'>flatten</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>intermediate_layers</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>embedding_layers</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>quant_dense</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/flatten.html'>flatten</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>inputs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>cat_inputs</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>quant_input</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/flatten.html'>flatten</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fl'>0.25</span>
@@ -2305,7 +2353,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>Starting from the beginning again, here is the complete code for data read-in and train-test split in the feature spec version.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>readr</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
@@ -2326,7 +2374,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>Data-prep-wise, recall what our goals are: leave alone if binary; scale if numeric; embed if categorical. Specifying all of this does not need more than a few lines of code:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>id</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>feature_spec</span><span class='op'>(</span><span class='va'>target</span> <span class='op'>~</span> <span class='va'>.</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_numeric_column</span><span class='op'>(</span><span class='fu'><a href='https://tidyselect.r-lib.org/reference/starts_with.html'>ends_with</a></span><span class='op'>(</span><span class='st'>"bin"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2354,21 +2402,21 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 `
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>inputs</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input_from_dataset</span><span class='op'>(</span><span class='va'>porto</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>target</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>inputs</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input_from_dataset</span><span class='op'>(</span><span class='va'>porto</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>target</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>And second, we can extract the features from the feature spec and have <code>layer_dense_features</code> create the necessary layers based on that information:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>layer_dense_features</span><span class='op'>(</span><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>layer_dense_features</span><span class='op'>(</span><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Without further ado, we add a few dense layers, and there is our model. Magic!</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>inputs</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>inputs</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense_features</span><span class='op'>(</span><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>30</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span>, kernel_regularizer <span class='op'>=</span> <span class='fu'>regularizer_l2</span><span class='op'>(</span><span class='va'>l</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dropout</span><span class='op'>(</span>rate <span class='op'>=</span> <span class='fl'>0.25</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2385,14 +2433,14 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>How do we feed this model? In the non-feature-columns example, we would have had to feed each input separately, passing a list of tensors. Now we can just pass it the complete training set all at once:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>training</span>, y <span class='op'>=</span> <span class='va'>training</span><span class='op'>$</span><span class='va'>target</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>training</span>, y <span class='op'>=</span> <span class='va'>training</span><span class='op'>$</span><span class='va'>target</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>In the Kaggle competition, submissions are <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/overview/evaluation">evaluated using the normalized Gini coefficient</a>, which we can calculate with the help of a new metric available in Keras, <code>tf$keras$metrics$AUC()</code>. For training, we can use an approximation to the AUC due to Yan et al. (2003) <span class="citation" data-cites="yan2003optimizing">(Yan et al. <a href="#ref-yan2003optimizing" role="doc-biblioref">2003</a>)</span>. Then training is as straightforward as:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>auc</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>AUC</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>auc</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>AUC</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>gini</span> <span class='op'>&lt;-</span> <span class='fu'>custom_metric</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>"gini"</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fl'>2</span><span class='op'>*</span><span class='fu'>auc</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>1</span>
@@ -2456,7 +2504,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <p>Loading the dataset, zooming in on the variables of interest, and normalizing them the way it is done in <em>Rethinking</em>, we have:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>rethinking</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>rethinking</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://tibble.tidyverse.org/'>tibble</a></span><span class='op'>)</span>
@@ -2485,7 +2533,7 @@ $ africa  &lt;int&gt; 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, …<
 <p>So we start out creating a feature spec and adding the two predictor columns. We check the result using <code>feature_spec</code>’s <code>dense_features()</code> method:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
   <span class='fu'>feature_spec</span><span class='op'>(</span><span class='va'>log_gdp</span> <span class='op'>~</span> <span class='va'>.</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_numeric_column</span><span class='op'>(</span><span class='va'>rugged</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_categorical_column_with_identity</span><span class='op'>(</span><span class='va'>africa</span>, num_buckets <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span> 
@@ -2518,7 +2566,7 @@ Figure 1: For use with Keras, all features need to end up inheriting from DenseC
 <p>Thus, we can fix the situation like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
   <span class='fu'>feature_spec</span><span class='op'>(</span><span class='va'>log_gdp</span> <span class='op'>~</span> <span class='va'>.</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_numeric_column</span><span class='op'>(</span><span class='va'>rugged</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_categorical_column_with_identity</span><span class='op'>(</span><span class='va'>africa</span>, num_buckets <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2537,7 +2585,7 @@ IndicatorColumn(categorical_column=IdentityCategoricalColumn(key=&#39;africa&#39
 <p>What we really wanted to do is capture the interaction between ruggedness and continent. To this end, we first <em>bucketize</em> <code>rugged</code>, and then cross it with – already binary – <code>africa</code>. As per the rules, we finally transform into an <em>indicator</em> column:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'>%&gt;%</span>
   <span class='fu'>feature_spec</span><span class='op'>(</span><span class='va'>log_gdp</span> <span class='op'>~</span> <span class='va'>.</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_numeric_column</span><span class='op'>(</span><span class='va'>rugged</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_categorical_column_with_identity</span><span class='op'>(</span><span class='va'>africa</span>, num_buckets <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2554,7 +2602,7 @@ IndicatorColumn(categorical_column=IdentityCategoricalColumn(key=&#39;africa&#39
 <p>Looking at this code you may be asking yourself, now how many features do I have in the model? Let’s check.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2573,7 +2621,7 @@ IndicatorColumn(categorical_column=CrossedColumn(keys=(IdentityCategoricalColumn
 <p>Now setting up the training goes as expected.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>inputs</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input_from_dataset</span><span class='op'>(</span><span class='va'>df</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_gdp</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>inputs</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input_from_dataset</span><span class='op'>(</span><span class='va'>df</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_gdp</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>inputs</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense_features</span><span class='op'>(</span><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2631,7 +2679,7 @@ IndicatorColumn(categorical_column=CrossedColumn(keys=(IdentityCategoricalColumn
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-07-09-feature-columns/';
   this.page.identifier = 'posts/2019-07-09-feature-columns/';

@@ -473,8 +473,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -582,19 +589,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -617,6 +626,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -692,6 +705,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -919,6 +933,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1073,6 +1092,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1740,7 +1770,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1855,6 +1885,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2017,13 +2061,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2105,7 +2153,7 @@ gtag('config', 'UA-20375833-3');
 <p>We directly follow McElreath in the way the data are generated.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'>##### Inputs needed to generate the covariance matrix between intercepts and slopes #####</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'>##### Inputs needed to generate the covariance matrix between intercepts and slopes #####</span>
 
 <span class='co'># average morning wait time</span>
 <span class='va'>a</span> <span class='op'>&lt;-</span> <span class='fl'>3.5</span>
@@ -2174,7 +2222,7 @@ gtag('config', 'UA-20375833-3');
 <p>Take a glimpse at the data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>d</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>d</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2189,7 +2237,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Before we code the model, let’s quickly get library loading out of the way. Importantly, again just like in the previous post, we need to install a <code>master</code> build of TensorFlow Probability, as we’re making use of very new features not yet available in the current release version. The same goes for the R packages <code>tensorflow</code> and <code>tfprobability</code>: Please install the respective development versions from github.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>devtools</span><span class='fu'>::</span><span class='fu'>install_github</span><span class='op'>(</span><span class='st'>"rstudio/tensorflow"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>devtools</span><span class='fu'>::</span><span class='fu'>install_github</span><span class='op'>(</span><span class='st'>"rstudio/tensorflow"</span><span class='op'>)</span>
 <span class='fu'>devtools</span><span class='fu'>::</span><span class='fu'>install_github</span><span class='op'>(</span><span class='st'>"rstudio/tfprobability"</span><span class='op'>)</span>
 
 <span class='co'># this will install the latest nightlies of TensorFlow as well as TensorFlow Probability</span>
@@ -2212,7 +2260,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Now here is the model definition. We’ll go through it step by step in an instant.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>cafe_id</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>cafe_id</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'>tfd_joint_distribution_sequential</span><span class='op'>(</span>
       <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
         <span class='co'># rho, the prior for the correlation matrix between intercepts and slopes</span>
@@ -2254,7 +2302,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>For performance reasons, we work with a version that inputs and outputs Cholesky factors instead:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># rho, the prior correlation matrix between intercepts and slopes</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># rho, the prior correlation matrix between intercepts and slopes</span>
 <span class='fu'>tfd_cholesky_lkj</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2262,7 +2310,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>What kind of prior is this? As McElreath keeps reminding us, nothing is more instructive than sampling from the prior. For us to see what’s going on, we use the base LKJ distribution, not the Cholesky one:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>corr_prior</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_lkj</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>corr_prior</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_lkj</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span><span class='op'>)</span>
 <span class='va'>correlation</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>corr_prior</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_sample</span><span class='op'>(</span><span class='fl'>100</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[</span> , <span class='fl'>1</span>, <span class='fl'>2</span><span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>ggplot2</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='va'>correlation</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>ggplot</span><span class='op'>(</span><span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>correlation</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'>geom_density</span><span class='op'>(</span><span class='op'>)</span>
@@ -2276,7 +2324,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>The next distribution in line</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># sigma, prior variance for the waiting time</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># sigma, prior variance for the waiting time</span>
 <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_exponential</span><span class='op'>(</span>rate <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2285,7 +2333,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Next is the prior distribution of variances for the intercepts and slopes. This prior is the same for both cases, but we specify a <code>sample_shape</code> of 2 to get two individual samples.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># sigma_cafe, prior of variances for intercepts and slopes (vector of 2)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># sigma_cafe, prior of variances for intercepts and slopes (vector of 2)</span>
 <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_exponential</span><span class='op'>(</span>rate <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2293,14 +2341,14 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Now that we have the respective prior variances, we move on to the prior means. Both are normal distributions.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># b, the prior mean for the slopes</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># b, the prior mean for the slopes</span>
 <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='op'>-</span><span class='fl'>1</span>, scale <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># a, the prior mean for the intercepts</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># a, the prior mean for the intercepts</span>
 <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>5</span>, scale <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2308,7 +2356,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>On to the heart of the model, where the partial pooling happens. We are going to construct partially-pooled intercepts and slopes for all of the cafés. Like we said above, intercepts and slopes are not independent; they interact. Thus, we need to use a multivariate normal distribution. The means are given by the prior means defined right above, while the covariance matrix is built from the above prior variances and the prior correlation matrix. The output shape here is determined by the number of cafés: We want an intercept and a slope for every café.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># mvn, multivariate distribution of intercepts and slopes</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># mvn, multivariate distribution of intercepts and slopes</span>
 <span class='co'># shape: batch size, 20, 2</span>
 <span class='kw'>function</span><span class='op'>(</span><span class='va'>a</span>,<span class='va'>b</span>,<span class='va'>sigma_cafe</span>,<span class='va'>sigma</span>,<span class='va'>chol_rho</span><span class='op'>)</span> 
   <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span>
@@ -2322,7 +2370,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Finally, we sample the actual waiting times. This code pulls out the correct intercepts and slopes from the multivariate normal and outputs the mean waiting time, dependent on what café we’re in and whether it’s morning or afternoon.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code>        <span class='co'># waiting time</span>
+<pre class="sourceCode r"><code class="sourceCode r">        <span class='co'># waiting time</span>
         <span class='co'># shape: batch size, 200</span>
         <span class='kw'>function</span><span class='op'>(</span><span class='va'>mvn</span>, <span class='va'>a</span>, <span class='va'>b</span>, <span class='va'>sigma_cafe</span>, <span class='va'>sigma</span><span class='op'>)</span>
           <span class='fu'>tfd_independent</span><span class='op'>(</span>
@@ -2339,7 +2387,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Before running the sampling, it’s always a good idea to do a quick check on the model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_cafes</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_cafes</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
 <span class='va'>cafe_id</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='op'>(</span><span class='va'>d</span><span class='op'>$</span><span class='va'>cafe</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%%</span> <span class='fl'>20</span>, <span class='va'>tf</span><span class='op'>$</span><span class='va'>int64</span><span class='op'>)</span>
 
 <span class='va'>afternoon</span> <span class='op'>&lt;-</span> <span class='va'>d</span><span class='op'>$</span><span class='va'>afternoon</span>
@@ -2350,7 +2398,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>We sample from the model and then, check the log probability.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>cafe_id</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>cafe_id</span><span class='op'>)</span>
 
 <span class='va'>s</span> <span class='op'>&lt;-</span> <span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_sample</span><span class='op'>(</span><span class='fl'>3</span><span class='op'>)</span>
 <span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>s</span><span class='op'>)</span>
@@ -2363,7 +2411,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>The actual Monte Carlo sampling works just like in the previous post, with one exception. Sampling happens in unconstrained parameter space, but at the end we need to get valid correlation matrix parameters <code>rho</code> and valid variances <code>sigma</code> and <code>sigma_cafe</code>. Conversion between spaces is done via TFP bijectors. Luckily, this is not something we have to do as users; all we need to specify are appropriate bijectors. For the normal distributions in the model, there is nothing to do.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>constraining_bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>constraining_bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
   <span class='co'># make sure the rho[1:4] parameters are valid for a Cholesky factor</span>
   <span class='fu'>tfb_correlation_cholesky</span><span class='op'>(</span><span class='op'>)</span>,
   <span class='co'># make sure variance is positive</span>
@@ -2380,7 +2428,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Now we can set up the Hamiltonian Monte Carlo sampler.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_steps</span> <span class='op'>&lt;-</span> <span class='fl'>500</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_steps</span> <span class='op'>&lt;-</span> <span class='fl'>500</span>
 <span class='va'>n_burnin</span> <span class='op'>&lt;-</span> <span class='fl'>500</span>
 <span class='va'>n_chains</span> <span class='op'>&lt;-</span> <span class='fl'>4</span>
 
@@ -2407,7 +2455,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Again, we can obtain additional diagnostics (here: step sizes and acceptance rates) by registering a trace function:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>trace_fn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>state</span>, <span class='va'>pkr</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>trace_fn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>state</span>, <span class='va'>pkr</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>pkr</span><span class='op'>$</span><span class='va'>inner_results</span><span class='op'>$</span><span class='va'>inner_results</span><span class='op'>$</span><span class='va'>is_accepted</span>,
        <span class='va'>pkr</span><span class='op'>$</span><span class='va'>inner_results</span><span class='op'>$</span><span class='va'>inner_results</span><span class='op'>$</span><span class='va'>accepted_results</span><span class='op'>$</span><span class='va'>step_size</span><span class='op'>)</span>
 <span class='op'>}</span>
@@ -2417,7 +2465,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Here, then, is the sampling function. Note how we use <code>tf_function</code> to put it on the graph. At least as of today, this makes a huge difference in sampling performance when using eager execution.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>run_mcmc</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>kernel</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>run_mcmc</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>kernel</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>kernel</span> <span class='op'>%&gt;%</span> <span class='fu'>mcmc_sample_chain</span><span class='op'>(</span>
     num_results <span class='op'>=</span> <span class='va'>n_steps</span>,
     num_burnin_steps <span class='op'>=</span> <span class='va'>n_burnin</span>,
@@ -2443,7 +2491,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>At this moment, <code>mcmc_trace</code> is a list of tensors of different shapes, dependent on how we defined the parameters. We need to do a bit of post-processing to be able to summarise and display the results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># the actual mcmc samples</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># the actual mcmc samples</span>
 <span class='co'># for the trace plots, we want to have them in shape (500, 4, 49)</span>
 <span class='co'># that is: (number of steps, number of chains, number of parameters)</span>
 <span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='fu'>abind</span><span class='op'>(</span>
@@ -2506,7 +2554,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>How well do the chains mix?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>prep_tibble</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>prep_tibble</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://tibble.tidyverse.org/reference/as_tibble.html'>as_tibble</a></span><span class='op'>(</span><span class='va'>samples</span>, .name_repair <span class='op'>=</span> <span class='op'>~</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"chain_1"</span>, <span class='st'>"chain_2"</span>, <span class='st'>"chain_3"</span>, <span class='st'>"chain_4"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
     <span class='fu'><a href='https://tibble.tidyverse.org/reference/add_column.html'>add_column</a></span><span class='op'>(</span>sample <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_steps</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
     <span class='fu'>gather</span><span class='op'>(</span>key <span class='op'>=</span> <span class='st'>"chain"</span>, value <span class='op'>=</span> <span class='st'>"value"</span>, <span class='op'>-</span><span class='va'>sample</span><span class='op'>)</span>
@@ -2541,7 +2589,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>Like last time, we display posterior means and standard deviations, as well as the highest posterior density interval (HPDI). We add effective sample sizes and <em>rhat</em> values.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>column_names</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>column_names</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
   <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"rho_"</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>)</span>,
   <span class='st'>"sigma"</span>,
   <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"sigma_cafe_"</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>2</span><span class='op'>)</span>,
@@ -2650,7 +2698,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>The <code>rho</code> posterior estimates, admittedly, are less useful unless you are accustomed to compose Cholesky factors in your head. We compute the resulting posterior correlations and their mean:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>rhos</span> <span class='op'>&lt;-</span> <span class='va'>all_samples</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>rhos</span> <span class='op'>&lt;-</span> <span class='va'>all_samples</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>rhos</span> <span class='op'>&lt;-</span> <span class='va'>rhos</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>list</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2671,7 +2719,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>As expected, we see that the individual intercepts and slopes are pulled towards the mean – the more, the further away they are from the center.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># just like McElreath, compute unpooled estimates directly from data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># just like McElreath, compute unpooled estimates directly from data</span>
 <span class='va'>a_empirical</span> <span class='op'>&lt;-</span> <span class='va'>d</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>afternoon</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/group_by.html'>group_by</a></span><span class='op'>(</span><span class='va'>cafe</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2731,7 +2779,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p>The same behavior is visible on the outcome scale.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>wait_times</span>  <span class='op'>&lt;-</span> <span class='va'>all_estimates</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>wait_times</span>  <span class='op'>&lt;-</span> <span class='va'>all_estimates</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>morning <span class='op'>=</span> <span class='va'>a</span>, afternoon <span class='op'>=</span> <span class='va'>a</span> <span class='op'>+</span> <span class='va'>b</span><span class='op'>)</span>
 
 <span class='co'># simulate from posterior means</span>
@@ -2790,7 +2838,7 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-05-24-varying-slopes/';
   this.page.identifier = 'posts/2019-05-24-varying-slopes/';

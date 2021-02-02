@@ -476,8 +476,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -585,19 +592,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -620,6 +629,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -695,6 +708,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -922,6 +936,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1076,6 +1095,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1743,7 +1773,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1858,6 +1888,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2020,13 +2064,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2107,7 +2155,7 @@ In case you’d like a more comprehensive introduction to doing regression with 
 </aside>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 
@@ -2133,7 +2181,7 @@ This formula assumes a single output unit.
 <p>Alternatively, we might wish to predict the median of that conditional distribution. In that case, we’d change the cost function to use mean absolute error:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   optimizer <span class='op'>=</span> <span class='st'>"adam"</span>, 
   loss <span class='op'>=</span> <span class='st'>"mean_absolute_error"</span>
 <span class='op'>)</span>
@@ -2148,7 +2196,7 @@ For a more detailed introduction to classification with Keras, see the <a href="
 </aside>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Using the CIFAR-10 dataset that conveniently comes with Keras.</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Using the CIFAR-10 dataset that conveniently comes with Keras.</span>
 <span class='va'>cifar10</span> <span class='op'>&lt;-</span> <span class='fu'>dataset_cifar10</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>cifar10</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>/</span> <span class='fl'>255</span>
@@ -2232,7 +2280,7 @@ Here p is the predicted probability, i.e., the output activations of the network
 <p>Here first is the code: Not many differences to the above, but note the changes in activation and cost function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>cifar10</span> <span class='op'>&lt;-</span> <span class='fu'>dataset_cifar10</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>cifar10</span> <span class='op'>&lt;-</span> <span class='fu'>dataset_cifar10</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>cifar10</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>/</span> <span class='fl'>255</span>
 <span class='va'>y_train</span> <span class='op'>&lt;-</span> <span class='va'>cifar10</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='va'>y</span>
@@ -2326,7 +2374,7 @@ Here p is the predicted probability, i.e., the output activations of the network
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro/';
   this.page.identifier = 'posts/2018-10-11-activations-intro/';

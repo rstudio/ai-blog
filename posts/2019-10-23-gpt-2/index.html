@@ -479,8 +479,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -588,19 +595,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -623,6 +632,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -698,6 +711,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -925,6 +939,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1079,6 +1098,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1746,7 +1776,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1861,6 +1891,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2023,13 +2067,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2141,14 +2189,14 @@ gtag('config', 'UA-20375833-3');
 <p>Install <code>gpt2</code> from <a href="https://github.com/r-tensorflow/gpt2">github</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"r-tensorflow/gpt2"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"r-tensorflow/gpt2"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>The R package being a wrapper to the implementation <a href="https://github.com/openai/gpt-2">provided by OpenAI</a>, we then need to install the Python runtime.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>gpt2</span><span class='fu'>::</span><span class='fu'>install_gpt2</span><span class='op'>(</span>envname <span class='op'>=</span> <span class='st'>"r-gpt2"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>gpt2</span><span class='fu'>::</span><span class='fu'>install_gpt2</span><span class='op'>(</span>envname <span class='op'>=</span> <span class='st'>"r-gpt2"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2162,7 +2210,7 @@ gtag('config', 'UA-20375833-3');
 <p>As a quick test if installation was successful, just run <code>gpt2()</code> with the default parameters:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># equivalent to:</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># equivalent to:</span>
 <span class='co'># gpt2(prompt = "Hello my name is", model = "124M", seed = NULL, batch_size = 1, total_tokens = NULL,</span>
 <span class='co'>#      temperature = 1, top_k = 0, top_p = 1)</span>
 <span class='co'># see ?gpt2 for an explanation of the parameters</span>
@@ -2233,7 +2281,7 @@ is increasing by about 2 billion tons per year.
 TL;DR:</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>gpt2</span><span class='op'>(</span>prompt <span class='op'>=</span> <span class='va'>text</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>gpt2</span><span class='op'>(</span>prompt <span class='op'>=</span> <span class='va'>text</span>,
      model <span class='op'>=</span> <span class='st'>"774M"</span>,
      total_tokens <span class='op'>=</span> <span class='fl'>100</span>,
      top_k <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
@@ -2254,7 +2302,7 @@ Northern Hemisphere has decreased over the past&quot;</code></pre>
 <p>We tried like this, asking questions on the above climate change - related text:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>q</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_c.html'>str_c</a></span><span class='op'>(</span><span class='fu'><a href='https://stringr.tidyverse.org/reference/str_replace.html'>str_replace</a></span><span class='op'>(</span><span class='va'>text</span>, <span class='st'>"\nTL;DR:\n"</span>, <span class='st'>""</span><span class='op'>)</span>, <span class='st'>" \n"</span>, <span class='st'>"
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>q</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_c.html'>str_c</a></span><span class='op'>(</span><span class='fu'><a href='https://stringr.tidyverse.org/reference/str_replace.html'>str_replace</a></span><span class='op'>(</span><span class='va'>text</span>, <span class='st'>"\nTL;DR:\n"</span>, <span class='st'>""</span><span class='op'>)</span>, <span class='st'>" \n"</span>, <span class='st'>"
 Q: What time period has seen the greatest increase in global temperature? 
 A: The last 35 years. 
 Q: What is happening to the Greenland and Antarctic ice sheets? 
@@ -2357,7 +2405,7 @@ ainsi que des&quot;</code></pre>
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-10-23-gpt-2/';
   this.page.identifier = 'posts/2019-10-23-gpt-2/';

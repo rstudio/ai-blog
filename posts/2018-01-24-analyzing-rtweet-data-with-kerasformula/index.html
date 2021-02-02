@@ -471,8 +471,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -580,19 +587,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -615,6 +624,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -690,6 +703,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -917,6 +931,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1071,6 +1090,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1738,7 +1768,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1853,6 +1883,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2015,13 +2059,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2090,7 +2138,7 @@ gtag('config', 'UA-20375833-3');
 <p>The kerasformula package is available on CRAN, and can be installed with:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># install the kerasformula package</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># install the kerasformula package</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/install.packages.html'>install.packages</a></span><span class='op'>(</span><span class='st'>"kerasformula"</span><span class='op'>)</span>    
 <span class='co'># or devtools::install_github("rdrr1990/kerasformula")</span>
 
@@ -2111,7 +2159,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s look at #rstats tweets (excluding retweets) for a six-day period ending January 24, 2018 at 10:40. This happens to give us a nice reasonable number of observations to work with in terms of runtime (and the purpose of this document is to show syntax, not build particularly predictive models).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>rstats</span> <span class='op'>&lt;-</span> <span class='fu'>search_tweets</span><span class='op'>(</span><span class='st'>"#rstats"</span>, n <span class='op'>=</span> <span class='fl'>10000</span>, include_rts <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>rstats</span> <span class='op'>&lt;-</span> <span class='fu'>search_tweets</span><span class='op'>(</span><span class='st'>"#rstats"</span>, n <span class='op'>=</span> <span class='fl'>10000</span>, include_rts <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>rstats</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2120,7 +2168,7 @@ gtag('config', 'UA-20375833-3');
 <p>Suppose our goal is to predict how popular tweets will be based on how often the tweet was retweeted and favorited (which correlate strongly).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/stats/cor.html'>cor</a></span><span class='op'>(</span><span class='va'>rstats</span><span class='op'>$</span><span class='va'>favorite_count</span>, <span class='va'>rstats</span><span class='op'>$</span><span class='va'>retweet_count</span>, method<span class='op'>=</span><span class='st'>"spearman"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/stats/cor.html'>cor</a></span><span class='op'>(</span><span class='va'>rstats</span><span class='op'>$</span><span class='va'>favorite_count</span>, <span class='va'>rstats</span><span class='op'>$</span><span class='va'>retweet_count</span>, method<span class='op'>=</span><span class='st'>"spearman"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2134,7 +2182,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s suppose we are interested in putting tweets into categories based on popularity but we’re not sure how finely-grained we want to make distinctions. Some of the data, like <code>rstats$mentions_screen_name</code> comes in a list of varying lengths, so let’s write a helper function to count non-NA entries.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>y</span><span class='op'>)</span><span class='op'>{</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>y</span><span class='op'>)</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/NA.html'>is.na</a></span><span class='op'>(</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>}</span><span class='op'>)</span><span class='op'>)</span>
 <span class='op'>}</span>
 </code></pre>
@@ -2143,7 +2191,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s start with a dense neural net, the default of <code>kms</code>. We can use base R functions to help clean the data–in this case, <code>cut</code> to discretize the outcome, <code>grepl</code> to look for key words, and <code>weekdays</code> and <code>format</code> to capture different aspects of the time the tweet was posted.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>breaks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>1</span>, <span class='fl'>0</span>, <span class='fl'>1</span>, <span class='fl'>10</span>, <span class='fl'>100</span>, <span class='fl'>1000</span>, <span class='fl'>10000</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>breaks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>1</span>, <span class='fl'>0</span>, <span class='fl'>1</span>, <span class='fl'>10</span>, <span class='fl'>100</span>, <span class='fl'>1000</span>, <span class='fl'>10000</span><span class='op'>)</span>
 <span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/cut.html'>cut</a></span><span class='op'>(</span><span class='va'>retweet_count</span> <span class='op'>+</span> <span class='va'>favorite_count</span>, <span class='va'>breaks</span><span class='op'>)</span> <span class='op'>~</span> <span class='va'>screen_name</span> <span class='op'>+</span> 
                   <span class='va'>source</span> <span class='op'>+</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>hashtags</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>mentions_screen_name</span><span class='op'>)</span> <span class='op'>+</span> 
                   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>urls_url</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/nchar.html'>nchar</a></span><span class='op'>(</span><span class='va'>text</span><span class='op'>)</span> <span class='op'>+</span>
@@ -2173,7 +2221,7 @@ gtag('config', 'UA-20375833-3');
 <p>The model only classifies about 55% of the out-of-sample data correctly and that predictive accuracy doesn’t improve after the first ten epochs. The confusion matrix suggests that model does best with tweets that are retweeted a handful of times but overpredicts the 1-10 level. The <code>history</code> plot also suggests that out-of-sample accuracy is not very stable. We can easily change the breakpoints and number of epochs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>breaks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>1</span>, <span class='fl'>0</span>, <span class='fl'>1</span>, <span class='fl'>25</span>, <span class='fl'>50</span>, <span class='fl'>75</span>, <span class='fl'>100</span>, <span class='fl'>500</span>, <span class='fl'>1000</span>, <span class='fl'>10000</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>breaks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>1</span>, <span class='fl'>0</span>, <span class='fl'>1</span>, <span class='fl'>25</span>, <span class='fl'>50</span>, <span class='fl'>75</span>, <span class='fl'>100</span>, <span class='fl'>500</span>, <span class='fl'>1000</span>, <span class='fl'>10000</span><span class='op'>)</span>
 <span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/cut.html'>cut</a></span><span class='op'>(</span><span class='va'>retweet_count</span> <span class='op'>+</span> <span class='va'>favorite_count</span>, <span class='va'>breaks</span><span class='op'>)</span> <span class='op'>~</span>  
                   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>hashtags</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>mentions_screen_name</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/context.html'>n</a></span><span class='op'>(</span><span class='va'>urls_url</span><span class='op'>)</span> <span class='op'>+</span>
                   <span class='fu'><a href='https://rdrr.io/r/base/nchar.html'>nchar</a></span><span class='op'>(</span><span class='va'>text</span><span class='op'>)</span> <span class='op'>+</span>
@@ -2194,7 +2242,7 @@ gtag('config', 'UA-20375833-3');
 <p>That helped some (about 5% additional predictive accuracy). Suppose we want to add a little more data. Let’s first store the input formula.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>pop_input</span> <span class='op'>&lt;-</span> <span class='st'>"cut(retweet_count + favorite_count, breaks) ~  
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>pop_input</span> <span class='op'>&lt;-</span> <span class='st'>"cut(retweet_count + favorite_count, breaks) ~  
                           n(hashtags) + n(mentions_screen_name) + n(urls_url) +
                           nchar(text) +
                           screen_name + source +
@@ -2208,7 +2256,7 @@ gtag('config', 'UA-20375833-3');
 <pre><code>grepl(&quot;12233344455556&quot;, mentions_user_id)</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>mentions</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='va'>rstats</span><span class='op'>$</span><span class='va'>mentions_user_id</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>mentions</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='va'>rstats</span><span class='op'>$</span><span class='va'>mentions_user_id</span><span class='op'>)</span>
 <span class='va'>mentions</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='va'>mentions</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/which.html'>which</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/table.html'>table</a></span><span class='op'>(</span><span class='va'>mentions</span><span class='op'>)</span> <span class='op'>&gt;</span> <span class='fl'>5</span><span class='op'>)</span><span class='op'>]</span><span class='op'>)</span> <span class='co'># remove infrequent</span>
 <span class='va'>mentions</span> <span class='op'>&lt;-</span> <span class='va'>mentions</span><span class='op'>[</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NA.html'>is.na</a></span><span class='op'>(</span><span class='va'>mentions</span><span class='op'>)</span><span class='op'>]</span> <span class='co'># drop NA</span>
 
@@ -2229,7 +2277,7 @@ gtag('config', 'UA-20375833-3');
 <p>The <code>input.formula</code> is used to create a sparse model matrix. For example, <code>rstats$source</code> (Twitter or Twitter-client application type) and <code>rstats$screen_name</code> are character vectors that will be dummied out. How many columns does it have?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>popularity</span><span class='op'>$</span><span class='va'>P</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>popularity</span><span class='op'>$</span><span class='va'>P</span>
 </code></pre>
 </div>
 </div>
@@ -2237,7 +2285,7 @@ gtag('config', 'UA-20375833-3');
 <p>Say we wanted to reshape the layers to transition more gradually from the input shape to the output.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='va'>pop_input</span>, <span class='va'>rstats</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='va'>pop_input</span>, <span class='va'>rstats</span>,
                   layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
                     units <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1024</span>, <span class='fl'>512</span>, <span class='fl'>256</span>, <span class='fl'>128</span>, <span class='cn'>NA</span><span class='op'>)</span>,
                     activation <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"relu"</span>, <span class='st'>"relu"</span>, <span class='st'>"relu"</span>, <span class='st'>"relu"</span>, <span class='st'>"softmax"</span><span class='op'>)</span>, 
@@ -2255,7 +2303,7 @@ gtag('config', 'UA-20375833-3');
 <p>By default, <code>kms</code> uses batches of 32. Suppose we were happy with our model but didn’t have any particular intuition about what the size should be.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>Nbatch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>16</span>, <span class='fl'>32</span>, <span class='fl'>64</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>Nbatch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>16</span>, <span class='fl'>32</span>, <span class='fl'>64</span><span class='op'>)</span>
 <span class='va'>Nruns</span> <span class='op'>&lt;-</span> <span class='fl'>4</span>
 <span class='va'>accuracy</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span>nrow <span class='op'>=</span> <span class='va'>Nruns</span>, ncol <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>Nbatch</span><span class='op'>)</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/colnames.html'>colnames</a></span><span class='op'>(</span><span class='va'>accuracy</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"Nbatch_"</span>, <span class='va'>Nbatch</span><span class='op'>)</span>
@@ -2279,7 +2327,7 @@ gtag('config', 'UA-20375833-3');
 <p>Thus far, we have been using the default settings for <code>kms</code> which first splits data into 80% training and 20% testing. Of the 80% training, a certain portion is set aside for validation and that’s what produces the epoch-by-epoch graphs of loss and accuracy. The 20% is only used at the end to assess predictive accuracy. But suppose you wanted to make predictions on a new data set…</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='va'>pop_input</span>, <span class='va'>rstats</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1000</span>,<span class='op'>]</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>popularity</span> <span class='op'>&lt;-</span> <span class='fu'>kms</span><span class='op'>(</span><span class='va'>pop_input</span>, <span class='va'>rstats</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1000</span>,<span class='op'>]</span><span class='op'>)</span>
 <span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>popularity</span>, <span class='va'>rstats</span><span class='op'>[</span><span class='fl'>1001</span><span class='op'>:</span><span class='fl'>2000</span>,<span class='op'>]</span><span class='op'>)</span>
 <span class='va'>predictions</span><span class='op'>$</span><span class='va'>accuracy</span>
 </code></pre>
@@ -2288,7 +2336,7 @@ gtag('config', 'UA-20375833-3');
 <pre><code>    [1] 0.579</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># predictions$confusion</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># predictions$confusion</span>
 </code></pre>
 </div>
 </div>
@@ -2298,7 +2346,7 @@ gtag('config', 'UA-20375833-3');
 <p>This section shows how to input a model compiled in the fashion typical to <code>library(keras)</code>, which is useful for more advanced models. Here is an example for <code>lstm</code> analogous to the <a href="https://tensorflow.rstudio.com/keras/articles/examples/imdb_lstm.html">imbd with Keras example</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>k</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>k</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>k</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_embedding</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='va'>popularity</span><span class='op'>$</span><span class='va'>P</span>, output_dim <span class='op'>=</span> <span class='va'>popularity</span><span class='op'>$</span><span class='va'>P</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_lstm</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>512</span>, dropout <span class='op'>=</span> <span class='fl'>0.4</span>, recurrent_dropout <span class='op'>=</span> <span class='fl'>0.2</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2340,7 +2388,7 @@ gtag('config', 'UA-20375833-3');
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-01-24-analyzing-rtweet-data-with-kerasformula/';
   this.page.identifier = 'posts/2018-01-24-analyzing-rtweet-data-with-kerasformula/';

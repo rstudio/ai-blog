@@ -482,8 +482,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -591,19 +598,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -626,6 +635,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -701,6 +714,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -928,6 +942,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1082,6 +1101,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1749,7 +1779,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1864,6 +1894,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2026,13 +2070,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2129,7 +2177,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here’s a minimal <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom model</a> that does exactly this:<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>simple_dot</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>simple_dot</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
                        <span class='va'>n_users</span>,
                        <span class='va'>n_movies</span>,
                        <span class='va'>name</span> <span class='op'>=</span> <span class='st'>"simple_dot"</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2171,7 +2219,7 @@ gtag('config', 'UA-20375833-3');
 <p>We’re still missing the data though! Let’s load it. Besides the ratings themselves, we’ll also get the titles from <em>movies.csv</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='st'>"ml-latest-small"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='st'>"ml-latest-small"</span>
 <span class='va'>movies</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>data_dir</span>, <span class='st'>"movies.csv"</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>ratings</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>data_dir</span>, <span class='st'>"ratings.csv"</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
@@ -2180,7 +2228,7 @@ gtag('config', 'UA-20375833-3');
 <p>While user ids have no gaps in this sample, that’s different for movie ids. We therefore convert them to consecutive numbers, so we can later specify an adequate size for the lookup matrix.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>dense_movies</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>movieId</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/distinct.html'>distinct</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/rownames.html'>rowid_to_column</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>dense_movies</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>movieId</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/distinct.html'>distinct</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/rownames.html'>rowid_to_column</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>ratings</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate-joins.html'>inner_join</a></span><span class='op'>(</span><span class='va'>dense_movies</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/rename.html'>rename</a></span><span class='op'>(</span>movieIdDense <span class='op'>=</span> <span class='va'>rowid</span><span class='op'>)</span>
 <span class='va'>ratings</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate-joins.html'>inner_join</a></span><span class='op'>(</span><span class='va'>movies</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>userId</span>, <span class='va'>movieIdDense</span>, <span class='va'>rating</span>, <span class='va'>title</span>, <span class='va'>genres</span><span class='op'>)</span>
 </code></pre>
@@ -2189,7 +2237,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s take a note, then, of how many users resp. movies we have.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_movies</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>movieIdDense</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/distinct.html'>distinct</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_movies</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>movieIdDense</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/distinct.html'>distinct</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>n_users</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>userId</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/distinct.html'>distinct</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2197,7 +2245,7 @@ gtag('config', 'UA-20375833-3');
 <p>We’ll split off 20% of the data for validation. After training, probably all users will have been seen by the network, while very likely, not all movies will have occurred in the training sample.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>ratings</span><span class='op'>)</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>ratings</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>ratings</span><span class='op'>)</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>ratings</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>train_ratings</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span><span class='op'>[</span><span class='va'>train_indices</span>,<span class='op'>]</span>
 <span class='va'>valid_ratings</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_indices</span>,<span class='op'>]</span>
 
@@ -2212,7 +2260,7 @@ gtag('config', 'UA-20375833-3');
 <p>We’re ready to start the training process. Feel free to experiment with different embedding dimensionalities.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>embedding_dim</span> <span class='op'>&lt;-</span> <span class='fl'>64</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>embedding_dim</span> <span class='op'>&lt;-</span> <span class='fl'>64</span>
 
 <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>simple_dot</span><span class='op'>(</span><span class='va'>embedding_dim</span>, <span class='va'>n_users</span>, <span class='va'>n_movies</span><span class='op'>)</span>
 
@@ -2244,7 +2292,7 @@ gtag('config', 'UA-20375833-3');
 <p>Note how in this model, we also use dropout on the user and movie embeddings (again, the best dropout rate is open to experimentation).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>max_rating</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/summarise.html'>summarise</a></span><span class='op'>(</span>max_rating <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/Extremes.html'>max</a></span><span class='op'>(</span><span class='va'>rating</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>max_rating</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/summarise.html'>summarise</a></span><span class='op'>(</span>max_rating <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/Extremes.html'>max</a></span><span class='op'>(</span><span class='va'>rating</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>min_rating</span> <span class='op'>&lt;-</span> <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/summarise.html'>summarise</a></span><span class='op'>(</span>min_rating <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/Extremes.html'>min</a></span><span class='op'>(</span><span class='va'>rating</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>dot_with_bias</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
@@ -2315,7 +2363,7 @@ gtag('config', 'UA-20375833-3');
 <p>How well does this model perform?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>dot_with_bias</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>dot_with_bias</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
                        <span class='va'>n_users</span>,
                        <span class='va'>n_movies</span>,
                        <span class='va'>max_rating</span>,
@@ -2346,14 +2394,14 @@ gtag('config', 'UA-20375833-3');
 <p>We can easily extract the embedding matrices from the respective layers. Let’s do this for movies now.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>movie_embeddings</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>get_layer</span><span class='op'>(</span><span class='st'>"movie_embedding"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>get_weights</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>movie_embeddings</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>get_layer</span><span class='op'>(</span><span class='st'>"movie_embedding"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>get_weights</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
 </code></pre>
 </div>
 </div>
 <p>How are they distributed? Here’s a heatmap of the first 20 movies. (Note how we increment the row indices by 1, because the very first row in the embedding matrix belongs to a movie id <em>0</em> which does not exist in our dataset.) We see that the embeddings look rather uniformly distributed between -0.5 and 0.5.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>levelplot</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>levelplot</span><span class='op'>(</span>
   <span class='fu'><a href='https://rdrr.io/r/base/t.html'>t</a></span><span class='op'>(</span><span class='va'>movie_embeddings</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>:</span><span class='fl'>21</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>64</span><span class='op'>]</span><span class='op'>)</span>,
   xlab <span class='op'>=</span> <span class='st'>""</span>,
   ylab <span class='op'>=</span> <span class='st'>""</span>,
@@ -2367,7 +2415,7 @@ gtag('config', 'UA-20375833-3');
 <p>Naturally, we might be interested in dimensionality reduction, and see how specific movies score on the dominant factors. A possible way to achieve this is PCA:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>movie_pca</span> <span class='op'>&lt;-</span> <span class='va'>movie_embeddings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/stats/prcomp.html'>prcomp</a></span><span class='op'>(</span>center <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>movie_pca</span> <span class='op'>&lt;-</span> <span class='va'>movie_embeddings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/stats/prcomp.html'>prcomp</a></span><span class='op'>(</span>center <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 <span class='va'>components</span> <span class='op'>&lt;-</span> <span class='va'>movie_pca</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/as.data.frame.html'>as.data.frame</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/rownames.html'>rowid_to_column</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>movie_pca</span><span class='op'>)</span>
@@ -2381,7 +2429,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here are the 10 movies (out of all that were rated at least 20 times) that scored lowest on the first factor:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ratings_with_pc12</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ratings_with_pc12</span> <span class='op'>&lt;-</span>
   <span class='va'>ratings</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate-joins.html'>inner_join</a></span><span class='op'>(</span><span class='va'>components</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>rowid</span>, <span class='va'>PC1</span>, <span class='va'>PC2</span><span class='op'>)</span>,
                          by <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"movieIdDense"</span> <span class='op'>=</span> <span class='st'>"rowid"</span><span class='op'>)</span><span class='op'>)</span>
 
@@ -2417,7 +2465,7 @@ gtag('config', 'UA-20375833-3');
 <p>And here, inversely, are those that scored highest:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ratings_grouped</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>num_ratings</span> <span class='op'>&gt;</span> <span class='fl'>20</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/arrange.html'>arrange</a></span><span class='op'>(</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/desc.html'>desc</a></span><span class='op'>(</span><span class='va'>PC1</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span>n <span class='op'>=</span> <span class='fl'>10</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ratings_grouped</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>num_ratings</span> <span class='op'>&gt;</span> <span class='fl'>20</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/arrange.html'>arrange</a></span><span class='op'>(</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/desc.html'>desc</a></span><span class='op'>(</span><span class='va'>PC1</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span>n <span class='op'>=</span> <span class='fl'>10</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2449,7 +2497,7 @@ gtag('config', 'UA-20375833-3');
 <p>it looks up the passed-in row number in the weight matrix, thus retrieving an item’s distributed representation from the matrix.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>SimpleEmbedding</span> <span class='op'>&lt;-</span> <span class='fu'>R6</span><span class='fu'>::</span><span class='kw'><a href='https://r6.r-lib.org/reference/R6Class.html'>R6Class</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>SimpleEmbedding</span> <span class='op'>&lt;-</span> <span class='fu'>R6</span><span class='fu'>::</span><span class='kw'><a href='https://r6.r-lib.org/reference/R6Class.html'>R6Class</a></span><span class='op'>(</span>
   <span class='st'>"SimpleEmbedding"</span>,
   
   inherit <span class='op'>=</span> <span class='va'>KerasLayer</span>,
@@ -2489,7 +2537,7 @@ gtag('config', 'UA-20375833-3');
 <p>As usual with custom layers, we still need a wrapper that takes care of instantiation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>layer_simple_embedding</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>layer_simple_embedding</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>object</span>,
            <span class='va'>emb_input_dim</span>,
            <span class='va'>output_dim</span>,
@@ -2514,7 +2562,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here’s the simple dot product model again, this time using our custom embedding layer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>simple_dot2</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>simple_dot2</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>embedding_dim</span>,
                        <span class='va'>n_users</span>,
                        <span class='va'>n_movies</span>,
                        <span class='va'>name</span> <span class='op'>=</span> <span class='st'>"simple_dot2"</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2630,7 +2678,7 @@ gtag('config', 'UA-20375833-3');
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/';
   this.page.identifier = 'posts/2018-09-26-embeddings-recommender/';

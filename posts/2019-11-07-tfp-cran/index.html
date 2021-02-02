@@ -473,8 +473,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -582,19 +589,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -617,6 +626,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -692,6 +705,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -919,6 +933,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1073,6 +1092,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1740,7 +1770,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1855,6 +1885,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2017,13 +2061,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2101,7 +2149,7 @@ gtag('config', 'UA-20375833-3');
 <p>Concretely, for multi-class classification, we could use a categorical layer (<a href="https://rstudio.github.io/tfprobability/reference/layer_one_hot_categorical.html">layer_one_hot_categorical</a>), replacing something like</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>layer_dense</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>layer_dense</span><span class='op'>(</span>
   <span class='va'>num_classes</span>, 
   activation <span class='op'>=</span> <span class='st'>"softmax"</span>
 <span class='op'>)</span>
@@ -2111,14 +2159,14 @@ gtag('config', 'UA-20375833-3');
 <p>by</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>layer_one_hot_categorical</span><span class='op'>(</span>event_size <span class='op'>=</span> <span class='va'>num_classes</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>layer_one_hot_categorical</span><span class='op'>(</span>event_size <span class='op'>=</span> <span class='va'>num_classes</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>The model, thus modified, now outputs a distribution, not a tensor. However, it can still be trained passing “normal” target tensors. This is what was meant by <em>use like a normal layer</em>, above: TFP will take the distribution, obtain a tensor from it <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, and compare that to the target. The other side of the layer’s personality is seen when generating predictions: Calling the model on fresh data will result in a bunch of distributions, one for every data point. You then call <a href="https://rstudio.github.io/tfprobability/reference/tfd_mean.html">tfd_mean</a> to elicit actual predictions:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>pred_dists</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>pred_dists</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span>
 <span class='va'>pred_means</span> <span class='op'>&lt;-</span> <span class='va'>pred_dists</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_mean</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2154,7 +2202,7 @@ gtag('config', 'UA-20375833-3');
 <p>If a model’s last layer wraps a distribution parameterized by location and scale, like the normal distribution, we can train the network to learn not just the mean, but also the spread in the data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>8</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>2</span>, activation <span class='op'>=</span> <span class='st'>"linear"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_distribution_lambda</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
@@ -2191,7 +2239,7 @@ Figure 2: Aleatoric uncertainty on simulated data (from <a href="https://blogs.r
 <p>Using <em>variational layers</em>, we can make neural networks probabilistic. A simple example could look like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dense_variational</span><span class='op'>(</span>
     units <span class='op'>=</span> <span class='fl'>1</span>,
     make_posterior_fn <span class='op'>=</span> <span class='va'>posterior_mean_field</span>,
@@ -2249,7 +2297,7 @@ Figure 5: AirPassengers, decomposition into a linear trend and a seasonal compon
 <p>To see both building blocks in action, let’s end with a “Hello World” of TFP, or two, rather. Here first is the direct way to obtain samples from a standard normal distribution.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
 
 <span class='co'># create a normal distribution</span>
 <span class='va'>d</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
@@ -2262,7 +2310,7 @@ Figure 5: AirPassengers, decomposition into a linear trend and a seasonal compon
 <p>In case you thought that was too easy, here’s how to do the same using a bijector instead of a distribution.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># generate 3 values uniformly distributed between 0 and 1</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># generate 3 values uniformly distributed between 0 and 1</span>
 <span class='va'>u</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>3</span><span class='op'>)</span>
 
 <span class='co'># a bijector that in the inverse direction, maps values between 0 and 1</span>
@@ -2306,7 +2354,7 @@ Figure 5: AirPassengers, decomposition into a linear trend and a seasonal compon
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran/';
   this.page.identifier = 'posts/2019-11-07-tfp-cran/';

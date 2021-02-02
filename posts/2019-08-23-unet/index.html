@@ -478,8 +478,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -587,19 +594,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -622,6 +631,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -697,6 +710,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -924,6 +938,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1078,6 +1097,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1745,7 +1775,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1860,6 +1890,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2022,13 +2066,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2126,7 +2174,7 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <p>Now let’s actually train a U-Net. We’re going to use the <a href="https://github.com/r-tensorflow/unet"><code>unet</code> package</a> that lets you create a well-performing model in a single line:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"r-tensorflow/unet"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"r-tensorflow/unet"</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>unet</span><span class='op'>)</span>
 
 <span class='co'># takes additional parameters, including number of downsizing blocks, </span>
@@ -2142,7 +2190,7 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <p>Let’s first take a look at some images and their associated segmentation masks.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># libraries we're going to need later</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># libraries we're going to need later</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tidyverse</span><span class='op'>)</span>
@@ -2171,7 +2219,7 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <p>We split the data into a training and a validation set. We’ll use the latter to monitor generalization performance during training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
   img <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.files.html'>list.files</a></span><span class='op'>(</span><span class='fu'>here</span><span class='fu'>::</span><span class='fu'>here</span><span class='op'>(</span><span class='st'>"data-raw/train"</span><span class='op'>)</span>, full.names <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>,
   mask <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.files.html'>list.files</a></span><span class='op'>(</span><span class='fu'>here</span><span class='fu'>::</span><span class='fu'>here</span><span class='op'>(</span><span class='st'>"data-raw/train_masks"</span><span class='op'>)</span>, full.names <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 <span class='op'>)</span>
@@ -2185,7 +2233,7 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <p>The first step is to read in the images, making use of the appropriate functions in <code>tf$image</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>training</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>%&gt;%</span>  
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>training</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>%&gt;%</span>  
   <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>dataset_map</span><span class='op'>(</span><span class='op'>~</span><span class='va'>.x</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/list_modify.html'>list_modify</a></span><span class='op'>(</span>
     <span class='co'># decode_jpeg yields a 3d tensor of shape (1280, 1918, 3)</span>
@@ -2201,7 +2249,7 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <p>While constructing a preprocessing pipeline, it’s very useful to check intermediate results. It’s easy to do using <code>reticulate::as_iterator</code> on the dataset:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>example</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>example</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>example</span>
 </code></pre>
 </div>
@@ -2233,7 +2281,7 @@ tf.Tensor(
 <p>While the <code>uint8</code> datatype makes RGB values easy to read for humans, the network is going to expect floating point numbers. The following code converts its input and additionally, scales values to the interval [0,1):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>dataset_map</span><span class='op'>(</span><span class='op'>~</span><span class='va'>.x</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/list_modify.html'>list_modify</a></span><span class='op'>(</span>
     img <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>convert_image_dtype</span><span class='op'>(</span><span class='va'>.x</span><span class='op'>$</span><span class='va'>img</span>, dtype <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span>,
     mask <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>convert_image_dtype</span><span class='op'>(</span><span class='va'>.x</span><span class='op'>$</span><span class='va'>mask</span>, dtype <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span>
@@ -2244,7 +2292,7 @@ tf.Tensor(
 <p>To reduce computational cost, we resize the images to size <code>128x128</code>. This will change the aspect ratio and thus, distort the images, but is not a problem with the given dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>dataset_map</span><span class='op'>(</span><span class='op'>~</span><span class='va'>.x</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/list_modify.html'>list_modify</a></span><span class='op'>(</span>
     img <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>resize</span><span class='op'>(</span><span class='va'>.x</span><span class='op'>$</span><span class='va'>img</span>, size <span class='op'>=</span> <span class='fu'>shape</span><span class='op'>(</span><span class='fl'>128</span>, <span class='fl'>128</span><span class='op'>)</span><span class='op'>)</span>,
     mask <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>resize</span><span class='op'>(</span><span class='va'>.x</span><span class='op'>$</span><span class='va'>mask</span>, size <span class='op'>=</span> <span class='fu'>shape</span><span class='op'>(</span><span class='fl'>128</span>, <span class='fl'>128</span><span class='op'>)</span><span class='op'>)</span>
@@ -2255,7 +2303,7 @@ tf.Tensor(
 <p>Now, it’s well known that in deep learning, data augmentation is paramount. For segmentation, there’s one thing to consider, which is whether a transformation needs to be applied to the mask as well – this would be the case for e.g. rotations, or flipping. Here, results will be good enough applying just transformations that preserve positions:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>random_bsh</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>random_bsh</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>img</span> <span class='op'>%&gt;%</span> 
     <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>random_brightness</span><span class='op'>(</span>max_delta <span class='op'>=</span> <span class='fl'>0.3</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
     <span class='va'>tf</span><span class='op'>$</span><span class='va'>image</span><span class='op'>$</span><span class='fu'>random_contrast</span><span class='op'>(</span>lower <span class='op'>=</span> <span class='fl'>0.5</span>, upper <span class='op'>=</span> <span class='fl'>0.7</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2274,7 +2322,7 @@ tf.Tensor(
 <p>Again, we can use <code>as_iterator</code> to see what these transformations do to our images:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>example</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>example</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>example</span><span class='op'>$</span><span class='va'>img</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/grDevices/as.raster.html'>as.raster</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2285,7 +2333,7 @@ tf.Tensor(
 <p>Here’s the complete preprocessing pipeline.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>create_dataset</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>train</span>, <span class='va'>batch_size</span> <span class='op'>=</span> <span class='fl'>32L</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>create_dataset</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>train</span>, <span class='va'>batch_size</span> <span class='op'>=</span> <span class='fl'>32L</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='va'>dataset</span> <span class='op'>&lt;-</span> <span class='va'>data</span> <span class='op'>%&gt;%</span> 
     <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2331,7 +2379,7 @@ tf.Tensor(
 <p>Training and test set creation now is just a matter of two function calls.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>create_dataset</span><span class='op'>(</span><span class='fu'>training</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>, train <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>training_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>create_dataset</span><span class='op'>(</span><span class='fu'>training</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>, train <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 <span class='va'>validation_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>create_dataset</span><span class='op'>(</span><span class='fu'>testing</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>, train <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2341,7 +2389,7 @@ tf.Tensor(
 <p>We already showed how to create the model, but let’s repeat it here, and check model architecture:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>unet</span><span class='op'>(</span>input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>128</span>, <span class='fl'>128</span>, <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>unet</span><span class='op'>(</span>input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>128</span>, <span class='fl'>128</span>, <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2429,7 +2477,7 @@ ________________________________________________________________________________
 <p>During training, we keep track of classification accuracy as well as the <a href="https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient">dice coefficient</a>, the evaluation metric used in the competition. The dice coefficient is a way to measure the proportion of correct classifications:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>dice</span> <span class='op'>&lt;-</span> <span class='fu'>custom_metric</span><span class='op'>(</span><span class='st'>"dice"</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span>, <span class='va'>smooth</span> <span class='op'>=</span> <span class='fl'>1.0</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>dice</span> <span class='op'>&lt;-</span> <span class='fu'>custom_metric</span><span class='op'>(</span><span class='st'>"dice"</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span>, <span class='va'>smooth</span> <span class='op'>=</span> <span class='fl'>1.0</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>y_true_f</span> <span class='op'>&lt;-</span> <span class='fu'>k_flatten</span><span class='op'>(</span><span class='va'>y_true</span><span class='op'>)</span>
   <span class='va'>y_pred_f</span> <span class='op'>&lt;-</span> <span class='fu'>k_flatten</span><span class='op'>(</span><span class='va'>y_pred</span><span class='op'>)</span>
   <span class='va'>intersection</span> <span class='op'>&lt;-</span> <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>y_true_f</span> <span class='op'>*</span> <span class='va'>y_pred_f</span><span class='op'>)</span>
@@ -2449,7 +2497,7 @@ ________________________________________________________________________________
 <p>Of course, what we’re ultimately interested in are predictions. Let’s see a few masks generated for items from the validation set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='va'>validation_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='va'>validation_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>model</span>, <span class='va'>batch</span><span class='op'>)</span>
 
 <span class='va'>images</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
@@ -2517,7 +2565,7 @@ Figure 3: From left to right: ground truth, input image, and predicted mask from
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-08-23-unet/';
   this.page.identifier = 'posts/2019-08-23-unet/';

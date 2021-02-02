@@ -471,8 +471,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -580,19 +587,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -615,6 +624,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -690,6 +703,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -917,6 +931,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1071,6 +1090,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1738,7 +1768,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1853,6 +1883,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2015,13 +2059,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2145,7 +2193,7 @@ strong {
 <p>Install the following packages with <code>install.packages()</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>pkgs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"keras"</span>, <span class='st'>"lime"</span>, <span class='st'>"tidyquant"</span>, <span class='st'>"rsample"</span>, <span class='st'>"recipes"</span>, <span class='st'>"yardstick"</span>, <span class='st'>"corrr"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>pkgs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"keras"</span>, <span class='st'>"lime"</span>, <span class='st'>"tidyquant"</span>, <span class='st'>"rsample"</span>, <span class='st'>"recipes"</span>, <span class='st'>"yardstick"</span>, <span class='st'>"corrr"</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/install.packages.html'>install.packages</a></span><span class='op'>(</span><span class='va'>pkgs</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2154,7 +2202,7 @@ strong {
 <p>Load the libraries.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Load libraries</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Load libraries</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>lime</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tidyquant</span><span class='op'>)</span>
@@ -2168,7 +2216,7 @@ strong {
 <p>If you have not previously run Keras in R, you will need to install Keras using the <code>install_keras()</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Install Keras if you have not installed before</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Install Keras if you have not installed before</span>
 <span class='fu'>install_keras</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2177,7 +2225,7 @@ strong {
 <p>Download the <a href="https://www.ibm.com/communities/analytics/watson-analytics-blog/predictive-insights-in-the-telco-customer-churn-data-set/">IBM Watson Telco Data Set here</a>. Next, use <code>read_csv()</code> to import the data into a nice tidy data frame. We use the <code>glimpse()</code> function to quickly inspect the data. We have the target “Churn” and all other variables are potential predictors. The raw data set needs to be cleaned and preprocessed for ML.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>churn_data_raw</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='st'>"WA_Fn-UseC_-Telco-Customer-Churn.csv"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>churn_data_raw</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='st'>"WA_Fn-UseC_-Telco-Customer-Churn.csv"</span><span class='op'>)</span>
 
 <span class='fu'><a href='https://tibble.tidyverse.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='va'>churn_data_raw</span><span class='op'>)</span>
 </code></pre>
@@ -2218,7 +2266,7 @@ $ Churn            &lt;chr&gt; &quot;No&quot;, &quot;No&quot;, &quot;Yes&quot;, 
 <p>We’ll perform the cleaning operation with one tidyverse pipe (%&gt;%) chain.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Remove unnecessary data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Remove unnecessary data</span>
 <span class='va'>churn_data_tbl</span> <span class='op'>&lt;-</span> <span class='va'>churn_data_raw</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>customerID</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>drop_na</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2254,7 +2302,7 @@ $ TotalCharges     &lt;dbl&gt; 29.85, 1889.50, 108.15, 1840.75, 151.65, 820..</c
 <p>We have a new package, <a href="https://topepo.github.io/rsample/">rsample</a>, which is very useful for sampling methods. It has the <code>initial_split()</code> function for splitting data sets into training and testing sets. The return is a special <code>rsplit</code> object.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Split test/training sets</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Split test/training sets</span>
 <span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span><span class='op'>(</span><span class='fl'>100</span><span class='op'>)</span>
 <span class='va'>train_test_split</span> <span class='op'>&lt;-</span> <span class='fu'>initial_split</span><span class='op'>(</span><span class='va'>churn_data_tbl</span>, prop <span class='op'>=</span> <span class='fl'>0.8</span><span class='op'>)</span>
 <span class='va'>train_test_split</span>
@@ -2265,7 +2313,7 @@ $ TotalCharges     &lt;dbl&gt; 29.85, 1889.50, 108.15, 1840.75, 151.65, 820..</c
 <p>We can retrieve our training and testing sets using <code>training()</code> and <code>testing()</code> functions.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Retrieve train and test sets</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Retrieve train and test sets</span>
 <span class='va'>train_tbl</span> <span class='op'>&lt;-</span> <span class='fu'>training</span><span class='op'>(</span><span class='va'>train_test_split</span><span class='op'>)</span>
 <span class='va'>test_tbl</span>  <span class='op'>&lt;-</span> <span class='fu'>testing</span><span class='op'>(</span><span class='va'>train_test_split</span><span class='op'>)</span> 
 </code></pre>
@@ -2303,7 +2351,7 @@ $ TotalCharges     &lt;dbl&gt; 29.85, 1889.50, 108.15, 1840.75, 151.65, 820..</c
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Determine if log transformation improves correlation </span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Determine if log transformation improves correlation </span>
 <span class='co'># between TotalCharges and Churn</span>
 <span class='va'>train_tbl</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>Churn</span>, <span class='va'>TotalCharges</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2355,7 +2403,7 @@ $ TotalCharges     &lt;dbl&gt; 29.85, 1889.50, 108.15, 1840.75, 151.65, 820..</c
 <p><strong>Here’s how simple it is to implement the preprocessing steps that we went over!</strong></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Create recipe</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Create recipe</span>
 <span class='va'>rec_obj</span> <span class='op'>&lt;-</span> <span class='fu'>recipe</span><span class='op'>(</span><span class='va'>Churn</span> <span class='op'>~</span> <span class='va'>.</span>, data <span class='op'>=</span> <span class='va'>train_tbl</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_discretize</span><span class='op'>(</span><span class='va'>tenure</span>, options <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>cuts <span class='op'>=</span> <span class='fl'>6</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>step_log</span><span class='op'>(</span><span class='va'>TotalCharges</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2369,7 +2417,7 @@ $ TotalCharges     &lt;dbl&gt; 29.85, 1889.50, 108.15, 1840.75, 151.65, 820..</c
 <p>We can print the recipe object if we ever forget what steps were used to prepare the data. <strong>Pro Tip: We can save the recipe object as an RDS file using <code>saveRDS()</code>, and then use it to <code>bake()</code> (discussed next) future raw data into ML-ready data in production!</strong></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Print the recipe object</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Print the recipe object</span>
 <span class='va'>rec_obj</span>
 </code></pre>
 </div>
@@ -2395,7 +2443,7 @@ Scaling for SeniorCitizen, ... [trained]</code></pre>
 <p>Now for the fun part! We can apply the “recipe” to any data set with the <code>bake()</code> function, and it processes the data following our recipe steps. We’ll apply to our training and testing data to convert from raw data to a machine learning dataset. Check our training set out with <code>glimpse()</code>. <strong>Now that’s an ML-ready dataset prepared for ANN modeling!!</strong></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Predictors</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Predictors</span>
 <span class='va'>x_train_tbl</span> <span class='op'>&lt;-</span> <span class='fu'>bake</span><span class='op'>(</span><span class='va'>rec_obj</span>, newdata <span class='op'>=</span> <span class='va'>train_tbl</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>Churn</span><span class='op'>)</span>
 <span class='va'>x_test_tbl</span>  <span class='op'>&lt;-</span> <span class='fu'>bake</span><span class='op'>(</span><span class='va'>rec_obj</span>, newdata <span class='op'>=</span> <span class='va'>test_tbl</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>Churn</span><span class='op'>)</span>
 
@@ -2444,7 +2492,7 @@ $ PaymentMethod_Mailed.check            &lt;dbl&gt; -0.5517013, 1.81225...</code
 <p>One last step, we need to store the actual values (truth) as <code>y_train_vec</code> and <code>y_test_vec</code>, which are needed for modeling our ANN. We convert to a series of numeric ones and zeros which can be accepted by the Keras ANN modeling functions. We add “vec” to the name so we can easily remember the class of the object (it’s easy to get confused when working with tibbles, vectors, and matrix data types).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Response variables for training and testing sets</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Response variables for training and testing sets</span>
 <span class='va'>y_train_vec</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/ifelse.html'>ifelse</a></span><span class='op'>(</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='va'>train_tbl</span>, <span class='va'>Churn</span><span class='op'>)</span> <span class='op'>==</span> <span class='st'>"Yes"</span>, <span class='fl'>1</span>, <span class='fl'>0</span><span class='op'>)</span>
 <span class='va'>y_test_vec</span>  <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/ifelse.html'>ifelse</a></span><span class='op'>(</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='va'>test_tbl</span>, <span class='va'>Churn</span><span class='op'>)</span> <span class='op'>==</span> <span class='st'>"Yes"</span>, <span class='fl'>1</span>, <span class='fl'>0</span><span class='op'>)</span>
 </code></pre>
@@ -2475,7 +2523,7 @@ Source: <a href="https://www.xenonstack.com/blog/overview-of-artificial-neural-n
 <p>Let’s codify the discussion above to build our Keras MLP-flavored ANN model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Building our Artificial Neural Network</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Building our Artificial Neural Network</span>
 <span class='va'>model_keras</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>model_keras</span> <span class='op'>%&gt;%</span> 
@@ -2537,7 +2585,7 @@ ________________________________________________________________________________
 <p>We use the <code>fit()</code> function to run the ANN on our training data. The <code>object</code> is our model, and <code>x</code> and <code>y</code> are our training data in matrix and numeric vector forms, respectively. The <code>batch_size = 50</code> sets the number samples per gradient update within each epoch. We set <code>epochs = 35</code> to control the number training cycles. Typically we want to keep the batch size high since this decreases the error within each training cycle (epoch). We also want epochs to be large, which is important in visualizing the training history (discussed below). We set <code>validation_split = 0.30</code> to include 30% of the data for model validation, which prevents overfitting. The training process should complete in 15 seconds or so.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Fit the keras model to the training data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Fit the keras model to the training data</span>
 <span class='va'>history</span> <span class='op'>&lt;-</span> <span class='fu'>fit</span><span class='op'>(</span>
   object           <span class='op'>=</span> <span class='va'>model_keras</span>, 
   x                <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>x_train_tbl</span><span class='op'>)</span>, 
@@ -2552,7 +2600,7 @@ ________________________________________________________________________________
 <p>We can inspect the training history. We want to make sure there is minimal difference between the validation accuracy and the training accuracy.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Print a summary of the training history</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Print a summary of the training history</span>
 <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='va'>history</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2566,7 +2614,7 @@ val_loss: 0.4215
 <p>We can visualize the Keras training history using the <code>plot()</code> function. What we want to see is the validation accuracy and loss leveling off, which means the model has completed training. We see that there is some divergence between training loss/accuracy and validation loss/accuracy. This model indicates we can possibly stop training at an earlier epoch. <strong>Pro Tip: Only use enough epochs to get a high validation accuracy. Once validation accuracy curve begins to flatten or decrease, it’s time to stop training.</strong></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Plot the training/validation history of our Keras model</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Plot the training/validation history of our Keras model</span>
 <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>history</span><span class='op'>)</span> 
 </code></pre>
 </div>
@@ -2580,7 +2628,7 @@ val_loss: 0.4215
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Predicted Class</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Predicted Class</span>
 <span class='va'>yhat_keras_class_vec</span> <span class='op'>&lt;-</span> <span class='fu'>predict_classes</span><span class='op'>(</span>object <span class='op'>=</span> <span class='va'>model_keras</span>, x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>x_test_tbl</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
     <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>as.vector</a></span><span class='op'>(</span><span class='op'>)</span>
 
@@ -2595,7 +2643,7 @@ val_loss: 0.4215
 <p>First, let’s get the data formatted for <code>yardstick</code>. We create a data frame with the truth (actual values as factors), estimate (predicted values as factors), and the class probability (probability of yes as numeric). We use the <code>fct_recode()</code> function from the <a href="http://forcats.tidyverse.org">forcats</a> package to assist with recoding as Yes/No values.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Format test data and predictions for yardstick metrics</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Format test data and predictions for yardstick metrics</span>
 <span class='va'>estimates_keras_tbl</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
   truth      <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/factor.html'>as.factor</a></span><span class='op'>(</span><span class='va'>y_test_vec</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>fct_recode</span><span class='op'>(</span>yes <span class='op'>=</span> <span class='st'>"1"</span>, no <span class='op'>=</span> <span class='st'>"0"</span><span class='op'>)</span>,
   estimate   <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/factor.html'>as.factor</a></span><span class='op'>(</span><span class='va'>yhat_keras_class_vec</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>fct_recode</span><span class='op'>(</span>yes <span class='op'>=</span> <span class='st'>"1"</span>, no <span class='op'>=</span> <span class='st'>"0"</span><span class='op'>)</span>,
@@ -2623,7 +2671,7 @@ val_loss: 0.4215
 <p>Now that we have the data formatted, we can take advantage of the <code>yardstick</code> package. The only other thing we need to do is to set <code>options(yardstick.event_first = FALSE)</code>. As pointed out by <a href="https://github.com/ad1729">ad1729</a> in <a href="options(yardstick.event_first%20=%20FALSE)">GitHub Issue 13</a>, the default is to classify 0 as the positive class instead of 1.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>yardstick.event_first <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>yardstick.event_first <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2631,7 +2679,7 @@ val_loss: 0.4215
 <p>We can use the <code>conf_mat()</code> function to get the confusion table. We see that the model was by no means perfect, but it did a decent job of identifying customers likely to churn.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Confusion Table</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Confusion Table</span>
 <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>conf_mat</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>estimate</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2644,7 +2692,7 @@ Prediction  no yes
 <p>We can use the <code>metrics()</code> function to get an accuracy measurement from the test set. We are getting roughly 82% accuracy.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Accuracy</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Accuracy</span>
 <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>metrics</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>estimate</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2657,7 +2705,7 @@ Prediction  no yes
 <p>We can also get the ROC Area Under the Curve (AUC) measurement. AUC is often a good metric used to compare different classifiers and to compare to randomly guessing (AUC_random = 0.50). Our model has AUC = 0.85, which is much better than randomly guessing. Tuning and testing different classification algorithms may yield even better results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># AUC</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># AUC</span>
 <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>roc_auc</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>class_prob</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2667,7 +2715,7 @@ Prediction  no yes
 <p>Precision is when the model predicts “yes”, how often is it actually “yes”. Recall (also true positive rate or specificity) is when the actual value is “yes” how often is the model correct. We can get <code>precision()</code> and <code>recall()</code> measurements using <code>yardstick</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Precision</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Precision</span>
 <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
   precision <span class='op'>=</span> <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>precision</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>estimate</span><span class='op'>)</span>,
   recall    <span class='op'>=</span> <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>recall</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>estimate</span><span class='op'>)</span>
@@ -2684,7 +2732,7 @@ Prediction  no yes
 <p>We can also get the F1-score, which is a weighted average between the precision and recall. Machine learning classifier thresholds are often adjusted to maximize the F1-score. However, this is often not the optimal solution to the business problem.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># F1-Statistic</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># F1-Statistic</span>
 <span class='va'>estimates_keras_tbl</span> <span class='op'>%&gt;%</span> <span class='fu'>f_meas</span><span class='op'>(</span><span class='va'>truth</span>, <span class='va'>estimate</span>, beta <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2705,7 +2753,7 @@ Prediction  no yes
 <p>The first thing we need to do is identify the class of our model object. We do this with the <code>class()</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/class.html'>class</a></span><span class='op'>(</span><span class='va'>model_keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/class.html'>class</a></span><span class='op'>(</span><span class='va'>model_keras</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2717,7 +2765,7 @@ Prediction  no yes
 <p>Next we create our <code>model_type()</code> function. It’s only input is <code>x</code> the keras model. The function simply returns “classification”, which tells LIME we are classifying.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Setup lime::model_type() function for keras</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Setup lime::model_type() function for keras</span>
 <span class='va'>model_type.keras.models.Sequential</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>...</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='st'>"classification"</span>
 <span class='op'>}</span>
@@ -2727,7 +2775,7 @@ Prediction  no yes
 <p>Now we can create our <code>predict_model()</code> function, which wraps <code>keras::predict_proba()</code>. The trick here is to realize that it’s inputs must be <code>x</code> a model, <code>newdata</code> a dataframe object (this is important), and <code>type</code> which is not used but can be use to switch the output type. The output is also a little tricky because it <em>must be in the format of probabilities by classification</em> (this is important; shown next).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Setup lime::predict_model() function for keras</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Setup lime::predict_model() function for keras</span>
 <span class='va'>predict_model.keras.models.Sequential</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>newdata</span>, <span class='va'>type</span>, <span class='va'>...</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>pred</span> <span class='op'>&lt;-</span> <span class='fu'>predict_proba</span><span class='op'>(</span>object <span class='op'>=</span> <span class='va'>x</span>, x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>newdata</span><span class='op'>)</span><span class='op'>)</span>
   <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>Yes <span class='op'>=</span> <span class='va'>pred</span>, No <span class='op'>=</span> <span class='fl'>1</span> <span class='op'>-</span> <span class='va'>pred</span><span class='op'>)</span>
@@ -2738,7 +2786,7 @@ Prediction  no yes
 <p>Run this next script to show you what the output looks like and to test our <code>predict_model()</code> function. See how it’s the probabilities by classification. It must be in this form for <code>model_type = "classification"</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Test our predict_model() function</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Test our predict_model() function</span>
 <span class='fu'>predict_model</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>model_keras</span>, newdata <span class='op'>=</span> <span class='va'>x_test_tbl</span>, type <span class='op'>=</span> <span class='st'>'raw'</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>tibble</span><span class='fu'>::</span><span class='fu'><a href='https://tibble.tidyverse.org/reference/as_tibble.html'>as_tibble</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
@@ -2761,7 +2809,7 @@ Prediction  no yes
 <p>Now the fun part, we create an explainer using the <code>lime()</code> function. Just pass the training data set without the “Attribution column”. The form must be a data frame, which is OK since our <code>predict_model</code> function will switch it to an <code>keras</code> object. Set <code>model = automl_leader</code> our leader model, and <code>bin_continuous = FALSE</code>. We could tell the algorithm to bin continuous variables, but this may not make sense for categorical numeric data that we didn’t change to factors.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Run lime() on training set</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Run lime() on training set</span>
 <span class='va'>explainer</span> <span class='op'>&lt;-</span> <span class='fu'>lime</span><span class='fu'>::</span><span class='fu'>lime</span><span class='op'>(</span>
   x              <span class='op'>=</span> <span class='va'>x_train_tbl</span>, 
   model          <span class='op'>=</span> <span class='va'>model_keras</span>, 
@@ -2773,7 +2821,7 @@ Prediction  no yes
 <p>Now we run the <code>explain()</code> function, which returns our <code>explanation</code>. This can take a minute to run so we limit it to just the first ten rows of the test data set. We set <code>n_labels = 1</code> because we care about explaining a single class. Setting <code>n_features = 4</code> returns the top four features that are critical to each case. Finally, setting <code>kernel_width = 0.5</code> allows us to increase the “model_r2” value by shrinking the localized evaluation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Run explain() on explainer</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Run explain() on explainer</span>
 <span class='va'>explanation</span> <span class='op'>&lt;-</span> <span class='fu'>lime</span><span class='fu'>::</span><span class='fu'>explain</span><span class='op'>(</span>
   <span class='va'>x_test_tbl</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>10</span>, <span class='op'>]</span>, 
   explainer    <span class='op'>=</span> <span class='va'>explainer</span>, 
@@ -2793,7 +2841,7 @@ Prediction  no yes
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>plot_features</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span> <span class='op'>+</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>plot_features</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span> <span class='op'>+</span>
   <span class='fu'>labs</span><span class='op'>(</span>title <span class='op'>=</span> <span class='st'>"LIME Feature Importance Visualization"</span>,
        subtitle <span class='op'>=</span> <span class='st'>"Hold Out (Test) Set, First 10 Cases Shown"</span><span class='op'>)</span>
 </code></pre>
@@ -2803,7 +2851,7 @@ Prediction  no yes
 <p>Another excellent visualization can be performed using <code>plot_explanations()</code>, which produces a facetted heatmap of all case/label/feature combinations. It’s a more condensed version of <code>plot_features()</code>, but we need to be careful because it does not provide exact statistics and it makes it less easy to investigate binned features (Notice that “tenure” would not be identified as a contributor even though it shows up as a top feature in 7 of 10 cases).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>plot_explanations</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span> <span class='op'>+</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>plot_explanations</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span> <span class='op'>+</span>
     <span class='fu'>labs</span><span class='op'>(</span>title <span class='op'>=</span> <span class='st'>"LIME Feature Importance Heatmap"</span>,
          subtitle <span class='op'>=</span> <span class='st'>"Hold Out (Test) Set, First 10 Cases Shown"</span><span class='op'>)</span>
 </code></pre>
@@ -2817,7 +2865,7 @@ Prediction  no yes
 <p>We can perform a <strong>correlation analysis</strong> on the training set as well to help glean what features correlate globally to “Churn”. We’ll use the <code>corrr</code> package, which performs tidy correlations with the function <code>correlate()</code>. We can get the correlations as follows.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Feature correlations to Churn</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Feature correlations to Churn</span>
 <span class='va'>corrr_analysis</span> <span class='op'>&lt;-</span> <span class='va'>x_train_tbl</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>Churn <span class='op'>=</span> <span class='va'>y_train_vec</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>correlate</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2995,7 +3043,7 @@ CLV=GC*\frac{1}{1+d-r}
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-01-11-keras-customer-churn/';
   this.page.identifier = 'posts/2018-01-11-keras-customer-churn/';

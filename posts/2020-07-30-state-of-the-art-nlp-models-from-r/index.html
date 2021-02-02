@@ -469,8 +469,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -578,19 +585,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -613,6 +622,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -688,6 +701,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -915,6 +929,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1069,6 +1088,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1736,7 +1766,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1851,6 +1881,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2013,21 +2057,25 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/htmlwidgets-1.5.3/htmlwidgets.js"></script>
-  <script src="../../site_libs/jquery-1.12.4/jquery.min.js"></script>
+  <script src="../../site_libs/jquery-3.5.1/jquery.min.js"></script>
   <link href="../../site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet" />
-  <script src="../../site_libs/datatables-binding-0.16/datatables.js"></script>
+  <script src="../../site_libs/datatables-binding-0.17/datatables.js"></script>
   <link href="../../site_libs/dt-core-1.10.20/css/jquery.dataTables.min.css" rel="stylesheet" />
   <link href="../../site_libs/dt-core-1.10.20/css/jquery.dataTables.extra.css" rel="stylesheet" />
   <script src="../../site_libs/dt-core-1.10.20/js/jquery.dataTables.min.js"></script>
-  <link href="../../site_libs/crosstalk-1.1.0.1/css/crosstalk.css" rel="stylesheet" />
-  <script src="../../site_libs/crosstalk-1.1.0.1/js/crosstalk.min.js"></script>
+  <link href="../../site_libs/crosstalk-1.1.1/css/crosstalk.css" rel="stylesheet" />
+  <script src="../../site_libs/crosstalk-1.1.1/js/crosstalk.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2157,14 +2205,14 @@ span.colab-span {
 <p>Our first job is to install the <em>transformers</em> package via <code>reticulate</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>reticulate</span><span class='fu'>::</span><span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/py_install.html'>py_install</a></span><span class='op'>(</span><span class='st'>'transformers'</span>, pip <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>reticulate</span><span class='fu'>::</span><span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/py_install.html'>py_install</a></span><span class='op'>(</span><span class='st'>'transformers'</span>, pip <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Then, as usual, load standard ‘Keras’, ‘TensorFlow’ &gt;= 2.0 and some classic libraries from R.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
@@ -2176,7 +2224,7 @@ span.colab-span {
 <p>Note that if running TensorFlow on GPU one could specify the following parameters in order to avoid memory issues.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>physical_devices</span> <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>config</span><span class='op'>$</span><span class='fu'>list_physical_devices</span><span class='op'>(</span><span class='st'>'GPU'</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>physical_devices</span> <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>config</span><span class='op'>$</span><span class='fu'>list_physical_devices</span><span class='op'>(</span><span class='st'>'GPU'</span><span class='op'>)</span>
 <span class='va'>tf</span><span class='op'>$</span><span class='va'>config</span><span class='op'>$</span><span class='va'>experimental</span><span class='op'>$</span><span class='fu'>set_memory_growth</span><span class='op'>(</span><span class='va'>physical_devices</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>,<span class='cn'>TRUE</span><span class='op'>)</span>
 
 <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>backend</span><span class='op'>$</span><span class='fu'>set_floatx</span><span class='op'>(</span><span class='st'>'float32'</span><span class='op'>)</span>
@@ -2187,7 +2235,7 @@ span.colab-span {
 <p>We already mentioned that to train a data on the specific model, users should download the model, its tokenizer object and weights. For example, to get a RoBERTa model one has to do the following:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># get Tokenizer</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># get Tokenizer</span>
 <span class='va'>transformer</span><span class='op'>$</span><span class='va'>RobertaTokenizer</span><span class='op'>$</span><span class='fu'>from_pretrained</span><span class='op'>(</span><span class='st'>'roberta-base'</span>, do_lower_case<span class='op'>=</span><span class='cn'>TRUE</span><span class='op'>)</span>
 
 <span class='co'># get Model with weights</span>
@@ -2199,7 +2247,7 @@ span.colab-span {
 <p>A dataset for binary classification is provided in <a href="http://text2vec.org/">text2vec</a> package. Let’s load the dataset and take a sample for fast model training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>text2vec</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>text2vec</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/data.html'>data</a></span><span class='op'>(</span><span class='st'>"movie_review"</span><span class='op'>)</span>
 <span class='va'>df</span> <span class='op'>=</span> <span class='va'>movie_review</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/rename.html'>rename</a></span><span class='op'>(</span>target <span class='op'>=</span> <span class='va'>sentiment</span>, comment_text <span class='op'>=</span> <span class='va'>review</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/sample_n.html'>sample_n</a></span><span class='op'>(</span><span class='fl'>2000</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2210,7 +2258,7 @@ span.colab-span {
 <p>Split our data into 2 parts:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>idx_train</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span><span class='op'>*</span><span class='fl'>0.8</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>idx_train</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span><span class='op'>*</span><span class='fl'>0.8</span><span class='op'>)</span>
 
 <span class='va'>train</span> <span class='op'>=</span> <span class='va'>df</span><span class='op'>[</span><span class='va'>idx_train</span>,<span class='op'>]</span>
 <span class='va'>test</span> <span class='op'>=</span> <span class='va'>df</span><span class='op'>[</span><span class='op'>!</span><span class='va'>idx_train</span>,<span class='op'>]</span>
@@ -2225,7 +2273,7 @@ span.colab-span {
 </blockquote>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># list of 3 models</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># list of 3 models</span>
 <span class='va'>ai_m</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
   <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>'TFGPT2Model'</span>,       <span class='st'>'GPT2Tokenizer'</span>,       <span class='st'>'gpt2'</span><span class='op'>)</span>,
    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>'TFRobertaModel'</span>,    <span class='st'>'RobertaTokenizer'</span>,    <span class='st'>'roberta-base'</span><span class='op'>)</span>,
@@ -2313,7 +2361,7 @@ span.colab-span {
 <p>Extract results to see the benchmarks:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>res</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>sapply</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>3</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>res</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>sapply</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>3</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://rdrr.io/r/base/do.call.html'>do.call</a></span><span class='op'>(</span><span class='va'>rbind</span>,<span class='va'>gather_history</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='st'>"metrics"</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
     <span class='fu'><a href='https://rdrr.io/r/base/as.data.frame.html'>as.data.frame</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
     <span class='fu'>tibble</span><span class='fu'>::</span><span class='fu'><a href='https://tibble.tidyverse.org/reference/rownames.html'>rownames_to_column</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2325,8 +2373,8 @@ span.colab-span {
 </div>
 </div>
 <div class="layout-chunk" data-layout="l-body">
-<div id="htmlwidget-538f3ed39d62ba89eeb0" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-538f3ed39d62ba89eeb0">{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>metric<\/th>\n      <th>epoch_1<\/th>\n      <th>epoch_2<\/th>\n      <th>model_names<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-1160832322e20ebfecf3" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1160832322e20ebfecf3">{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>metric<\/th>\n      <th>epoch_1<\/th>\n      <th>epoch_2<\/th>\n      <th>model_names<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 <p>Both the <em>RoBERTa</em> and <em>Electra</em> models show some additional improvements after 2 epochs of training, which cannot be said of <em>GPT-2</em>. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.</p>
 <h2 id="conclusion">Conclusion</h2>
@@ -2353,7 +2401,7 @@ span.colab-span {
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-07-30-state-of-the-art-nlp-models-from-r/';
   this.page.identifier = 'posts/2020-07-30-state-of-the-art-nlp-models-from-r/';

@@ -478,8 +478,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -587,19 +594,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -622,6 +631,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -697,6 +710,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -924,6 +938,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1078,6 +1097,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1745,7 +1775,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1860,6 +1890,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2022,13 +2066,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2111,7 +2159,7 @@ gtag('config', 'UA-20375833-3');
 <p>The code shown here will work with the current CRAN versions of <code>tensorflow</code>, <code>keras</code>, and <code>tfdatasets</code>. Also, be sure to check that you’re using at least version 1.9 of TensorFlow. If that isn’t the case, as of this writing, this</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='fu'>install_tensorflow</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2121,7 +2169,7 @@ gtag('config', 'UA-20375833-3');
 <p>No need to copy-paste any code snippets - you’ll find the complete code (in order necessary for execution) here: <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-pix2pix.R">eager-pix2pix.R</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='fu'>use_implementation</span><span class='op'>(</span><span class='st'>"tensorflow"</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span>device_policy <span class='op'>=</span> <span class='st'>"silent"</span><span class='op'>)</span>
@@ -2144,7 +2192,7 @@ gtag('config', 'UA-20375833-3');
 <p>Note the use of the <code>tf$image</code> module for image -related operations. This is required as the images will be streamed via <code>tfdatasets</code>, which works on TensorFlow graphs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>img_width</span> <span class='op'>&lt;-</span> <span class='fl'>256L</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>img_width</span> <span class='op'>&lt;-</span> <span class='fl'>256L</span>
 <span class='va'>img_height</span> <span class='op'>&lt;-</span> <span class='fl'>256L</span>
 
 <span class='va'>load_image</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>image_file</span>, <span class='va'>is_train</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2212,7 +2260,7 @@ gtag('config', 'UA-20375833-3');
 <p>The images will be streamed via <code>tfdatasets</code>, using a batch size of 1. Note how the <code>load_image</code> function we defined above is wrapped in <code>tf$py_func</code> to enable accessing tensor values in the usual eager way (which by default, as of this writing, is not possible with the TensorFlow datasets API).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># change to where you unpacked the data</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># change to where you unpacked the data</span>
 <span class='co'># there will be train, val and test subdirectories below</span>
 <span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='st'>"facades"</span>
 
@@ -2244,7 +2292,7 @@ gtag('config', 'UA-20375833-3');
 <p>During downsampling, as spatial resolution decreases, the number of filters increases. During upsampling, it goes the opposite way.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='st'>"generator"</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='st'>"generator"</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
     
@@ -2307,7 +2355,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s take the line</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>x15</span> <span class='op'>&lt;-</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>up7</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x14</span>, <span class='va'>x1</span><span class='op'>)</span>, training <span class='op'>=</span> <span class='va'>training</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>x15</span> <span class='op'>&lt;-</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>up7</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x14</span>, <span class='va'>x1</span><span class='op'>)</span>, training <span class='op'>=</span> <span class='va'>training</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2316,7 +2364,7 @@ gtag('config', 'UA-20375833-3');
 <p>That’s taken care of by <code>upsample</code>, technically a custom model of its own. As an aside, we remark how custom models let you pack your code into nice, reusable modules.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>upsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>upsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
                      <span class='va'>size</span>,
                      <span class='va'>apply_dropout</span> <span class='op'>=</span> <span class='cn'>FALSE</span>,
                      <span class='va'>name</span> <span class='op'>=</span> <span class='st'>"upsample"</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2357,7 +2405,7 @@ gtag('config', 'UA-20375833-3');
 <p>Downsampling, too, is factored out to its own model. Here too, the number of filters is configurable.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>downsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>downsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
                        <span class='va'>size</span>,
                        <span class='va'>apply_batchnorm</span> <span class='op'>=</span> <span class='cn'>TRUE</span>,
                        <span class='va'>name</span> <span class='op'>=</span> <span class='st'>"downsample"</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2397,7 +2445,7 @@ gtag('config', 'UA-20375833-3');
 <p>The discriminator thus working on small image patches means it only cares about local structure, and consequently, enforces correctness in the high frequencies only. Correctness in the low frequencies is taken care of by an additional L1 component in the discriminator loss that operates over the whole image (as we’ll see below).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>discriminator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='st'>"discriminator"</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>discriminator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='st'>"discriminator"</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
     
@@ -2443,7 +2491,7 @@ gtag('config', 'UA-20375833-3');
 <p>And here’s the factored-out downsampling functionality, again providing the means to configure the number of filters.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>disc_downsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>disc_downsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,
                             <span class='va'>size</span>,
                             <span class='va'>apply_batchnorm</span> <span class='op'>=</span> <span class='cn'>TRUE</span>,
                             <span class='va'>name</span> <span class='op'>=</span> <span class='st'>"disc_downsample"</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2480,7 +2528,7 @@ gtag('config', 'UA-20375833-3');
 <p>For the generator, two things factor into the loss: First, does the discriminator debunk my creations as fake? Second, how big is the absolute deviation of the generated image from the target? The latter factor does not have to be present in a conditional GAN, but was included by the authors to further encourage proximity to the target, and empirically found to deliver better results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lambda</span> <span class='op'>&lt;-</span> <span class='fl'>100</span> <span class='co'># value chosen by the authors of the paper</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lambda</span> <span class='op'>&lt;-</span> <span class='fl'>100</span> <span class='co'># value chosen by the authors of the paper</span>
 <span class='va'>generator_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>disc_judgment</span>, <span class='va'>generated_output</span>, <span class='va'>target</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>gan_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>sigmoid_cross_entropy</span><span class='op'>(</span>
       <span class='va'>tf</span><span class='op'>$</span><span class='fu'>ones_like</span><span class='op'>(</span><span class='va'>disc_judgment</span><span class='op'>)</span>,
@@ -2495,7 +2543,7 @@ gtag('config', 'UA-20375833-3');
 <p>The discriminator loss looks as in a standard (un-conditional) GAN. Its first component is determined by how accurately it classifies real images as real, while the second depends on its competence in judging fake images as fake.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>discriminator_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>real_output</span>, <span class='va'>generated_output</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>discriminator_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>real_output</span>, <span class='va'>generated_output</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>real_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>sigmoid_cross_entropy</span><span class='op'>(</span>
     multi_class_labels <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>ones_like</span><span class='op'>(</span><span class='va'>real_output</span><span class='op'>)</span>,
     logits <span class='op'>=</span> <span class='va'>real_output</span>
@@ -2512,7 +2560,7 @@ gtag('config', 'UA-20375833-3');
 <p>For optimization, we rely on Adam for both the generator and the discriminator.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>discriminator_optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>2e-4</span>, beta1 <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>discriminator_optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>2e-4</span>, beta1 <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>
 <span class='va'>generator_optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>2e-4</span>, beta1 <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2521,7 +2569,7 @@ gtag('config', 'UA-20375833-3');
 <p>We’re ready to have the generator and the discriminator play the game! Below, we use <a href="https://www.tensorflow.org/api_docs/python/tf/contrib/eager/defun">defun</a> to compile the respective R functions into TensorFlow graphs, to speed up computations.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='fu'>generator</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='fu'>generator</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>discriminator</span> <span class='op'>&lt;-</span> <span class='fu'>discriminator</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>generator</span><span class='op'>$</span><span class='va'>call</span> <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>contrib</span><span class='op'>$</span><span class='va'>eager</span><span class='op'>$</span><span class='fu'>defun</span><span class='op'>(</span><span class='va'>generator</span><span class='op'>$</span><span class='va'>call</span><span class='op'>)</span>
@@ -2532,7 +2580,7 @@ gtag('config', 'UA-20375833-3');
 <p>We also create a <code>tf$train$Checkpoint</code> object that will allow us to save and restore training weights.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>checkpoint_dir</span> <span class='op'>&lt;-</span> <span class='st'>"./checkpoints_pix2pix"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>checkpoint_dir</span> <span class='op'>&lt;-</span> <span class='st'>"./checkpoints_pix2pix"</span>
 <span class='va'>checkpoint_prefix</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>checkpoint_dir</span>, <span class='st'>"ckpt"</span><span class='op'>)</span>
 <span class='va'>checkpoint</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>Checkpoint</span><span class='op'>(</span>
     generator_optimizer <span class='op'>=</span> <span class='va'>generator_optimizer</span>,
@@ -2547,7 +2595,7 @@ gtag('config', 'UA-20375833-3');
 <p>Every tenth epoch, we save the weights, and tell the generator to have a go at the first example of the test set, so we can monitor network progress. See <code>generate_images</code> in the companion code for this functionality.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>dataset</span>, <span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>dataset</span>, <span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>total_loss_gen</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
@@ -2674,7 +2722,7 @@ gtag('config', 'UA-20375833-3');
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix/';
   this.page.identifier = 'posts/2018-09-20-eager-pix2pix/';

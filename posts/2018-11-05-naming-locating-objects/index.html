@@ -469,8 +469,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -578,19 +585,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -613,6 +622,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -688,6 +701,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -915,6 +929,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1069,6 +1088,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1736,7 +1766,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1851,6 +1881,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2013,13 +2057,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2107,7 +2155,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Whether you’re executing the listed commands or arranging files manually, you should eventually end up with directories/files analogous to these:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>img_dir</span> <span class='op'>&lt;-</span> <span class='st'>"data/VOCdevkit/VOC2007/JPEGImages"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>img_dir</span> <span class='op'>&lt;-</span> <span class='st'>"data/VOCdevkit/VOC2007/JPEGImages"</span>
 <span class='va'>annot_file</span> <span class='op'>&lt;-</span> <span class='st'>"data/pascal_train2007.json"</span>
 </code></pre>
 </div>
@@ -2117,7 +2165,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Let’s quickly make sure we have all required libraries loaded.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>rjson</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>magick</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span>
@@ -2132,7 +2180,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Annotations contain information about three types of things we’re interested in.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>annotations</span> <span class='op'>&lt;-</span> <span class='fu'>fromJSON</span><span class='op'>(</span>file <span class='op'>=</span> <span class='va'>annot_file</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>annotations</span> <span class='op'>&lt;-</span> <span class='fu'>fromJSON</span><span class='op'>(</span>file <span class='op'>=</span> <span class='va'>annot_file</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/str.html'>str</a></span><span class='op'>(</span><span class='va'>annotations</span>, max.level <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2145,7 +2193,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>First, characteristics of the image itself (height and width) and where it’s stored. Not surprisingly, here it’s one entry per image.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>annotations</span><span class='op'>$</span><span class='va'>images</span> <span class='op'>%&gt;%</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>annotations</span><span class='op'>$</span><span class='va'>images</span> <span class='op'>%&gt;%</span> <span class='op'>{</span>
   <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>
     id <span class='op'>=</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_dbl</a></span><span class='op'>(</span><span class='va'>.</span>, <span class='st'>"id"</span><span class='op'>)</span>,
     file_name <span class='op'>=</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_chr</a></span><span class='op'>(</span><span class='va'>.</span>, <span class='st'>"file_name"</span><span class='op'>)</span>,
@@ -2159,7 +2207,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Then, object class ids and bounding box coordinates. There may be multiple of these per image. In Pascal VOC, there are 20 object classes, from ubiquitous vehicles (<code>car</code>, <code>aeroplane</code>) over indispensable animals (<code>cat</code>, <code>sheep</code>) to more rare (in popular datasets) types like <code>potted plant</code> or <code>tv monitor</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>classes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>classes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
   <span class='st'>"aeroplane"</span>,
   <span class='st'>"bicycle"</span>,
   <span class='st'>"bird"</span>,
@@ -2195,7 +2243,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>The bounding boxes are now stored in a list column and need to be unpacked.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>bbox <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>.</span><span class='op'>$</span><span class='va'>bbox</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste</a></span><span class='op'>(</span><span class='va'>x</span>, collapse <span class='op'>=</span> <span class='st'>" "</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>separate</span><span class='op'>(</span><span class='va'>bbox</span>, into <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"x_left"</span>, <span class='st'>"y_top"</span>, <span class='st'>"bbox_width"</span>, <span class='st'>"bbox_height"</span><span class='op'>)</span><span class='op'>)</span>
@@ -2207,7 +2255,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>As usual in image processing, the <code>y</code> axis starts from the top.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>y_bottom <span class='op'>=</span> <span class='va'>y_top</span> <span class='op'>+</span> <span class='va'>bbox_height</span> <span class='op'>-</span> <span class='fl'>1</span>, x_right <span class='op'>=</span> <span class='va'>x_left</span> <span class='op'>+</span> <span class='va'>bbox_width</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2215,7 +2263,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Finally, we still need to match class ids to class names.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>catinfo</span> <span class='op'>&lt;-</span> <span class='va'>annotations</span><span class='op'>$</span><span class='va'>categories</span> <span class='op'>%&gt;%</span>  <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>catinfo</span> <span class='op'>&lt;-</span> <span class='va'>annotations</span><span class='op'>$</span><span class='va'>categories</span> <span class='op'>%&gt;%</span>  <span class='op'>{</span>
   <span class='fu'><a href='https://tibble.tidyverse.org/reference/tibble.html'>tibble</a></span><span class='op'>(</span>id <span class='op'>=</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_dbl</a></span><span class='op'>(</span><span class='va'>.</span>, <span class='st'>"id"</span><span class='op'>)</span>, name <span class='op'>=</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_chr</a></span><span class='op'>(</span><span class='va'>.</span>, <span class='st'>"name"</span><span class='op'>)</span><span class='op'>)</span>
 <span class='op'>}</span>
 </code></pre>
@@ -2224,7 +2272,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>So, putting it all together:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate-joins.html'>inner_join</a></span><span class='op'>(</span><span class='va'>boxinfo</span>, by <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"id"</span> <span class='op'>=</span> <span class='st'>"image_id"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate-joins.html'>inner_join</a></span><span class='op'>(</span><span class='va'>catinfo</span>, by <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"category_id"</span> <span class='op'>=</span> <span class='st'>"id"</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
@@ -2234,7 +2282,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>There’s one step that will bitterly hurt our localization performance if we later forget it, so let’s do it now already: We need to scale all bounding box coordinates according to the actual image size we’ll use when we pass it to our network.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>target_height</span> <span class='op'>&lt;-</span> <span class='fl'>224</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>target_height</span> <span class='op'>&lt;-</span> <span class='fl'>224</span>
 <span class='va'>target_width</span> <span class='op'>&lt;-</span> <span class='fl'>224</span>
 
 <span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>
@@ -2251,7 +2299,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Let’s take a glance at our data. Picking one of the early entries and displaying the original image together with the object annotation yields</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>img_data</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span><span class='op'>[</span><span class='fl'>4</span>,<span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>img_data</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span><span class='op'>[</span><span class='fl'>4</span>,<span class='op'>]</span>
 <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_read</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>img_dir</span>, <span class='va'>img_data</span><span class='op'>$</span><span class='va'>file_name</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_draw</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/graphics/rect.html'>rect</a></span><span class='op'>(</span>
@@ -2280,7 +2328,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>A reasonable strategy seems to be choosing the object with the largest ground truth bounding box.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>area <span class='op'>=</span> <span class='va'>bbox_width_scaled</span> <span class='op'>*</span> <span class='va'>bbox_height_scaled</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>imageinfo</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>area <span class='op'>=</span> <span class='va'>bbox_width_scaled</span> <span class='op'>*</span> <span class='va'>bbox_height_scaled</span><span class='op'>)</span>
 
 <span class='va'>imageinfo_maxbb</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/group_by.html'>group_by</a></span><span class='op'>(</span><span class='va'>id</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2292,7 +2340,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>Finally after train-test split</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_samples</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='va'>n_samples</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_samples</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='va'>n_samples</span><span class='op'>)</span>
 <span class='va'>train_data</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo_maxbb</span><span class='op'>[</span><span class='va'>train_indices</span>,<span class='op'>]</span>
 <span class='va'>validation_data</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo_maxbb</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_indices</span>,<span class='op'>]</span>
 </code></pre>
@@ -2303,7 +2351,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>In all cases, we will use XCeption as a basic feature extractor. Having been trained on ImageNet, we don’t expect much fine tuning to be necessary to adapt to Pascal VOC, so we leave XCeption’s weights untouched</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span>
   <span class='fu'>application_xception</span><span class='op'>(</span>
     include_top <span class='op'>=</span> <span class='cn'>FALSE</span>,
     input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span>, <span class='fl'>3</span><span class='op'>)</span>,
@@ -2317,7 +2365,7 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <p>and put just a few custom layers on top.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='va'>feature_extractor</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_dropout</span><span class='op'>(</span>rate <span class='op'>=</span> <span class='fl'>0.25</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2340,7 +2388,7 @@ See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learn
 </aside>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>10</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>10</span>
 
 <span class='va'>load_and_preprocess_image</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>image_name</span>, <span class='va'>target_height</span>, <span class='va'>target_width</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>img_array</span> <span class='op'>&lt;-</span> <span class='fu'>image_load</span><span class='op'>(</span>
@@ -2406,7 +2454,7 @@ See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learn
 <p>Now how does training go?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
   <span class='va'>train_gen</span>,
   epochs <span class='op'>=</span> <span class='fl'>20</span>,
   steps_per_epoch <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>train_data</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>batch_size</span>,
@@ -2428,7 +2476,7 @@ See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learn
 <p>This time, we multi-hot-encode our data. For every image (as represented by its filename), here we have a vector of length 20 where 0 indicates absence, 1 means presence of the respective object class:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>image_cats</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>image_cats</span> <span class='op'>&lt;-</span> <span class='va'>imageinfo</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>category_id</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>category_id <span class='op'>=</span> <span class='va'>category_id</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2451,7 +2499,7 @@ See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learn
 <p>Correspondingly, we modify the generator to return a target of dimensions <code>batch_size</code> * 20, instead of <code>batch_size</code> * 1.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>classification_generator</span> <span class='op'>&lt;-</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>classification_generator</span> <span class='op'>&lt;-</span> 
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>,
            <span class='va'>target_height</span>,
            <span class='va'>target_width</span>,
@@ -2508,7 +2556,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>Instead, we want to decide: For each object class, is it present in the image or not? Thus, instead of <code>softmax</code> we use <code>sigmoid</code>, paired with <code>binary_crossentropy</code>, to obtain an independent verdict on every class.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span>
   <span class='fu'>application_xception</span><span class='op'>(</span>
     include_top <span class='op'>=</span> <span class='cn'>FALSE</span>,
     input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span>, <span class='fl'>3</span><span class='op'>)</span>,
@@ -2535,7 +2583,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>And finally, again, we fit the model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
   <span class='va'>train_gen</span>,
   epochs <span class='op'>=</span> <span class='fl'>20</span>,
   steps_per_epoch <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>train_data</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>batch_size</span>,
@@ -2560,7 +2608,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>For Xception, the output resolution will be 7x7. So a priori, we shouldn’t expect high precision on objects much smaller than about 32x32 pixels (assuming the standard input size of 224x224).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span> <span class='fu'>application_xception</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span> <span class='fu'>application_xception</span><span class='op'>(</span>
   include_top <span class='op'>=</span> <span class='cn'>FALSE</span>,
   input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span>, <span class='fl'>3</span><span class='op'>)</span>
 <span class='op'>)</span>
@@ -2572,7 +2620,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>Now we append our custom regression module.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='va'>feature_extractor</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2589,7 +2637,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>To assess the model’s progress, we can easily code this as a custom metric:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>metric_iou</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>metric_iou</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='co'># order is [x_left, y_top, x_right, y_bottom]</span>
   <span class='va'>intersection_xmin</span> <span class='op'>&lt;-</span> <span class='fu'>k_maximum</span><span class='op'>(</span><span class='va'>y_true</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span>, <span class='va'>y_pred</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
@@ -2613,7 +2661,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>Model compilation then goes like</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,
   loss <span class='op'>=</span> <span class='st'>"mae"</span>,
   metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'>custom_metric</span><span class='op'>(</span><span class='st'>"iou"</span>, <span class='va'>metric_iou</span><span class='op'>)</span><span class='op'>)</span>
@@ -2624,7 +2672,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>Now modify the generator to return bounding box coordinates as targets…</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>localization_generator</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>localization_generator</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>,
            <span class='va'>target_height</span>,
            <span class='va'>target_width</span>,
@@ -2680,7 +2728,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>… and we’re ready to go!</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
   <span class='va'>train_gen</span>,
   epochs <span class='op'>=</span> <span class='fl'>20</span>,
   steps_per_epoch <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>train_data</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>batch_size</span>,
@@ -2699,7 +2747,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>After 8 epochs, IOU on both training and test sets is around 0.35. This number doesn’t look too good. To learn more about how training went, we need to see some predictions. Here’s a convenience function that displays an image, the ground truth box of the most salient object (as defined above), and if given, class and bounding box predictions.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>plot_image_with_boxes</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>file_name</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>plot_image_with_boxes</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>file_name</span>,
                                   <span class='va'>object_class</span>,
                                   <span class='va'>box</span>,
                                   <span class='va'>scaled</span> <span class='op'>=</span> <span class='cn'>FALSE</span>,
@@ -2755,7 +2803,7 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>First, let’s see predictions on sample images from the training set.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_1_8</span> <span class='op'>&lt;-</span> <span class='va'>train_data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>8</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"file_name"</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_1_8</span> <span class='op'>&lt;-</span> <span class='va'>train_data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>8</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"file_name"</span>,
                                <span class='st'>"name"</span>,
                                <span class='st'>"x_left_scaled"</span>,
                                <span class='st'>"y_top_scaled"</span>,
@@ -2796,7 +2844,7 @@ As a caveat, please note we’re talking about mapping concepts to technical app
 <p>Combining regression and classification into one means we’ll want to have two outputs in our model. We’ll thus use the functional API this time. Otherwise, there isn’t much new here: We start with an XCeption output of spatial resolution 7x7, append some custom processing and return two outputs, one for bounding box regression and one for classification.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span> <span class='fu'>application_xception</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span> <span class='fu'>application_xception</span><span class='op'>(</span>
   include_top <span class='op'>=</span> <span class='cn'>FALSE</span>,
   input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span>, <span class='fl'>3</span><span class='op'>)</span>
 <span class='op'>)</span>
@@ -2829,7 +2877,7 @@ As a caveat, please note we’re talking about mapping concepts to technical app
 <p>When defining the losses (mean absolute error and categorical crossentropy, just as in the respective single tasks of regression and classification), we could weight them so they end up on approximately a common scale. In fact that didn’t make much of a difference so we show the respective code in commented form.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>freeze_weights</span><span class='op'>(</span>to <span class='op'>=</span> <span class='st'>"flatten"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>freeze_weights</span><span class='op'>(</span>to <span class='op'>=</span> <span class='st'>"flatten"</span><span class='op'>)</span>
 
 <span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,
@@ -2974,7 +3022,7 @@ As a caveat, please note we’re talking about mapping concepts to technical app
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-11-05-naming-locating-objects/';
   this.page.identifier = 'posts/2018-11-05-naming-locating-objects/';

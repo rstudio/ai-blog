@@ -477,8 +477,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -586,19 +593,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -621,6 +630,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -696,6 +709,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -923,6 +937,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1077,6 +1096,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1744,7 +1774,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1859,6 +1889,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2021,13 +2065,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2117,7 +2165,7 @@ Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="
 <p>To read in and extract the data, stored as <a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a> files, we use <a href="https://docs.ropensci.org/tidync/">tidync</a>, a high-level package built on top of <a href="https://cran.r-project.org/package=ncdf4">ncdf4</a> and <a href="https://cran.r-project.org/package=RNetCDF">RNetCDF</a>. Otherwise, availability of the usual “TensorFlow family” as well as a subset of tidyverse packages is assumed.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/reticulate'>reticulate</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/reticulate'>reticulate</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
@@ -2136,7 +2184,7 @@ Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="
 <p>As already alluded to, our example makes use of two spatio-temporal series: 500hPa geopotential and 850hPa temperature. The following commands will download and unpack the respective sets of by-year files, for a spatial resolution of 5.625 degrees:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span><span class='st'>"https://dataserv.ub.tum.de/s/m1524895/download?path=%2F5.625deg%2Ftemperature_850&amp;files=temperature_850_5.625deg.zip"</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span><span class='st'>"https://dataserv.ub.tum.de/s/m1524895/download?path=%2F5.625deg%2Ftemperature_850&amp;files=temperature_850_5.625deg.zip"</span>,
               <span class='st'>"temperature_850_5.625deg.zip"</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/unzip.html'>unzip</a></span><span class='op'>(</span><span class='st'>"temperature_850_5.625deg.zip"</span>, exdir <span class='op'>=</span> <span class='st'>"temperature_850"</span><span class='op'>)</span>
 
@@ -2149,7 +2197,7 @@ Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="
 <p>Inspecting one of those files’ contents, we see that its data array is structured along three dimensions, longitude (64 different values), latitude (32) and time (8760). The data itself is <code>z</code>, the geopotential.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2160,7 +2208,7 @@ Source: /[...]/geopotential_500/geopotential_500hPa_2015_5.625deg.nc</code></pre
 <p>Extraction of the data array is as easy as telling <code>tidync</code> to read the first in the list of arrays:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>z500_2015</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>z500_2015</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
                 <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
 
 <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>z500_2015</span><span class='op'>)</span>
@@ -2171,7 +2219,7 @@ Source: /[...]/geopotential_500/geopotential_500hPa_2015_5.625deg.nc</code></pre
 <p>While we delegate further introduction to <code>tidync</code> to a comprehensive <a href="https://ropensci.org/blog/2019/11/05/tidync/">blog post</a> on the ROpenSci website, let’s at least look at a quick visualization, for which we pick the very first time point. (Extraction and visualization code is analogous for 850hPa temperature.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/graphics/image.html'>image</a></span><span class='op'>(</span><span class='va'>z500_2015</span><span class='op'>[</span> , , <span class='fl'>1</span><span class='op'>]</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/graphics/image.html'>image</a></span><span class='op'>(</span><span class='va'>z500_2015</span><span class='op'>[</span> , , <span class='fl'>1</span><span class='op'>]</span>,
       col <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/grDevices/palettes.html'>hcl.colors</a></span><span class='op'>(</span><span class='fl'>20</span>, <span class='st'>"viridis"</span><span class='op'>)</span>, <span class='co'># for temperature, the color scheme used is YlOrRd </span>
       xaxt <span class='op'>=</span> <span class='st'>'n'</span>,
       yaxt <span class='op'>=</span> <span class='st'>'n'</span>,
@@ -2192,7 +2240,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>For training, validation and testing, we choose consecutive years: 2015, 2016, and 2017, respectively.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>z500_train</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>z500_train</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
 
 <span class='va'>t850_train</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"temperature_850/temperature_850hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
 
@@ -2209,7 +2257,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>Since geopotential and temperature will be treated as channels, we concatenate the corresponding arrays. To transform the data into the format needed for images, a permutation is necessary:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_all</span> <span class='op'>&lt;-</span> <span class='fu'>abind</span><span class='fu'>::</span><span class='fu'>abind</span><span class='op'>(</span><span class='va'>z500_train</span>, <span class='va'>t850_train</span>, along <span class='op'>=</span> <span class='fl'>4</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_all</span> <span class='op'>&lt;-</span> <span class='fu'>abind</span><span class='fu'>::</span><span class='fu'>abind</span><span class='op'>(</span><span class='va'>z500_train</span>, <span class='va'>t850_train</span>, along <span class='op'>=</span> <span class='fl'>4</span><span class='op'>)</span>
 <span class='va'>train_all</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/aperm.html'>aperm</a></span><span class='op'>(</span><span class='va'>train_all</span>, perm <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>2</span>, <span class='fl'>1</span>, <span class='fl'>4</span><span class='op'>)</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>train_all</span><span class='op'>)</span>
 </code></pre>
@@ -2219,7 +2267,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>All data will be standardized according to mean and standard deviation as obtained from the training set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>level_means</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>train_all</span>, <span class='fl'>4</span>, <span class='va'>mean</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>level_means</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>train_all</span>, <span class='fl'>4</span>, <span class='va'>mean</span><span class='op'>)</span>
 <span class='va'>level_sds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>train_all</span>, <span class='fl'>4</span>, <span class='va'>sd</span><span class='op'>)</span>
 
 <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='va'>level_means</span>, <span class='fl'>2</span><span class='op'>)</span>
@@ -2230,7 +2278,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>In words, the mean geopotential height (see footnote 5 for more on this term), as measured at an isobaric surface of 500hPa, amounts to about 5400 metres<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>, while the mean temperature at the 850hPa level approximates 275 Kelvin (about 2 degrees Celsius).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='va'>train_all</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='va'>train_all</span>
 <span class='va'>train</span><span class='op'>[</span>, , , <span class='fl'>1</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>train</span><span class='op'>[</span>, , , <span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>level_means</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>level_sds</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>
 <span class='va'>train</span><span class='op'>[</span>, , , <span class='fl'>2</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>train</span><span class='op'>[</span>, , , <span class='fl'>2</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>level_means</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>level_sds</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span>
 
@@ -2253,14 +2301,14 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>We’ll attempt to predict three days ahead.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lead_time</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='co'># 3d</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lead_time</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='co'># 3d</span>
 </code></pre>
 </div>
 </div>
 <p>Now all that remains to be done is construct the actual <em>datasets</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
 
 <span class='va'>train_x</span> <span class='op'>&lt;-</span> <span class='va'>train</span> <span class='op'>%&gt;%</span>
   <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2303,7 +2351,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>The model is a straightforward convnet, with one exception: Instead of plain convolutions, it uses slightly more sophisticated ones that “wrap around” longitudinally.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>periodic_padding_2d</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>pad_width</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>periodic_padding_2d</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>pad_width</span>,
                                 <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2354,7 +2402,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>For our purposes of establishing a deep-learning baseline that is fast to train, CNN architecture and parameter defaults are chosen to be simple and moderate, respectively:<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>periodic_cnn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>2</span><span class='op'>)</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>periodic_cnn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>2</span><span class='op'>)</span>,
                          <span class='va'>kernel_size</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>5</span><span class='op'>)</span>,
                          <span class='va'>dropout</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>0.2</span>, <span class='fl'>5</span><span class='op'>)</span>,
                          <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2407,7 +2455,7 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <p>In that same spirit of “default-ness”, we train with MSE loss and Adam optimizer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>SUM</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>SUM</span><span class='op'>)</span>
 <span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name<span class='op'>=</span><span class='st'>'train_loss'</span><span class='op'>)</span>
@@ -2467,7 +2515,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>Here, we first present two other baselines, which – given a highly complex and chaotic system like the atmosphere – may sound irritatingly simple and yet, be pretty hard to beat. The metric used for comparison is <em>latitudinally weighted root-mean-square error</em>. Latitudinal weighting up-weights the lower latitudes and down-weights the upper ones.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>deg2rad</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>deg2rad</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='op'>(</span><span class='va'>d</span> <span class='op'>/</span> <span class='fl'>180</span><span class='op'>)</span> <span class='op'>*</span> <span class='va'>pi</span>
 <span class='op'>}</span>
 
@@ -2493,7 +2541,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>Step one makes use of <code>tidync</code>, <code>ncmeta</code>, <code>RNetCDF</code> and <code>lubridate</code> to compute weekly averages for 2015, following the <a href="https://en.wikipedia.org/wiki/ISO_week_date">ISO week date system</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span>
 
 <span class='va'>times_train</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='va'>train_file</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>activate</span><span class='op'>(</span><span class='st'>"D2"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>$</span><span class='va'>time</span>
 
@@ -2528,7 +2576,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>Step two then runs through the test set, mapping dates to corresponding ISO weeks and associating the weekly averages from the training set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>test_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2017_5.625deg.nc"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>test_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2017_5.625deg.nc"</span>
 
 <span class='va'>times_test</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='va'>test_file</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>activate</span><span class='op'>(</span><span class='st'>"D2"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>$</span><span class='va'>time</span>
 
@@ -2562,7 +2610,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>For this baseline, the latitudinally-weighted RMSE amounts to roughly 975 for geopotential and 4 for temperature.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>wrmse</span> <span class='op'>&lt;-</span> <span class='fu'>weighted_rmse</span><span class='op'>(</span><span class='va'>climatology_forecast</span>, <span class='va'>test_all</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>wrmse</span> <span class='op'>&lt;-</span> <span class='fu'>weighted_rmse</span><span class='op'>(</span><span class='va'>climatology_forecast</span>, <span class='va'>test_all</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='va'>wrmse</span>, <span class='fl'>2</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2573,7 +2621,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>Computation for this metric is almost a one-liner. And as it turns out, for the given lead time (three days), performance is not too dissimilar from obtained by means of weekly climatology:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>persistence_forecast</span> <span class='op'>&lt;-</span> <span class='va'>test_all</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test_all</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>lead_time</span><span class='op'>)</span>, , ,<span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>persistence_forecast</span> <span class='op'>&lt;-</span> <span class='va'>test_all</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test_all</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>lead_time</span><span class='op'>)</span>, , ,<span class='op'>]</span>
 
 <span class='va'>test_period</span> <span class='op'>&lt;-</span> <span class='va'>test_all</span><span class='op'>[</span><span class='op'>(</span><span class='va'>lead_time</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test_all</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, , ,<span class='op'>]</span>
 
@@ -2589,7 +2637,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>To answer that question, we first need to obtain predictions on the test set.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>test_wrmses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>test_wrmses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>test_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'test_loss'</span><span class='op'>)</span>
 
@@ -2626,7 +2674,7 @@ Figure 2: MSE per epoch on training and validation sets.
 <p>Thus, average loss on the test set parallels that seen on the validation set. As to latitudinally weighted RMSE, it turns out to be higher for the DL baseline than for the other two:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>test_wrmses</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>test_wrmses</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2681,7 +2729,7 @@ Figure 2: MSE per epoch on training and validation sets.
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-09-01-weather-prediction/';
   this.page.identifier = 'posts/2020-09-01-weather-prediction/';

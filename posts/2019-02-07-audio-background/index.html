@@ -475,8 +475,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -584,19 +591,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -619,6 +628,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -694,6 +707,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -921,6 +935,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1075,6 +1094,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1742,7 +1772,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1857,6 +1887,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2019,13 +2063,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2142,7 +2190,7 @@ gtag('config', 'UA-20375833-3');
 <p>For stepping through individual lines, it’s always helpful to have eager mode enabled, independently of whether ultimately we’ll execute in eager or graph mode:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='fu'>use_implementation</span><span class='op'>(</span><span class='st'>"tensorflow"</span><span class='op'>)</span>
 
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
@@ -2153,7 +2201,7 @@ gtag('config', 'UA-20375833-3');
 <p>We pick a random <code>.wav</code> file and decode it using <code>tf$audio$decode_wav</code>.<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>This will give us access to two tensors: the samples themselves, and the sampling rate.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>fname</span> <span class='op'>&lt;-</span> <span class='st'>"data/speech_commands_v0.01/bird/00b01445_nohash_0.wav"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>fname</span> <span class='op'>&lt;-</span> <span class='st'>"data/speech_commands_v0.01/bird/00b01445_nohash_0.wav"</span>
 <span class='va'>wav</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>audio</span><span class='op'>$</span><span class='fu'>decode_wav</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>read_file</span><span class='op'>(</span><span class='va'>fname</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2161,7 +2209,7 @@ gtag('config', 'UA-20375833-3');
 <p><code>wav$sample_rate</code> contains the sampling rate. As expected, it is 16000, or 16kHz:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>sampling_rate</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>sample_rate</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sampling_rate</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>sample_rate</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>sampling_rate</span>
 </code></pre>
 </div>
@@ -2170,7 +2218,7 @@ gtag('config', 'UA-20375833-3');
 <p>The samples themselves are accessible as <code>wav$audio</code>, but their shape is (16000, 1), so we have to transpose the tensor to get the usual (<em>batch_size</em>, <em>number of samples</em>) format we need for further processing.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>audio</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>audio</span>
 <span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>samples</span> <span class='op'>%&gt;%</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>transpose</span><span class='op'>(</span>perm <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1L</span>, <span class='fl'>0L</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>samples</span>
 </code></pre>
@@ -2183,7 +2231,7 @@ gtag('config', 'UA-20375833-3');
 <p>To compute the spectrogram, we use <code>tf$signal$stft</code> (where <em>stft</em> stands for <em>Short Time Fourier Transform</em>). <code>stft</code> expects three non-default arguments: Besides the input signal itself, there are the window size, <code>frame_length</code>, and the stride to use when determining the overlapping windows, <code>frame_step</code>. Both are expressed in units of <code>number of samples</code>. So if we decide on a window length of 30 milliseconds and a stride of 10 milliseconds …</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>window_size_ms</span> <span class='op'>&lt;-</span> <span class='fl'>30</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>window_size_ms</span> <span class='op'>&lt;-</span> <span class='fl'>30</span>
 <span class='va'>window_stride_ms</span> <span class='op'>&lt;-</span> <span class='fl'>10</span>
 </code></pre>
 </div>
@@ -2191,7 +2239,7 @@ gtag('config', 'UA-20375833-3');
 <p>… we arrive at the following call:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>samples_per_window</span> <span class='op'>&lt;-</span> <span class='va'>sampling_rate</span> <span class='op'>*</span> <span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>samples_per_window</span> <span class='op'>&lt;-</span> <span class='va'>sampling_rate</span> <span class='op'>*</span> <span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span> 
 <span class='va'>stride_samples</span> <span class='op'>&lt;-</span>  <span class='va'>sampling_rate</span> <span class='op'>*</span> <span class='va'>window_stride_ms</span><span class='op'>/</span><span class='fl'>1000</span> 
 
 <span class='va'>stft_out</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>signal</span><span class='op'>$</span><span class='fu'>stft</span><span class='op'>(</span>
@@ -2213,7 +2261,7 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>Here 98 is the number of periods, which we can compute in advance, based on the number of samples in a window and the size of the stride:<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_periods</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='va'>samples_per_window</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>sampling_rate</span> <span class='op'>-</span> <span class='va'>samples_per_window</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>stride_samples</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_periods</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='va'>samples_per_window</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>sampling_rate</span> <span class='op'>-</span> <span class='va'>samples_per_window</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>stride_samples</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2221,21 +2269,21 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>In our case, the number of samples in a window is 480. The nearest enclosing power of 2 being 512, we end up with 512/2 + 1 = 257 coefficients. This too we can compute in advance:<a href="#fn11" class="footnote-ref" id="fnref11" role="doc-noteref"><sup>11</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>samples_per_window</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>samples_per_window</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span> 
 </code></pre>
 </div>
 </div>
 <p>Back to the output of the STFT. Taking the elementwise magnitude of the complex values, we obtain an energy spectrogram:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>magnitude_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='va'>stft_out</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>magnitude_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='va'>stft_out</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>If we stop preprocessing here, we will usually want to log transform the values to better match the sensitivity of the human auditory system:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>log_magnitude_spectrograms</span> <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>log</span><span class='op'>(</span><span class='va'>magnitude_spectrograms</span> <span class='op'>+</span> <span class='fl'>1e-6</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>log_magnitude_spectrograms</span> <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>log</span><span class='op'>(</span><span class='va'>magnitude_spectrograms</span> <span class='op'>+</span> <span class='fl'>1e-6</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2243,7 +2291,7 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>If instead we choose to use Mel spectrograms, we can obtain a transformation matrix that will convert the original spectrograms to Mel scale:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lower_edge_hertz</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lower_edge_hertz</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
 <span class='va'>upper_edge_hertz</span> <span class='op'>&lt;-</span> <span class='fl'>2595</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log10</a></span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>+</span> <span class='op'>(</span><span class='va'>sampling_rate</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>/</span><span class='fl'>700</span><span class='op'>)</span>
 <span class='va'>num_mel_bins</span> <span class='op'>&lt;-</span> <span class='fl'>64L</span>
 <span class='va'>num_spectrogram_bins</span> <span class='op'>&lt;-</span> <span class='va'>magnitude_spectrograms</span><span class='op'>$</span><span class='va'>shape</span><span class='op'>[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>$</span><span class='va'>value</span>
@@ -2261,7 +2309,7 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>Applying that matrix, we obtain a tensor of size <em>(batch_size, number of periods, number of Mel coefficients)</em> which again, we can log-compress if we want:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>mel_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>tensordot</span><span class='op'>(</span><span class='va'>magnitude_spectrograms</span>, <span class='va'>linear_to_mel_weight_matrix</span>, <span class='fl'>1L</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>mel_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>tensordot</span><span class='op'>(</span><span class='va'>magnitude_spectrograms</span>, <span class='va'>linear_to_mel_weight_matrix</span>, <span class='fl'>1L</span><span class='op'>)</span>
 <span class='va'>log_mel_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>log</span><span class='op'>(</span><span class='va'>mel_spectrograms</span> <span class='op'>+</span> <span class='fl'>1e-6</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2269,7 +2317,7 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>Just for completeness’ sake, finally we show the TensorFlow code used to further compute MFCCs. We don’t include this in the complete example as with MFCCs, we would need a different network architecture.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>num_mfccs</span> <span class='op'>&lt;-</span> <span class='fl'>13</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>num_mfccs</span> <span class='op'>&lt;-</span> <span class='fl'>13</span>
 <span class='va'>mfccs</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>signal</span><span class='op'>$</span><span class='fu'>mfccs_from_log_mel_spectrograms</span><span class='op'>(</span><span class='va'>log_mel_spectrograms</span><span class='op'>)</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_mfccs</span><span class='op'>]</span>
 </code></pre>
 </div>
@@ -2278,14 +2326,14 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <p>In our complete example, we determine the sampling rate from the first file read, thus assuming all recordings have been sampled at the same rate. We do allow for different lengths though. For example in our dataset, had we used this file, just 0.65 seconds long, for demonstration purposes:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>fname</span> <span class='op'>&lt;-</span> <span class='st'>"data/speech_commands_v0.01/bird/1746d7b6_nohash_0.wav"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>fname</span> <span class='op'>&lt;-</span> <span class='st'>"data/speech_commands_v0.01/bird/1746d7b6_nohash_0.wav"</span>
 </code></pre>
 </div>
 </div>
 <p>we’d have ended up with just 63 periods in the spectrogram. As we have to define a fixed <code>input_size</code> for the first conv layer, we need to pad the corresponding dimension to the maximum possible length, which is <code>n_periods</code> computed above. The padding actually takes place as part of dataset definition. Let’s quickly see dataset definition as a whole, leaving out the possible generation of Mel spectrograms.<a href="#fn12" class="footnote-ref" id="fnref12" role="doc-noteref"><sup>12</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>,
                            <span class='va'>window_size_ms</span>,
                            <span class='va'>window_stride_ms</span><span class='op'>)</span> <span class='op'>{</span>
   
@@ -2400,7 +2448,7 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/';
   this.page.identifier = 'posts/2019-02-07-audio-background/';

@@ -473,8 +473,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -582,19 +589,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -617,6 +626,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -692,6 +705,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -919,6 +933,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1073,6 +1092,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1740,7 +1770,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1855,6 +1885,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2017,13 +2061,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2095,7 +2143,7 @@ gtag('config', 'UA-20375833-3');
 <p>Data can be downloaded from the Kaggle <a href="https://www.kaggle.com/quora/question-pairs-dataset">dataset webpage</a> or from Quora’s <a href="https://data.quora.com/First-Quora-Dataset-Release-Question-Pairs">release of the dataset</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='va'>quora_data</span> <span class='op'>&lt;-</span> <span class='fu'>get_file</span><span class='op'>(</span>
   <span class='st'>"quora_duplicate_questions.tsv"</span>,
   <span class='st'>"https://qim.ec.quoracdn.net/quora_duplicate_questions.tsv"</span>
@@ -2108,7 +2156,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will first load data into R and do some preprocessing to make it easier to include in the model. After downloading the data, you can read it using the readr <code>read_tsv()</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>readr</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>readr</span><span class='op'>)</span>
 <span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_tsv</span><span class='op'>(</span><span class='va'>quora_data</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2116,7 +2164,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will create a Keras <code>tokenizer</code> to transform each word into an integer token. We will also specify a hyperparameter of our model: the vocabulary size. For now let’s use the 50,000 most common words (we’ll tune this parameter later). The tokenizer will be fit using all unique questions from the dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>text_tokenizer</span><span class='op'>(</span>num_words <span class='op'>=</span> <span class='fl'>50000</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>text_tokenizer</span><span class='op'>(</span>num_words <span class='op'>=</span> <span class='fl'>50000</span><span class='op'>)</span>
 <span class='va'>tokenizer</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_text_tokenizer</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>question1</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question2</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2124,14 +2172,14 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s save the tokenizer to disk in order to use it for inference later.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>save_text_tokenizer</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='st'>"tokenizer-question-pairs"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>save_text_tokenizer</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='st'>"tokenizer-question-pairs"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>We will now use the text tokenizer to transform each question into a list of integers.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>question1</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>question1</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question1</span><span class='op'>)</span>
 <span class='va'>question2</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question2</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2139,7 +2187,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s take a look at the number of words in each question. This will helps us to decide the padding length, another hyperparameter of our model. Padding the sequences normalizes them to the same size so that we can feed them to the Keras model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span>
 <span class='va'>questions_length</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
   <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_int</a></span><span class='op'>(</span><span class='va'>question1</span>, <span class='va'>length</span><span class='op'>)</span>,
   <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_int</a></span><span class='op'>(</span><span class='va'>question2</span>, <span class='va'>length</span><span class='op'>)</span>
@@ -2154,7 +2202,7 @@ gtag('config', 'UA-20375833-3');
 <p>We can see that 99% of questions have at most length 31 so we’ll choose a padding length between 15 and 30. Let’s start with 20 (we’ll also tune this parameter later). The default padding value is 0, but we are already using this value for words that don’t appear within the 50,000 most frequent, so we’ll use 50,001 instead.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>question1_padded</span> <span class='op'>&lt;-</span> <span class='fu'>pad_sequences</span><span class='op'>(</span><span class='va'>question1</span>, maxlen <span class='op'>=</span> <span class='fl'>20</span>, value <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>question1_padded</span> <span class='op'>&lt;-</span> <span class='fu'>pad_sequences</span><span class='op'>(</span><span class='va'>question1</span>, maxlen <span class='op'>=</span> <span class='fl'>20</span>, value <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
 <span class='va'>question2_padded</span> <span class='op'>&lt;-</span> <span class='fu'>pad_sequences</span><span class='op'>(</span><span class='va'>question2</span>, maxlen <span class='op'>=</span> <span class='fl'>20</span>, value <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2164,7 +2212,7 @@ gtag('config', 'UA-20375833-3');
 <p>Before creating a complicated model let’s take a simple approach. Let’s create two predictors: percentage of words from question1 that appear in the question2 and vice-versa. Then we will use a logistic regression to predict if the questions are duplicate.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>perc_words_question1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map2.html'>map2_dbl</a></span><span class='op'>(</span><span class='va'>question1</span>, <span class='va'>question2</span>, <span class='op'>~</span><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>.x</span> <span class='op'>%in%</span> <span class='va'>.y</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>perc_words_question1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map2.html'>map2_dbl</a></span><span class='op'>(</span><span class='va'>question1</span>, <span class='va'>question2</span>, <span class='op'>~</span><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>.x</span> <span class='op'>%in%</span> <span class='va'>.y</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>perc_words_question2</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map2.html'>map2_dbl</a></span><span class='op'>(</span><span class='va'>question2</span>, <span class='va'>question1</span>, <span class='op'>~</span><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>.x</span> <span class='op'>%in%</span> <span class='va'>.y</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>df_model</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>
@@ -2179,7 +2227,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now that we have our predictors, let’s create the logistic model. We will take a small sample for validation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>val_sample</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span>, <span class='fl'>0.1</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>val_sample</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span>, <span class='fl'>0.1</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>logistic_regression</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/glm.html'>glm</a></span><span class='op'>(</span>
   <span class='va'>is_duplicate</span> <span class='op'>~</span> <span class='va'>perc_words_question1</span> <span class='op'>+</span> <span class='va'>perc_words_question2</span>, 
   family <span class='op'>=</span> <span class='st'>"binomial"</span>,
@@ -2216,7 +2264,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>Let’s calculate the accuracy on our validation set.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>pred</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>logistic_regression</span>, <span class='va'>df_model</span><span class='op'>[</span><span class='va'>val_sample</span>,<span class='op'>]</span>, type <span class='op'>=</span> <span class='st'>"response"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>pred</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>logistic_regression</span>, <span class='va'>df_model</span><span class='op'>[</span><span class='va'>val_sample</span>,<span class='op'>]</span>, type <span class='op'>=</span> <span class='st'>"response"</span><span class='op'>)</span>
 <span class='va'>pred</span> <span class='op'>&lt;-</span> <span class='va'>pred</span> <span class='op'>&gt;</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>$</span><span class='va'>is_duplicate</span><span class='op'>[</span><span class='op'>-</span><span class='va'>val_sample</span><span class='op'>]</span><span class='op'>)</span>
 <span class='va'>accuracy</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/table.html'>table</a></span><span class='op'>(</span><span class='va'>pred</span>, <span class='va'>df_model</span><span class='op'>$</span><span class='va'>is_duplicate</span><span class='op'>[</span><span class='va'>val_sample</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://rdrr.io/r/base/proportions.html'>prop.table</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2233,7 +2281,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>First let’s define the inputs for the model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>input1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>20</span><span class='op'>)</span>, name <span class='op'>=</span> <span class='st'>"input_question1"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>input1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>20</span><span class='op'>)</span>, name <span class='op'>=</span> <span class='st'>"input_question1"</span><span class='op'>)</span>
 <span class='va'>input2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>20</span><span class='op'>)</span>, name <span class='op'>=</span> <span class='st'>"input_question2"</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2241,7 +2289,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>Then let’s the define the part of the model that will embed the questions in a vector.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>word_embedder</span> <span class='op'>&lt;-</span> <span class='fu'>layer_embedding</span><span class='op'>(</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>word_embedder</span> <span class='op'>&lt;-</span> <span class='fu'>layer_embedding</span><span class='op'>(</span> 
   input_dim <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>2</span>, <span class='co'># vocab size + UNK token + padding value</span>
   output_dim <span class='op'>=</span> <span class='fl'>128</span>,      <span class='co'># hyperparameter - embedding size</span>
   input_length <span class='op'>=</span> <span class='fl'>20</span>,     <span class='co'># padding size,</span>
@@ -2258,7 +2306,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>Now we will define the relationship between the input vectors and the embeddings layers. Note that we use the same layers and weights on both inputs. That’s why this is called a Siamese network. It makes sense, because we don’t want to have different outputs if question1 is switched with question2.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>vector1</span> <span class='op'>&lt;-</span> <span class='va'>input1</span> <span class='op'>%&gt;%</span> <span class='fu'>word_embedder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>seq_embedder</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>vector1</span> <span class='op'>&lt;-</span> <span class='va'>input1</span> <span class='op'>%&gt;%</span> <span class='fu'>word_embedder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>seq_embedder</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>vector2</span> <span class='op'>&lt;-</span> <span class='va'>input2</span> <span class='op'>%&gt;%</span> <span class='fu'>word_embedder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>seq_embedder</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2266,14 +2314,14 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>We then define the similarity measure we want to optimize. We want duplicated questions to have higher values of similarity. In this example we’ll use the cosine similarity, but any similarity measure could be used. Remember that the cosine similarity is the normalized dot product of the vectors, but for training it’s not necessary to normalize the results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>cosine_similarity</span> <span class='op'>&lt;-</span> <span class='fu'>layer_dot</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>vector1</span>, <span class='va'>vector2</span><span class='op'>)</span>, axes <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>cosine_similarity</span> <span class='op'>&lt;-</span> <span class='fu'>layer_dot</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>vector1</span>, <span class='va'>vector2</span><span class='op'>)</span>, axes <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Next, we define a final sigmoid layer to output the probability of both questions being duplicated.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>cosine_similarity</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>cosine_similarity</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span>, activation <span class='op'>=</span> <span class='st'>"sigmoid"</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2281,7 +2329,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>Now that let’s define the Keras model in terms of it’s inputs and outputs and compile it. In the compilation phase we define our loss function and optimizer. Like in the Kaggle challenge, we will minimize the logloss (equivalent to minimizing the binary crossentropy). We will use the Adam optimizer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>input1</span>, <span class='va'>input2</span><span class='op'>)</span>, <span class='va'>output</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>input1</span>, <span class='va'>input2</span><span class='op'>)</span>, <span class='va'>output</span><span class='op'>)</span>
 <span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   optimizer <span class='op'>=</span> <span class='st'>"adam"</span>, 
   metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>acc <span class='op'>=</span> <span class='va'>metric_binary_accuracy</span><span class='op'>)</span>, 
@@ -2293,7 +2341,7 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <p>We can then take a look at out model with the <code>summary</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>model</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2323,7 +2371,7 @@ ________________________________________________________________________________
 <p>Now we will fit and tune our model. However before proceeding let’s take a sample for validation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span><span class='op'>(</span><span class='fl'>1817328</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span><span class='op'>(</span><span class='fl'>1817328</span><span class='op'>)</span>
 <span class='va'>val_sample</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>question1_padded</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fl'>0.1</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>question1_padded</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>train_question1_padded</span> <span class='op'>&lt;-</span> <span class='va'>question1_padded</span><span class='op'>[</span><span class='op'>-</span><span class='va'>val_sample</span>,<span class='op'>]</span>
@@ -2339,7 +2387,7 @@ ________________________________________________________________________________
 <p>Now we use the <code>fit()</code> function to train the model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>
   <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>train_question1_padded</span>, <span class='va'>train_question2_padded</span><span class='op'>)</span>,
   <span class='va'>train_is_duplicate</span>, 
   batch_size <span class='op'>=</span> <span class='fl'>64</span>, 
@@ -2376,7 +2424,7 @@ Epoch 10/10
 <p>After training completes, we can save our model for inference with the <code>save_model_hdf5()</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>save_model_hdf5</span><span class='op'>(</span><span class='va'>model</span>, <span class='st'>"model-question-pairs.hdf5"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>save_model_hdf5</span><span class='op'>(</span><span class='va'>model</span>, <span class='st'>"model-question-pairs.hdf5"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2384,7 +2432,7 @@ Epoch 10/10
 <p>Now that we have a reasonable model, let’s tune the hyperparameters using the <a href="https://tensorflow.rstudio.com/tools/tfruns">tfruns</a> package. We’ll begin by adding <code>FLAGS</code> declarations to our script for all hyperparameters we want to tune (<code>FLAGS</code> allow us to vary hyperparmaeters without changing our source code):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span>
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"vocab_size"</span>, <span class='fl'>50000</span><span class='op'>)</span>,
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"max_len_padding"</span>, <span class='fl'>20</span><span class='op'>)</span>,
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"embedding_size"</span>, <span class='fl'>256</span><span class='op'>)</span>,
@@ -2397,7 +2445,7 @@ Epoch 10/10
 <p>With this <code>FLAGS</code> definition we can now write our code in terms of the flags. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>input1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>FLAGS</span><span class='op'>$</span><span class='va'>max_len_padding</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>input1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>FLAGS</span><span class='op'>$</span><span class='va'>max_len_padding</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>input2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>FLAGS</span><span class='op'>$</span><span class='va'>max_len_padding</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>embedding</span> <span class='op'>&lt;-</span> <span class='fu'>layer_embedding</span><span class='op'>(</span>
@@ -2413,7 +2461,7 @@ Epoch 10/10
 <p>We additionally added an early stopping callback in the training step in order to stop training if validation loss doesn’t decrease for 5 epochs in a row. This will hopefully reduce training time for bad models. We also added a learning rate reducer to reduce the learning rate by a factor of 10 when the loss doesn’t decrease for 3 epochs (this technique typically increases model accuracy).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>
   <span class='va'>...</span>,
   callbacks <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
     <span class='fu'>callback_early_stopping</span><span class='op'>(</span>patience <span class='op'>=</span> <span class='fl'>5</span><span class='op'>)</span>,
@@ -2426,7 +2474,7 @@ Epoch 10/10
 <p>We can now execute a tuning run to probe for the optimal combination of hyperparameters. We call the <code>tuning_run()</code> function, passing a list with the possible values for each flag. The <code>tuning_run()</code> function will be responsible for executing the script for all combinations of hyperparameters. We also specify the <code>sample</code> parameter to train the model for only a random sample from all combinations (reducing training time significantly).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfruns</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfruns</span><span class='op'>)</span>
 
 <span class='va'>runs</span> <span class='op'>&lt;-</span> <span class='fu'>tuning_run</span><span class='op'>(</span>
   <span class='st'>"question-pairs.R"</span>, 
@@ -2446,7 +2494,7 @@ Epoch 10/10
 <p>The tuning run will return a <code>data.frame</code> with results for all runs. We found that the best run attained 84.9% accuracy using the combination of hyperparameters shown below, so we modify our training script to use these values as the defaults:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span>
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"vocab_size"</span>, <span class='fl'>50000</span><span class='op'>)</span>,
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"max_len_padding"</span>, <span class='fl'>20</span><span class='op'>)</span>,
   <span class='fu'>flag_integer</span><span class='op'>(</span><span class='st'>"embedding_size"</span>, <span class='fl'>256</span><span class='op'>)</span>,
@@ -2460,7 +2508,7 @@ Epoch 10/10
 <p>Now that we have trained and tuned our model we can start making predictions. At prediction time we will load both the text tokenizer and the model we saved to disk earlier.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>load_model_hdf5</span><span class='op'>(</span><span class='st'>"model-question-pairs.hdf5"</span>, compile <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 <span class='va'>tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>load_text_tokenizer</span><span class='op'>(</span><span class='st'>"tokenizer-question-pairs"</span><span class='op'>)</span>
 </code></pre>
@@ -2470,7 +2518,7 @@ Epoch 10/10
 <p>Now let`s define a function to create predictions. In this function we we preprocess the input data in the same way we preprocessed the training data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>predict_question_pairs</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>model</span>, <span class='va'>tokenizer</span>, <span class='va'>q1</span>, <span class='va'>q2</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>predict_question_pairs</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>model</span>, <span class='va'>tokenizer</span>, <span class='va'>q1</span>, <span class='va'>q2</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>q1</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>q1</span><span class='op'>)</span><span class='op'>)</span>
   <span class='va'>q2</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>q2</span><span class='op'>)</span><span class='op'>)</span>
   
@@ -2485,7 +2533,7 @@ Epoch 10/10
 <p>We can now call it with new pairs of questions, for example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>predict_question_pairs</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>predict_question_pairs</span><span class='op'>(</span>
   <span class='va'>model</span>,
   <span class='va'>tokenizer</span>,
   <span class='st'>"What's R programming?"</span>,
@@ -2529,7 +2577,7 @@ Epoch 10/10
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-01-09-keras-duplicate-questions-quora/';
   this.page.identifier = 'posts/2018-01-09-keras-duplicate-questions-quora/';

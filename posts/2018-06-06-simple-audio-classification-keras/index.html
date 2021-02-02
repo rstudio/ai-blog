@@ -467,8 +467,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -576,19 +583,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -611,6 +620,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -686,6 +699,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -913,6 +927,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1067,6 +1086,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1734,7 +1764,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1849,6 +1879,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2011,13 +2055,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2102,7 +2150,7 @@ gtag('config', 'UA-20375833-3');
 <p>First, let’s download data to a directory in our project. You can either download from <a href="http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz">this link</a> (~1GB) or from R with:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/files2.html'>dir.create</a></span><span class='op'>(</span><span class='st'>"data"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/files2.html'>dir.create</a></span><span class='op'>(</span><span class='st'>"data"</span><span class='op'>)</span>
 
 <span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span>
   url <span class='op'>=</span> <span class='st'>"http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz"</span>, 
@@ -2124,7 +2172,7 @@ gtag('config', 'UA-20375833-3');
 <p>This will be useful to the next step when we will create a generator using the <code>tfdatasets</code> package.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://stringr.tidyverse.org'>stringr</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://stringr.tidyverse.org'>stringr</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
 
 <span class='va'>files</span> <span class='op'>&lt;-</span> <span class='fu'>fs</span><span class='fu'>::</span><span class='fu'>dir_ls</span><span class='op'>(</span>
@@ -2151,7 +2199,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s start by creating the dataset from slices of the <code>data.frame</code> with audio file names and classes we just created.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
 <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span> 
 </code></pre>
 </div>
@@ -2159,7 +2207,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, let’s define the parameters for spectrogram creation. We need to define <code>window_size_ms</code> which is the size in milliseconds of each chunk we will break the audio wave into, and <code>window_stride_ms</code>, the distance between the centers of adjacent chunks:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>window_size_ms</span> <span class='op'>&lt;-</span> <span class='fl'>30</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>window_size_ms</span> <span class='op'>&lt;-</span> <span class='fl'>30</span>
 <span class='va'>window_stride_ms</span> <span class='op'>&lt;-</span> <span class='fl'>10</span>
 </code></pre>
 </div>
@@ -2167,7 +2215,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now we will convert the window size and stride from milliseconds to samples. We are considering that our audio files have 16,000 samples per second (1000 ms).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
 <span class='va'>stride</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_stride_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2175,7 +2223,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will obtain other quantities that will be useful for spectrogram creation, like the number of chunks and the FFT size, i.e., the number of bins on the frequency axis. The function we are going to use to compute the spectrogram doesn’t allow us to change the FFT size and instead by default uses the first power of 2 greater than the window size.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>window_size</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>window_size</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
 <span class='va'>n_chunks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='va'>window_size</span><span class='op'>/</span><span class='fl'>2</span>, <span class='fl'>16000</span> <span class='op'>-</span> <span class='va'>window_size</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>stride</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2183,7 +2231,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will now use <code>dataset_map</code> which allows us to specify a pre-processing function for each observation (line) of our dataset. It’s in this step that we read the raw audio file from disk and create its spectrogram and the one-hot encoded response vector.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># shortcuts to used TensorFlow modules.</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># shortcuts to used TensorFlow modules.</span>
 <span class='va'>audio_ops</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>contrib</span><span class='op'>$</span><span class='va'>framework</span><span class='op'>$</span><span class='va'>python</span><span class='op'>$</span><span class='va'>ops</span><span class='op'>$</span><span class='va'>audio_ops</span>
 
 <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='va'>ds</span> <span class='op'>%&gt;%</span>
@@ -2222,7 +2270,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, we will specify how we want batch observations from the dataset. We’re using <code>dataset_shuffle</code> since we want to shuffle observations from the dataset, otherwise it would follow the order of the <code>df</code> object. Then we use <code>dataset_repeat</code> in order to tell TensorFlow that we want to keep taking observations from the dataset even if all observations have already been used. And most importantly here, we use <code>dataset_padded_batch</code> to specify that we want batches of size 32, but they should be padded, ie. if some observation has a different size we pad it with zeroes. The padded shape is passed to <code>dataset_padded_batch</code> via the <code>padded_shapes</code> argument and we use <code>NULL</code> to state that this dimension doesn’t need to be padded.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='va'>ds</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='va'>ds</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>dataset_shuffle</span><span class='op'>(</span>buffer_size <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>dataset_repeat</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>dataset_padded_batch</span><span class='op'>(</span>
@@ -2238,7 +2286,7 @@ gtag('config', 'UA-20375833-3');
 <p>This is our dataset specification, but we would need to rewrite all the code for the validation data, so it’s good practice to wrap this into a function of the data and other important parameters like <code>window_size_ms</code> and <code>window_stride_ms</code>. Below, we will define a function called <code>data_generator</code> that will create the generator depending on those inputs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>, <span class='va'>batch_size</span>, <span class='va'>shuffle</span> <span class='op'>=</span> <span class='cn'>TRUE</span>, 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>, <span class='va'>batch_size</span>, <span class='va'>shuffle</span> <span class='op'>=</span> <span class='cn'>TRUE</span>, 
                            <span class='va'>window_size_ms</span> <span class='op'>=</span> <span class='fl'>30</span>, <span class='va'>window_stride_ms</span> <span class='op'>=</span> <span class='fl'>10</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
@@ -2287,7 +2335,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, we can define training and validation data generators. It’s worth noting that executing this won’t actually compute any spectrogram or read any file. It will only define in the TensorFlow graph how it should read and pre-process data.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span><span class='op'>(</span><span class='fl'>6</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span><span class='op'>(</span><span class='fl'>6</span><span class='op'>)</span>
 <span class='va'>id_train</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fl'>0.7</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>data_generator</span><span class='op'>(</span>
@@ -2309,7 +2357,7 @@ gtag('config', 'UA-20375833-3');
 <p>To actually get a batch from the generator we could create a TensorFlow session and ask it to run the generator. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>sess</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>Session</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sess</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>Session</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='fu'>next_batch</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/str.html'>str</a></span><span class='op'>(</span><span class='va'>sess</span><span class='op'>$</span><span class='fu'>run</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
@@ -2325,7 +2373,7 @@ gtag('config', 'UA-20375833-3');
 <p>The input size is defined by the number of chunks and the FFT size. Like we explained earlier, they can be obtained from the <code>window_size_ms</code> and <code>window_stride_ms</code> used to generate the spectrogram.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_size_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
 <span class='va'>stride</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>16000</span><span class='op'>*</span><span class='va'>window_stride_ms</span><span class='op'>/</span><span class='fl'>1000</span><span class='op'>)</span>
 <span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>window_size</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span>
 <span class='va'>n_chunks</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='va'>window_size</span><span class='op'>/</span><span class='fl'>2</span>, <span class='fl'>16000</span> <span class='op'>-</span> <span class='va'>window_size</span><span class='op'>/</span><span class='fl'>2</span>, <span class='va'>stride</span><span class='op'>)</span><span class='op'>)</span>
@@ -2335,7 +2383,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will now define our model using the Keras sequential API:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>model</span> <span class='op'>%&gt;%</span>  
   <span class='fu'>layer_conv_2d</span><span class='op'>(</span>input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>n_chunks</span>, <span class='va'>fft_size</span>, <span class='fl'>1</span><span class='op'>)</span>, 
                 filters <span class='op'>=</span> <span class='fl'>32</span>, kernel_size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>,<span class='fl'>3</span><span class='op'>)</span>, activation <span class='op'>=</span> <span class='st'>'relu'</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2358,7 +2406,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now let’s compile our model. We will use categorical cross entropy as the loss function and use the Adadelta optimizer. It’s also here that we define that we will look at the accuracy metric during training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
   loss <span class='op'>=</span> <span class='va'>loss_categorical_crossentropy</span>,
   optimizer <span class='op'>=</span> <span class='fu'>optimizer_adadelta</span><span class='op'>(</span><span class='op'>)</span>,
   metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>'accuracy'</span><span class='op'>)</span>
@@ -2370,7 +2418,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, we will fit our model. In Keras we can use TensorFlow Datasets as inputs to the <code>fit_generator</code> function and we will do it here.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_generator</span><span class='op'>(</span>
   generator <span class='op'>=</span> <span class='va'>ds_train</span>,
   steps_per_epoch <span class='op'>=</span> <span class='fl'>0.7</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span><span class='op'>/</span><span class='fl'>32</span>,
   epochs <span class='op'>=</span> <span class='fl'>10</span>, 
@@ -2406,7 +2454,7 @@ Epoch 10/10
 <p>We can calculate the number of steps by knowing the batch size, and the size of the validation dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>df_validation</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span><span class='op'>-</span><span class='va'>id_train</span>,<span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df_validation</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span><span class='op'>-</span><span class='va'>id_train</span>,<span class='op'>]</span>
 <span class='va'>n_steps</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_validation</span><span class='op'>)</span><span class='op'>/</span><span class='fl'>32</span> <span class='op'>+</span> <span class='fl'>1</span>
 </code></pre>
 </div>
@@ -2414,7 +2462,7 @@ Epoch 10/10
 <p>We can then use the <code>predict_generator</code> function:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='fu'>predict_generator</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='fu'>predict_generator</span><span class='op'>(</span>
   <span class='va'>model</span>, 
   <span class='va'>ds_validation</span>, 
   steps <span class='op'>=</span> <span class='va'>n_steps</span>
@@ -2428,14 +2476,14 @@ Epoch 10/10
 <p>We can compute the predicted class by taking the column with the highest probability, for example.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>classes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>predictions</span>, <span class='fl'>1</span>, <span class='va'>which.max</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>1</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>classes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>predictions</span>, <span class='fl'>1</span>, <span class='va'>which.max</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>1</span>
 </code></pre>
 </div>
 </div>
 <p>A nice visualization of the confusion matrix is to create an alluvial diagram:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>alluvial</span><span class='op'>)</span>
 <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>df_validation</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pred_class_id <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/utils/head.html'>head</a></span><span class='op'>(</span><span class='va'>classes</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_validation</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2485,7 +2533,7 @@ Epoch 10/10
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/';
   this.page.identifier = 'posts/2018-06-06-simple-audio-classification-keras/';

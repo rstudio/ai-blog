@@ -474,8 +474,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -583,19 +590,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -618,6 +627,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -693,6 +706,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -920,6 +934,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1074,6 +1093,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1741,7 +1771,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1856,6 +1886,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2018,13 +2062,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2108,7 +2156,7 @@ gtag('config', 'UA-20375833-3');
 <p>FNN-LSTM looks nearly like in the previous post, apart from the fact that we split up the encoder LSTM into two, to uncouple capacity (<code>n_recurrent</code>) from maximal latent state dimensionality (<code>n_latent</code>, kept at 10 just like before).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># DL-related packages</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># DL-related packages</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfdatasets</span><span class='op'>)</span>
@@ -2201,7 +2249,7 @@ gtag('config', 'UA-20375833-3');
 <p>The regularizer, FNN loss, is unchanged:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>loss_false_nn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>loss_false_nn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='co'># changing these parameters is equivalent to</span>
   <span class='co'># changing the strength of the regularizer, so we keep these fixed (these values</span>
@@ -2318,7 +2366,7 @@ gtag('config', 'UA-20375833-3');
 <p>Thus, here we have the training routine:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_step</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_step</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span> <span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>%as%</span> <span class='va'>tape</span>, <span class='op'>{</span>
     <span class='va'>code</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
     <span class='va'>prediction</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='va'>code</span><span class='op'>)</span>
@@ -2395,7 +2443,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here is the vanilla LSTM, stacking two layers, each, again, of size 32. Dropout and recurrent dropout were chosen individually per dataset, as was the learning rate.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_latent</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_features</span>, <span class='va'>n_recurrent</span>, <span class='va'>dropout</span>, <span class='va'>recurrent_dropout</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_latent</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_features</span>, <span class='va'>n_recurrent</span>, <span class='va'>dropout</span>, <span class='va'>recurrent_dropout</span>,
                  <span class='va'>optimizer</span> <span class='op'>=</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span>lr <span class='op'>=</span>  <span class='fl'>1e-3</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2432,7 +2480,7 @@ gtag('config', 'UA-20375833-3');
 <p>In every case, we used the first 10000 measurements available in the respective <code>.pkl</code> files <a href="https://github.com/williamgilpin/fnn/tree/master/datasets">provided by Gilpin in his GitHub repository</a>. To save on file size and not depend on an external data source, we extracted those first 10000 entries to <code>.csv</code> files downloadable directly from this blog’s repo:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>geyser</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>geyser</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span>
   <span class='st'>"https://raw.githubusercontent.com/rstudio/ai-blog/master/docs/posts/2020-07-20-fnn-lstm/data/geyser.csv"</span>,
   <span class='st'>"data/geyser.csv"</span><span class='op'>)</span>
 
@@ -2453,7 +2501,7 @@ gtag('config', 'UA-20375833-3');
 <p>Should you want to access the complete time series (of considerably greater lengths), just download them from Gilpin’s repo and load them using <code>reticulate</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># e.g.</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># e.g.</span>
 <span class='va'>geyser</span> <span class='op'>&lt;-</span> <span class='fu'>reticulate</span><span class='fu'>::</span><span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/py_save_object.html'>py_load_object</a></span><span class='op'>(</span><span class='st'>"geyser_train_test.pkl"</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2461,7 +2509,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here is the data preparation code for the first dataset, <code>geyser</code> - all other datasets were treated the same way.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># the first 10000 measurements from the compilation provided by Gilpin</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># the first 10000 measurements from the compilation provided by Gilpin</span>
 <span class='va'>geyser</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='st'>"geyser.csv"</span>, col_names <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>X1</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/pull.html'>pull</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/class.html'>unclass</a></span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='co'># standardize</span>
@@ -2529,7 +2577,7 @@ Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the
 <p>Having trained both FNN-LSTM and the vanilla LSTM for 200 epochs, we first inspect the variances of the latent variables on the test set. The value of <code>fnn_multiplier</code> corresponding to this run was <code>0.7</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>encoded</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>test_batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://tibble.tidyverse.org/reference/as_tibble.html'>as_tibble</a></span><span class='op'>(</span><span class='op'>)</span>
@@ -2545,7 +2593,7 @@ Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the
 <p>Keeping up the suspense for a while, here is the code used to compute per-timestep prediction errors from both models. The same code will be used for all other datasets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>calc_mse</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>, <span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>calc_mse</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>, <span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sum.html'>sum</a></span><span class='op'>(</span><span class='op'>(</span><span class='va'>df</span><span class='op'>[[</span><span class='va'>y_true</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>df</span><span class='op'>[[</span><span class='va'>y_pred</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span><span class='op'>/</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>
 <span class='op'>}</span>
 
@@ -2602,7 +2650,7 @@ Figure 2: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla st
 <p>Instead, let’s inspect actual predictions. We randomly pick sequences from the test set, and ask both FNN-LSTM and vanilla LSTM for a forecast. The same procedure will be followed for the other datasets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>given</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>concat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>given</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>concat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
   <span class='va'>test_batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>]</span>, <span class='va'>test_batch</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>]</span>
 <span class='op'>)</span>,
 axis <span class='op'>=</span> <span class='fl'>1L</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/t.html'>t</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2821,7 +2869,7 @@ Figure 12: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (gree
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-07-20-fnn-lstm/';
   this.page.identifier = 'posts/2020-07-20-fnn-lstm/';

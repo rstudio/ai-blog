@@ -476,8 +476,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -585,19 +592,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -620,6 +629,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -695,6 +708,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -922,6 +936,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1076,6 +1095,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1743,7 +1773,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1858,6 +1888,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2020,13 +2064,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2106,7 +2154,7 @@ gtag('config', 'UA-20375833-3');
 <p>As in all our prior posts on VAEs, we use eager execution, which presupposes the TensorFlow implementation of Keras.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='fu'>use_implementation</span><span class='op'>(</span><span class='st'>"tensorflow"</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span>device_policy <span class='op'>=</span> <span class='st'>"silent"</span><span class='op'>)</span>
@@ -2126,7 +2174,7 @@ gtag('config', 'UA-20375833-3');
 <p>As in our previous post on doing VAE with TFP, we’ll use <a href="https://github.com/rois-codh/kmnist">Kuzushiji-MNIST</a><span class="citation" data-cites="clanuwat2018deep">(Clanuwat et al. <a href="#ref-clanuwat2018deep" role="doc-biblioref">2018</a>)</span> as input. Now is the time to look at <a href="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/images/results.png">what we ended up generating that time</a> and place your bet: How will that compare against the discrete latent space of VQ-VAE?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>np</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/import.html'>import</a></span><span class='op'>(</span><span class='st'>"numpy"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>np</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/import.html'>import</a></span><span class='op'>(</span><span class='st'>"numpy"</span><span class='op'>)</span>
  
 <span class='va'>kuzushiji</span> <span class='op'>&lt;-</span> <span class='va'>np</span><span class='op'>$</span><span class='fu'>load</span><span class='op'>(</span><span class='st'>"kmnist-train-imgs.npz"</span><span class='op'>)</span>
 <span class='va'>kuzushiji</span> <span class='op'>&lt;-</span> <span class='va'>kuzushiji</span><span class='op'>$</span><span class='fu'>get</span><span class='op'>(</span><span class='st'>"arr_0"</span><span class='op'>)</span>
@@ -2153,7 +2201,7 @@ gtag('config', 'UA-20375833-3');
 <p>In addition to the “usual” hyperparameters we have in deep learning, the VQ-VAE infrastructure introduces a few model-specific ones. First of all, the embedding space is of dimensionality <em>number of embedding vectors</em> times <em>embedding vector size</em>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># number of embedding vectors</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># number of embedding vectors</span>
 <span class='va'>num_codes</span> <span class='op'>&lt;-</span> <span class='fl'>64L</span>
 <span class='co'># dimensionality of the embedding vectors</span>
 <span class='va'>code_size</span> <span class='op'>&lt;-</span> <span class='fl'>16L</span>
@@ -2163,7 +2211,7 @@ gtag('config', 'UA-20375833-3');
 <p>The latent space in our example will be of size one, that is, we have a single embedding vector representing the latent code for each input sample. This will be fine for our dataset, but it should be noted that van den Oord et al. used far higher-dimensional latent spaces on e.g. ImageNet and Cifar-10.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>latent_size</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>latent_size</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
 </code></pre>
 </div>
 </div>
@@ -2171,7 +2219,7 @@ gtag('config', 'UA-20375833-3');
 <p>The encoder uses convolutional layers to extract image features. Its output is a 3-d tensor of shape <em>batchsize</em> * 1 * <em>code_size</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>activation</span> <span class='op'>&lt;-</span> <span class='st'>"elu"</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>activation</span> <span class='op'>&lt;-</span> <span class='st'>"elu"</span>
 <span class='co'># modularizing the code just a little bit</span>
 <span class='va'>default_conv</span> <span class='op'>&lt;-</span> <span class='fu'>set_defaults</span><span class='op'>(</span><span class='va'>layer_conv_2d</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>padding <span class='op'>=</span> <span class='st'>"same"</span>, activation <span class='op'>=</span> <span class='va'>activation</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
@@ -2179,7 +2227,7 @@ gtag('config', 'UA-20375833-3');
 </div>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>base_depth</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>base_depth</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
 
 <span class='va'>encoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>,
                           <span class='va'>code_size</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2222,7 +2270,7 @@ gtag('config', 'UA-20375833-3');
 <p>As always, let’s make use of the fact that we’re using eager execution, and see a few example outputs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>train_dataset</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>train_dataset</span><span class='op'>)</span>
 <span class='va'>batch</span> <span class='op'>&lt;-</span>  <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>iter</span><span class='op'>)</span>
 
 <span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>encoder_model</span><span class='op'>(</span>code_size <span class='op'>=</span> <span class='va'>code_size</span><span class='op'>)</span>
@@ -2243,7 +2291,7 @@ gtag('config', 'UA-20375833-3');
 <p>This is how we will instantiate the vector quantizer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>vector_quantizer</span> <span class='op'>&lt;-</span> <span class='fu'>vector_quantizer_model</span><span class='op'>(</span>num_codes <span class='op'>=</span> <span class='va'>num_codes</span>, code_size <span class='op'>=</span> <span class='va'>code_size</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>vector_quantizer</span> <span class='op'>&lt;-</span> <span class='fu'>vector_quantizer_model</span><span class='op'>(</span>num_codes <span class='op'>=</span> <span class='va'>num_codes</span>, code_size <span class='op'>=</span> <span class='va'>code_size</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2251,7 +2299,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here, the current state of embeddings is stored in <code>codebook</code>. <code>ema_means</code> and <code>ema_count</code> are for bookkeeping purposes only (note how they are set to be non-trainable). We’ll see them in use shortly.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>vector_quantizer_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>num_codes</span>, <span class='va'>code_size</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>vector_quantizer_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>num_codes</span>, <span class='va'>code_size</span><span class='op'>)</span> <span class='op'>{</span>
   
     <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
       
@@ -2287,7 +2335,7 @@ gtag('config', 'UA-20375833-3');
 <p>Regarding the <code>axis</code> argument used with many TensorFlow functions, please take into consideration that in contrast to their <code>k_*</code> siblings, raw TensorFlow (<code>tf$*</code>) functions expect axis numbering to be 0-based. We also have to add the <code>L</code>’s after the numbers to conform to TensorFlow’s datatype requirements.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>vector_quantizer_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>num_codes</span>, <span class='va'>code_size</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>vector_quantizer_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>num_codes</span>, <span class='va'>code_size</span><span class='op'>)</span> <span class='op'>{</span>
   
     <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
       
@@ -2332,7 +2380,7 @@ gtag('config', 'UA-20375833-3');
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>moving_averages</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>python</span><span class='op'>$</span><span class='va'>training</span><span class='op'>$</span><span class='va'>moving_averages</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>moving_averages</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>python</span><span class='op'>$</span><span class='va'>training</span><span class='op'>$</span><span class='va'>moving_averages</span>
 
 <span class='co'># decay to use in computing exponential moving average</span>
 <span class='va'>decay</span> <span class='op'>&lt;-</span> <span class='fl'>0.99</span>
@@ -2374,7 +2422,7 @@ gtag('config', 'UA-20375833-3');
 <p>The decoder is pretty standard, performing a series of deconvolutions and finally, returning a probability for each image pixel.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>default_deconv</span> <span class='op'>&lt;-</span> <span class='fu'>set_defaults</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>default_deconv</span> <span class='op'>&lt;-</span> <span class='fu'>set_defaults</span><span class='op'>(</span>
   <span class='va'>layer_conv_2d_transpose</span>,
   <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>padding <span class='op'>=</span> <span class='st'>"same"</span>, activation <span class='op'>=</span> <span class='va'>activation</span><span class='op'>)</span>
 <span class='op'>)</span>
@@ -2450,7 +2498,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here’s the optimizer we’ll use. Losses will be calculated inline.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span>learning_rate <span class='op'>=</span> <span class='va'>learning_rate</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span>learning_rate <span class='op'>=</span> <span class='va'>learning_rate</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2458,7 +2506,7 @@ gtag('config', 'UA-20375833-3');
 <p>So far, all of this conforms to a scheme we’ve oftentimes seen before. One point to note though: In this same loop, we also call <code>update_ema</code> to recalculate the moving averages, as those are not operated on during backprop. Here is the essential functionality:<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
 
 <span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_len</a></span><span class='op'>(</span><span class='va'>num_epochs</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
   
@@ -2503,7 +2551,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, for the actual action. Inside the context of the gradient tape, we first determine which encoded input sample gets assigned to which embedding vector.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>codes</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>codes</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span>, <span class='va'>one_hot_assignments</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>vector_quantizer</span><span class='op'>(</span><span class='va'>codes</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2511,7 +2559,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now, for this assignment operation there is no gradient. Instead what we can do is pass the gradients from decoder input straight through to encoder output. Here <code>tf$stop_gradient</code> exempts <code>nearest_codebook_entries</code> from the chain of gradients, so encoder and decoder are linked by <code>codes</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>codes_straight_through</span> <span class='op'>&lt;-</span> <span class='va'>codes</span> <span class='op'>+</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>stop_gradient</span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span> <span class='op'>-</span> <span class='va'>codes</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>codes_straight_through</span> <span class='op'>&lt;-</span> <span class='va'>codes</span> <span class='op'>+</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>stop_gradient</span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span> <span class='op'>-</span> <span class='va'>codes</span><span class='op'>)</span>
 <span class='va'>decoder_distribution</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='va'>codes_straight_through</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2523,7 +2571,7 @@ gtag('config', 'UA-20375833-3');
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>reconstruction_loss</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>decoder_distribution</span><span class='op'>$</span><span class='fu'>log_prob</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>reconstruction_loss</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>decoder_distribution</span><span class='op'>$</span><span class='fu'>log_prob</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2532,7 +2580,7 @@ gtag('config', 'UA-20375833-3');
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>commitment_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>square</span><span class='op'>(</span><span class='va'>codes</span> <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>stop_gradient</span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>commitment_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>square</span><span class='op'>(</span><span class='va'>codes</span> <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>stop_gradient</span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2541,7 +2589,7 @@ gtag('config', 'UA-20375833-3');
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>prior_dist</span> <span class='op'>&lt;-</span> <span class='va'>tfd</span><span class='op'>$</span><span class='fu'>Multinomial</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>prior_dist</span> <span class='op'>&lt;-</span> <span class='va'>tfd</span><span class='op'>$</span><span class='fu'>Multinomial</span><span class='op'>(</span>
   total_count <span class='op'>=</span> <span class='fl'>1</span>,
   logits <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>zeros</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>latent_size</span>, <span class='va'>num_codes</span><span class='op'>)</span><span class='op'>)</span>
   <span class='op'>)</span>
@@ -2554,7 +2602,7 @@ gtag('config', 'UA-20375833-3');
 <p>Summing up all three components, we arrive at the overall loss:<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>beta</span> <span class='op'>&lt;-</span> <span class='fl'>0.25</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>beta</span> <span class='op'>&lt;-</span> <span class='fl'>0.25</span>
 <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>reconstruction_loss</span> <span class='op'>+</span> <span class='va'>beta</span> <span class='op'>*</span> <span class='va'>commitment_loss</span> <span class='op'>+</span> <span class='va'>prior_loss</span>
 </code></pre>
 </div>
@@ -2562,7 +2610,7 @@ gtag('config', 'UA-20375833-3');
 <p>Before we look at the results, let’s see what happens inside <code>gradientTape</code> at a single glance:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>%as%</span> <span class='va'>tape</span>, <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>%as%</span> <span class='va'>tape</span>, <span class='op'>{</span>
       
   <span class='va'>codes</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
   <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span>, <span class='va'>one_hot_assignments</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>vector_quantizer</span><span class='op'>(</span><span class='va'>codes</span><span class='op'>)</span>
@@ -2631,7 +2679,7 @@ gtag('config', 'UA-20375833-3');
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-01-24-vq-vae/';
   this.page.identifier = 'posts/2019-01-24-vq-vae/';

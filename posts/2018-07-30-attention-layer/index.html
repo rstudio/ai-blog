@@ -478,8 +478,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -587,19 +594,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -622,6 +631,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -697,6 +710,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -924,6 +938,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1078,6 +1097,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1745,7 +1775,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1860,6 +1890,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2022,13 +2066,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2112,7 +2160,7 @@ gtag('config', 'UA-20375833-3');
 <p>One more aside: Please don’t copy-paste the code from the snippets for execution - you’ll find the complete code for this post <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R">here</a>. In the post, we may deviate from required execution order for purposes of narrative.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='fu'>use_implementation</span><span class='op'>(</span><span class='st'>"tensorflow"</span><span class='op'>)</span>
 
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
@@ -2145,7 +2193,7 @@ No one knows the future.    Niemand kent de toekomst.
 Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>filepath</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='st'>"data"</span>, <span class='st'>"nld.txt"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>filepath</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='st'>"data"</span>, <span class='st'>"nld.txt"</span><span class='op'>)</span>
 
 <span class='va'>lines</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/readLines.html'>readLines</a></span><span class='op'>(</span><span class='va'>filepath</span>, n <span class='op'>=</span> <span class='fl'>10000</span><span class='op'>)</span>
 <span class='va'>sentences</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_split.html'>str_split</a></span><span class='op'>(</span><span class='va'>lines</span>, <span class='st'>"\t"</span><span class='op'>)</span>
@@ -2155,7 +2203,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>Basic preprocessing includes adding space before punctuation, replacing special characters, reducing multiple spaces to one, and adding <code>&lt;start&gt;</code> and <code>&lt;stop&gt;</code> tokens at the beginnings resp. ends of the sentences.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>space_before_punct</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentence</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>space_before_punct</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentence</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_replace.html'>str_replace_all</a></span><span class='op'>(</span><span class='va'>sentence</span>, <span class='st'>"([?.!])"</span>, <span class='st'>" \\1"</span><span class='op'>)</span>
 <span class='op'>}</span>
 
@@ -2180,7 +2228,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>As usual with text data, we need to create lookup indices to get from words to integers and vice versa: one index each for the source and target languages.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>create_index</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentences</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>create_index</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentences</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>unique_words</span> <span class='op'>&lt;-</span> <span class='va'>sentences</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste</a></span><span class='op'>(</span>collapse <span class='op'>=</span> <span class='st'>" "</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
     <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_split.html'>str_split</a></span><span class='op'>(</span>pattern <span class='op'>=</span> <span class='st'>" "</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='va'>.</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span><span class='op'>)</span>
   <span class='va'>index</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>
@@ -2209,7 +2257,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>Conversion of text to integers uses the above indices as well as Keras’ convenient <code>pad_sequences</code> function, which leaves us with matrices of integers, padded up to maximum sentence length found in the source and target corpora, respectively.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>sentence2digits</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentence</span>, <span class='va'>index_df</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sentence2digits</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentence</span>, <span class='va'>index_df</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='op'>(</span><span class='va'>sentence</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://stringr.tidyverse.org/reference/str_split.html'>str_split</a></span><span class='op'>(</span>pattern <span class='op'>=</span> <span class='st'>" "</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>word</span><span class='op'>)</span>
     <span class='fu'>word2index</span><span class='op'>(</span><span class='va'>word</span>, <span class='va'>index_df</span><span class='op'>)</span><span class='op'>)</span>
 <span class='op'>}</span>
@@ -2236,7 +2284,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>All that remains to be done is the train-test split.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_indices</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_indices</span> <span class='op'>&lt;-</span>
   <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>src_matrix</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>src_matrix</span><span class='op'>)</span> <span class='op'>*</span> <span class='fl'>0.8</span><span class='op'>)</span>
 
 <span class='va'>validation_indices</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://generics.r-lib.org/reference/setops.html'>setdiff</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>src_matrix</span><span class='op'>)</span>, <span class='va'>train_indices</span><span class='op'>)</span>
@@ -2261,7 +2309,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>This section does not contain much code, but it shows an important technique: the use of datasets. Remember the olden times when we used to pass in hand-crafted generators to Keras models? With <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a>, we can scalably feed data directly to the Keras <code>fit</code> function, having various preparatory actions being performed directly in native code. In our case, we will not be using <code>fit</code>, instead iterate directly over the tensors contained in the dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_dataset</span> <span class='op'>&lt;-</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_dataset</span> <span class='op'>&lt;-</span> 
   <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='fu'>keras_array</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>y_train</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>  <span class='op'>%&gt;%</span>
   <span class='fu'>dataset_shuffle</span><span class='op'>(</span>buffer_size <span class='op'>=</span> <span class='va'>buffer_size</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span>, drop_remainder <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
@@ -2281,7 +2329,7 @@ Please ask someone else.    Vraag alsjeblieft iemand anders.</code></pre>
 <p>Let’s look at the complete code for the encoder.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attention_encoder</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attention_encoder</span> <span class='op'>&lt;-</span>
   
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>gru_units</span>,
            <span class='va'>embedding_dim</span>,
@@ -2351,7 +2399,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>Now let’s look at how the attention decoder implements the above logic. We will be following the colab notebook in presenting a slight simplification of the score function, which will not prevent the decoder from successfully translating our example sentences.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>attention_decoder</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>attention_decoder</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>object</span>,
            <span class='va'>gru_units</span>,
            <span class='va'>embedding_dim</span>,
@@ -2427,7 +2475,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>First, we need a few bookkeeping variables.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
 <span class='va'>embedding_dim</span> <span class='op'>&lt;-</span> <span class='fl'>64</span>
 <span class='va'>gru_units</span> <span class='op'>&lt;-</span> <span class='fl'>256</span>
 
@@ -2439,7 +2487,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>Now, we create the encoder and decoder objects - it’s tempting to call them layers, but technically both are custom Keras models.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>attention_encoder</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>attention_encoder</span><span class='op'>(</span>
   gru_units <span class='op'>=</span> <span class='va'>gru_units</span>,
   embedding_dim <span class='op'>=</span> <span class='va'>embedding_dim</span>,
   src_vocab_size <span class='op'>=</span> <span class='va'>src_vocab_size</span>
@@ -2456,7 +2504,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>So as we’re going along, assembling a model “from pieces”, we still need a loss function, and an optimizer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>cx_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>mask</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/ifelse.html'>ifelse</a></span><span class='op'>(</span><span class='va'>y_true</span> <span class='op'>==</span> <span class='fl'>0L</span>, <span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>
@@ -2475,7 +2523,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>For each batch, we’re encoding the source sequence, getting back the output sequence as well as the last hidden state. The hidden state we then use to initialize the decoder. Now, we enter the target sequence prediction loop. For each timestep to be predicted, we call the decoder with the input (which due to teacher forcing is the ground truth from the previous step), its previous hidden state, and the complete encoder output. At each step, the decoder returns predictions, its hidden state and the attention weights.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>50</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>50</span>
 
 <span class='va'>encoder_init_hidden</span> <span class='op'>&lt;-</span> <span class='fu'>k_zeros</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>gru_units</span><span class='op'>)</span><span class='op'>)</span>
 
@@ -2555,7 +2603,7 @@ In our description, we’re closely following <span class="citation" data-cites=
 <p>As soon as we have a trained model, we can get translating! Actually, we don’t have to wait. We can integrate a few sample translations directly into the training loop, and watch the network progressing (hopefully!). The <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/nmt_attention.R">complete code for this post</a> does it like this, however here we’re arranging the steps in a more didactical order. The inference loop differs from the training procedure mainly it that it does not use teacher forcing. Instead, we feed back the current prediction as input to the next decoding timestep. The actual predicted word is chosen from the exponentiated raw scores returned by the decoder using a multinomial distribution. We also include a function to plot a heatmap that shows where in the source attention is being directed as the translation is produced.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>evaluate</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>evaluate</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>sentence</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>attention_matrix</span> <span class='op'>&lt;-</span>
       <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='fl'>0</span>, nrow <span class='op'>=</span> <span class='va'>target_maxlen</span>, ncol <span class='op'>=</span> <span class='va'>src_maxlen</span><span class='op'>)</span>
@@ -2801,7 +2849,7 @@ Predicted translation: &lt;start&gt; Ik wil in Itali leven . &lt;stop&gt;</code>
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/';
   this.page.identifier = 'posts/2018-07-30-attention-layer/';

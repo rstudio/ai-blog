@@ -470,8 +470,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -579,19 +586,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -614,6 +623,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -689,6 +702,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -916,6 +930,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1070,6 +1089,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1737,7 +1767,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1852,6 +1882,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2014,13 +2058,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2103,7 +2151,7 @@ gtag('config', 'UA-20375833-3');
 <p>keras models are used just like any other model, by passing it into the <code>lime()</code> function along with the training data in order to create an explainer object. Because we’re soon going to talk about image models, we’ll be using one of the pre-trained ImageNet models that is available from keras itself:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>lime</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>magick</span><span class='op'>)</span>
 
@@ -2174,7 +2222,7 @@ ________________________________________________________________________________
 <p>In order to create an explainer we will need to pass in the training data as well. For image data the training data is really only used to tell lime that we are dealing with an image model, so any image will suffice. The format for the training data is simply the path to the images, and because the internet runs on kitten pictures we’ll use one of these:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_read</span><span class='op'>(</span><span class='st'>'https://www.data-imaginist.com/assets/images/kitten.jpg'</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_read</span><span class='op'>(</span><span class='st'>'https://www.data-imaginist.com/assets/images/kitten.jpg'</span><span class='op'>)</span>
 <span class='va'>img_path</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/tempfile.html'>tempdir</a></span><span class='op'>(</span><span class='op'>)</span>, <span class='st'>'kitten.jpg'</span><span class='op'>)</span>
 <span class='fu'>image_write</span><span class='op'>(</span><span class='va'>img</span>, <span class='va'>img_path</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/grDevices/as.raster.html'>as.raster</a></span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span><span class='op'>)</span>
@@ -2185,7 +2233,7 @@ ________________________________________________________________________________
 <p>As with text models the explainer will need to know how to prepare the input data for the model. For keras models this means formatting the image data as tensors. Thankfully keras comes with a lot of tools for reshaping image data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>image_prep</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>image_prep</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>arrays</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>path</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_load</span><span class='op'>(</span><span class='va'>path</span>, target_size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>,<span class='fl'>224</span><span class='op'>)</span><span class='op'>)</span>
     <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>image_to_array</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span>
@@ -2201,7 +2249,7 @@ ________________________________________________________________________________
 <p>We now have an explainer model for understanding how the vgg16 neural network makes its predictions. Before we go along, lets see what the model think of our kitten:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>res</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>model</span>, <span class='fu'>image_prep</span><span class='op'>(</span><span class='va'>img_path</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>res</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>model</span>, <span class='fu'>image_prep</span><span class='op'>(</span><span class='va'>img_path</span><span class='op'>)</span><span class='op'>)</span>
 <span class='fu'>imagenet_decode_predictions</span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2216,14 +2264,14 @@ ________________________________________________________________________________
 <p>So, it is pretty sure about the whole cat thing. The reason we need to use <code>imagenet_decode_predictions()</code> is that the output of a keras model is always just a nameless tensor:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <pre><code>[1]    1 1000</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/dimnames.html'>dimnames</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/dimnames.html'>dimnames</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2231,7 +2279,7 @@ ________________________________________________________________________________
 <p>We are used to classifiers knowing the class labels, but this is not the case for keras. Motivated by this, <code>lime</code> now have a way to define/overwrite the class labels of a model, using the <code>as_classifier()</code> function. Let’s redo our explainer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model_labels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/readRDS.html'>readRDS</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/system.file.html'>system.file</a></span><span class='op'>(</span><span class='st'>'extdata'</span>, <span class='st'>'imagenet_labels.rds'</span>, package <span class='op'>=</span> <span class='st'>'lime'</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model_labels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/readRDS.html'>readRDS</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/system.file.html'>system.file</a></span><span class='op'>(</span><span class='st'>'extdata'</span>, <span class='st'>'imagenet_labels.rds'</span>, package <span class='op'>=</span> <span class='st'>'lime'</span><span class='op'>)</span><span class='op'>)</span>
 <span class='va'>explainer</span> <span class='op'>&lt;-</span> <span class='fu'>lime</span><span class='op'>(</span><span class='va'>img_path</span>, <span class='fu'>as_classifier</span><span class='op'>(</span><span class='va'>model</span>, <span class='va'>model_labels</span><span class='op'>)</span>, <span class='va'>image_prep</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2243,7 +2291,7 @@ ________________________________________________________________________________
 <p>In order to create meaningful permutations of our image (remember, this is the central idea in <code>lime</code>), we have to define how to do so. The permutations needs to be substantial enough to have an impact on the image, but not so much that the model completely fails to recognise the content in every case - further, they should lead to an interpretable result. The concept of superpixels lends itself well to these constraints. In short, a superpixel is a patch of an area with high homogeneity, and superpixel segmentation is a clustering of image pixels into a number of superpixels. By segmenting the image to explain into superpixels we can turn area of contextual similarity on and off during the permutations and find out if that area is important. It is still necessary to experiment a bit as the optimal number of superpixels depend on the content of the image. Remember, we need them to be large enough to have an impact but not so large that the class probability becomes effectively binary. <code>lime</code> comes with a function to assess the superpixel segmentation before beginning the explanation and it is recommended to play with it a bit — with time you’ll likely get a feel for the right values:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># default</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># default</span>
 <span class='fu'>plot_superpixels</span><span class='op'>(</span><span class='va'>img_path</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2251,7 +2299,7 @@ ________________________________________________________________________________
 <p><img src="images/unnamed-chunk-7-1.png" /></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># Changing some settings</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Changing some settings</span>
 <span class='fu'>plot_superpixels</span><span class='op'>(</span><span class='va'>img_path</span>, n_superpixels <span class='op'>=</span> <span class='fl'>200</span>, weight <span class='op'>=</span> <span class='fl'>40</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2261,14 +2309,14 @@ ________________________________________________________________________________
 <p>Be aware that explaining image models is much heavier than tabular or text data. In effect it will create 1000 new images per explanation (default permutation size for images) and run these through the model. As image classification models are often quite heavy, this will result in computation time measured in minutes. The permutation is batched (default to 10 permutations per batch), so you should not be afraid of running out of RAM or hard-drive space.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>explanation</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/explain.html'>explain</a></span><span class='op'>(</span><span class='va'>img_path</span>, <span class='va'>explainer</span>, n_labels <span class='op'>=</span> <span class='fl'>2</span>, n_features <span class='op'>=</span> <span class='fl'>20</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>explanation</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/explain.html'>explain</a></span><span class='op'>(</span><span class='va'>img_path</span>, <span class='va'>explainer</span>, n_labels <span class='op'>=</span> <span class='fl'>2</span>, n_features <span class='op'>=</span> <span class='fl'>20</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>The output of an image explanation is a data frame of the same format as that from tabular and text data. Each feature will be a superpixel and the pixel range of the superpixel will be used as its description. Usually the explanation will only make sense in the context of the image itself, so the new version of <code>lime</code> also comes with a <code>plot_image_explanation()</code> function to do just that. Let’s see what our explanation have to tell us:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2276,7 +2324,7 @@ ________________________________________________________________________________
 <p>We can see that the model, for both the major predicted classes, focuses on the cat, which is nice since they are both different cat breeds. The plot function got a few different functions to help you tweak the visual, and it filters low scoring superpixels away by default. An alternative view that puts more focus on the relevant superpixels, but removes the context can be seen by using <code>display = 'block'</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, display <span class='op'>=</span> <span class='st'>'block'</span>, threshold <span class='op'>=</span> <span class='fl'>0.01</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, display <span class='op'>=</span> <span class='st'>'block'</span>, threshold <span class='op'>=</span> <span class='fl'>0.01</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2284,7 +2332,7 @@ ________________________________________________________________________________
 <p>While not as common with image explanations it is also possible to look at the areas of an image that contradicts the class:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, threshold <span class='op'>=</span> <span class='fl'>0</span>, show_negative <span class='op'>=</span> <span class='cn'>TRUE</span>, fill_alpha <span class='op'>=</span> <span class='fl'>0.6</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, threshold <span class='op'>=</span> <span class='fl'>0</span>, show_negative <span class='op'>=</span> <span class='cn'>TRUE</span>, fill_alpha <span class='op'>=</span> <span class='fl'>0.6</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2321,7 +2369,7 @@ ________________________________________________________________________________
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2018-03-09-lime-v04-the-kitten-picture-edition/';
   this.page.identifier = 'posts/2018-03-09-lime-v04-the-kitten-picture-edition/';

@@ -475,8 +475,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -584,19 +591,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -619,6 +628,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -694,6 +707,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -921,6 +935,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1075,6 +1094,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1742,7 +1772,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1857,6 +1887,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2019,13 +2063,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2104,7 +2152,7 @@ gtag('config', 'UA-20375833-3');
 <p>We start by asking our random number generator for some number between 0 and 1:<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>u</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>u</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2117,7 +2165,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>which means we may get our exponential sample doing</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lambda</span> <span class='op'>&lt;-</span> <span class='fl'>0.5</span> <span class='co'># pick some lambda</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lambda</span> <span class='op'>&lt;-</span> <span class='fl'>0.5</span> <span class='co'># pick some lambda</span>
 <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='fl'>1</span><span class='op'>/</span><span class='va'>lambda</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>-</span><span class='va'>u</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2133,7 +2181,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>To get started, let’s use <code>tfprobability</code> to generate samples from the normal distribution. There is a bijector <code>tfb_normal_cdf()</code> that takes input data to the interval <span class="math inline">\([0,1]\)</span>. Its inverse transform then yields a random variable with the standard normal distribution:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span><span class='op'>)</span>
 
@@ -2151,7 +2199,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Conversely, we can use this bijector to determine the (log) probability of a sample from the normal distribution. We’ll check against a straightforward use of <code>tfd_normal</code> in the <code>distributions</code> module:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fl'>2.01</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fl'>2.01</span>
 <span class='va'>d_n</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span> 
 
 <span class='va'>d_n</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='co'># -2.938989</span>
@@ -2165,7 +2213,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>b</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_normal_cdf</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>b</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_normal_cdf</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>d_u</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_uniform</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='va'>l</span> <span class='op'>&lt;-</span> <span class='va'>d_u</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>b</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_forward</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
@@ -2193,7 +2241,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Let’s see this with another <code>bijector</code> example, <code>tfb_affine_scalar</code>. Below, we construct a mini-flow that maps a few arbitrary chosen <span class="math inline">\(x\)</span> values to double their value (<code>scale = 2</code>):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>0.5</span>, <span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>0.5</span>, <span class='fl'>1</span><span class='op'>)</span>
 <span class='va'>b</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_affine_scalar</span><span class='op'>(</span>shift <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2201,7 +2249,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>To compare densities under the flow, we choose the normal distribution, and look at the log densities:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>d_n</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>d_n</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 <span class='va'>d_n</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='co'># -0.9189385 -1.0439385 -1.4189385</span>
 </code></pre>
 </div>
@@ -2209,7 +2257,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Now apply the flow and compute the new log densities as a sum of the log densities of the corresponding <span class="math inline">\(x\)</span> values and the log determinant of the Jacobian:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>z</span> <span class='op'>&lt;-</span> <span class='va'>b</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_forward</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>z</span> <span class='op'>&lt;-</span> <span class='va'>b</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_forward</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
 
 <span class='op'>(</span><span class='va'>d_n</span>  <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>b</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_inverse</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span>
   <span class='op'>(</span><span class='va'>b</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_inverse_log_det_jacobian</span><span class='op'>(</span><span class='va'>z</span>, event_ndims <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2220,7 +2268,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>We see that as the values get stretched in space (we multiply by 2), the individual log densities go down. We can verify the cumulative probability stays the same using <code>tfd_transformed_distribution()</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>d_t</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='va'>d_n</span>, bijector <span class='op'>=</span> <span class='va'>b</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>d_t</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='va'>d_n</span>, bijector <span class='op'>=</span> <span class='va'>b</span><span class='op'>)</span>
 <span class='va'>d_n</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_cdf</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>  <span class='co'># 0.5000000 0.6914625 0.8413447</span>
 
 <span class='va'>d_t</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_cdf</span><span class='op'>(</span><span class='va'>y</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>  <span class='co'># 0.5000000 0.6914625 0.8413447</span>
@@ -2234,7 +2282,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>We start from a two-dimensional, isotropic Gaussian, and we want to model data that’s also normal, but with a mean of 1 and a variance of 2 (in both dimensions).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
 
 <span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span>device_policy <span class='op'>=</span> <span class='st'>"silent"</span><span class='op'>)</span>
@@ -2260,7 +2308,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Now we’ll build a tiny neural network, consisting of an affine transformation and a nonlinearity. For the former, we can make use of <code>tfb_affine</code>, the multi-dimensional relative of <code>tfb_affine_scalar</code>. As to nonlinearities, currently TFP comes with <code>tfb_sigmoid</code> and <code>tfb_tanh</code>, but we can build our own parameterized ReLU using <code>tfb_inline</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># alpha is a learnable parameter</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># alpha is a learnable parameter</span>
 <span class='va'>bijector_leaky_relu</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>alpha</span><span class='op'>)</span> <span class='op'>{</span>
   
   <span class='fu'>tfb_inline</span><span class='op'>(</span>
@@ -2286,7 +2334,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Define the learnable variables for the affine and the PReLU layers:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>d</span> <span class='op'>&lt;-</span> <span class='fl'>2</span> <span class='co'># dimensionality</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>d</span> <span class='op'>&lt;-</span> <span class='fl'>2</span> <span class='co'># dimensionality</span>
 <span class='va'>r</span> <span class='op'>&lt;-</span> <span class='fl'>2</span> <span class='co'># rank of update</span>
 
 <span class='co'># shift of affine bijector</span>
@@ -2304,7 +2352,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>With eager execution, the variables have to be used inside the loss function, so that is where we define the bijectors. Our little flow now is a <code>tfb_chain</code> of bijectors, and we wrap it in a <em>TransformedDistribution</em> (<code>tfd_transformed_distribution</code>) that links source and target distributions.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
   
  <span class='va'>affine</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_affine</span><span class='op'>(</span>
         scale_tril <span class='op'>=</span> <span class='fu'>tfb_fill_triangular</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>tfb_forward</span><span class='op'>(</span><span class='va'>L</span><span class='op'>)</span>,
@@ -2329,7 +2377,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>Now we can actually run the training!</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-4</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-4</span><span class='op'>)</span>
 
 <span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
 <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_epochs</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2377,7 +2425,7 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/';
   this.page.identifier = 'posts/2019-04-05-bijectors-flows/';

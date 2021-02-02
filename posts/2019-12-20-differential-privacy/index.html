@@ -482,8 +482,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -591,19 +598,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -626,6 +635,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -701,6 +714,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -928,6 +942,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1082,6 +1101,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1749,7 +1779,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1864,6 +1894,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2026,13 +2070,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2140,7 +2188,7 @@ gtag('config', 'UA-20375833-3');
 <p>As usual, we start with the required libraries; unusually though, as of this writing we need to disable version 2 behavior in TensorFlow, as TensorFlow Privacy does not yet fully work with TF 2. (Hopefully, for many future readers, this won’t be the case anymore.) Note how TF Privacy – a Python library – is imported via <code>reticulate</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='va'>tf</span><span class='op'>$</span><span class='va'>compat</span><span class='op'>$</span><span class='va'>v1</span><span class='op'>$</span><span class='fu'>disable_v2_behavior</span><span class='op'>(</span><span class='op'>)</span>
 
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
@@ -2159,14 +2207,14 @@ gtag('config', 'UA-20375833-3');
 <p>From the downloaded archive, we just need <code>S1.pkl</code>, saved in a <a href="https://docs.python.org/3.8/library/pickle.html">native Python serialization format</a>, yet nicely loadable using <code>reticulate</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>s1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/py_save_object.html'>py_load_object</a></span><span class='op'>(</span><span class='st'>"PPG_FieldStudy/S1/S1.pkl"</span>, encoding <span class='op'>=</span> <span class='st'>"latin1"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>s1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/py_save_object.html'>py_load_object</a></span><span class='op'>(</span><span class='st'>"PPG_FieldStudy/S1/S1.pkl"</span>, encoding <span class='op'>=</span> <span class='st'>"latin1"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p><code>s1</code> points to an R list comprising elements of different length – the various physical/physiological signals have been sampled with different frequencies:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'>### predictors ###</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'>### predictors ###</span>
 
 <span class='co'># accelerometer data - sampling freq. 32 Hz</span>
 <span class='co'># also note that these are 3 "columns", for each of x, y, and z axes</span>
@@ -2194,7 +2242,7 @@ gtag('config', 'UA-20375833-3');
 </ol>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>average_and_make_sequences</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>average_and_make_sequences</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>window_size_avg</span>, <span class='va'>num_timesteps</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>data</span> <span class='op'>%&gt;%</span> <span class='fu'>k_cast</span><span class='op'>(</span><span class='st'>"float32"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
       <span class='co'># create an initial tf.data dataset to work with</span>
@@ -2216,7 +2264,7 @@ gtag('config', 'UA-20375833-3');
 <p>We’ll call this function for every column separately. Not all columns are exactly the same length (in terms of time), thus it’s safest to cut off individual observations that surpass a common length (dictated by the target variable):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>label</span> <span class='op'>&lt;-</span> <span class='va'>s1</span><span class='op'>$</span><span class='va'>label</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='op'>)</span> <span class='co'># 4603 observations, each spanning 2 secs</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>label</span> <span class='op'>&lt;-</span> <span class='va'>s1</span><span class='op'>$</span><span class='va'>label</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='op'>)</span> <span class='co'># 4603 observations, each spanning 2 secs</span>
 <span class='va'>n_total</span> <span class='op'>&lt;-</span> <span class='fl'>4603</span> <span class='co'># keep track of this</span>
 
 <span class='co'># keep matching numbers of observations of predictors</span>
@@ -2231,7 +2279,7 @@ gtag('config', 'UA-20375833-3');
 <p>Housekeeping-wise, we also keep track of actual training and test set cardinalities. The target variable will be matched to the last of any twelve timesteps, so we end up throwing away the first eleven ground truth measurements for each of the training and test datasets. (We don’t have complete sequences building up to them.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># number of timesteps used in the second dimension</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># number of timesteps used in the second dimension</span>
 <span class='va'>num_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>12</span>
 
 <span class='co'># number of observations to be used for the training set</span>
@@ -2247,7 +2295,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here, then, are the basic building blocks that will go into the final training and test datasets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>acc_train</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>acc_train</span> <span class='op'>&lt;-</span>
   <span class='fu'>average_and_make_sequences</span><span class='op'>(</span><span class='va'>acc</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='va'>train_max</span> <span class='op'>*</span> <span class='fl'>64</span><span class='op'>)</span>, <span class='op'>]</span>, <span class='fl'>64</span>, <span class='va'>num_timesteps</span><span class='op'>)</span>
 <span class='va'>bvp_train</span> <span class='op'>&lt;-</span>
   <span class='fu'>average_and_make_sequences</span><span class='op'>(</span><span class='va'>bvp</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='va'>train_max</span> <span class='op'>*</span> <span class='fl'>128</span><span class='op'>)</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span>, <span class='fl'>128</span>, <span class='va'>num_timesteps</span><span class='op'>)</span>
@@ -2271,7 +2319,7 @@ gtag('config', 'UA-20375833-3');
 <p>Now put all predictors together:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># all predictors</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># all predictors</span>
 <span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='fu'>zip_datasets</span><span class='op'>(</span><span class='va'>acc_train</span>, <span class='va'>bvp_train</span>, <span class='va'>eda_train</span>, <span class='va'>temp_train</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>dataset_map</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>...</span><span class='op'>)</span>
     <span class='va'>tf</span><span class='op'>$</span><span class='fu'>concat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>...</span><span class='op'>)</span>, axis <span class='op'>=</span> <span class='fl'>1L</span><span class='op'>)</span><span class='op'>)</span>
@@ -2291,7 +2339,7 @@ gtag('config', 'UA-20375833-3');
 <p>Zip predictors and targets together, configure shuffling/batching, and the datasets are complete:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>zip_datasets</span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>y_train</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>zip_datasets</span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>y_train</span><span class='op'>)</span>
 <span class='va'>ds_test</span> <span class='op'>&lt;-</span> <span class='fu'>zip_datasets</span><span class='op'>(</span><span class='va'>x_test</span>, <span class='va'>y_test</span><span class='op'>)</span>
 
 <span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
@@ -2314,7 +2362,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here, in any case, would be the relevant code:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># this piece needs TF 2 behavior enabled</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># this piece needs TF 2 behavior enabled</span>
 <span class='co'># run after restarting R and commenting the tf$compat$v1$disable_v2_behavior() line</span>
 <span class='co'># then to fit the DP model, undo comment, restart R and rerun</span>
 <span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/pkg/reticulate/man/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='co'># or any other dataset you want to check</span>
@@ -2332,7 +2380,7 @@ gtag('config', 'UA-20375833-3');
 <p>Here, then, is the model definition valid for both cases:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'>layer_conv_1d</span><span class='op'>(</span>
       filters <span class='op'>=</span> <span class='fl'>32</span>,
       kernel_size <span class='op'>=</span> <span class='fl'>3</span>,
@@ -2360,7 +2408,7 @@ gtag('config', 'UA-20375833-3');
 <p>We train the model with mean squared error loss.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>loss <span class='op'>=</span> <span class='st'>"mse"</span>, optimizer <span class='op'>=</span> <span class='va'>optimizer</span>, metrics <span class='op'>=</span> <span class='va'>metric_mean_absolute_error</span><span class='op'>)</span>
 
 <span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
@@ -2412,7 +2460,7 @@ Figure 1: Training history without differential privacy.
 <p>Having talked about its parameters, now let’s define the DP optimizer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>l2_norm_clip</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>l2_norm_clip</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
 <span class='va'>noise_multiplier</span> <span class='op'>&lt;-</span> <span class='fl'>1.1</span>
 <span class='va'>num_microbatches</span> <span class='op'>&lt;-</span> <span class='fu'>k_cast</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='st'>"int32"</span><span class='op'>)</span>
 <span class='va'>learning_rate</span> <span class='op'>&lt;-</span> <span class='fl'>0.01</span>
@@ -2429,7 +2477,7 @@ Figure 1: Training history without differential privacy.
 <p>There is one other change to make for DP. As gradients are clipped on a per-sample basis, the optimizer needs to work with per-sample losses as well:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>NONE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>NONE</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2445,7 +2493,7 @@ Figure 2: Training history with differential privacy.
 <p>In addition to the above-mentioned command line script, we can also compute <span class="math inline">\(\epsilon\)</span> as part of the training code. Let’s double check:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># probability of an individual training point being included in a minibatch</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># probability of an individual training point being included in a minibatch</span>
 <span class='va'>sampling_probability</span> <span class='op'>&lt;-</span> <span class='va'>batch_size</span> <span class='op'>/</span> <span class='va'>n_train</span>
 
 <span class='co'># number of steps the optimizer takes over the training data</span>
@@ -2544,7 +2592,7 @@ Figure 2: Training history with differential privacy.
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/';
   this.page.identifier = 'posts/2019-12-20-differential-privacy/';

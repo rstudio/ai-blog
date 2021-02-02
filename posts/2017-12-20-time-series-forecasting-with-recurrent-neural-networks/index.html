@@ -474,8 +474,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -583,19 +590,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -618,6 +627,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -693,6 +706,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -920,6 +934,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1074,6 +1093,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1741,7 +1771,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1856,6 +1886,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2018,13 +2062,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2104,7 +2152,7 @@ gtag('config', 'UA-20375833-3');
 <p>Download and uncompress the data as follows:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/files2.html'>dir.create</a></span><span class='op'>(</span><span class='st'>"~/Downloads/jena_climate"</span>, recursive <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/files2.html'>dir.create</a></span><span class='op'>(</span><span class='st'>"~/Downloads/jena_climate"</span>, recursive <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 <span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span>
   <span class='st'>"https://s3.amazonaws.com/keras-datasets/jena_climate_2009_2016.csv.zip"</span>,
   <span class='st'>"~/Downloads/jena_climate/jena_climate_2009_2016.csv.zip"</span>
@@ -2119,7 +2167,7 @@ gtag('config', 'UA-20375833-3');
 <p>Let’s look at the data.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://tibble.tidyverse.org/'>tibble</a></span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://tibble.tidyverse.org/'>tibble</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>readr</span><span class='op'>)</span>
 
 <span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/Downloads/jena_climate"</span>
@@ -2150,7 +2198,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Here is the plot of temperature (in degrees Celsius) over time. On this plot, you can clearly see the yearly periodicity of temperature.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>ggplot2</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>ggplot2</span><span class='op'>)</span>
 <span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>data</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>, y <span class='op'>=</span> <span class='va'>`T (degC)`</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2159,7 +2207,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Here is a more narrow plot of the first 10 days of temperature data (see figure 6.15). Because the data is recorded every 10 minutes, you get 144 data points per day.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1440</span>,<span class='op'>]</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>1440</span>, y <span class='op'>=</span> <span class='va'>`T (degC)`</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1440</span>,<span class='op'>]</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>1440</span>, y <span class='op'>=</span> <span class='va'>`T (degC)`</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2194,7 +2242,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>For example, the <code>sequence_generator()</code> function below returns a generator function that yields an infinite sequence of numbers:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>sequence_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>start</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sequence_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>start</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>value</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>-</span> <span class='fl'>1</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
     <span class='va'>value</span> <span class='op'>&lt;&lt;-</span> <span class='va'>value</span> <span class='op'>+</span> <span class='fl'>1</span>
@@ -2210,7 +2258,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <pre><code>[1] 10</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>gen</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>gen</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2221,14 +2269,14 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>First, you’ll convert the R data frame which we read earlier into a matrix of floating point values (we’ll discard the first column which included a text timestamp):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.matrix.html'>data.matrix</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>[</span>,<span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.matrix.html'>data.matrix</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>[</span>,<span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>You’ll then preprocess the data by subtracting the mean of each time series and dividing by the standard deviation. You’re going to use the first 200,000 timesteps as training data, so compute the mean and standard deviation for normalization only on this fraction of the data.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_data</span> <span class='op'>&lt;-</span> <span class='va'>data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>200000</span>,<span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_data</span> <span class='op'>&lt;-</span> <span class='va'>data</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>200000</span>,<span class='op'>]</span>
 <span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>train_data</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span>
 <span class='va'>std</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>train_data</span>, <span class='fl'>2</span>, <span class='va'>sd</span><span class='op'>)</span>
 <span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>data</span>, center <span class='op'>=</span> <span class='va'>mean</span>, scale <span class='op'>=</span> <span class='va'>std</span><span class='op'>)</span>
@@ -2247,7 +2295,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 </ul>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>lookback</span>, <span class='va'>delay</span>, <span class='va'>min_index</span>, <span class='va'>max_index</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>lookback</span>, <span class='va'>delay</span>, <span class='va'>min_index</span>, <span class='va'>max_index</span>,
                       <span class='va'>shuffle</span> <span class='op'>=</span> <span class='cn'>FALSE</span>, <span class='va'>batch_size</span> <span class='op'>=</span> <span class='fl'>128</span>, <span class='va'>step</span> <span class='op'>=</span> <span class='fl'>6</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>max_index</span><span class='op'>)</span><span class='op'>)</span>
     <span class='va'>max_index</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>delay</span> <span class='op'>-</span> <span class='fl'>1</span>
@@ -2283,7 +2331,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Now, let’s use the abstract <code>generator</code> function to instantiate three generators: one for training, one for validation, and one for testing. Each will look at different temporal segments of the original data: the training generator looks at the first 200,000 timesteps, the validation generator looks at the following 100,000, and the test generator looks at the remainder.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>lookback</span> <span class='op'>&lt;-</span> <span class='fl'>1440</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lookback</span> <span class='op'>&lt;-</span> <span class='fl'>1440</span>
 <span class='va'>step</span> <span class='op'>&lt;-</span> <span class='fl'>6</span>
 <span class='va'>delay</span> <span class='op'>&lt;-</span> <span class='fl'>144</span>
 <span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>128</span>
@@ -2332,14 +2380,14 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>In this case, the temperature time series can safely be assumed to be continuous (the temperatures tomorrow are likely to be close to the temperatures today) as well as periodical with a daily period. Thus a common-sense approach is to always predict that the temperature 24 hours from now will be equal to the temperature right now. Let’s evaluate this approach, using the mean absolute error (MAE) metric:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>abs</a></span><span class='op'>(</span><span class='va'>preds</span> <span class='op'>-</span> <span class='va'>targets</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>abs</a></span><span class='op'>(</span><span class='va'>preds</span> <span class='op'>-</span> <span class='va'>targets</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Here’s the evaluation loop.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 <span class='va'>evaluate_naive_method</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>batch_maes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span>
   <span class='kw'>for</span> <span class='op'>(</span><span class='va'>step</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>val_steps</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2358,7 +2406,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>This yields an MAE of 0.29. Because the temperature data has been normalized to be centered on 0 and have a standard deviation of 1, this number isn’t immediately interpretable. It translates to an average absolute error of 0.29 x <code>temperature_std</code> degrees Celsius: 2.57˚C.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>celsius_mae</span> <span class='op'>&lt;-</span> <span class='fl'>0.29</span> <span class='op'>*</span> <span class='va'>std</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>celsius_mae</span> <span class='op'>&lt;-</span> <span class='fl'>0.29</span> <span class='op'>*</span> <span class='va'>std</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>
 </code></pre>
 </div>
 </div>
@@ -2368,7 +2416,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>The following listing shows a fully connected model that starts by flattening the data and then runs it through two dense layers. Note the lack of activation function on the last dense layer, which is typical for a regression problem. You use MAE as the loss. Because you evaluate on the exact same data and with the exact same metric you did with the common-sense approach, the results will be directly comparable.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
 
 <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_flatten</span><span class='op'>(</span>input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>lookback</span> <span class='op'>/</span> <span class='va'>step</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span><span class='op'>[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2399,7 +2447,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Instead of the LSTM layer introduced in the previous section, you’ll use the <a href="https://arxiv.org/abs/1412.3555">GRU layer</a>, developed by Chung et al. in 2014. Gated recurrent unit (GRU) layers work using the same principle as LSTM, but they’re somewhat streamlined and thus cheaper to run (although they may not have as much representational power as LSTM). This trade-off between computational expensiveness and representational power is seen everywhere in machine learning.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_gru</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span>, input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='cn'>NULL</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span><span class='op'>[[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
 
@@ -2426,7 +2474,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Yarin Gal did his research using Keras and helped build this mechanism directly into Keras recurrent layers. Every recurrent layer in Keras has two dropout-related arguments: <code>dropout</code>, a float specifying the dropout rate for input units of the layer, and <code>recurrent_dropout</code>, specifying the dropout rate of the recurrent units. Let’s add dropout and recurrent dropout to the <code>layer_gru</code> and see how doing so impacts overfitting. Because networks being regularized with dropout always take longer to fully converge, you’ll train the network for twice as many epochs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_gru</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span>, dropout <span class='op'>=</span> <span class='fl'>0.2</span>, recurrent_dropout <span class='op'>=</span> <span class='fl'>0.2</span>,
             input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='cn'>NULL</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span><span class='op'>[[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
@@ -2454,7 +2502,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>To stack recurrent layers on top of each other in Keras, all intermediate layers should return their full sequence of outputs (a 3D tensor) rather than their output at the last timestep. This is done by specifying <code>return_sequences = TRUE</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_gru</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span>, 
             dropout <span class='op'>=</span> <span class='fl'>0.1</span>, 
             recurrent_dropout <span class='op'>=</span> <span class='fl'>0.5</span>,
@@ -2536,7 +2584,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>To instantiate a bidirectional RNN in Keras, you use the <code>bidirectional()</code> function, which takes a recurrent layer instance as an argument. The <code>bidirectional()</code> function creates a second, separate instance of this recurrent layer and uses one instance for processing the input sequences in chronological order and the other instance for processing the input sequences in reversed order. Let’s try it on the IMDB sentiment-analysis task.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>layer_embedding</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='va'>max_features</span>, output_dim <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>bidirectional</span><span class='op'>(</span>
     <span class='fu'>layer_lstm</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span>
@@ -2562,7 +2610,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p>Now let’s try the same approach on the temperature prediction task.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>bidirectional</span><span class='op'>(</span>
     <span class='fu'>layer_gru</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span>, input_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='cn'>NULL</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span><span class='op'>[[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
   <span class='op'>)</span> <span class='op'>%&gt;%</span> 
@@ -2630,7 +2678,7 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks/';
   this.page.identifier = 'posts/2017-12-20-time-series-forecasting-with-recurrent-neural-networks/';

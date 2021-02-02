@@ -473,8 +473,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -582,19 +589,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -617,6 +626,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -692,6 +705,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -919,6 +933,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1073,6 +1092,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1740,7 +1770,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1855,6 +1885,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2017,13 +2061,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2097,14 +2145,14 @@ gtag('config', 'UA-20375833-3');
 <p>The following code works with the current stable releases of TensorFlow and TensorFlow Probability, which are 1.14 and 0.7, respectively. If you don’t have <code>tfprobability</code> installed, get it from Github:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"rstudio/tfprobability"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span><span class='st'>"rstudio/tfprobability"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>These are the libraries we need. As of TensorFlow 1.14, we call <code>tf$compat$v2$enable_v2_behavior()</code> to run with eager execution.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tensorflow</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tfprobability</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>parsnip</span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tidyverse</span><span class='op'>)</span>
@@ -2121,7 +2169,7 @@ gtag('config', 'UA-20375833-3');
 <p>Besides the check durations we want to model, <code>check_times</code> reports various features of the package in question, such as number of imported packages, number of dependencies, size of code and documentation files, etc. The <code>status</code> variable indicates whether the check completed or errored out.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>check_times</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>package</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>check_times</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>-</span><span class='va'>package</span><span class='op'>)</span>
 <span class='fu'><a href='https://tibble.tidyverse.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2155,7 +2203,7 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>Of these 13,626 observations, just 103 are censored:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'><a href='https://rdrr.io/r/base/table.html'>table</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>status</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/table.html'>table</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>status</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2164,7 +2212,7 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>For better readability, we’ll work with a subset of the columns. We use <code>surv_reg</code> to help us find a useful and interesting subset of predictors:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>survreg_fit</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>survreg_fit</span> <span class='op'>&lt;-</span>
   <span class='fu'>surv_reg</span><span class='op'>(</span>dist <span class='op'>=</span> <span class='st'>"exponential"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>set_engine</span><span class='op'>(</span><span class='st'>"survreg"</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'>fit</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/pkg/survival/man/Surv.html'>Surv</a></span><span class='op'>(</span><span class='va'>check_time</span>, <span class='va'>status</span><span class='op'>)</span> <span class='op'>~</span> <span class='va'>.</span>, 
@@ -2204,7 +2252,7 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>Before pruning the dataframe, we save away the target variable. In our model and training setup, it is convenient to have censored and uncensored data stored separately, so here we create <em>two</em> target matrices instead of one:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># check times for failed checks</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># check times for failed checks</span>
 <span class='co'># _c stands for censored</span>
 <span class='va'>check_time_c</span> <span class='op'>&lt;-</span> <span class='va'>df</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>status</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2222,7 +2270,7 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>Now we can zoom in on the variables of interest, setting up one dataframe for the censored data and one for the uncensored data each. All predictors are normalized to avoid overflow during sampling. <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> We add a column of <code>1</code>s for use as an intercept.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>df</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>status</span>,
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>df</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>status</span>,
                     <span class='va'>depends</span>,
                     <span class='va'>imports</span>,
                     <span class='va'>doc_size</span>,
@@ -2499,14 +2547,14 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>As for the latter, we use 0-centered, Gaussian priors for all parameters. Standard deviations of 1 turned out to work well. As the priors are all the same, instead of listing a bunch of <code>tfd_normal</code>s, we can create them all at once as</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>7</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>7</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>Mean check time is modeled as an affine combination of the six predictors and the intercept. Here then is the complete model, instantiated using the uncensored data only:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'>tfd_joint_distribution_sequential</span><span class='op'>(</span>
     <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
       <span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>7</span><span class='op'>)</span>,
@@ -2525,7 +2573,7 @@ $ status         &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 <p>Always, we test if samples from that model have the expected shapes:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_sample</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_sample</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span>
 <span class='va'>samples</span>
 </code></pre>
 </div>
@@ -2545,7 +2593,7 @@ tf.Tensor(
 <p>How likely are these samples?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2556,14 +2604,14 @@ tf.Tensor(
 <p>Abstractly, the thing to maximize is the log probility of the data – that is, the measured durations – under the model. Now here the data comes in two parts, and the target does as well. First, we have the non-censored data, for which</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>betas</span>, <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>target_nc</span>, <span class='va'>betas</span><span class='op'>$</span><span class='va'>dtype</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>m</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>betas</span>, <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>target_nc</span>, <span class='va'>betas</span><span class='op'>$</span><span class='va'>dtype</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>will calculate the log probability. Second, to obtain log probability for the censored data we write a custom function that calculates the log of the exponential CCDF:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>get_exponential_lccdf</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>betas</span>, <span class='va'>data</span>, <span class='va'>target</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>get_exponential_lccdf</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>betas</span>, <span class='va'>data</span>, <span class='va'>target</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>e</span> <span class='op'>&lt;-</span>  <span class='fu'>tfd_independent</span><span class='op'>(</span><span class='fu'>tfd_exponential</span><span class='op'>(</span>rate <span class='op'>=</span> <span class='fl'>1</span> <span class='op'>/</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>math</span><span class='op'>$</span><span class='fu'>exp</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>transpose</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>matmul</span><span class='op'>(</span>
     <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>betas</span><span class='op'>$</span><span class='va'>dtype</span><span class='op'>)</span>, <span class='va'>tf</span><span class='op'>$</span><span class='fu'>transpose</span><span class='op'>(</span><span class='va'>betas</span><span class='op'>)</span>
   <span class='op'>)</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>,
@@ -2577,7 +2625,7 @@ tf.Tensor(
 <p>Both parts are combined in a little wrapper function that allows us to compare training including and excluding the censored data. We won’t do that in this post, but you might be interested to do it with your own data, especially if the ratio of censored and uncensored parts is a little less imbalanced.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>get_log_prob</span> <span class='op'>&lt;-</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>get_log_prob</span> <span class='op'>&lt;-</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='va'>target_nc</span>,
            <span class='va'>censored_data</span> <span class='op'>=</span> <span class='cn'>NULL</span>,
            <span class='va'>target_c</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2607,7 +2655,7 @@ tf.Tensor(
 <p>With model and target defined, we’re ready to do sampling.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>n_chains</span> <span class='op'>&lt;-</span> <span class='fl'>4</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_chains</span> <span class='op'>&lt;-</span> <span class='fl'>4</span>
 <span class='va'>n_burnin</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span>
 <span class='va'>n_steps</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span>
 
@@ -2630,7 +2678,7 @@ tf.Tensor(
 <p>For the number of leapfrog steps and the step size, experimentation showed that a combination of 64 / 0.1 yielded reasonable results:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>hmc</span> <span class='op'>&lt;-</span> <span class='fu'>mcmc_hamiltonian_monte_carlo</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>hmc</span> <span class='op'>&lt;-</span> <span class='fu'>mcmc_hamiltonian_monte_carlo</span><span class='op'>(</span>
   target_log_prob_fn <span class='op'>=</span> <span class='va'>log_prob</span>,
   num_leapfrog_steps <span class='op'>=</span> <span class='fl'>64</span>,
   step_size <span class='op'>=</span> <span class='fl'>0.1</span>
@@ -2659,7 +2707,7 @@ tf.Tensor(
 <p>Before we inspect the chains, here is a quick look at the proportion of accepted steps and the per-parameter mean step size:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>accepted</span> <span class='op'>&lt;-</span> <span class='va'>res</span><span class='op'>$</span><span class='va'>trace</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>accepted</span> <span class='op'>&lt;-</span> <span class='va'>res</span><span class='op'>$</span><span class='va'>trace</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
 <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>accepted</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2667,7 +2715,7 @@ tf.Tensor(
 <pre><code>0.995</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>step_size</span> <span class='op'>&lt;-</span> <span class='va'>res</span><span class='op'>$</span><span class='va'>trace</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>step_size</span> <span class='op'>&lt;-</span> <span class='va'>res</span><span class='op'>$</span><span class='va'>trace</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>
 <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>step_size</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2676,7 +2724,7 @@ tf.Tensor(
 <p>We also store away effective sample sizes and the <em>rhat</em> metrics for later addition to the synopsis.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>effective_sample_size</span> <span class='op'>&lt;-</span> <span class='fu'>mcmc_effective_sample_size</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>effective_sample_size</span> <span class='op'>&lt;-</span> <span class='fu'>mcmc_effective_sample_size</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
   <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span>
 <span class='va'>potential_scale_reduction</span> <span class='op'>&lt;-</span> <span class='fu'>mcmc_potential_scale_reduction</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2687,7 +2735,7 @@ tf.Tensor(
 <p>We then convert the <code>samples</code> tensor to an R array for use in postprocessing.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'># 2-item list, where each item has dim (1000, 4)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># 2-item list, where each item has dim (1000, 4)</span>
 <span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/array-coercion.html'>array_branch</a></span><span class='op'>(</span>margin <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2695,7 +2743,7 @@ tf.Tensor(
 <p>How well did the sampling work? The chains mix well, but for some parameters, autocorrelation is still pretty high.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>prep_tibble</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>{</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>prep_tibble</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='fu'><a href='https://tibble.tidyverse.org/reference/as_tibble.html'>as_tibble</a></span><span class='op'>(</span><span class='va'>samples</span>,
             .name_repair <span class='op'>=</span> <span class='op'>~</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"chain_1"</span>, <span class='st'>"chain_2"</span>, <span class='st'>"chain_3"</span>, <span class='st'>"chain_4"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
     <span class='fu'><a href='https://tibble.tidyverse.org/reference/add_column.html'>add_column</a></span><span class='op'>(</span>sample <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_steps</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
@@ -2735,7 +2783,7 @@ Figure 1: Trace plots for the 7 parameters.
 <p>Now for a synopsis of posterior parameter statistics, including the usual per-parameter sampling indicators <em>effective sample size</em> and <em>rhat</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>all_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>samples</span>, <span class='va'>as.vector</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>all_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>samples</span>, <span class='va'>as.vector</span><span class='op'>)</span>
 
 <span class='va'>means</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map_dbl</a></span><span class='op'>(</span><span class='va'>all_samples</span>, <span class='va'>mean</span><span class='op'>)</span>
 
@@ -2780,7 +2828,7 @@ Figure 2: Posterior means and HPDIs.
 <p>To make sure they do, we inspect predictions from our model as well as from <code>surv_reg</code>. This time, we also split the data into training and test sets. Here first are the predictions from <code>surv_reg</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>train_test_split</span> <span class='op'>&lt;-</span> <span class='fu'>initial_split</span><span class='op'>(</span><span class='va'>check_times</span>, strata <span class='op'>=</span> <span class='st'>"status"</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_test_split</span> <span class='op'>&lt;-</span> <span class='fu'>initial_split</span><span class='op'>(</span><span class='va'>check_times</span>, strata <span class='op'>=</span> <span class='st'>"status"</span><span class='op'>)</span>
 <span class='va'>check_time_train</span> <span class='op'>&lt;-</span> <span class='fu'>training</span><span class='op'>(</span><span class='va'>train_test_split</span><span class='op'>)</span>
 <span class='va'>check_time_test</span> <span class='op'>&lt;-</span> <span class='fu'>testing</span><span class='op'>(</span><span class='va'>train_test_split</span><span class='op'>)</span>
 
@@ -2806,7 +2854,7 @@ Figure 2: Posterior means and HPDIs.
 7 ns_export   -0.000212  0.000375    -0.566 5.71e- 1       NA        NA</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>survreg_pred</span> <span class='op'>&lt;-</span> 
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>survreg_pred</span> <span class='op'>&lt;-</span> 
   <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>survreg_fit</span>, <span class='va'>check_time_test</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/bind.html'>bind_cols</a></span><span class='op'>(</span><span class='va'>check_time_test</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>check_time</span>, <span class='va'>status</span><span class='op'>)</span><span class='op'>)</span>  
 
@@ -2828,7 +2876,7 @@ Figure 3: Test set predictions from surv_reg. One outlier (of value 160421) is e
 <p>We can now predict on the test set, for simplicity just using the posterior means:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>check_time_test</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>check_time_test</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span>
                     <span class='va'>depends</span>,
                     <span class='va'>imports</span>,
                     <span class='va'>doc_size</span>,
@@ -2887,7 +2935,7 @@ Figure 4: Test set predictions from the mcmc model. No outliers, just using same
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2019-07-31-censored-data/';
   this.page.identifier = 'posts/2019-07-31-censored-data/';

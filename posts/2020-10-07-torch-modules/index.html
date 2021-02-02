@@ -469,8 +469,15 @@ d-title {
   top: 0;
 }
 
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
 </style>
 
+<script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
 <link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
 <link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
 <script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
@@ -578,19 +585,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           var results = fuse.search(query, searchOptions);
           callback(results
             .map(function(result) { return result.item; })
-            .filter(function(item) { return !!item.description; })
           );
         },
         templates: {
           suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
             var html = `
               <div class="search-item">
                 <h3>${suggestion.title}</h3>
                 <div class="search-item-description">
-                  ${suggestion.description}
+                  ${suggestion.description || ''}
                 </div>
                 <div class="search-item-preview">
-                  <img src="${suggestion.preview ? offsetURL(suggestion.preview) : ''}"</img>
+                  ${img}
                 </div>
               </div>
             `;
@@ -613,6 +622,10 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 
 <style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
 
 /* Algolioa Autocomplete */
 
@@ -688,6 +701,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 }
 
 .algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
   margin-block-start: 0;
   margin-block-end: 5px;
 }
@@ -915,6 +929,11 @@ d-article pre a:hover {
   text-decoration: underline;
 }
 
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
 @media(min-width: 768px) {
 
 d-article pre,
@@ -1069,6 +1088,17 @@ d-article .citation {
 
 div.hanging-indent{
   margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
 }
 
 
@@ -1736,7 +1766,7 @@ function init_distill() {
     var layout = $(this).attr('data-layout');
 
     // apply layout to markdown level block elements
-    var elements = $(this).children().not('div.sourceCode, pre, script');
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
     elements.each(function(i, el) {
       var layout_div = $('<div class="' + layout + '"></div>');
       if (layout_div.hasClass('shaded')) {
@@ -1851,6 +1881,20 @@ function init_distill() {
     // move appendix-bottom entries to the bottom
     $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
     $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      var refHtml = $('#ref-' + $(this).attr('data-cites')).html();
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
 
     // clear polling timer
     clearInterval(tid);
@@ -2013,13 +2057,17 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--/radix_placeholder_distill-->
   <script src="../../site_libs/header-attrs-2.6/header-attrs.js"></script>
   <script src="../../site_libs/jquery-1.11.3/jquery.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
   <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
   <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
   <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
   <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
   <!--radix_placeholder_site_in_header-->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
-<script>
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
@@ -2103,7 +2151,7 @@ gtag('config', 'UA-20375833-3');
 <p>Instead of writing out an affine operation by hand – <code>x$mm(w1) + b1</code>, say –, as we’ve been doing so far, we can create a linear module. The following snippet instantiates a linear layer that expects three-feature inputs and returns a single output per observation:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torch</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torch</span><span class='op'>)</span>
 <span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fu'>nn_linear</span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>1</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2111,7 +2159,7 @@ gtag('config', 'UA-20375833-3');
 <p>The module has two parameters, “weight” and “bias”. Both now come pre-initialized:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>l</span><span class='op'>$</span><span class='va'>parameters</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>l</span><span class='op'>$</span><span class='va'>parameters</span>
 </code></pre>
 </div>
 </div>
@@ -2128,7 +2176,7 @@ torch_tensor
 <p>Let’s try this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>data</span>  <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fl'>10</span>, <span class='fl'>3</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>data</span>  <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fl'>10</span>, <span class='fl'>3</span><span class='op'>)</span>
 <span class='va'>out</span> <span class='op'>&lt;-</span> <span class='fu'>l</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2136,7 +2184,7 @@ torch_tensor
 <p>Unsurprisingly, <code>out</code> now holds some data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>out</span><span class='op'>$</span><span class='fu'>data</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span><span class='op'>$</span><span class='fu'>data</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2155,7 +2203,7 @@ torch_tensor
 <p>In addition though, this tensor knows what will need to be done, should ever it be asked to calculate gradients:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span>
 </code></pre>
 </div>
 </div>
@@ -2164,7 +2212,7 @@ torch_tensor
 <p>By now though, we haven’t called <code>backward()</code> yet. Thus, no gradients have yet been computed:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>l</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>grad</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>l</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>grad</span>
 <span class='va'>l</span><span class='op'>$</span><span class='va'>bias</span><span class='op'>$</span><span class='va'>grad</span>
 </code></pre>
 </div>
@@ -2176,7 +2224,7 @@ torch_tensor
 <p>Let’s change this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2192,7 +2240,7 @@ torch_tensor
 <p>Of the quantities on the right side, we’re interested in the second. We need to provide the first one, the way it would look <em>if really we were taking the mean</em>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>d_avg_d_out</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>d_avg_d_out</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span>gradient <span class='op'>=</span> <span class='va'>d_avg_d_out</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2200,7 +2248,7 @@ torch_tensor
 <p>Now, <code>l$weight$grad</code> and <code>l$bias$grad</code> <em>do</em> contain gradients:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>l</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>grad</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>l</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>grad</span>
 <span class='va'>l</span><span class='op'>$</span><span class='va'>bias</span><span class='op'>$</span><span class='va'>grad</span>
 </code></pre>
 </div>
@@ -2217,7 +2265,7 @@ torch_tensor
 <p>For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span>
     <span class='fu'>nn_linear</span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>16</span><span class='op'>)</span>,
     <span class='fu'>nn_relu</span><span class='op'>(</span><span class='op'>)</span>,
     <span class='fu'>nn_linear</span><span class='op'>(</span><span class='fl'>16</span>, <span class='fl'>1</span><span class='op'>)</span>
@@ -2228,7 +2276,7 @@ torch_tensor
 <p>We can use the same technique as above to get an overview of all model parameters (two weight matrices and two bias vectors):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span>
 </code></pre>
 </div>
 </div>
@@ -2286,7 +2334,7 @@ torch_tensor
 <p>To inspect an individual parameter, make use of its position in the sequential model. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>bias</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>bias</span>
 </code></pre>
 </div>
 </div>
@@ -2311,14 +2359,14 @@ torch_tensor
 <p>And just like <code>nn_linear()</code> above, this module can be called directly on data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>out</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
 <p>On a composite module like this one, calling <code>backward()</code> will backpropagate through all the layers:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span>gradient <span class='op'>=</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span>gradient <span class='op'>=</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='co'># e.g.</span>
 <span class='va'>model</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>bias</span><span class='op'>$</span><span class='va'>grad</span>
@@ -2346,7 +2394,7 @@ torch_tensor
 <p>And placing the composite module on the GPU will move all tensors there:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='va'>model</span><span class='op'>$</span><span class='fu'>cuda</span><span class='op'>(</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span><span class='op'>$</span><span class='fu'>cuda</span><span class='op'>(</span><span class='op'>)</span>
 <span class='va'>model</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>bias</span><span class='op'>$</span><span class='va'>grad</span>
 </code></pre>
 </div>
@@ -2373,7 +2421,7 @@ torch_tensor
 <h2 id="simple-network-using-modules">Simple network using modules</h2>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre><code><span class='co'>### generate training data -----------------------------------------------------</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='co'>### generate training data -----------------------------------------------------</span>
 
 <span class='co'># input dimensionality (number of input features)</span>
 <span class='va'>d_in</span> <span class='op'>&lt;-</span> <span class='fl'>3</span>
@@ -2460,7 +2508,7 @@ torch_tensor
   </p>
   <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
   <div id="disqus_thread" class="hidden"></div>
-  <script>
+  <script type="text/javascript" cookie-consent="functionality">
 var disqus_config = function () {
   this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2020-10-07-torch-modules/';
   this.page.identifier = 'posts/2020-10-07-torch-modules/';

@@ -1,7 +1,7 @@
 ---
 title: "Simple audio classification with torch"
 description: > 
-  This article attempts to translate the [Daniel Falbel's](https://github.com/dfalbel) ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `{tensorflow}+{keras}` to `{torch}+{torchaudio}`.
+  This article translates Daniel Falbel's post on "Simple Audio Classification" from TensorFlow/Keras to torch/torchaudio.
 author:
   - name: Athos Damiani
     affiliation: Curso-R
@@ -28,7 +28,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-This article attempts to translate the [Daniel Falbel's](https://github.com/dfalbel) ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `{tensorflow}+{keras}` to `{torch}+{torchaudio}`. The main goal of this article is to introduce {torchaudio}, and to summarise its role, it contributes with the dataset, the audio loader and the spectrogram transformer. An interesting side product is the parallel between torch and tensorflow, showing sometimes the differences, sometimes the similarities between them.
+This article translates [Daniel Falbel's](https://github.com/dfalbel) ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `{tensorflow}+{keras}` to `{torch}+{torchaudio}`. The main goal is to introduce {torchaudio} and illustrate its contributions to the `torch` ecosystem. Here, we focus on a popular dataset, the audio loader and the spectrogram transformer. An interesting side product is the parallel between torch and tensorflow, showing sometimes the differences, sometimes the similarities between them.
 
 <!-- https://towardsdatascience.com/a-tale-of-two-frameworks-985fa7fcec#6f89 -->
 
@@ -39,10 +39,10 @@ library(torchaudio)
 
 ## Downloading and Importing
 
-torchaudio has `speechcommand_dataset` built in. It filter out `_backgroud_noise_` by default and let us choose between versions `v0.01` and `v0.02`.
+torchaudio has the `speechcommand_dataset` built in. It filter sout `_background_noise_` by default and lets us choose between versions `v0.01` and `v0.02`.
 
 ```{r}
-# set a existing folder here to cache the dataset
+# set an existing folder here to cache the dataset
 DATASETS_PATH <- "~/datasets/"
 
 # 1.4GB download
@@ -52,7 +52,7 @@ df <- speechcommand_dataset(
   download = TRUE
 )
 
-# expect folder: _backgroud_noise_
+# expect folder: _background_noise_
 df$EXCEPT_FOLDER
 
 # number of audio files
@@ -85,7 +85,7 @@ df$classes
 
 `torch::dataloader` has the same task as `data_generator` defined in the original article. It is responsible for preparing batches - including shuffling, padding, one-hot encoding, etc - and for taking care of paralellism/device I/O orchestration.
 
-In torch we do this by passing the train/test subset to `torch::dataloader` and all the batch setup logic inside a `collate_fn()` function.
+In torch we do this by passing the train/test subset to `torch::dataloader` and encapsulating all the batch setup logic inside a `collate_fn()` function.
 
 ```{r}
 set.seed(6)
@@ -99,13 +99,13 @@ test_subset <- torch::dataset_subset(df, id_test)
 
 At this point, `dataloader(train_subset)` would not work because the samples are not padded. So we need build our own `collate_fn()` with the padding strategy.
 
-I suggest using the following approach for help implementing the `collate_fn()`:
+I suggest using the following approach when implementing the `collate_fn()`:
 
 1) begin with `collate_fn <- function(batch) browser()`.
 2) instantiate `dataloader` with the `collate_fn()`
 3) create an environment by calling `enumerate(dataloader)` so you can ask to retrieve a batch from dataloader.
 4) run `environment[[1]][[1]]`. Now you should be sent inside collate_fn() with access to `batch` input object. 
-5) Build the logic.
+5) build the logic.
 
 ```{r, eval = FALSE}
 collate_fn <- function(batch) {
@@ -123,11 +123,11 @@ ds_train_env <- enumerate(ds_train)
 ds_train_env[[1]][[1]]
 ```
 
-The final `collate_fn()` pad waveform to length 16001 and then stack them up together. At this point there are no spectrograms yet. We going to put spectrogram transformation as part of model architecture.
+The final `collate_fn()` pads the waveform to length 16001 and then stack them up together. At this point there are no spectrograms yet. We going to make spectrogram transformation a part of model architecture.
 
 ```{r}
 pad_sequence <- function(batch) {
-    # Make all tensor in a batch the same length by padding with zeros
+    # Make all tensors in a batch the same length by padding with zeros
     batch <- sapply(batch, function(x) (x$t()))
     batch <- torch::nn_utils_rnn_pad_sequence(batch, batch_first = TRUE, padding_value = 0.)
     return(batch$permute(c(1, 3, 2)))
@@ -182,7 +182,7 @@ ds_test <- dataloader(
 
 ## Model definition
 
-Instead of `keras::keras_model_sequential()` we going to define an `torch::nn_module()`. As referenced by the original article, the model is based on [this architecture for MNIST from this tutorial](https://keras.rstudio.com/articles/examples/mnist_cnn.html) and I'll call it 'DanielNN'.
+Instead of `keras::keras_model_sequential()` we going to define a `torch::nn_module()`. As referenced by the original article, the model is based on [this architecture for MNIST from this tutorial](https://keras.rstudio.com/articles/examples/mnist_cnn.html), and I'll call it 'DanielNN'.
 
 ```{r}
 dan_nn <- torch::nn_module(
@@ -285,7 +285,7 @@ set_progress_bar <- function(total) {
 }
 ```
 
-{torchaudio} comes with 3 loaders, av_loader, tuner_loader, and audiofile_loader - more to come. The `set_audio_backend()` is used to set one of them as the audio loader. Their performances differs from audio format (mp3 or wav). There is no perfect world yet: tuner_loader is the best for mp3, audiofile_loader is the best for wav, but both do not have de option of partial load a sample from audio file without bringing all the data to memory first.
+{torchaudio} comes with 3 loaders, `av_loader`, `tuner_loader`, and `audiofile_loader`- more to come.  `set_audio_backend()` is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: `tuner_loader`is best for mp3, `audiofile_loader` is  best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.
 
 ```{r}
 epochs <- 10
@@ -354,5 +354,4 @@ alluvial(
 )
 ```
 
-Model accuracy is `r scales::percent(val_acc, accuracy = 0.01)`, similar to tensorflow version from the original post. Likewise, all conclusions from original post also holds.
-
+Model accuracy is `r scales::percent(val_acc, accuracy = 0.01)`, similar to the tensorflow version from the original post. Likewise, all conclusions from original post also hold.

@@ -52,32 +52,48 @@ df <- speechcommand_dataset(
 
 # expect folder: _background_noise_
 df$EXCEPT_FOLDER
+# [1] "_background_noise_"
 
 # number of audio files
 length(df)
+# [1] 64721
 
 # a sample
 sample <- df[1]
 
 sample$waveform[, 1:10]
+```
+
+    torch_tensor
+    0.0001 *
+     0.9155  0.3052  1.8311  1.8311 -0.3052  0.3052  2.4414  0.9155 -0.9155 -0.6104
+    [ CPUFloatType{1,10} ]
+
+```{r}
 sample$sample_rate
+# 16000
 sample$label
+# bed
 
 plot(sample$waveform[1], type = "l", col = "royalblue", main = sample$label)
 ```
 
-## Device
-
-```{r}
-device <- torch::torch_device(if(torch::cuda_is_available()) "cuda" else "cpu")
+```{r, eval = TRUE, echo = FALSE, layout="l-body-outset", fig.cap="A sample of a 'bed' word waveform."}
+knitr::include_graphics("images/bedwave.png")
 ```
+
 
 ## Classes
 
 ```{r}
 df$classes
 ```
-
+    
+     [1] "bed"    "bird"   "cat"    "dog"    "down"   "eight"  "five"  
+     [8] "four"   "go"     "happy"  "house"  "left"   "marvin" "nine"  
+    [15] "no"     "off"    "on"     "one"    "right"  "seven"  "sheila"
+    [22] "six"    "stop"   "three"  "tree"   "two"    "up"     "wow"   
+    [29] "yes"    "zero"  
 
 ## ~~Generator~~ Dataloader
 
@@ -155,14 +171,19 @@ Batch structure is:
 - batch[[1]]: **waveforms** - `tensor` with dimension (32, 1, 16001)
 - batch[[2]]: **targets** - `tensor` with dimension (32, 1)
 
+
+Also, torchaudio comes with 3 loaders, `av_loader`, `tuner_loader`, and `audiofile_loader`- more to come.  `set_audio_backend()` is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: `tuner_loader`is best for mp3, `audiofile_loader` is  best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.
+
+For set a given audio backend we need pass it to each worker through `worker_init_fn()` argument.
+
 ```{r}
 ds_train <- dataloader(
   train_subset, 
   batch_size = 128, 
   shuffle = TRUE, 
   collate_fn = collate_fn,
-  num_workers = 8,
-  worker_init_fn = function(x){library(torchaudio);set_audio_backend("tuneR_loader")},
+  num_workers = 16,
+  worker_init_fn = function(.) {torchaudio::set_audio_backend("audiofile_loader")},
   worker_globals = c("pad_sequence") # pad_sequence is needed for collect_fn
 )
 
@@ -219,7 +240,6 @@ dan_nn <- torch::nn_module(
   forward = function(x) {
     x %>% # (64, 1, 16001)
       self$spectrogram() %>% # (64, 1, 257, 101)
-      torch::torch_abs() %>% 
       torch::torch_add(0.01) %>%
       torch::torch_log() %>%
       self$conv1() %>%
@@ -249,11 +269,24 @@ dan_nn <- torch::nn_module(
 )
 
 model <- dan_nn()
+
+
+device <- torch::torch_device(if(torch::cuda_is_available()) "cuda" else "cpu")
 model$to(device = device)
 
 print(model)
 ```
 
+    An `nn_module` containing 2,226,846 parameters.
+
+    ── Modules ──────────────────────────────────────────────────────
+    ● spectrogram: <Spectrogram> #0 parameters
+    ● conv1: <nn_conv2d> #320 parameters
+    ● conv2: <nn_conv2d> #18,496 parameters
+    ● conv3: <nn_conv2d> #73,856 parameters
+    ● conv4: <nn_conv2d> #295,168 parameters
+    ● dense1: <nn_linear> #1,835,136 parameters
+    ● dense2: <nn_linear> #3,870 parameters
 
 ## Model fitting
 
@@ -261,7 +294,7 @@ Unlike tensorflow, there is no `model %>% compile(...)` step in torch, so are go
 
 ```{r}
 loss_criterion <- torch::nn_cross_entropy_loss()
-optimizer <- torch::optim_adadelta(model$parameters)
+optimizer <- torch::optim_adadelta(model$parameters, rho = 0.95, eps = 1e-7)
 metrics <- list(acc = yardstick::accuracy_vec)
 ```
 
@@ -272,7 +305,8 @@ library(glue)
 library(progress)
 
 pred_to_r <- function(x) {
-  factor(as.numeric(x$to(device = "cpu")), levels = 1:30)
+  classes <- factor(df$classes)
+  classes[as.numeric(x$to(device = "cpu"))]
 }
 
 set_progress_bar <- function(total) {
@@ -283,14 +317,12 @@ set_progress_bar <- function(total) {
 }
 ```
 
-{torchaudio} comes with 3 loaders, `av_loader`, `tuner_loader`, and `audiofile_loader`- more to come.  `set_audio_backend()` is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: `tuner_loader`is best for mp3, `audiofile_loader` is  best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.
 
 ```{r}
-epochs <- 10
+epochs <- 20
 losses <- c()
 accs <- c()
 
-# set_audio_backend("tuneR_loader")
 for(epoch in seq_len(epochs)) {
   pb <- set_progress_bar(length(ds_train))
   pb$message(glue("Epoch {epoch}/{epochs}"))
@@ -312,21 +344,67 @@ for(epoch in seq_len(epochs)) {
     
     pb$tick(tokens = list(loss = round(mean(losses), 4), acc = round(mean(accs), 4)))
   })
-  
-  # test
-  predictions_r <- c()
-  targets_r <- c()
-  coro::loop(for(batch_test in ds_test) {
-    predictions <- model(batch_test[[1]]$to(device = device))
-    targets <- batch_test[[2]]$to(device = device)
-    predictions_r <- c(predictions_r, pred_to_r(predictions$argmax(dim = 2)))
-    targets_r <- c(targets_r, pred_to_r(targets))
-  })
-  val_acc <- metrics$acc(factor(targets_r, levels = 1:30), factor(predictions_r, levels = 1:30))
-  cat(glue("val_acc: {val_acc}\n\n"))
 }
+
+
+
+# test
+predictions_r <- c()
+targets_r <- c()
+coro::loop(for(batch_test in ds_test) {
+  predictions <- model(batch_test[[1]]$to(device = device))
+  targets <- batch_test[[2]]$to(device = device)
+  predictions_r <- c(predictions_r, pred_to_r(predictions$argmax(dim = 2)))
+  targets_r <- c(targets_r, pred_to_r(targets))
+})
+val_acc <- metrics$acc(factor(targets_r, levels = 1:30), factor(predictions_r, levels = 1:30))
+cat(glue("val_acc: {val_acc}\n\n"))
 ```
 
+    
+    Epoch 1/20                                                            
+    [W SpectralOps.cpp:590] Warning: The function torch.rfft is deprecated and will be removed in a future PyTorch release. Use the new torch.fft module functions, instead, by importing torch.fft and calling torch.fft.fft or torch.fft.rfft. (function operator())
+    354/354 [=========================] -  1m - loss: 2.6102 - acc: 0.2333
+    Epoch 2/20                                                            
+    354/354 [=========================] -  1m - loss: 1.9779 - acc: 0.4138
+    Epoch 3/20                                                            
+    354/354 [============================] -  1m - loss: 1.62 - acc: 0.519
+    Epoch 4/20                                                            
+    354/354 [=========================] -  1m - loss: 1.3926 - acc: 0.5859
+    Epoch 5/20                                                            
+    354/354 [==========================] -  1m - loss: 1.2334 - acc: 0.633
+    Epoch 6/20                                                            
+    354/354 [=========================] -  1m - loss: 1.1135 - acc: 0.6685
+    Epoch 7/20                                                            
+    354/354 [=========================] -  1m - loss: 1.0199 - acc: 0.6961
+    Epoch 8/20                                                            
+    354/354 [=========================] -  1m - loss: 0.9444 - acc: 0.7181
+    Epoch 9/20                                                            
+    354/354 [=========================] -  1m - loss: 0.8816 - acc: 0.7365
+    Epoch 10/20                                                           
+    354/354 [=========================] -  1m - loss: 0.8278 - acc: 0.7524
+    Epoch 11/20                                                           
+    354/354 [=========================] -  1m - loss: 0.7818 - acc: 0.7659
+    Epoch 12/20                                                           
+    354/354 [=========================] -  1m - loss: 0.7413 - acc: 0.7778
+    Epoch 13/20                                                           
+    354/354 [=========================] -  1m - loss: 0.7064 - acc: 0.7881
+    Epoch 14/20                                                           
+    354/354 [=========================] -  1m - loss: 0.6751 - acc: 0.7974
+    Epoch 15/20                                                           
+    354/354 [=========================] -  1m - loss: 0.6469 - acc: 0.8058
+    Epoch 16/20                                                           
+    354/354 [=========================] -  1m - loss: 0.6216 - acc: 0.8133
+    Epoch 17/20                                                           
+    354/354 [=========================] -  1m - loss: 0.5985 - acc: 0.8202
+    Epoch 18/20                                                           
+    354/354 [=========================] -  1m - loss: 0.5774 - acc: 0.8263
+    Epoch 19/20                                                           
+    354/354 [==========================] -  1m - loss: 0.5582 - acc: 0.832
+    Epoch 20/20                                                           
+    354/354 [=========================] -  1m - loss: 0.5403 - acc: 0.8374
+    val_acc: 0.876705979296493
+    
 ## Making predictions
 
 We already have all predictions calculated for `test_subset`, let's recreate the alluvial plot from original article.
@@ -352,4 +430,10 @@ alluvial(
 )
 ```
 
-Model accuracy is `r scales::percent(val_acc, accuracy = 0.01)`, similar to the tensorflow version from the original post. Likewise, all conclusions from original post also hold.
+
+```{r, eval = TRUE, echo = FALSE, layout="l-body-outset", fig.cap="Model performance: true labels <--> predicted labels."}
+knitr::include_graphics("images/alluvial.png")
+```
+
+
+Model accuracy is 87,7%, somewhat worse than tensorflow version from the original post. Nevertheless, all conclusions from original post still hold.

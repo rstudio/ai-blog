@@ -11,12 +11,12 @@ date: 02-04-2021
 categories:
   - Torch
   - R
-  - Audio Classification & Audio Processing
+  - Audio Processing
 output:
   distill::distill_article:
     self_contained: false
     toc: true
-preview: images/preview.jpeg
+preview: images/preview.jpg
 editor_options: 
   chunk_output_type: console
 ---
@@ -26,7 +26,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-This article translates [Daniel Falbel's](https://github.com/dfalbel) ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `tensorflow/keras` to `torch/torchaudio`. The main goal is to introduce torchaudio and illustrate its contributions to the `torch` ecosystem. Here, we focus on a popular dataset, the audio loader and the spectrogram transformer. An interesting side product is the parallel between torch and tensorflow, showing sometimes the differences, sometimes the similarities between them.
+This article translates [Daniel Falbel](https://github.com/dfalbel)'s ['Simple Audio Classification'](https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/) article from `tensorflow/keras` to `torch/torchaudio`. The main goal is to introduce torchaudio and illustrate its contributions to the `torch` ecosystem. Here, we focus on a popular dataset, the audio loader and the spectrogram transformer. An interesting side product is the parallel between torch and tensorflow, showing sometimes the differences, sometimes the similarities between them.
 
 <!-- https://towardsdatascience.com/a-tale-of-two-frameworks-985fa7fcec#6f89 -->
 
@@ -37,7 +37,7 @@ library(torchaudio)
 
 ## Downloading and Importing
 
-torchaudio has the `speechcommand_dataset` built in. It filter sout `_background_noise_` by default and lets us choose between versions `v0.01` and `v0.02`.
+torchaudio has the `speechcommand_dataset` built in. It filters out background_noise by default and lets us choose between versions `v0.01` and `v0.02`.
 
 ```{r}
 # set an existing folder here to cache the dataset
@@ -78,7 +78,7 @@ sample$label
 plot(sample$waveform[1], type = "l", col = "royalblue", main = sample$label)
 ```
 
-```{r, eval = TRUE, echo = FALSE, layout="l-body-outset", fig.cap="A sample of a 'bed' word waveform."}
+```{r, eval = TRUE, echo = FALSE, layout="l-body-outset", fig.cap="A sample waveform for a 'bed'."}
 knitr::include_graphics("images/bedwave.png")
 ```
 
@@ -97,7 +97,7 @@ df$classes
 
 ## ~~Generator~~ Dataloader
 
-`torch::dataloader` has the same task as `data_generator` defined in the original article. It is responsible for preparing batches - including shuffling, padding, one-hot encoding, etc - and for taking care of paralellism/device I/O orchestration.
+`torch::dataloader` has the same task as `data_generator` defined in the original article. It is responsible for preparing batches - including shuffling, padding, one-hot encoding, etc. - and for taking care of parallelism / device I/O orchestration.
 
 In torch we do this by passing the train/test subset to `torch::dataloader` and encapsulating all the batch setup logic inside a `collate_fn()` function.
 
@@ -111,7 +111,7 @@ train_subset <- torch::dataset_subset(df, id_train)
 test_subset <- torch::dataset_subset(df, id_test)
 ```
 
-At this point, `dataloader(train_subset)` would not work because the samples are not padded. So we need build our own `collate_fn()` with the padding strategy.
+At this point, `dataloader(train_subset)` would not work because the samples are not padded. So we need to build our own `collate_fn()` with the padding strategy.
 
 I suggest using the following approach when implementing the `collate_fn()`:
 
@@ -137,7 +137,7 @@ ds_train_env <- enumerate(ds_train)
 ds_train_env[[1]][[1]]
 ```
 
-The final `collate_fn()` pads the waveform to length 16001 and then stack them up together. At this point there are no spectrograms yet. We going to make spectrogram transformation a part of model architecture.
+The final `collate_fn()` pads the waveform to length 16001 and then stacks everything up together. At this point there are no spectrograms yet. We going to make spectrogram transformation a part of model architecture.
 
 ```{r}
 pad_sequence <- function(batch) {
@@ -172,9 +172,9 @@ Batch structure is:
 - batch[[2]]: **targets** - `tensor` with dimension (32, 1)
 
 
-Also, torchaudio comes with 3 loaders, `av_loader`, `tuner_loader`, and `audiofile_loader`- more to come.  `set_audio_backend()` is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: `tuner_loader`is best for mp3, `audiofile_loader` is  best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.
+Also, torchaudio comes with 3 loaders, `av_loader`, `tuner_loader`, and `audiofile_loader`- more to come.  `set_audio_backend()` is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: `tuner_loader` is best for mp3, `audiofile_loader` is  best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.
 
-For set a given audio backend we need pass it to each worker through `worker_init_fn()` argument.
+For a given audio backend we need pass it to each worker through `worker_init_fn()` argument.
 
 ```{r}
 ds_train <- dataloader(
@@ -201,7 +201,7 @@ ds_test <- dataloader(
 
 ## Model definition
 
-Instead of `keras::keras_model_sequential()` we going to define a `torch::nn_module()`. As referenced by the original article, the model is based on [this architecture for MNIST from this tutorial](https://keras.rstudio.com/articles/examples/mnist_cnn.html), and I'll call it 'DanielNN'.
+Instead of `keras::keras_model_sequential()`, we are going to define a `torch::nn_module()`. As referenced by the original article, the model is based on [this architecture for MNIST from this tutorial](https://keras.rstudio.com/articles/examples/mnist_cnn.html), and I'll call it 'DanielNN'.
 
 ```{r}
 dan_nn <- torch::nn_module(
@@ -290,7 +290,7 @@ print(model)
 
 ## Model fitting
 
-Unlike tensorflow, there is no `model %>% compile(...)` step in torch, so are going to set `loss criterion`, `optimizer strategy` and `evaluation metrics` explicitly in the training loop.
+Unlike in tensorflow, there is no `model %>% compile(...)` step in torch, so we are going to set `loss criterion`, `optimizer strategy` and `evaluation metrics` explicitly in the training loop.
 
 ```{r}
 loss_criterion <- torch::nn_cross_entropy_loss()
@@ -407,7 +407,7 @@ cat(glue("val_acc: {val_acc}\n\n"))
     
 ## Making predictions
 
-We already have all predictions calculated for `test_subset`, let's recreate the alluvial plot from original article.
+We already have all predictions calculated for `test_subset`, let's recreate the alluvial plot from the  original article.
 
 ```{r}
 library(dplyr)

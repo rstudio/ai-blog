@@ -12,7 +12,368 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Tue, 02 Feb 2021 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 04 Feb 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Simple audio classification with torch</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Athos Damiani</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2021-02-04-simple-audio-classification-with-torch</link>
+      <description>
+
+
+&lt;p&gt;This article translates &lt;a href="https://github.com/dfalbel"&gt;Daniel Falbel&lt;/a&gt;’s &lt;a href="https://blogs.rstudio.com/ai/posts/2018-06-06-simple-audio-classification-keras/"&gt;‘Simple Audio Classification’&lt;/a&gt; article from &lt;code&gt;tensorflow/keras&lt;/code&gt; to &lt;code&gt;torch/torchaudio&lt;/code&gt;. The main goal is to introduce torchaudio and illustrate its contributions to the &lt;code&gt;torch&lt;/code&gt; ecosystem. Here, we focus on a popular dataset, the audio loader and the spectrogram transformer. An interesting side product is the parallel between torch and tensorflow, showing sometimes the differences, sometimes the similarities between them.&lt;/p&gt;
+&lt;!-- https://towardsdatascience.com/a-tale-of-two-frameworks-985fa7fcec#6f89 --&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(torchaudio)&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="downloading-and-importing"&gt;Downloading and Importing&lt;/h2&gt;
+&lt;p&gt;torchaudio has the &lt;code&gt;speechcommand_dataset&lt;/code&gt; built in. It filters out background_noise by default and lets us choose between versions &lt;code&gt;v0.01&lt;/code&gt; and &lt;code&gt;v0.02&lt;/code&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# set an existing folder here to cache the dataset
+DATASETS_PATH &amp;lt;- &amp;quot;~/datasets/&amp;quot;
+
+# 1.4GB download
+df &amp;lt;- speechcommand_dataset(
+  root = DATASETS_PATH, 
+  url = &amp;quot;speech_commands_v0.01&amp;quot;,
+  download = TRUE
+)
+
+# expect folder: _background_noise_
+df$EXCEPT_FOLDER
+# [1] &amp;quot;_background_noise_&amp;quot;
+
+# number of audio files
+length(df)
+# [1] 64721
+
+# a sample
+sample &amp;lt;- df[1]
+
+sample$waveform[, 1:10]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;torch_tensor
+0.0001 *
+ 0.9155  0.3052  1.8311  1.8311 -0.3052  0.3052  2.4414  0.9155 -0.9155 -0.6104
+[ CPUFloatType{1,10} ]&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;sample$sample_rate
+# 16000
+sample$label
+# bed
+
+plot(sample$waveform[1], type = &amp;quot;l&amp;quot;, col = &amp;quot;royalblue&amp;quot;, main = sample$label)&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-02-04-simple-audio-classification-with-torch/images/bedwave.png" alt="A sample waveform for a 'bed'." width="516" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-4)A sample waveform for a ‘bed’.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 id="classes"&gt;Classes&lt;/h2&gt;
+&lt;pre class="r"&gt;&lt;code&gt;df$classes&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt; [1] &amp;quot;bed&amp;quot;    &amp;quot;bird&amp;quot;   &amp;quot;cat&amp;quot;    &amp;quot;dog&amp;quot;    &amp;quot;down&amp;quot;   &amp;quot;eight&amp;quot;  &amp;quot;five&amp;quot;  
+ [8] &amp;quot;four&amp;quot;   &amp;quot;go&amp;quot;     &amp;quot;happy&amp;quot;  &amp;quot;house&amp;quot;  &amp;quot;left&amp;quot;   &amp;quot;marvin&amp;quot; &amp;quot;nine&amp;quot;  
+[15] &amp;quot;no&amp;quot;     &amp;quot;off&amp;quot;    &amp;quot;on&amp;quot;     &amp;quot;one&amp;quot;    &amp;quot;right&amp;quot;  &amp;quot;seven&amp;quot;  &amp;quot;sheila&amp;quot;
+[22] &amp;quot;six&amp;quot;    &amp;quot;stop&amp;quot;   &amp;quot;three&amp;quot;  &amp;quot;tree&amp;quot;   &amp;quot;two&amp;quot;    &amp;quot;up&amp;quot;     &amp;quot;wow&amp;quot;   
+[29] &amp;quot;yes&amp;quot;    &amp;quot;zero&amp;quot;  &lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="generator-dataloader"&gt;&lt;del&gt;Generator&lt;/del&gt; Dataloader&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;torch::dataloader&lt;/code&gt; has the same task as &lt;code&gt;data_generator&lt;/code&gt; defined in the original article. It is responsible for preparing batches - including shuffling, padding, one-hot encoding, etc. - and for taking care of parallelism / device I/O orchestration.&lt;/p&gt;
+&lt;p&gt;In torch we do this by passing the train/test subset to &lt;code&gt;torch::dataloader&lt;/code&gt; and encapsulating all the batch setup logic inside a &lt;code&gt;collate_fn()&lt;/code&gt; function.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;set.seed(6)
+id_train &amp;lt;- sample(length(df), size = 0.7*length(df))
+id_test &amp;lt;- setdiff(seq_len(length(df)), id_train)
+# subsets
+
+train_subset &amp;lt;- torch::dataset_subset(df, id_train)
+test_subset &amp;lt;- torch::dataset_subset(df, id_test)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;At this point, &lt;code&gt;dataloader(train_subset)&lt;/code&gt; would not work because the samples are not padded. So we need to build our own &lt;code&gt;collate_fn()&lt;/code&gt; with the padding strategy.&lt;/p&gt;
+&lt;p&gt;I suggest using the following approach when implementing the &lt;code&gt;collate_fn()&lt;/code&gt;:&lt;/p&gt;
+&lt;ol style="list-style-type: decimal"&gt;
+&lt;li&gt;begin with &lt;code&gt;collate_fn &amp;lt;- function(batch) browser()&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;instantiate &lt;code&gt;dataloader&lt;/code&gt; with the &lt;code&gt;collate_fn()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;create an environment by calling &lt;code&gt;enumerate(dataloader)&lt;/code&gt; so you can ask to retrieve a batch from dataloader.&lt;/li&gt;
+&lt;li&gt;run &lt;code&gt;environment[[1]][[1]]&lt;/code&gt;. Now you should be sent inside collate_fn() with access to &lt;code&gt;batch&lt;/code&gt; input object.&lt;/li&gt;
+&lt;li&gt;build the logic.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;pre class="r"&gt;&lt;code&gt;collate_fn &amp;lt;- function(batch) {
+  browser()
+}
+
+ds_train &amp;lt;- dataloader(
+  train_subset, 
+  batch_size = 32, 
+  shuffle = TRUE, 
+  collate_fn = collate_fn
+)
+
+ds_train_env &amp;lt;- enumerate(ds_train)
+ds_train_env[[1]][[1]]&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The final &lt;code&gt;collate_fn()&lt;/code&gt; pads the waveform to length 16001 and then stacks everything up together. At this point there are no spectrograms yet. We going to make spectrogram transformation a part of model architecture.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;pad_sequence &amp;lt;- function(batch) {
+    # Make all tensors in a batch the same length by padding with zeros
+    batch &amp;lt;- sapply(batch, function(x) (x$t()))
+    batch &amp;lt;- torch::nn_utils_rnn_pad_sequence(batch, batch_first = TRUE, padding_value = 0.)
+    return(batch$permute(c(1, 3, 2)))
+  }
+
+# Final collate_fn
+collate_fn &amp;lt;- function(batch) {
+ # Input structure:
+ # list of 32 lists: list(waveform, sample_rate, label, speaker_id, utterance_number)
+ # Transpose it
+ batch &amp;lt;- purrr::transpose(batch)
+ tensors &amp;lt;- batch$waveform
+ targets &amp;lt;- batch$label_index
+
+ # Group the list of tensors into a batched tensor
+ tensors &amp;lt;- pad_sequence(tensors)
+ 
+ # target encoding
+ targets &amp;lt;- torch::torch_stack(targets)
+
+ list(tensors = tensors, targets = targets) # (64, 1, 16001)
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Batch structure is:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;batch[[1]]: &lt;strong&gt;waveforms&lt;/strong&gt; - &lt;code&gt;tensor&lt;/code&gt; with dimension (32, 1, 16001)&lt;/li&gt;
+&lt;li&gt;batch[[2]]: &lt;strong&gt;targets&lt;/strong&gt; - &lt;code&gt;tensor&lt;/code&gt; with dimension (32, 1)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Also, torchaudio comes with 3 loaders, &lt;code&gt;av_loader&lt;/code&gt;, &lt;code&gt;tuner_loader&lt;/code&gt;, and &lt;code&gt;audiofile_loader&lt;/code&gt;- more to come. &lt;code&gt;set_audio_backend()&lt;/code&gt; is used to set one of them as the audio loader. Their performances differ based on audio format (mp3 or wav). There is no perfect world yet: &lt;code&gt;tuner_loader&lt;/code&gt; is best for mp3, &lt;code&gt;audiofile_loader&lt;/code&gt; is best for wav, but neither of them has the option of partially loading a sample from an audio file without bringing all the data into memory first.&lt;/p&gt;
+&lt;p&gt;For a given audio backend we need pass it to each worker through &lt;code&gt;worker_init_fn()&lt;/code&gt; argument.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;ds_train &amp;lt;- dataloader(
+  train_subset, 
+  batch_size = 128, 
+  shuffle = TRUE, 
+  collate_fn = collate_fn,
+  num_workers = 16,
+  worker_init_fn = function(.) {torchaudio::set_audio_backend(&amp;quot;audiofile_loader&amp;quot;)},
+  worker_globals = c(&amp;quot;pad_sequence&amp;quot;) # pad_sequence is needed for collect_fn
+)
+
+ds_test &amp;lt;- dataloader(
+  test_subset, 
+  batch_size = 64, 
+  shuffle = FALSE, 
+  collate_fn = collate_fn,
+  num_workers = 8,
+  worker_globals = c(&amp;quot;pad_sequence&amp;quot;) # pad_sequence is needed for collect_fn
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="model-definition"&gt;Model definition&lt;/h2&gt;
+&lt;p&gt;Instead of &lt;code&gt;keras::keras_model_sequential()&lt;/code&gt;, we are going to define a &lt;code&gt;torch::nn_module()&lt;/code&gt;. As referenced by the original article, the model is based on &lt;a href="https://keras.rstudio.com/articles/examples/mnist_cnn.html"&gt;this architecture for MNIST from this tutorial&lt;/a&gt;, and I’ll call it ‘DanielNN’.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;dan_nn &amp;lt;- torch::nn_module(
+  &amp;quot;DanielNN&amp;quot;,
+  
+  initialize = function(
+    window_size_ms = 30, 
+    window_stride_ms = 10
+  ) {
+    
+    # spectrogram spec
+    window_size &amp;lt;- as.integer(16000*window_size_ms/1000)
+    stride &amp;lt;- as.integer(16000*window_stride_ms/1000)
+    fft_size &amp;lt;- as.integer(2^trunc(log(window_size, 2) + 1))
+    n_chunks &amp;lt;- length(seq(0, 16000, stride))
+    
+    self$spectrogram &amp;lt;- torchaudio::transform_spectrogram(
+      n_fft = fft_size, 
+      win_length = window_size, 
+      hop_length = stride, 
+      normalized = TRUE, 
+      power = 2
+    )
+    
+    # convs 2D
+    self$conv1 &amp;lt;- torch::nn_conv2d(in_channels = 1, out_channels = 32, kernel_size = c(3,3))
+    self$conv2 &amp;lt;- torch::nn_conv2d(in_channels = 32, out_channels = 64, kernel_size = c(3,3))
+    self$conv3 &amp;lt;- torch::nn_conv2d(in_channels = 64, out_channels = 128, kernel_size = c(3,3))
+    self$conv4 &amp;lt;- torch::nn_conv2d(in_channels = 128, out_channels = 256, kernel_size = c(3,3))
+    
+    # denses
+    self$dense1 &amp;lt;- torch::nn_linear(in_features = 14336, out_features = 128)
+    self$dense2 &amp;lt;- torch::nn_linear(in_features = 128, out_features = 30)
+  },
+  
+  forward = function(x) {
+    x %&amp;gt;% # (64, 1, 16001)
+      self$spectrogram() %&amp;gt;% # (64, 1, 257, 101)
+      torch::torch_add(0.01) %&amp;gt;%
+      torch::torch_log() %&amp;gt;%
+      self$conv1() %&amp;gt;%
+      torch::nnf_relu() %&amp;gt;%
+      torch::nnf_max_pool2d(kernel_size = c(2,2)) %&amp;gt;%
+      
+      self$conv2() %&amp;gt;%
+      torch::nnf_relu() %&amp;gt;%
+      torch::nnf_max_pool2d(kernel_size = c(2,2)) %&amp;gt;%
+      
+      self$conv3() %&amp;gt;%
+      torch::nnf_relu() %&amp;gt;%
+      torch::nnf_max_pool2d(kernel_size = c(2,2)) %&amp;gt;%
+      
+      self$conv4() %&amp;gt;%
+      torch::nnf_relu() %&amp;gt;%
+      torch::nnf_max_pool2d(kernel_size = c(2,2)) %&amp;gt;%
+      
+      torch::nnf_dropout(p = 0.25) %&amp;gt;%
+      torch::torch_flatten(start_dim = 2) %&amp;gt;%
+      
+      self$dense1() %&amp;gt;%
+      torch::nnf_relu() %&amp;gt;%
+      torch::nnf_dropout(p = 0.5) %&amp;gt;%
+      self$dense2() 
+  }
+)
+
+model &amp;lt;- dan_nn()
+
+
+device &amp;lt;- torch::torch_device(if(torch::cuda_is_available()) &amp;quot;cuda&amp;quot; else &amp;quot;cpu&amp;quot;)
+model$to(device = device)
+
+print(model)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;An `nn_module` containing 2,226,846 parameters.
+
+── Modules ──────────────────────────────────────────────────────
+● spectrogram: &amp;lt;Spectrogram&amp;gt; #0 parameters
+● conv1: &amp;lt;nn_conv2d&amp;gt; #320 parameters
+● conv2: &amp;lt;nn_conv2d&amp;gt; #18,496 parameters
+● conv3: &amp;lt;nn_conv2d&amp;gt; #73,856 parameters
+● conv4: &amp;lt;nn_conv2d&amp;gt; #295,168 parameters
+● dense1: &amp;lt;nn_linear&amp;gt; #1,835,136 parameters
+● dense2: &amp;lt;nn_linear&amp;gt; #3,870 parameters&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="model-fitting"&gt;Model fitting&lt;/h2&gt;
+&lt;p&gt;Unlike in tensorflow, there is no &lt;code&gt;model %&amp;gt;% compile(...)&lt;/code&gt; step in torch, so we are going to set &lt;code&gt;loss criterion&lt;/code&gt;, &lt;code&gt;optimizer strategy&lt;/code&gt; and &lt;code&gt;evaluation metrics&lt;/code&gt; explicitly in the training loop.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;loss_criterion &amp;lt;- torch::nn_cross_entropy_loss()
+optimizer &amp;lt;- torch::optim_adadelta(model$parameters, rho = 0.95, eps = 1e-7)
+metrics &amp;lt;- list(acc = yardstick::accuracy_vec)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="training-loop"&gt;Training loop&lt;/h3&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(glue)
+library(progress)
+
+pred_to_r &amp;lt;- function(x) {
+  classes &amp;lt;- factor(df$classes)
+  classes[as.numeric(x$to(device = &amp;quot;cpu&amp;quot;))]
+}
+
+set_progress_bar &amp;lt;- function(total) {
+  progress_bar$new(
+    total = total, clear = FALSE, width = 70,
+    format = &amp;quot;:current/:total [:bar] - :elapsed - loss: :loss - acc: :acc&amp;quot;
+  )
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class="r"&gt;&lt;code&gt;epochs &amp;lt;- 20
+losses &amp;lt;- c()
+accs &amp;lt;- c()
+
+for(epoch in seq_len(epochs)) {
+  pb &amp;lt;- set_progress_bar(length(ds_train))
+  pb$message(glue(&amp;quot;Epoch {epoch}/{epochs}&amp;quot;))
+  coro::loop(for(batch in ds_train) {
+    optimizer$zero_grad()
+    predictions &amp;lt;- model(batch[[1]]$to(device = device))
+    targets &amp;lt;- batch[[2]]$to(device = device)
+    loss &amp;lt;- loss_criterion(predictions, targets)
+    loss$backward()
+    optimizer$step()
+    
+    # eval reports
+    prediction_r &amp;lt;- pred_to_r(predictions$argmax(dim = 2))
+    targets_r &amp;lt;- pred_to_r(targets)
+    acc &amp;lt;- metrics$acc(targets_r, prediction_r)
+    accs &amp;lt;- c(accs, acc)
+    loss_r &amp;lt;- as.numeric(loss$item())
+    losses &amp;lt;- c(losses, loss_r)
+    
+    pb$tick(tokens = list(loss = round(mean(losses), 4), acc = round(mean(accs), 4)))
+  })
+}
+
+
+
+# test
+predictions_r &amp;lt;- c()
+targets_r &amp;lt;- c()
+coro::loop(for(batch_test in ds_test) {
+  predictions &amp;lt;- model(batch_test[[1]]$to(device = device))
+  targets &amp;lt;- batch_test[[2]]$to(device = device)
+  predictions_r &amp;lt;- c(predictions_r, pred_to_r(predictions$argmax(dim = 2)))
+  targets_r &amp;lt;- c(targets_r, pred_to_r(targets))
+})
+val_acc &amp;lt;- metrics$acc(factor(targets_r, levels = 1:30), factor(predictions_r, levels = 1:30))
+cat(glue(&amp;quot;val_acc: {val_acc}\n\n&amp;quot;))&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Epoch 1/20                                                            
+[W SpectralOps.cpp:590] Warning: The function torch.rfft is deprecated and will be removed in a future PyTorch release. Use the new torch.fft module functions, instead, by importing torch.fft and calling torch.fft.fft or torch.fft.rfft. (function operator())
+354/354 [=========================] -  1m - loss: 2.6102 - acc: 0.2333
+Epoch 2/20                                                            
+354/354 [=========================] -  1m - loss: 1.9779 - acc: 0.4138
+Epoch 3/20                                                            
+354/354 [============================] -  1m - loss: 1.62 - acc: 0.519
+Epoch 4/20                                                            
+354/354 [=========================] -  1m - loss: 1.3926 - acc: 0.5859
+Epoch 5/20                                                            
+354/354 [==========================] -  1m - loss: 1.2334 - acc: 0.633
+Epoch 6/20                                                            
+354/354 [=========================] -  1m - loss: 1.1135 - acc: 0.6685
+Epoch 7/20                                                            
+354/354 [=========================] -  1m - loss: 1.0199 - acc: 0.6961
+Epoch 8/20                                                            
+354/354 [=========================] -  1m - loss: 0.9444 - acc: 0.7181
+Epoch 9/20                                                            
+354/354 [=========================] -  1m - loss: 0.8816 - acc: 0.7365
+Epoch 10/20                                                           
+354/354 [=========================] -  1m - loss: 0.8278 - acc: 0.7524
+Epoch 11/20                                                           
+354/354 [=========================] -  1m - loss: 0.7818 - acc: 0.7659
+Epoch 12/20                                                           
+354/354 [=========================] -  1m - loss: 0.7413 - acc: 0.7778
+Epoch 13/20                                                           
+354/354 [=========================] -  1m - loss: 0.7064 - acc: 0.7881
+Epoch 14/20                                                           
+354/354 [=========================] -  1m - loss: 0.6751 - acc: 0.7974
+Epoch 15/20                                                           
+354/354 [=========================] -  1m - loss: 0.6469 - acc: 0.8058
+Epoch 16/20                                                           
+354/354 [=========================] -  1m - loss: 0.6216 - acc: 0.8133
+Epoch 17/20                                                           
+354/354 [=========================] -  1m - loss: 0.5985 - acc: 0.8202
+Epoch 18/20                                                           
+354/354 [=========================] -  1m - loss: 0.5774 - acc: 0.8263
+Epoch 19/20                                                           
+354/354 [==========================] -  1m - loss: 0.5582 - acc: 0.832
+Epoch 20/20                                                           
+354/354 [=========================] -  1m - loss: 0.5403 - acc: 0.8374
+val_acc: 0.876705979296493&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="making-predictions"&gt;Making predictions&lt;/h2&gt;
+&lt;p&gt;We already have all predictions calculated for &lt;code&gt;test_subset&lt;/code&gt;, let’s recreate the alluvial plot from the original article.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(dplyr)
+library(alluvial)
+df_validation &amp;lt;- data.frame(
+  pred_class = df$classes[predictions_r],
+  class = df$classes[targets_r]
+)
+x &amp;lt;-  df_validation %&amp;gt;%
+  mutate(correct = pred_class == class) %&amp;gt;%
+  count(pred_class, class, correct)
+
+alluvial(
+  x %&amp;gt;% select(class, pred_class),
+  freq = x$n,
+  col = ifelse(x$correct, &amp;quot;lightblue&amp;quot;, &amp;quot;red&amp;quot;),
+  border = ifelse(x$correct, &amp;quot;lightblue&amp;quot;, &amp;quot;red&amp;quot;),
+  alpha = 0.6,
+  hide = x$n &amp;lt; 20
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-02-04-simple-audio-classification-with-torch/images/alluvial.png" alt="Model performance: true labels &amp;lt;--&amp;gt; predicted labels." width="336" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-15)Model performance: true labels &amp;lt;–&amp;gt; predicted labels.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Model accuracy is 87,7%, somewhat worse than tensorflow version from the original post. Nevertheless, all conclusions from original post still hold.&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">6ec559e1df0fae0a41f13957bfdd0999</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Audio Processing</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2021-02-04-simple-audio-classification-with-torch</guid>
+      <pubDate>Thu, 04 Feb 2021 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2021-02-04-simple-audio-classification-with-torch/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Forecasting El Niño-Southern Oscillation (ENSO)</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>

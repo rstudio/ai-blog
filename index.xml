@@ -12,7 +12,307 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Thu, 04 Feb 2021 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 11 Feb 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch, tidymodels, and high-energy physics</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2021-02-11-tabnet</link>
+      <description>
+
+
+&lt;p&gt;So what’s with the clickbait (&lt;em&gt;high-energy physics&lt;/em&gt;)? Well, it’s not just clickbait. To showcase TabNet, we will be using the &lt;a href="https://archive.ics.uci.edu/ml/datasets/HIGGS"&gt;Higgs&lt;/a&gt; dataset (&lt;span class="citation"&gt;Baldi, Sadowski, and Whiteson (2014)&lt;/span&gt;), available at UCI Machine Learning Repository. I don’t know about you, but I always enjoy using datasets that motivate me to learn more about things. But first, let’s get acquainted with the main actors of this post!&lt;/p&gt;
+&lt;h1 id="tabnet"&gt;TabNet&lt;/h1&gt;
+&lt;p&gt;TabNet was introduced in &lt;span class="citation"&gt;Arik and Pfister (2020)&lt;/span&gt;. It is interesting for three reasons:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;It claims highly competitive performance on tabular data, an area where deep learning has not gained much of a reputation yet.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;TabNet includes interpretability&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt; features by design.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;It is claimed to significantly profit from self-supervised pre-training, again in an area where this is anything but undeserving of mention.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;In this post, we won’t go into (3), but we do expand on (2), the ways TabNet allows access to its inner workings.&lt;/p&gt;
+&lt;p&gt;How do we use TabNet from R? The &lt;code&gt;torch&lt;/code&gt; ecosystem includes a package – &lt;code&gt;tabnet&lt;/code&gt; – that not only implements the model of the same name, but also allows you to make use of it as part of a &lt;code&gt;tidymodels&lt;/code&gt; workflow.&lt;/p&gt;
+&lt;h1 id="tidymodels"&gt;tidymodels&lt;/h1&gt;
+&lt;p&gt;To many R-using data scientists, the &lt;a href="https://www.tidymodels.org/"&gt;tidymodels&lt;/a&gt; framework will not be a stranger. &lt;code&gt;tidymodels&lt;/code&gt; provides a high-level, unified approach to model training, hyperparameter optimization, and inference.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;tabnet&lt;/code&gt; is the first (of many, we hope) &lt;code&gt;torch&lt;/code&gt; models that let you use a &lt;code&gt;tidymodels&lt;/code&gt; workflow all the way: from data pre-processing over hyperparameter tuning to performance evaluation and inference. While the first, as well as the last, may seem nice-to-have but not “mandatory”, the tuning experience is likely to be something you’ll won’t want to do without!&lt;/p&gt;
+&lt;h1 id="using-tabnet-with-tidymodels"&gt;Using tabnet with tidymodels&lt;/h1&gt;
+&lt;p&gt;In this post, we first showcase a &lt;code&gt;tabnet&lt;/code&gt;-using workflow in a nutshell, making use of hyperparameter settings reported in the paper.&lt;/p&gt;
+&lt;p&gt;Then, we initiate a &lt;code&gt;tidymodels&lt;/code&gt;-powered hyperparameter search, focusing on the basics but also, encouraging you to dig deeper at your leisure.&lt;/p&gt;
+&lt;p&gt;Finally, we circle back to the promise of interpretability, demonstrating what is offered by &lt;code&gt;tabnet&lt;/code&gt; and ending in a short discussion.&lt;/p&gt;
+&lt;h1 id="in-the-flow-with-tabnet"&gt;In the flow with TabNet&lt;/h1&gt;
+&lt;p&gt;As usual, we start by loading all required libraries. We also set a random seed, on the R as well as the &lt;code&gt;torch&lt;/code&gt; sides. When model interpretation is part of your task, you will want to investigate the role of random initialization.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(tabnet)
+library(tidyverse)
+library(tidymodels)
+library(finetune) # to use tuning functions from the new finetune package
+library(vip) # to plot feature importances
+
+set.seed(777)
+torch_manual_seed(777)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Next, we load the dataset.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# download from https://archive.ics.uci.edu/ml/datasets/HIGGS
+higgs &amp;lt;- read_csv(
+  &amp;quot;HIGGS.csv&amp;quot;,
+  col_names = c(&amp;quot;class&amp;quot;, &amp;quot;lepton_pT&amp;quot;, &amp;quot;lepton_eta&amp;quot;, &amp;quot;lepton_phi&amp;quot;, &amp;quot;missing_energy_magnitude&amp;quot;,
+                &amp;quot;missing_energy_phi&amp;quot;, &amp;quot;jet_1_pt&amp;quot;, &amp;quot;jet_1_eta&amp;quot;, &amp;quot;jet_1_phi&amp;quot;, &amp;quot;jet_1_b_tag&amp;quot;,
+                &amp;quot;jet_2_pt&amp;quot;, &amp;quot;jet_2_eta&amp;quot;, &amp;quot;jet_2_phi&amp;quot;, &amp;quot;jet_2_b_tag&amp;quot;, &amp;quot;jet_3_pt&amp;quot;, &amp;quot;jet_3_eta&amp;quot;,
+                &amp;quot;jet_3_phi&amp;quot;, &amp;quot;jet_3_b_tag&amp;quot;, &amp;quot;jet_4_pt&amp;quot;, &amp;quot;jet_4_eta&amp;quot;, &amp;quot;jet_4_phi&amp;quot;, &amp;quot;jet_4_b_tag&amp;quot;,
+                &amp;quot;m_jj&amp;quot;, &amp;quot;m_jjj&amp;quot;, &amp;quot;m_lv&amp;quot;, &amp;quot;m_jlv&amp;quot;, &amp;quot;m_bb&amp;quot;, &amp;quot;m_wbb&amp;quot;, &amp;quot;m_wwbb&amp;quot;),
+  col_types = &amp;quot;fdddddddddddddddddddddddddddd&amp;quot;
+  )&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;What’s this about? In high-energy physics, the search for new particles takes place at powerful particle accelerators, such as (and most prominently) CERN’s &lt;a href="https://home.cern/science/accelerators/large-hadron-collider"&gt;Large Hadron Collider&lt;/a&gt;. In addition to actual experiments, simulation plays an important role. In simulations, “measurement” data are generated according to different underlying hypotheses, resulting in distributions that can be compared with each other. Given the likelihood of the simulated data, the goal then is to make inferences about the hypotheses.&lt;/p&gt;
+&lt;p&gt;The above dataset (&lt;span class="citation"&gt;Baldi, Sadowski, and Whiteson (2014)&lt;/span&gt;) results from just such a simulation. It explores what features could be measured assuming two different processes. In the first process, two gluons collide, and a heavy Higgs boson is produced; this is the signal process, the one we’re interested in. In the second, the collision of the gluons results in a pair of top quarks – this is the background process.&lt;/p&gt;
+&lt;p&gt;Through different intermediaries, both processes result in the same end products – so tracking these does not help. Instead, what the paper authors did was simulate kinematic features (momenta, specifically) of decay products, such as leptons (electrons and protons) and particle jets. In addition, they constructed a number of high-level features, features that presuppose domain knowledge. In their article, they showed that, in contrast to other machine learning methods, deep neural networks did nearly as well when presented with the low-level features (the momenta) only as with just the high-level features alone.&lt;/p&gt;
+&lt;p&gt;Certainly, it would be interesting to double-check these results on &lt;code&gt;tabnet&lt;/code&gt;, and then, look at the respective feature importances. However, given the size of the dataset, non-negligible computing resources (and patience) will be required.&lt;/p&gt;
+&lt;p&gt;Speaking of size, let’s take a look:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;higgs %&amp;gt;% glimpse()&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Rows: 11,000,000
+Columns: 29
+$ class                    &amp;lt;fct&amp;gt; 1.000000000000000000e+00, 1.000000…
+$ lepton_pT                &amp;lt;dbl&amp;gt; 0.8692932, 0.9075421, 0.7988347, 1…
+$ lepton_eta               &amp;lt;dbl&amp;gt; -0.6350818, 0.3291473, 1.4706388, …
+$ lepton_phi               &amp;lt;dbl&amp;gt; 0.225690261, 0.359411865, -1.63597…
+$ missing_energy_magnitude &amp;lt;dbl&amp;gt; 0.3274701, 1.4979699, 0.4537732, 1…
+$ missing_energy_phi       &amp;lt;dbl&amp;gt; -0.68999320, -0.31300953, 0.425629…
+$ jet_1_pt                 &amp;lt;dbl&amp;gt; 0.7542022, 1.0955306, 1.1048746, 1…
+$ jet_1_eta                &amp;lt;dbl&amp;gt; -0.24857314, -0.55752492, 1.282322…
+$ jet_1_phi                &amp;lt;dbl&amp;gt; -1.09206390, -1.58822978, 1.381664…
+$ jet_1_b_tag              &amp;lt;dbl&amp;gt; 0.000000, 2.173076, 0.000000, 0.00…
+$ jet_2_pt                 &amp;lt;dbl&amp;gt; 1.3749921, 0.8125812, 0.8517372, 2…
+$ jet_2_eta                &amp;lt;dbl&amp;gt; -0.6536742, -0.2136419, 1.5406590,…
+$ jet_2_phi                &amp;lt;dbl&amp;gt; 0.9303491, 1.2710146, -0.8196895, …
+$ jet_2_b_tag              &amp;lt;dbl&amp;gt; 1.107436, 2.214872, 2.214872, 2.21…
+$ jet_3_pt                 &amp;lt;dbl&amp;gt; 1.1389043, 0.4999940, 0.9934899, 1…
+$ jet_3_eta                &amp;lt;dbl&amp;gt; -1.578198314, -1.261431813, 0.3560…
+$ jet_3_phi                &amp;lt;dbl&amp;gt; -1.04698539, 0.73215616, -0.208777…
+$ jet_3_b_tag              &amp;lt;dbl&amp;gt; 0.000000, 0.000000, 2.548224, 0.00…
+$ jet_4_pt                 &amp;lt;dbl&amp;gt; 0.6579295, 0.3987009, 1.2569546, 0…
+$ jet_4_eta                &amp;lt;dbl&amp;gt; -0.01045457, -1.13893008, 1.128847…
+$ jet_4_phi                &amp;lt;dbl&amp;gt; -0.0457671694, -0.0008191102, 0.90…
+$ jet_4_btag               &amp;lt;dbl&amp;gt; 3.101961, 0.000000, 0.000000, 0.00…
+$ m_jj                     &amp;lt;dbl&amp;gt; 1.3537600, 0.3022199, 0.9097533, 0…
+$ m_jjj                    &amp;lt;dbl&amp;gt; 0.9795631, 0.8330482, 1.1083305, 1…
+$ m_lv                     &amp;lt;dbl&amp;gt; 0.9780762, 0.9856997, 0.9856922, 0…
+$ m_jlv                    &amp;lt;dbl&amp;gt; 0.9200048, 0.9780984, 0.9513313, 0…
+$ m_bb                     &amp;lt;dbl&amp;gt; 0.7216575, 0.7797322, 0.8032515, 0…
+$ m_wbb                    &amp;lt;dbl&amp;gt; 0.9887509, 0.9923558, 0.8659244, 1…
+$ m_wwbb                   &amp;lt;dbl&amp;gt; 0.8766783, 0.7983426, 0.7801176, 0…&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Eleven million “observations” (kind of) – that’s a lot! Like the authors of the TabNet paper (&lt;span class="citation"&gt;Arik and Pfister (2020)&lt;/span&gt;), we’ll use 500,000 of these for validation. (Unlike them, though, we won’t be able to train for 870,000 iterations!)&lt;/p&gt;
+&lt;p&gt;The first variable, &lt;code&gt;class&lt;/code&gt;, is either &lt;code&gt;1&lt;/code&gt; or &lt;code&gt;0&lt;/code&gt;, depending on whether a Higgs boson was present or not. While in experiments, only a tiny fraction of collisions produce one of those, both classes are about equally frequent in this dataset.&lt;/p&gt;
+&lt;p&gt;As for the predictors, the last seven are high-level (derived). All others are “measured”.&lt;/p&gt;
+&lt;p&gt;Data loaded, we’re ready to build a &lt;code&gt;tidymodels&lt;/code&gt; &lt;em&gt;workflow&lt;/em&gt;, resulting in a short sequence of concise steps.&lt;/p&gt;
+&lt;p&gt;First, split the data:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;n &amp;lt;- 11000000
+n_test &amp;lt;- 500000
+test_frac &amp;lt;- n/n_all
+
+split &amp;lt;- initial_time_split(higgs, prop = 1 - test_frac)
+train &amp;lt;- training(split)
+test  &amp;lt;- testing(split)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Second, create a &lt;code&gt;recipe&lt;/code&gt;. We want to predict &lt;code&gt;class&lt;/code&gt; from all other features present:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;rec &amp;lt;- recipe(class ~ ., train) &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Third, create a &lt;code&gt;parsnip&lt;/code&gt; model specification of class &lt;code&gt;tabnet&lt;/code&gt;. The parameters passed are those reported by the TabNet paper, for the S-sized model variant used on this dataset.&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# hyperparameter settings (apart from epochs) as per the TabNet paper (TabNet-S)
+mod &amp;lt;- tabnet(epochs = 3, batch_size = 16384, decision_width = 24, attention_width = 26,
+              num_steps = 5, penalty = 0.000001, virtual_batch_size = 512, momentum = 0.6,
+              feature_reusage = 1.5, learn_rate = 0.02) %&amp;gt;%
+  set_engine(&amp;quot;torch&amp;quot;, verbose = TRUE) %&amp;gt;%
+  set_mode(&amp;quot;classification&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Fourth, bundle recipe and model specifications in a workflow:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;wf &amp;lt;- workflow() %&amp;gt;%
+  add_model(mod) %&amp;gt;%
+  add_recipe(rec)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Fifth, train the model. This will take some time. Training finished, we save the trained &lt;code&gt;parsnip&lt;/code&gt; model, so we can reuse it at a later time.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;fitted_model &amp;lt;- wf %&amp;gt;% fit(train)
+
+# access the underlying parsnip model and save it to RDS format
+# depending on when you read this, a nice wrapper may exist
+# see https://github.com/mlverse/tabnet/issues/27  
+fitted_model$fit$fit$fit %&amp;gt;% saveRDS(&amp;quot;saved_model.rds&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After three epochs, loss was at 0.609.&lt;/p&gt;
+&lt;p&gt;Sixth – and finally – we ask the model for test-set predictions and have accuracy computed.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;preds &amp;lt;- test %&amp;gt;% 
+  bind_cols(predict(fitted_model, test))
+
+yardstick::accuracy(preds, class, .pred_class)&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# A tibble: 1 x 3
+  .metric  .estimator .estimate
+  &amp;lt;chr&amp;gt;    &amp;lt;chr&amp;gt;          &amp;lt;dbl&amp;gt;
+1 accuracy binary         0.672&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We didn’t quite arrive at the accuracy reported in the TabNet paper (0.783), but then, we only trained for a tiny fraction of the time.&lt;/p&gt;
+&lt;p&gt;In case you’re thinking: &lt;em&gt;well, that was a nice and effortless way of training a neural network!&lt;/em&gt; – just wait and see how easy hyperparameter tuning can get. In fact, no need to wait, we’ll take a look right now.&lt;/p&gt;
+&lt;h1 id="tabnet-tuning"&gt;TabNet tuning&lt;/h1&gt;
+&lt;p&gt;For hyperparameter tuning, the &lt;code&gt;tidymodels&lt;/code&gt; framework makes use of cross-validation. With a dataset of considerable size, some time and patience is needed; for the purpose of this post, I’ll use 1/1,000 of observations.&lt;/p&gt;
+&lt;p&gt;Changes to the above workflow start at model specification. Let’s say we’ll leave most settings fixed, but vary the TabNet-specific hyperparameters &lt;code&gt;decision_width&lt;/code&gt;, &lt;code&gt;attention_width&lt;/code&gt;, and &lt;code&gt;num_steps&lt;/code&gt;, as well as the learning rate:&lt;a href="#fn3" class="footnote-ref" id="fnref3"&gt;&lt;sup&gt;3&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;mod &amp;lt;- tabnet(epochs = 1, batch_size = 16384, decision_width = tune(), attention_width = tune(),
+              num_steps = tune(), penalty = 0.000001, virtual_batch_size = 512, momentum = 0.6,
+              feature_reusage = 1.5, learn_rate = tune()) %&amp;gt;%
+  set_engine(&amp;quot;torch&amp;quot;, verbose = TRUE) %&amp;gt;%
+  set_mode(&amp;quot;classification&amp;quot;)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Workflow creation looks the same as before:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;wf &amp;lt;- workflow() %&amp;gt;%
+  add_model(mod) %&amp;gt;%
+  add_recipe(rec)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Next, we specify the hyperparameter ranges we’re interested in, and call one of the grid construction functions from the &lt;code&gt;dials&lt;/code&gt; package to build one for us. If it wasn’t for demonstration purposes, we’d probably want to have more than eight alternatives though, and pass a higher &lt;code&gt;size&lt;/code&gt; to &lt;code&gt;grid_max_entropy()&lt;/code&gt; .&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;grid &amp;lt;-
+  wf %&amp;gt;%
+  parameters() %&amp;gt;%
+  update(
+    decision_width = decision_width(range = c(20, 40)),
+    attention_width = attention_width(range = c(20, 40)),
+    num_steps = num_steps(range = c(4, 6)),
+    learn_rate = learn_rate(range = c(-2.5, -1))
+  ) %&amp;gt;%
+  grid_max_entropy(size = 8)
+
+grid&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# A tibble: 8 x 4
+  learn_rate decision_width attention_width num_steps
+       &amp;lt;dbl&amp;gt;          &amp;lt;int&amp;gt;           &amp;lt;int&amp;gt;     &amp;lt;int&amp;gt;
+1    0.00529             28              25         5
+2    0.0858              24              34         5
+3    0.0230              38              36         4
+4    0.0968              27              23         6
+5    0.0825              26              30         4
+6    0.0286              36              25         5
+7    0.0230              31              37         5
+8    0.00341             39              23         5&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To search the space, we use &lt;code&gt;tune_race_anova()&lt;/code&gt; from the new &lt;a href="https://www.tidyverse.org/blog/2020/12/finetune-0-0-1/"&gt;finetune&lt;/a&gt; package, making use of five-fold cross-validation:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;ctrl &amp;lt;- control_race(verbose_elim = TRUE)
+folds &amp;lt;- vfold_cv(train, v = 5)
+set.seed(777)
+
+res &amp;lt;- wf %&amp;gt;% 
+    tune_race_anova(
+    resamples = folds, 
+    grid = grid,
+    control = ctrl
+  )&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can now extract the best hyperparameter combinations:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;res %&amp;gt;% show_best(&amp;quot;accuracy&amp;quot;) %&amp;gt;% select(- c(.estimator, .config))&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# A tibble: 5 x 8
+  learn_rate decision_width attention_width num_steps .metric   mean     n std_err
+       &amp;lt;dbl&amp;gt;          &amp;lt;int&amp;gt;           &amp;lt;int&amp;gt;     &amp;lt;int&amp;gt; &amp;lt;chr&amp;gt;    &amp;lt;dbl&amp;gt; &amp;lt;int&amp;gt;   &amp;lt;dbl&amp;gt;
+1     0.0858             24              34         5 accuracy 0.516     5 0.00370
+2     0.0230             38              36         4 accuracy 0.510     5 0.00786
+3     0.0230             31              37         5 accuracy 0.510     5 0.00601
+4     0.0286             36              25         5 accuracy 0.510     5 0.0136 
+5     0.0968             27              23         6 accuracy 0.498     5 0.00835&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It’s hard to imagine how tuning could be more convenient!&lt;/p&gt;
+&lt;p&gt;Now, we circle back to the original training workflow, and inspect TabNet’s interpretability features.&lt;/p&gt;
+&lt;h1 id="tabnet-interpretability-features"&gt;TabNet interpretability features&lt;/h1&gt;
+&lt;p&gt;TabNet’s most prominent characteristic is the way – inspired by decision trees – it executes in distinct steps. At each step, it again looks at the original input features, and decides which of those to consider based on lessons learned in prior steps. Concretely, it uses an attention mechanism to learn sparse &lt;em&gt;masks&lt;/em&gt; which are then applied to the features.&lt;/p&gt;
+&lt;p&gt;Now, these masks being “just” model weights means we can extract them and draw conclusions about feature importance. Depending on how we proceed, we can either&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;aggregate mask weights over steps, resulting in global per-feature importances;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;run the model on a few test samples and aggregate over steps, resulting in observation-wise feature importances; or&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;run the model on a few test samples and extract individual weights observation- as well as step-wise.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This is how to accomplish the above with &lt;code&gt;tabnet&lt;/code&gt;.&lt;/p&gt;
+&lt;h4 id="per-feature-importances"&gt;Per-feature importances&lt;/h4&gt;
+&lt;p&gt;We continue with the &lt;code&gt;fitted_model&lt;/code&gt; workflow object we ended up with at the end of part 1. &lt;code&gt;vip::vip&lt;/code&gt; is able to display feature importances directly from the &lt;code&gt;parsnip&lt;/code&gt; model:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;fit &amp;lt;- pull_workflow_fit(fitted_model)
+vip(fit) + theme_minimal()&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-02-11-tabnet/images/vip.png" alt="Global feature importances." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-16)Global feature importances.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Together, two high-level features dominate, accounting for nearly 50% of overall attention. Along with a third high-level feature, ranked in place four, they occupy about 60% of “importance space”.&lt;/p&gt;
+&lt;h4 id="observation-level-feature-importances"&gt;Observation-level feature importances&lt;/h4&gt;
+&lt;p&gt;We choose the first hundred observations in the test set to extract feature importances. Due to how TabNet enforces sparsity, we see that many features have not been made use of:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;ex_fit &amp;lt;- tabnet_explain(fit$fit, test[1:100, ])
+
+ex_fit$M_explain %&amp;gt;%
+  mutate(observation = row_number()) %&amp;gt;%
+  pivot_longer(-observation, names_to = &amp;quot;variable&amp;quot;, values_to = &amp;quot;m_agg&amp;quot;) %&amp;gt;%
+  ggplot(aes(x = observation, y = variable, fill = m_agg)) +
+  geom_tile() +
+  theme_minimal() + 
+  scale_fill_viridis_c()&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-02-11-tabnet/images/agg_masks.png" alt="Per-observation feature importances." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-18)Per-observation feature importances.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;h4 id="per-step-observation-level-feature-importances"&gt;Per-step, observation-level feature importances&lt;/h4&gt;
+&lt;p&gt;Finally and on the same selection of observations, we again inspect the masks, but this time, per decision step:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;ex_fit$masks %&amp;gt;% 
+  imap_dfr(~mutate(
+    .x, 
+    step = sprintf(&amp;quot;Step %d&amp;quot;, .y),
+    observation = row_number()
+  )) %&amp;gt;% 
+  pivot_longer(-c(observation, step), names_to = &amp;quot;variable&amp;quot;, values_to = &amp;quot;m_agg&amp;quot;) %&amp;gt;% 
+  ggplot(aes(x = observation, y = variable, fill = m_agg)) +
+  geom_tile() +
+  theme_minimal() + 
+  theme(axis.text = element_text(size = 5)) +
+  scale_fill_viridis_c() +
+  facet_wrap(~step)&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-02-11-tabnet/images/masks_per_step.png" alt="Per-observation, per-step feature importances." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-20)Per-observation, per-step feature importances.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;This is nice: We clearly see how TabNet makes use of different features at different times.&lt;/p&gt;
+&lt;p&gt;So what do we make of this? It depends. Given the enormous societal importance of this topic – call it interpretability, explainability, or whatever – let’s finish this post with a short discussion.&lt;/p&gt;
+&lt;h1 id="interpretable-explainable-beyond-the-arbitrariness-of-definitions"&gt;Interpretable, explainable, …? Beyond the arbitrariness of definitions&lt;/h1&gt;
+&lt;p&gt;An internet search for “interpretable vs. explainable ML” immediately turns up a number of sites confidently stating “interpretable ML is …” and “explainable ML is …”, as though there were no arbitrariness in common-speech definitions. Going deeper, you find articles such as Cynthia Rudin’s “Stop Explaining Black Box Machine Learning Models for High Stakes Decisions and Use Interpretable Models Instead” (&lt;span class="citation"&gt;Rudin (2018)&lt;/span&gt;) that present you with a clear-cut, deliberate, instrumentalizable distinction that can actually be used in real-world scenarios.&lt;/p&gt;
+&lt;p&gt;In a nutshell, what she decides to call explainability is: approximate a black-box model by a simpler (e.g., linear) model and, starting from the simple model, make inferences about how the black-box model works. One of the examples she gives for how this could fail is so striking I’d like to fully cite it:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Even an explanation model that performs almost identically to a black box model might use completely different features, and is thus not faithful to the computation of the black box. Consider a black box model for criminal recidivism prediction, where the goal is to predict whether someone will be arrested within a certain time after being released from jail/prison. Most recidivism prediction models depend explicitly on age and criminal history, but do not explicitly depend on race. Since criminal history and age are correlated with race in all of our datasets, a fairly accurate explanation model could construct a rule such as “This person is predicted to be arrested because they are black.” This might be an accurate explanation model since it correctly mimics the predictions of the original model, but it would not be faithful to what the original model computes.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;What she calls interpretability, in contrast, is deeply related to domain knowledge:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Interpretability is a domain-specific notion […] Usually, however, an interpretable machine learning model is constrained in model form so that it is either useful to someone, or obeys structural knowledge of the domain, such as monotonicity [e.g.,8], causality, structural (generative) constraints, additivity [9], or physical constraints that come from domain knowledge. Often for structured data, sparsity is a useful measure of interpretability […]. Sparse models allow a view of how variables interact jointly rather than individually. […] e.g., in some domains, sparsity is useful,and in others is it not.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;If we accept these well-thought-out definitions, what can we say about TabNet? Is looking at attention masks more like constructing a post-hoc model or more like having domain knowledge incorporated? I believe Rudin would argue the former, since&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;the image-classification example she uses to point out weaknesses of explainability techniques employs saliency maps, a technical device comparable, in some ontological sense, to attention masks;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;the sparsity enforced by TabNet is a technical, not a domain-related constraint;&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;we only know &lt;em&gt;what&lt;/em&gt; features were used by TabNet, not &lt;em&gt;how&lt;/em&gt; it used them.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;On the other hand, one could disagree with Rudin (and others) about the premises. Do explanations &lt;em&gt;have&lt;/em&gt; to be modeled after human cognition to be considered valid? Personally, I guess I’m not sure, and to cite from a post by &lt;a href="https://statmodeling.stat.columbia.edu/2018/10/30/explainable-ml-versus-interpretable-ml/"&gt;Keith O’Rourke on just this topic of interpretability&lt;/a&gt;,&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;As with any critically-thinking inquirer, the views behind these deliberations are always subject to rethinking and revision at any time.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;In any case though, we can be sure that this topic’s importance will only grow with time. While in the very early days of the GDPR (the EU General Data Protection Regulation) it was said that &lt;a href="https://www.gdpr.org/regulation/article-22.html"&gt;Article 22&lt;/a&gt; (on automated decision-making) would have significant impact on how ML is used&lt;a href="#fn4" class="footnote-ref" id="fnref4"&gt;&lt;sup&gt;4&lt;/sup&gt;&lt;/a&gt;, unfortunately the current view seems to be that its wordings are far too vague to have immediate consequences (e.g., &lt;span class="citation"&gt;Wachter, Mittelstadt, and Floridi (2017)&lt;/span&gt;). But this will be a fascinating topic to follow, from a technical as well as a political point of view.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div id="refs" class="references hanging-indent"&gt;
+&lt;div id="ref-arik2020tabnet"&gt;
+&lt;p&gt;Arik, Sercan O., and Tomas Pfister. 2020. “TabNet: Attentive Interpretable Tabular Learning.” &lt;a href="http://arxiv.org/abs/1908.07442"&gt;http://arxiv.org/abs/1908.07442&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-higgs"&gt;
+&lt;p&gt;Baldi, P., P. Sadowski, and D. Whiteson. 2014. “Searching for exotic particles in high-energy physics with deep learning.” &lt;em&gt;Nature Communications&lt;/em&gt; 5 (July): 4308. &lt;a href="https://doi.org/10.1038/ncomms5308"&gt;https://doi.org/10.1038/ncomms5308&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-rudin2018stop"&gt;
+&lt;p&gt;Rudin, Cynthia. 2018. “Stop Explaining Black Box Machine Learning Models for High Stakes Decisions and Use Interpretable Models Instead.” &lt;a href="http://arxiv.org/abs/1811.10154"&gt;http://arxiv.org/abs/1811.10154&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-wachter"&gt;
+&lt;p&gt;Wachter, Sandra, Brent Mittelstadt, and Luciano Floridi. 2017. “Why a Right to Explanation of Automated Decision-Making Does Not Exist in the General Data Protection Regulation.” &lt;em&gt;International Data Privacy Law&lt;/em&gt; 7 (2): 76–99. &lt;a href="https://doi.org/10.1093/idpl/ipx005"&gt;https://doi.org/10.1093/idpl/ipx005&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;I’m using the term “naively” here. For a short discussion, see the final section, [Interpretable, explainable, you tell me – beyond arbitrary definitions].&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;Apart from the number of epochs, that is.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn3"&gt;&lt;p&gt;The number of epochs is set to one for demonstration purposes only; in reality, you will want to tune this as well.&lt;a href="#fnref3" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn4"&gt;&lt;p&gt;See, e.g., &lt;a href="http://www.odbms.org/2018/07/ai-machine-learning-and-the-gdpr-are-the-wild-west-days-of-advanced-analytics-over/" class="uri"&gt;&amp;lt;http://www.odbms.org/2018/07/ai-machine-learning-and-the-gdpr-are-the-wild-west-days-of-advanced-analytics-over/&amp;gt;&lt;/a&gt;.&lt;a href="#fnref4" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5>a262e0f56738bbb7c83ab553a7ea6e34</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Tabular Data</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2021-02-11-tabnet</guid>
+      <pubDate>Thu, 11 Feb 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2021-02-11-tabnet/images/d.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Simple audio classification with torch</title>
       <dc:creator>Athos Damiani</dc:creator>
@@ -8657,8 +8957,8 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-b0e60b7d57d99c85583b" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-b0e60b7d57d99c85583b"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;div id="htmlwidget-b2afbcf14660342fe0eb" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-b2afbcf14660342fe0eb"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
 &lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 &lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;

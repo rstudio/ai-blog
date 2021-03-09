@@ -81,7 +81,7 @@ knitr::include_graphics("images/july_2014.png")
 
 ```
 
-It's winter; temperature fluctuates below average, while electricity demand is above average (heating). There is strong variation over the course of the day; we see troughs in the demand curve corresponding to ridges in the temperature graph, and vice versa. While diurnal variation dominates, there is hebdomadal variation as well. Between weeks though, we don't see much difference.
+It's winter; temperature fluctuates below average, while electricity demand is above average (heating). There is strong variation over the course of the day; we see troughs in the demand curve corresponding to ridges in the temperature graph, and vice versa. While diurnal variation dominates, the rhythm of weekdays and weekends is there as well. Between weeks though, we don't see much difference.
 
 Compare this with the data for January:
 
@@ -129,9 +129,7 @@ Now that we have an idea what awaits us, let's begin by creating a `torch` `data
 
 # Data input
 
-For that purpose, we need to be able to clearly formulate what we intend to do.
-
-We want to start our journey into forecasting by using a sequence of observations to predict their immediate successor. In other words, the input (`x`) for each batch item is a vector, while the target (`y`) is a single value. The length of the input sequence, `x`, is parameterized as `n_timesteps`, the number of consecutive observations to extrapolate from.
+Here is what we intend to do. We want to start our journey into forecasting by using a sequence of observations to predict their immediate successor. In other words, the input (`x`) for each batch item is a vector, while the target (`y`) is a single value. The length of the input sequence, `x`, is parameterized as `n_timesteps`, the number of consecutive observations to extrapolate from.
 
 The `dataset` will reflect this in its `.getitem()` method. When asked for the observations at index `i`, it will return tensors like so:
 
@@ -299,7 +297,7 @@ test_dl <- test_ds %>% dataloader(batch_size = 1)
 
 The model consists of an RNN -- of type GRU or LSTM, as per the user's choice -- and an output layer. The RNN does most of the work; the single-neuron linear layer that outputs the prediction compresses its vector input to a single value.
 
-Here, first, is the model definition; read on for a more detailed explanation.
+Here, first, is the model definition.
 
 ```{r}
 model <- nn_module(
@@ -390,7 +388,7 @@ In later posts, we will make use of more than the last time step. Sometimes, we'
 
 [^2]: Again, see [this post](https://blogs.rstudio.com/ai/posts/2020-12-17-torch-convlstm/#interlude-outputs-states-hidden-values-whats-what) for more details.
 
-Now that we've talked about `forward()`, less is to be said about `initialize()`. For ease of experimentation, we instantiate either a GRU or an LSTM based on user input. Two things are worth noting:
+On to `initialize()`. For ease of experimentation, we instantiate either a GRU or an LSTM based on user input. Two things are worth noting:
 
 -   We pass `batch_first = TRUE` when creating the RNNs. This is required with `torch` RNNs when we want to consistently have batch items stacked in the first dimension. And we *do* want that; it is arguably less confusing than a change of dimension semantics for one sub-type of module.
 
@@ -546,9 +544,9 @@ knitr::include_graphics("images/one-step-preds.png")
 
 Overall, the forecast is excellent, but it is interesting to see how the forecast "regularizes" the most extreme peaks. This kind of "regression to the mean" will be seen much more strongly in later setups, when we try to forecast further into the future.
 
-In fact, above we said we'd have a first go at multi-step prediction in this post already. Let's do this now.
+Can we use our current architecture for multi-step prediction? We can.
 
-With our current architecture, one thing we can do is feed back the current prediction, that is, append it to the input sequence as soon as it is available. Effectively thus, for each batch item, we obtain a sequence of predictions in a loop.
+One thing we can do is feed back the current prediction, that is, append it to the input sequence as soon as it is available. Effectively thus, for each batch item, we obtain a sequence of predictions in a loop.
 
 We'll try to forecast 336 time steps, that is, a complete week.
 
@@ -612,7 +610,7 @@ preds_ts %>%
 knitr::include_graphics("images/loop_preds.png")
 ```
 
-Even with this very basic forecasting technique, the diurnal rhythm is preserved, albeit in a strongly smoothed form. There is even apparent hebdomadal periodicity in the forecast. We do see, however, very strong regression to the mean, even in loop instances where the network was "primed" with a higher input sequence.
+Even with this very basic forecasting technique, the diurnal rhythm is preserved, albeit in a strongly smoothed form. There even is an apparent weekend-weekday periodicity in the forecast. We do see, however, very strong regression to the mean, even in loop instances where the network was "primed" with a higher input sequence.
 
 # Conclusion
 

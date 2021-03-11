@@ -12,7 +12,448 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Wed, 10 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 11 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch time series continued: A first go at multi-step prediction</title>
+      <dc:creator>Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2021-03-11-forecasting-time-series-with-torch_2</link>
+      <description>
+
+
+&lt;p&gt;We pick up where the &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/"&gt;first post in this series&lt;/a&gt; left us: confronting the task of multi-step time-series forecasting.&lt;/p&gt;
+&lt;p&gt;Our first attempt was a workaround of sorts. The model had been trained to deliver a single prediction, corresponding to the very next point in time. Thus, if we needed a longer forecast, all we could do is use that prediction and feed it back to the model, moving the input sequence by one value (from &lt;span class="math inline"&gt;\([x_{t-n}, ..., x_t]\)&lt;/span&gt; to &lt;span class="math inline"&gt;\([x_{t-n-1}, ..., x_{t+1}]\)&lt;/span&gt;, say).&lt;/p&gt;
+&lt;p&gt;In contrast, the new model will be designed – and trained – to forecast a configurable number of observations at once. The architecture will still be basic – about as basic as possible, given the task – and thus, can serve as a baseline for later attempts.&lt;/p&gt;
+&lt;h1 id="data-input"&gt;Data input&lt;/h1&gt;
+&lt;p&gt;We work with the same data as before, &lt;code&gt;vic_elec&lt;/code&gt; from &lt;code&gt;tsibbledata&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Compared to last time though, the &lt;code&gt;dataset&lt;/code&gt; class has to change. While, previously, for each batch item the target (&lt;code&gt;y&lt;/code&gt;) was a single value, it now is a vector, just like the input, &lt;code&gt;x&lt;/code&gt;. And just like &lt;code&gt;n_timesteps&lt;/code&gt; was (and still is) used to specify the length of the input sequence, there is now a second parameter, &lt;code&gt;n_forecast&lt;/code&gt;, to configure target size.&lt;/p&gt;
+&lt;p&gt;In our example, &lt;code&gt;n_timesteps&lt;/code&gt; and &lt;code&gt;n_forecast&lt;/code&gt; are set to the same value, but there is no need for this to be the case. You could equally well train on week-long sequences and then forecast developments over a single day, or a month.&lt;/p&gt;
+&lt;p&gt;Apart from the fact that &lt;code&gt;.getitem()&lt;/code&gt; now returns a vector for &lt;code&gt;y&lt;/code&gt; as well as &lt;code&gt;x&lt;/code&gt;, there is not much to be said about dataset creation. Here is the complete code to set up the data input pipeline:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;n_timesteps &amp;lt;- 7 * 24 * 2
+n_forecast &amp;lt;- 7 * 24 * 2 
+batch_size &amp;lt;- 32
+
+vic_elec_get_year &amp;lt;- function(year, month = NULL) {
+  vic_elec %&amp;gt;%
+    filter(year(Date) == year, month(Date) == if (is.null(month)) month(Date) else month) %&amp;gt;%
+    as_tibble() %&amp;gt;%
+    select(Demand)
+}
+
+elec_train &amp;lt;- vic_elec_get_year(2012) %&amp;gt;% as.matrix()
+elec_valid &amp;lt;- vic_elec_get_year(2013) %&amp;gt;% as.matrix()
+elec_test &amp;lt;- vic_elec_get_year(2014, 1) %&amp;gt;% as.matrix()
+
+train_mean &amp;lt;- mean(elec_train)
+train_sd &amp;lt;- sd(elec_train)
+
+elec_dataset &amp;lt;- dataset(
+  name = &amp;quot;elec_dataset&amp;quot;,
+  
+  initialize = function(x, n_timesteps, n_forecast, sample_frac = 1) {
+    
+    self$n_timesteps &amp;lt;- n_timesteps
+    self$n_forecast &amp;lt;- n_forecast
+    self$x &amp;lt;- torch_tensor((x - train_mean) / train_sd)
+    
+    n &amp;lt;- length(self$x) - self$n_timesteps - self$n_forecast + 1
+    
+    self$starts &amp;lt;- sort(sample.int(
+      n = n,
+      size = n * sample_frac
+    ))
+    
+  },
+  
+  .getitem = function(i) {
+    
+    start &amp;lt;- self$starts[i]
+    end &amp;lt;- start + self$n_timesteps - 1
+    pred_length &amp;lt;- self$n_forecast
+    
+    list(
+      x = self$x[start:end],
+      y = self$x[(end + 1):(end + pred_length)]$squeeze(2)
+    )
+    
+  },
+  
+  .length = function() {
+    length(self$starts) 
+  }
+)
+
+train_ds &amp;lt;- elec_dataset(elec_train, n_timesteps, n_forecast, sample_frac = 0.5)
+train_dl &amp;lt;- train_ds %&amp;gt;% dataloader(batch_size = batch_size, shuffle = TRUE)
+
+valid_ds &amp;lt;- elec_dataset(elec_valid, n_timesteps, n_forecast, sample_frac = 0.5)
+valid_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = batch_size)
+
+test_ds &amp;lt;- elec_dataset(elec_test, n_timesteps, n_forecast)
+test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="model"&gt;Model&lt;/h1&gt;
+&lt;p&gt;The model replaces the single linear layer that, in the previous post, had been tasked with outputting the final prediction, with a small network, complete with two linear layers and – optional – dropout.&lt;/p&gt;
+&lt;p&gt;In &lt;code&gt;forward()&lt;/code&gt;, we first apply the RNN, and just like in the previous post, we make use of the &lt;code&gt;outputs&lt;/code&gt; only; or more specifically, the &lt;code&gt;output&lt;/code&gt; corresponding to the final time step. (See that previous post for a &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/#model"&gt;detailed discussion&lt;/a&gt; of what a &lt;code&gt;torch&lt;/code&gt; RNN returns.)&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;model &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, linear_size, output_size,
+                        num_layers = 1, dropout = 0, linear_dropout = 0) {
+    
+    self$type &amp;lt;- type
+    self$num_layers &amp;lt;- num_layers
+    self$linear_dropout &amp;lt;- linear_dropout
+    
+    self$rnn &amp;lt;- if (self$type == &amp;quot;gru&amp;quot;) {
+      nn_gru(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    } else {
+      nn_lstm(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    }
+    
+    self$mlp &amp;lt;- nn_sequential(
+      nn_linear(hidden_size, linear_size),
+      nn_relu(),
+      nn_dropout(linear_dropout),
+      nn_linear(linear_size, output_size)
+    )
+    
+  },
+  
+  forward = function(x) {
+    
+    x &amp;lt;- self$rnn(x)
+    x[[1]][ ,-1, ..] %&amp;gt;% 
+      self$mlp()
+    
+  }
+  
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For model instantiation, we now have an additional configuration parameter, related to the amount of dropout between the two linear layers.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net &amp;lt;- model(
+  &amp;quot;gru&amp;quot;, input_size = 1, hidden_size = 32, linear_size = 512, output_size = n_forecast, linear_dropout = 0
+  )
+
+# training RNNs on the GPU currently prints a warning that may clutter 
+# the console
+# see https://github.com/mlverse/torch/issues/461
+# alternatively, use 
+# device &amp;lt;- &amp;quot;cpu&amp;quot;
+device &amp;lt;- torch_device(if (cuda_is_available()) &amp;quot;cuda&amp;quot; else &amp;quot;cpu&amp;quot;)
+
+net &amp;lt;- net$to(device = device)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="training"&gt;Training&lt;/h1&gt;
+&lt;p&gt;The training procedure is completely unchanged.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(net$parameters, lr = 0.001)
+
+num_epochs &amp;lt;- 30
+
+train_batch &amp;lt;- function(b) {
+  
+  optimizer$zero_grad()
+  output &amp;lt;- net(b$x$to(device = device))
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss$backward()
+  optimizer$step()
+  
+  loss$item()
+}
+
+valid_batch &amp;lt;- function(b) {
+  
+  output &amp;lt;- net(b$x$to(device = device))
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss$item()
+  
+}
+
+for (epoch in 1:num_epochs) {
+  
+  net$train()
+  train_loss &amp;lt;- c()
+  
+  coro::loop(for (b in train_dl) {
+    loss &amp;lt;-train_batch(b)
+    train_loss &amp;lt;- c(train_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, training: loss: %3.5f \n&amp;quot;, epoch, mean(train_loss)))
+  
+  net$eval()
+  valid_loss &amp;lt;- c()
+  
+  coro::loop(for (b in valid_dl) {
+    loss &amp;lt;- valid_batch(b)
+    valid_loss &amp;lt;- c(valid_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, validation: loss: %3.5f \n&amp;quot;, epoch, mean(valid_loss)))
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# Epoch 1, training: loss: 0.65737 
+# 
+# Epoch 1, validation: loss: 0.54586 
+# 
+# Epoch 2, training: loss: 0.43991 
+# 
+# Epoch 2, validation: loss: 0.50588 
+# 
+# Epoch 3, training: loss: 0.42161 
+# 
+# Epoch 3, validation: loss: 0.50031 
+# 
+# Epoch 4, training: loss: 0.41718 
+# 
+# Epoch 4, validation: loss: 0.48703 
+# 
+# Epoch 5, training: loss: 0.39498 
+# 
+# Epoch 5, validation: loss: 0.49572 
+# 
+# Epoch 6, training: loss: 0.38073 
+# 
+# Epoch 6, validation: loss: 0.46813 
+# 
+# Epoch 7, training: loss: 0.36472 
+# 
+# Epoch 7, validation: loss: 0.44957 
+# 
+# Epoch 8, training: loss: 0.35058 
+# 
+# Epoch 8, validation: loss: 0.44440 
+# 
+# Epoch 9, training: loss: 0.33880 
+# 
+# Epoch 9, validation: loss: 0.41995 
+# 
+# Epoch 10, training: loss: 0.32545 
+# 
+# Epoch 10, validation: loss: 0.42021 
+# 
+# Epoch 11, training: loss: 0.31347 
+# 
+# Epoch 11, validation: loss: 0.39514 
+# 
+# Epoch 12, training: loss: 0.29622 
+# 
+# Epoch 12, validation: loss: 0.38146 
+# 
+# Epoch 13, training: loss: 0.28006 
+# 
+# Epoch 13, validation: loss: 0.37754 
+# 
+# Epoch 14, training: loss: 0.27001 
+# 
+# Epoch 14, validation: loss: 0.36636 
+# 
+# Epoch 15, training: loss: 0.26191 
+# 
+# Epoch 15, validation: loss: 0.35338 
+# 
+# Epoch 16, training: loss: 0.25533 
+# 
+# Epoch 16, validation: loss: 0.35453 
+# 
+# Epoch 17, training: loss: 0.25085 
+# 
+# Epoch 17, validation: loss: 0.34521 
+# 
+# Epoch 18, training: loss: 0.24686 
+# 
+# Epoch 18, validation: loss: 0.35094 
+# 
+# Epoch 19, training: loss: 0.24159 
+# 
+# Epoch 19, validation: loss: 0.33776 
+# 
+# Epoch 20, training: loss: 0.23680 
+# 
+# Epoch 20, validation: loss: 0.33974 
+# 
+# Epoch 21, training: loss: 0.23070 
+# 
+# Epoch 21, validation: loss: 0.34069 
+# 
+# Epoch 22, training: loss: 0.22761 
+# 
+# Epoch 22, validation: loss: 0.33724 
+# 
+# Epoch 23, training: loss: 0.22390 
+# 
+# Epoch 23, validation: loss: 0.34013 
+# 
+# Epoch 24, training: loss: 0.22155 
+# 
+# Epoch 24, validation: loss: 0.33460 
+# 
+# Epoch 25, training: loss: 0.21820 
+# 
+# Epoch 25, validation: loss: 0.33755 
+# 
+# Epoch 26, training: loss: 0.22134 
+# 
+# Epoch 26, validation: loss: 0.33678 
+# 
+# Epoch 27, training: loss: 0.21061 
+# 
+# Epoch 27, validation: loss: 0.33108 
+# 
+# Epoch 28, training: loss: 0.20496 
+# 
+# Epoch 28, validation: loss: 0.32769 
+# 
+# Epoch 29, training: loss: 0.20223 
+# 
+# Epoch 29, validation: loss: 0.32969 
+# 
+# Epoch 30, training: loss: 0.20022 
+# 
+# Epoch 30, validation: loss: 0.33331 &lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;From the way loss decreases on the training set, we conclude that, yes, the model is learning something. It probably would continue improving for quite some epochs still. We do, however, see less of an improvement on the validation set.&lt;/p&gt;
+&lt;p&gt;Naturally, now we’re curious about test-set predictions. (Remember, for testing we’re choosing the “particularly hard” month of January, 2014 – particularly hard because of a heatwave that resulted in exceptionally high demand.)&lt;/p&gt;
+&lt;h1 id="evaluation"&gt;Evaluation&lt;/h1&gt;
+&lt;p&gt;With no loop to be coded, evaluation now becomes pretty straightforward:&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net$eval()
+
+test_preds &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = length(test_dl))
+
+i &amp;lt;- 1
+
+coro::loop(for (b in test_dl) {
+  
+  input &amp;lt;- b$x
+  output &amp;lt;- net(input$to(device = device))
+  preds &amp;lt;- as.numeric(output)
+  
+  test_preds[[i]] &amp;lt;- preds
+  i &amp;lt;&amp;lt;- i + 1
+  
+})
+
+vic_elec_jan_2014 &amp;lt;- vic_elec %&amp;gt;%
+  filter(year(Date) == 2014, month(Date) == 1)
+
+test_pred1 &amp;lt;- test_preds[[1]]
+test_pred1 &amp;lt;- c(rep(NA, n_timesteps), test_pred1, rep(NA, nrow(vic_elec_jan_2014) - n_timesteps - n_forecast))
+
+test_pred2 &amp;lt;- test_preds[[408]]
+test_pred2 &amp;lt;- c(rep(NA, n_timesteps + 407), test_pred2, rep(NA, nrow(vic_elec_jan_2014) - 407 - n_timesteps - n_forecast))
+
+test_pred3 &amp;lt;- test_preds[[817]]
+test_pred3 &amp;lt;- c(rep(NA, nrow(vic_elec_jan_2014) - n_forecast), test_pred3)
+
+
+preds_ts &amp;lt;- vic_elec_jan_2014 %&amp;gt;%
+  select(Demand) %&amp;gt;%
+  add_column(
+    mlp_ex_1 = test_pred1 * train_sd + train_mean,
+    mlp_ex_2 = test_pred2 * train_sd + train_mean,
+    mlp_ex_3 = test_pred3 * train_sd + train_mean) %&amp;gt;%
+  pivot_longer(-Time) %&amp;gt;%
+  update_tsibble(key = name)
+
+
+preds_ts %&amp;gt;%
+  autoplot() +
+  scale_colour_manual(values = c(&amp;quot;#08c5d1&amp;quot;, &amp;quot;#00353f&amp;quot;, &amp;quot;#ffbf66&amp;quot;, &amp;quot;#d46f4d&amp;quot;)) +
+  theme_minimal()&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-03-11-forecasting-time-series-with-torch_2/images/multistep_preds.png" alt="One-week-ahead predictions for January, 2014." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-6)One-week-ahead predictions for January, 2014.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Compare this to the forecast obtained by feeding back predictions. The demand profiles over the day look a lot more realistic now. How about the phases of extreme demand? Evidently, these are not reflected in the forecast, not any more than in the “loop technique”. In fact, the forecast allows for interesting insights into this model’s personality: Apparently, it really likes fluctuating around the mean – “prime” it with inputs that oscillate around a significantly higher level, and it will quickly shift back to its comfort zone.&lt;/p&gt;
+&lt;h1 id="discussion"&gt;Discussion&lt;/h1&gt;
+&lt;p&gt;Seeing how, above, we provided an option to use dropout inside the MLP, you may be wondering if this would help with forecasts on the test set. Turns out it did not, in my experiments. Maybe this is not so strange either: How, absent external cues (temperature), should the network know that high demand is coming up?&lt;/p&gt;
+&lt;p&gt;In our analysis, we can make an additional distinction. With the first week of predictions, what we see is a failure to anticipate something that &lt;em&gt;could not&lt;/em&gt; reasonably have been anticipated (two, or two-and-a-half, say, days of exceptionally high demand). In the second, all the network would have had to do was stay at the current, elevated level. It will be interesting to see how this is handled by the architectures we discuss next.&lt;/p&gt;
+&lt;p&gt;Finally, an additional idea you may have had is – what if we used temperature as a second input variable? As a matter of fact, training performance indeed improved, but no performance impact was observed on the validation and test sets. Still, you may find the code useful – it is easily extended to datasets with more predictors. Therefore, we reproduce it in the appendix.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;h1 id="appendix"&gt;Appendix&lt;/h1&gt;
+&lt;pre class="r"&gt;&lt;code&gt;# Data input code modified to accommodate two predictors
+
+n_timesteps &amp;lt;- 7 * 24 * 2
+n_forecast &amp;lt;- 7 * 24 * 2
+
+vic_elec_get_year &amp;lt;- function(year, month = NULL) {
+  vic_elec %&amp;gt;%
+    filter(year(Date) == year, month(Date) == if (is.null(month)) month(Date) else month) %&amp;gt;%
+    as_tibble() %&amp;gt;%
+    select(Demand, Temperature)
+}
+
+elec_train &amp;lt;- vic_elec_get_year(2012) %&amp;gt;% as.matrix()
+elec_valid &amp;lt;- vic_elec_get_year(2013) %&amp;gt;% as.matrix()
+elec_test &amp;lt;- vic_elec_get_year(2014, 1) %&amp;gt;% as.matrix()
+
+train_mean_demand &amp;lt;- mean(elec_train[ , 1])
+train_sd_demand &amp;lt;- sd(elec_train[ , 1])
+
+train_mean_temp &amp;lt;- mean(elec_train[ , 2])
+train_sd_temp &amp;lt;- sd(elec_train[ , 2])
+
+elec_dataset &amp;lt;- dataset(
+  name = &amp;quot;elec_dataset&amp;quot;,
+  
+  initialize = function(data, n_timesteps, n_forecast, sample_frac = 1) {
+    
+    demand &amp;lt;- (data[ , 1] - train_mean_demand) / train_sd_demand
+    temp &amp;lt;- (data[ , 2] - train_mean_temp) / train_sd_temp
+    self$x &amp;lt;- cbind(demand, temp) %&amp;gt;% torch_tensor()
+    
+    self$n_timesteps &amp;lt;- n_timesteps
+    self$n_forecast &amp;lt;- n_forecast
+    
+    n &amp;lt;- nrow(self$x) - self$n_timesteps - self$n_forecast + 1
+    self$starts &amp;lt;- sort(sample.int(
+      n = n,
+      size = n * sample_frac
+    ))
+    
+  },
+  
+  .getitem = function(i) {
+    
+    start &amp;lt;- self$starts[i]
+    end &amp;lt;- start + self$n_timesteps - 1
+    pred_length &amp;lt;- self$n_forecast
+    
+    list(
+      x = self$x[start:end, ],
+      y = self$x[(end + 1):(end + pred_length), 1]
+    )
+    
+  },
+  
+  .length = function() {
+    length(self$starts)
+  }
+  
+)
+
+### rest identical to single-predictor code above&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Photo by &lt;a href="https://unsplash.com/@monicabourgeau?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;Monica Bourgeau&lt;/a&gt; on &lt;a href="/?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;Unsplash&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5>0a324a445fe9f1be38f62927848101e2</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Time Series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2021-03-11-forecasting-time-series-with-torch_2</guid>
+      <pubDate>Thu, 11 Mar 2021 00:00:00 +0000</pubDate>
+      <media:content url="https://blogs.rstudio.com/tensorflow/posts/2021-03-11-forecasting-time-series-with-torch_2/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>Introductory time series forecasting with torch</title>
       <dc:creator>Sigrid Keydana</dc:creator>
@@ -486,7 +927,7 @@ coro::loop(for (b in test_dl) {
   preds &amp;lt;- c(preds, output %&amp;gt;% as.numeric())
 })
 
-ic_elec_jan_2014 &amp;lt;-  vic_elec %&amp;gt;%
+vic_elec_jan_2014 &amp;lt;-  vic_elec %&amp;gt;%
   filter(year(Date) == 2014, month(Date) == 1) %&amp;gt;%
   select(Demand)
 
@@ -9761,8 +10202,8 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-d5ee9e47814478e2d6bf" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-d5ee9e47814478e2d6bf"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;div id="htmlwidget-a9539c77a524630f9d70" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-a9539c77a524630f9d70"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
 &lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 &lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;

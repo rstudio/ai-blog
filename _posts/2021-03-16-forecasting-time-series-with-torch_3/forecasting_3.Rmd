@@ -7,7 +7,7 @@ author:
     affiliation: RStudio
     affiliation_url: https://www.rstudio.com/
 slug: keydanatorchts2
-date: 03-15-2021
+date: 03-16-2021
 categories:
   - Torch
   - R
@@ -122,7 +122,7 @@ Technically, the model consists of three *modules*: the aforementioned encoder a
 
 The encoder takes its input and runs it through an RNN. Of the two things returned by a recurrent neural network, outputs and state, so far we've only been using output. This time, we do the opposite: We throw away the outputs, and only return the state.
 
-If the RNN in question is a GRU (and assuming that of the outputs, we take just the final time step, which is what we've been doing throughout), there really is no difference: The final state equals the final output. If it's an LSTM, however, there is a second, the "cell", state. In that case, returning the state instead of the final output will carry more information.
+If the RNN in question is a GRU (and assuming that of the outputs, we take just the final time step, which is what we've been doing throughout), there really is no difference: The final state equals the final output. If it's an LSTM, however, there is a second kind of state, the "cell state". In that case, returning the state instead of the final output will carry more information.
 
 ```{r}
 encoder_module <- nn_module(
@@ -167,7 +167,7 @@ encoder_module <- nn_module(
 
 ### Decoder
 
-In the decoder, too, the main component is an RNN. In contrast to previously-shown architectures, though, it does not just return a prediction. It also reports back the RNN's final state.
+In the decoder, just like in the encoder, the main component is an RNN. In contrast to previously-shown architectures, though, it does not just return a prediction. It also reports back the RNN's final state.
 
 ```{r}
 decoder_module <- nn_module(
@@ -224,7 +224,7 @@ decoder_module <- nn_module(
 
 If you look back to decoder `forward()`, you see that it takes two arguments: `x` and `state`.
 
-Dependent on the context, `x` corresponds to one of three things.
+Depending on the context, `x` corresponds to one of three things: final input, preceding prediction, or prior ground truth.
 
 -   The very first time the decoder is called on an input sequence, `x` maps to the final input value. This is different from a task like machine translation, where you would pass in a start token. With time series, though, we'd like to continue where the actual measurements stop.
 
@@ -232,7 +232,7 @@ Dependent on the context, `x` corresponds to one of three things.
 
 -   That said, in NLP a technique called "teacher forcing" is commonly used to speed up training. With teacher forcing, instead of the forecast we pass the actual ground truth, the thing the decoder should have predicted. We do that only in a configurable fraction of cases, and -- naturally -- only while training. The rationale behind this technique is that without this form of re-calibration, consecutive prediction errors can quickly erase any remaining signal.
 
-`state`, too, is polyvalent. But here, there are just two possibilities.
+`state`, too, is polyvalent. But here, there are just two possibilities: encoder state and decoder state.
 
 -   The first time the decoder is called, it is "seeded" with the final state from the encoder. Note how this is *the only time* we make use of the encoding.
 
@@ -436,9 +436,8 @@ preds_ts %>%
 knitr::include_graphics("images/seq2seq_preds.png")
 ```
 
-Comparing this to the forecast obtained from last time's RNN-MLP combo, we don't see much of a difference. Is this surprising? To me it is. If asked to speculate about the reason, I would probably say that, likely, in all of the setups we've used so far, the main carrier of information has been the final hidden state of the RNN (the single RNN in the two previous architectures, the *encoder* RNN in this one). It will be interesting to check this hypothesis in the last part of this series, where we augment the encoder-decoder architecture by *attention*.
+Comparing this to the forecast obtained from last time's RNN-MLP combo, we don't see much of a difference. Is this surprising? To me it is. If asked to speculate about the reason, I would probably say this: In all of the architectures we've used so far, the main carrier of information has been the final hidden state of the RNN (*one and only* RNN in the two previous setups, *encoder* RNN in this one). It will be interesting to see what happens in the last part of this series, where we augment the encoder-decoder architecture by *attention*.
 
 Thanks for reading!
 
 Photo by <a href="https://unsplash.com/@innocentrip?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Suzuha Kozuki</a> on <a href="/?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>
-  

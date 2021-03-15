@@ -21,7 +21,6 @@ output:
 preview: images/pt.png
 ---
 
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
@@ -32,7 +31,7 @@ Last January at [rstudio::conf](https://rstudio.com/conference/), in that distan
 
 So why did Daniel hesitate, and, if I recall correctly, give a not-too-conclusive answer? On the one hand, it was not clear whether compilation against `libtorch` would, on some operating systems, pose severe difficulties. (It did, but difficulties turned out to be surmountable.)[^1] On the other, the sheer amount of work involved in re-implementing -- not all, but a big amount of -- PyTorch in R seemed intimidating. Today, there is still lots of work to be done (we'll pick up that thread at the end), but the main obstacles have been ovecome, and enough components are available that `torch` can be useful to the R community. Thus, without further ado, let's train a neural network.
 
-[^1]:  In a nutshell, [Javier](https://twitter.com/javierluraschi) had the idea of wrapping `libtorch` into [lantern](https://github.com/mlverse/lantern), a C interface to `libtorch`, thus avoiding cross-compiler issues between MinGW and Visual Studio.
+[^1]: In a nutshell, [Javier](https://twitter.com/javierluraschi) had the idea of wrapping `libtorch` into [lantern](https://github.com/mlverse/lantern), a C interface to `libtorch`, thus avoiding cross-compiler issues between MinGW and Visual Studio.
 
 You're not at your laptop now? Just follow along in the [companion notebook on Colaboratory](https://colab.research.google.com/drive/1NdiN9n_a7NEvFpvjPDvxKTshrSWgxZK5?usp=sharing).
 
@@ -297,7 +296,7 @@ for (epoch in 1:5) {
 
   l <- c()
 
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     # make sure each batch's gradient updates are calculated from a fresh start
     optimizer$zero_grad()
     # get model predictions
@@ -310,7 +309,7 @@ for (epoch in 1:5) {
     optimizer$step()
     # track losses
     l <- c(l, loss$item())
-  }
+  })
 
   cat(sprintf("Loss at epoch %d: %3f\n", epoch, mean(l)))
 }
@@ -353,7 +352,7 @@ test_losses <- c()
 total <- 0
 correct <- 0
 
-for (b in enumerate(test_dl)) {
+coro::loop(for (b in test_dl) {
   output <- model(b[[1]]$to(device = "cuda"))
   labels <- b[[2]]$to(device = "cuda")
   loss <- nnf_cross_entropy(output, labels)
@@ -364,7 +363,7 @@ for (b in enumerate(test_dl)) {
   total <- total + labels$size(1)
   # add number of correct classifications in this batch to the aggregate
   correct <- correct + (predicted == labels)$sum()$item()
-}
+})
 
 mean(test_losses)
 ```

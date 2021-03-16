@@ -12,7 +12,390 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Thu, 11 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Tue, 16 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch time series, take three: Sequence-to-sequence prediction</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2021-03-16-forecasting-time-series-with-torch_3</link>
+      <description>
+
+
+&lt;p&gt;Today, we continue our exploration of multi-step time-series forecasting with &lt;code&gt;torch&lt;/code&gt;. This post is the third in a series.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/"&gt;Initially&lt;/a&gt;, we covered basics of recurrent neural networks (RNNs), and trained a model to predict the very next value in a sequence. We also found we could forecast quite a few steps ahead by feeding back individual predictions in a loop.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-11-forecasting-time-series-with-torch_2/"&gt;Next&lt;/a&gt;, we built a model “natively” for multi-step prediction. A small multi-layer-perceptron (MLP) was used to project RNN output to several time points in the future.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Of both approaches, the latter was the more successful. But conceptually, it has an unsatisfying touch to it: When the MLP extrapolates and generates output for, say, ten consecutive points in time, there is no causal relation between those. (Imagine a weather forecast for ten days that never got updated.)&lt;/p&gt;
+&lt;p&gt;Now, we’d like to try something more intuitively appealing. The input is a sequence; the output is a sequence. In natural language processing (NLP), this type of task is very common: It’s exactly the kind of situation we see with machine translation or summarization.&lt;/p&gt;
+&lt;p&gt;Quite fittingly, the types of models employed to these ends are named sequence-to-sequence models (often abbreviated &lt;em&gt;seq2seq&lt;/em&gt;). In a nutshell, they split up the task into two components: an encoding and a decoding part. The former is done just once per input-target pair. The latter is done in a loop, as in our first try. But the decoder has more information at its disposal: At each iteration, its processing is based on the previous prediction as well as previous state. That previous state will be the encoder’s when a loop is started, and its own ever thereafter.&lt;/p&gt;
+&lt;p&gt;Before discussing the model in detail, we need to adapt our data input mechanism.&lt;/p&gt;
+&lt;h1 id="data-input"&gt;Data input&lt;/h1&gt;
+&lt;p&gt;We continue working with &lt;code&gt;vic_elec&lt;/code&gt; , provided by &lt;code&gt;tsibbledata&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Again, the dataset definition in the current post looks a bit different from the way it did before; it’s the shape of the target that differs. This time, &lt;code&gt;y&lt;/code&gt; equals &lt;code&gt;x&lt;/code&gt;, shifted to the left by one.&lt;/p&gt;
+&lt;p&gt;The reason we do this is owed to the way we are going to train the network. With &lt;em&gt;seq2seq&lt;/em&gt;, people often use a technique called “teacher forcing” where, instead of feeding back its own prediction into the decoder module, you pass it the value it &lt;em&gt;should&lt;/em&gt; have predicted. To be clear, this is done during training only, and to a configurable degree.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;n_timesteps &amp;lt;- 7 * 24 * 2
+n_forecast &amp;lt;- n_timesteps
+
+vic_elec_get_year &amp;lt;- function(year, month = NULL) {
+  vic_elec %&amp;gt;%
+    filter(year(Date) == year, month(Date) == if (is.null(month)) month(Date) else month) %&amp;gt;%
+    as_tibble() %&amp;gt;%
+    select(Demand)
+}
+
+elec_train &amp;lt;- vic_elec_get_year(2012) %&amp;gt;% as.matrix()
+elec_valid &amp;lt;- vic_elec_get_year(2013) %&amp;gt;% as.matrix()
+elec_test &amp;lt;- vic_elec_get_year(2014, 1) %&amp;gt;% as.matrix()
+
+train_mean &amp;lt;- mean(elec_train)
+train_sd &amp;lt;- sd(elec_train)
+
+elec_dataset &amp;lt;- dataset(
+  name = &amp;quot;elec_dataset&amp;quot;,
+  
+  initialize = function(x, n_timesteps, sample_frac = 1) {
+    
+    self$n_timesteps &amp;lt;- n_timesteps
+    self$x &amp;lt;- torch_tensor((x - train_mean) / train_sd)
+    
+    n &amp;lt;- length(self$x) - self$n_timesteps - 1
+    
+    self$starts &amp;lt;- sort(sample.int(
+      n = n,
+      size = n * sample_frac
+    ))
+    
+  },
+  
+  .getitem = function(i) {
+    
+    start &amp;lt;- self$starts[i]
+    end &amp;lt;- start + self$n_timesteps - 1
+    lag &amp;lt;- 1
+    
+    list(
+      x = self$x[start:end],
+      y = self$x[(start+lag):(end+lag)]$squeeze(2)
+    )
+    
+  },
+  
+  .length = function() {
+    length(self$starts) 
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Dataset as well as dataloader instantations then can proceed as before.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;batch_size &amp;lt;- 32
+
+train_ds &amp;lt;- elec_dataset(elec_train, n_timesteps, sample_frac = 0.5)
+train_dl &amp;lt;- train_ds %&amp;gt;% dataloader(batch_size = batch_size, shuffle = TRUE)
+
+valid_ds &amp;lt;- elec_dataset(elec_valid, n_timesteps, sample_frac = 0.5)
+valid_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = batch_size)
+
+test_ds &amp;lt;- elec_dataset(elec_test, n_timesteps)
+test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="model"&gt;Model&lt;/h1&gt;
+&lt;p&gt;Technically, the model consists of three &lt;em&gt;modules&lt;/em&gt;: the aforementioned encoder and decoder, and the &lt;em&gt;seq2seq&lt;/em&gt; module that orchestrates them.&lt;/p&gt;
+&lt;h3 id="encoder"&gt;Encoder&lt;/h3&gt;
+&lt;p&gt;The encoder takes its input and runs it through an RNN. Of the two things returned by a recurrent neural network, outputs and state, so far we’ve only been using output. This time, we do the opposite: We throw away the outputs, and only return the state.&lt;/p&gt;
+&lt;p&gt;If the RNN in question is a GRU (and assuming that of the outputs, we take just the final time step, which is what we’ve been doing throughout), there really is no difference: The final state equals the final output. If it’s an LSTM, however, there is a second kind of state, the “cell state”. In that case, returning the state instead of the final output will carry more information.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;encoder_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, num_layers = 1, dropout = 0) {
+    
+    self$type &amp;lt;- type
+    
+    self$rnn &amp;lt;- if (self$type == &amp;quot;gru&amp;quot;) {
+      nn_gru(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    } else {
+      nn_lstm(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    }
+    
+  },
+  
+  forward = function(x) {
+    
+    x &amp;lt;- self$rnn(x)
+    
+    # return last states for all layers
+    # per layer, a single tensor for GRU, a list of 2 tensors for LSTM
+    x &amp;lt;- x[[2]]
+    x
+    
+  }
+  
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="decoder"&gt;Decoder&lt;/h3&gt;
+&lt;p&gt;In the decoder, just like in the encoder, the main component is an RNN. In contrast to previously-shown architectures, though, it does not just return a prediction. It also reports back the RNN’s final state.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;decoder_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, num_layers = 1) {
+    
+    self$type &amp;lt;- type
+    
+    self$rnn &amp;lt;- if (self$type == &amp;quot;gru&amp;quot;) {
+      nn_gru(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        batch_first = TRUE
+      )
+    } else {
+      nn_lstm(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        batch_first = TRUE
+      )
+    }
+    
+    self$linear &amp;lt;- nn_linear(hidden_size, 1)
+    
+  },
+  
+  forward = function(x, state) {
+    
+    # input to forward:
+    # x is (batch_size, 1, 1)
+    # state is (1, batch_size, hidden_size)
+    x &amp;lt;- self$rnn(x, state)
+    
+    # break up RNN return values
+    # output is (batch_size, 1, hidden_size)
+    # next_hidden is
+    c(output, next_hidden) %&amp;lt;-% x
+    
+    output &amp;lt;- output$squeeze(2)
+    output &amp;lt;- self$linear(output)
+    
+    list(output, next_hidden)
+    
+  }
+  
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="seq2seq-module"&gt;&lt;code&gt;seq2seq&lt;/code&gt; module&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;seq2seq&lt;/code&gt; is where the action happens. The plan is to encode once, then call the decoder in a loop.&lt;/p&gt;
+&lt;p&gt;If you look back to decoder &lt;code&gt;forward()&lt;/code&gt;, you see that it takes two arguments: &lt;code&gt;x&lt;/code&gt; and &lt;code&gt;state&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Depending on the context, &lt;code&gt;x&lt;/code&gt; corresponds to one of three things: final input, preceding prediction, or prior ground truth.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;The very first time the decoder is called on an input sequence, &lt;code&gt;x&lt;/code&gt; maps to the final input value. This is different from a task like machine translation, where you would pass in a start token. With time series, though, we’d like to continue where the actual measurements stop.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;In further calls, we want the decoder to continue from its most recent prediction. It is only logical, thus, to pass back the preceding forecast.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;That said, in NLP a technique called “teacher forcing” is commonly used to speed up training. With teacher forcing, instead of the forecast we pass the actual ground truth, the thing the decoder should have predicted. We do that only in a configurable fraction of cases, and – naturally – only while training. The rationale behind this technique is that without this form of re-calibration, consecutive prediction errors can quickly erase any remaining signal.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;state&lt;/code&gt;, too, is polyvalent. But here, there are just two possibilities: encoder state and decoder state.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;The first time the decoder is called, it is “seeded” with the final state from the encoder. Note how this is &lt;em&gt;the only time&lt;/em&gt; we make use of the encoding.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;From then on, the decoder’s own previous state will be passed. Remember how it returns two values, forecast and state?&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre class="r"&gt;&lt;code&gt;seq2seq_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, n_forecast, num_layers = 1, encoder_dropout = 0) {
+    
+    self$encoder &amp;lt;- encoder_module(type = type, input_size = input_size,
+                                   hidden_size = hidden_size, num_layers, encoder_dropout)
+    self$decoder &amp;lt;- decoder_module(type = type, input_size = input_size,
+                                   hidden_size = hidden_size, num_layers)
+    self$n_forecast &amp;lt;- n_forecast
+    
+  },
+  
+  forward = function(x, y, teacher_forcing_ratio) {
+    
+    # prepare empty output
+    outputs &amp;lt;- torch_zeros(dim(x)[1], self$n_forecast)$to(device = device)
+    
+    # encode current input sequence
+    hidden &amp;lt;- self$encoder(x)
+    
+    # prime decoder with final input value and hidden state from the encoder
+    out &amp;lt;- self$decoder(x[ , n_timesteps, , drop = FALSE], hidden)
+    
+    # decompose into predictions and decoder state
+    # pred is (batch_size, 1)
+    # state is (1, batch_size, hidden_size)
+    c(pred, state) %&amp;lt;-% out
+    
+    # store first prediction
+    outputs[ , 1] &amp;lt;- pred$squeeze(2)
+    
+    # iterate to generate remaining forecasts
+    for (t in 2:self$n_forecast) {
+      
+      # call decoder on either ground truth or previous prediction, plus previous decoder state
+      teacher_forcing &amp;lt;- runif(1) &amp;lt; teacher_forcing_ratio
+      input &amp;lt;- if (teacher_forcing == TRUE) y[ , t - 1, drop = FALSE] else pred
+      input &amp;lt;- input$unsqueeze(3)
+      out &amp;lt;- self$decoder(input, state)
+      
+      # again, decompose decoder return values
+      c(pred, state) %&amp;lt;-% out
+      # and store current prediction
+      outputs[ , t] &amp;lt;- pred$squeeze(2)
+    }
+    outputs
+  }
+  
+)
+
+net &amp;lt;- seq2seq_module(&amp;quot;gru&amp;quot;, input_size = 1, hidden_size = 32, n_forecast = n_forecast)
+
+# training RNNs on the GPU currently prints a warning that may clutter 
+# the console
+# see https://github.com/mlverse/torch/issues/461
+# alternatively, use 
+# device &amp;lt;- &amp;quot;cpu&amp;quot;
+device &amp;lt;- torch_device(if (cuda_is_available()) &amp;quot;cuda&amp;quot; else &amp;quot;cpu&amp;quot;)
+
+net &amp;lt;- net$to(device = device)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="training"&gt;Training&lt;/h1&gt;
+&lt;p&gt;The training procedure is &lt;em&gt;mainly&lt;/em&gt; unchanged. We do, however, need to decide about &lt;code&gt;teacher_forcing_ratio&lt;/code&gt;, the proportion of input sequences we want to perform re-calibration on. In &lt;code&gt;valid_batch()&lt;/code&gt;, this should always be &lt;code&gt;0&lt;/code&gt;, while in &lt;code&gt;train_batch()&lt;/code&gt;, it’s up to us (or rather, experimentation). Here, we set it to &lt;code&gt;0.3&lt;/code&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(net$parameters, lr = 0.001)
+
+num_epochs &amp;lt;- 50
+
+train_batch &amp;lt;- function(b, teacher_forcing_ratio) {
+  
+  optimizer$zero_grad()
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss$backward()
+  optimizer$step()
+  
+  loss$item()
+  
+}
+
+valid_batch &amp;lt;- function(b, teacher_forcing_ratio = 0) {
+  
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  
+  loss$item()
+  
+}
+
+for (epoch in 1:num_epochs) {
+  
+  net$train()
+  train_loss &amp;lt;- c()
+  
+  coro::loop(for (b in train_dl) {
+    loss &amp;lt;-train_batch(b, teacher_forcing_ratio = 0.3)
+    train_loss &amp;lt;- c(train_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, training: loss: %3.5f \n&amp;quot;, epoch, mean(train_loss)))
+  
+  net$eval()
+  valid_loss &amp;lt;- c()
+  
+  coro::loop(for (b in valid_dl) {
+    loss &amp;lt;- valid_batch(b)
+    valid_loss &amp;lt;- c(valid_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, validation: loss: %3.5f \n&amp;quot;, epoch, mean(valid_loss)))
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Epoch 1, training: loss: 0.37961 
+
+Epoch 1, validation: loss: 1.10699 
+
+Epoch 2, training: loss: 0.19355 
+
+Epoch 2, validation: loss: 1.26462 
+
+# ...
+# ...
+
+Epoch 49, training: loss: 0.03233 
+
+Epoch 49, validation: loss: 0.62286 
+
+Epoch 50, training: loss: 0.03091 
+
+Epoch 50, validation: loss: 0.54457&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It’s interesting to compare performances for different settings of &lt;code&gt;teacher_forcing_ratio&lt;/code&gt;. With a setting of &lt;code&gt;0.5&lt;/code&gt;, training loss decreases a lot more slowly; the opposite is seen with a setting of &lt;code&gt;0&lt;/code&gt;. Validation loss, however, is not affected significantly.&lt;/p&gt;
+&lt;h1 id="evaluation"&gt;Evaluation&lt;/h1&gt;
+&lt;p&gt;The code to inspect test-set forecasts is unchanged.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net$eval()
+
+test_preds &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = length(test_dl))
+
+i &amp;lt;- 1
+
+coro::loop(for (b in test_dl) {
+  
+  input &amp;lt;- b$x
+  output &amp;lt;- net(input$to(device = device))
+  preds &amp;lt;- as.numeric(output)
+  
+  test_preds[[i]] &amp;lt;- preds
+  i &amp;lt;&amp;lt;- i + 1
+  
+})
+
+vic_elec_jan_2014 &amp;lt;- vic_elec %&amp;gt;%
+  filter(year(Date) == 2014, month(Date) == 1)
+
+test_pred1 &amp;lt;- test_preds[[1]]
+test_pred1 &amp;lt;- c(rep(NA, n_timesteps), test_pred1, rep(NA, nrow(vic_elec_jan_2014) - n_timesteps - n_forecast))
+
+test_pred2 &amp;lt;- test_preds[[408]]
+test_pred2 &amp;lt;- c(rep(NA, n_timesteps + 407), test_pred2, rep(NA, nrow(vic_elec_jan_2014) - 407 - n_timesteps - n_forecast))
+
+test_pred3 &amp;lt;- test_preds[[817]]
+test_pred3 &amp;lt;- c(rep(NA, nrow(vic_elec_jan_2014) - n_forecast), test_pred3)
+
+
+preds_ts &amp;lt;- vic_elec_jan_2014 %&amp;gt;%
+  select(Demand) %&amp;gt;%
+  add_column(
+    mlp_ex_1 = test_pred1 * train_sd + train_mean,
+    mlp_ex_2 = test_pred2 * train_sd + train_mean,
+    mlp_ex_3 = test_pred3 * train_sd + train_mean) %&amp;gt;%
+  pivot_longer(-Time) %&amp;gt;%
+  update_tsibble(key = name)
+
+
+preds_ts %&amp;gt;%
+  autoplot() +
+  scale_colour_manual(values = c(&amp;quot;#08c5d1&amp;quot;, &amp;quot;#00353f&amp;quot;, &amp;quot;#ffbf66&amp;quot;, &amp;quot;#d46f4d&amp;quot;)) +
+  theme_minimal()&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-03-16-forecasting-time-series-with-torch_3/images/seq2seq_preds.png" alt="One-week-ahead predictions for January, 2014." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-8)One-week-ahead predictions for January, 2014.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Comparing this to the forecast obtained from last time’s RNN-MLP combo, we don’t see much of a difference. Is this surprising? To me it is. If asked to speculate about the reason, I would probably say this: In all of the architectures we’ve used so far, the main carrier of information has been the final hidden state of the RNN (&lt;em&gt;one and only&lt;/em&gt; RNN in the two previous setups, &lt;em&gt;encoder&lt;/em&gt; RNN in this one). It will be interesting to see what happens in the last part of this series, when we augment the encoder-decoder architecture by &lt;em&gt;attention&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;p&gt;Photo by &lt;a href="https://unsplash.com/@innocentrip?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText"&gt;Suzuha Kozuki&lt;/a&gt; on &lt;a href="/?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText"&gt;Unsplash&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">5a168c5d78b7894cba69d50a3b88ceaf</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Time Series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2021-03-16-forecasting-time-series-with-torch_3</guid>
+      <pubDate>Tue, 16 Mar 2021 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2021-03-16-forecasting-time-series-with-torch_3/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>torch time series continued: A first go at multi-step prediction</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
@@ -455,7 +838,7 @@ elec_dataset &amp;lt;- dataset(
       <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2021-03-11-forecasting-time-series-with-torch_2/images/preview.jpg" medium="image" type="image/jpeg"/>
     </item>
     <item>
-      <title>Introductory time series forecasting with torch</title>
+      <title>Introductory time-series forecasting with torch</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
       <link>https://blogs.rstudio.com/tensorflow/posts/2021-03-10-forecasting-time-series-with-torch_1</link>
       <description>
@@ -551,7 +934,7 @@ cmp %&amp;gt;% autoplot()&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;Now, if the &lt;code&gt;dataset&lt;/code&gt; just iterated over its input in order, advancing the index one at a time, these lines could simply read&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;list(
       x = self$x[i:(i + self$n_timesteps - 1)],
-      y = self$x[self$n_timesteps + 1]
+      y = self$x[self$n_timesteps + i]
 )&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;Since many sequences in the data are similar, we can reduce training time by making use of a fraction of the data in every epoch. This can be accomplished by (optionally) passing a &lt;code&gt;sample_frac&lt;/code&gt; smaller than 1. In &lt;code&gt;initialize()&lt;/code&gt;, a random set of start indices is prepared; &lt;code&gt;.getitem()&lt;/code&gt; then just does what it normally does: look for the &lt;code&gt;(x,y)&lt;/code&gt; pair at a given index.&lt;/p&gt;
 &lt;p&gt;Here is the complete &lt;code&gt;dataset&lt;/code&gt; code:&lt;/p&gt;
@@ -5685,12 +6068,12 @@ for (epoch in 1:num_epochs) {
   train_dice &amp;lt;- c()
   train_loss &amp;lt;- c()
   
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     c(bce_loss, dice_loss, loss) %&amp;lt;-% train_batch(b)
     train_bce &amp;lt;- c(train_bce, bce_loss)
     train_dice &amp;lt;- c(train_dice, dice_loss)
     train_loss &amp;lt;- c(train_loss, loss)
-  }
+  })
   
   torch_save(model, paste0(&amp;quot;model_&amp;quot;, epoch, &amp;quot;.pt&amp;quot;))
   
@@ -5703,7 +6086,7 @@ for (epoch in 1:num_epochs) {
   valid_loss &amp;lt;- c()
   
   i &amp;lt;- 0
-  for (b in enumerate(valid_dl)) {
+  coro::loop(for (b in tvalid_dl) {
     
     i &amp;lt;&amp;lt;- i + 1
     c(bce_loss, dice_loss, loss) %&amp;lt;-% valid_batch(b)
@@ -5711,7 +6094,7 @@ for (epoch in 1:num_epochs) {
     valid_dice &amp;lt;- c(valid_dice, dice_loss)
     valid_loss &amp;lt;- c(valid_loss, loss)
     
-  }
+  })
   
   cat(sprintf(&amp;quot;\nEpoch %d, validation: loss:%3f, bce: %3f, dice: %3f\n&amp;quot;,
               epoch, mean(valid_loss), mean(valid_bce), mean(valid_dice)))
@@ -6017,23 +6400,23 @@ for (epoch in 1:20) {
   model$train()
   train_losses &amp;lt;- c()  
 
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     optimizer$zero_grad()
     output &amp;lt;- model(b$x[[1]]$to(device = device), b$x[[2]]$to(device = device))
     loss &amp;lt;- nnf_binary_cross_entropy(output, b$y$to(dtype = torch_float(), device = device))
     loss$backward()
     optimizer$step()
     train_losses &amp;lt;- c(train_losses, loss$item())
-  }
+  })
 
   model$eval()
   valid_losses &amp;lt;- c()
 
-  for (b in enumerate(valid_dl)) {
+  coro::loop(for (b in valid_dl) {
     output &amp;lt;- model(b$x[[1]]$to(device = device), b$x[[2]]$to(device = device))
     loss &amp;lt;- nnf_binary_cross_entropy(output, b$y$to(dtype = torch_float(), device = device))
     valid_losses &amp;lt;- c(valid_losses, loss$item())
-  }
+  })
 
   cat(sprintf(&amp;quot;Loss at epoch %d: training: %3f, validation: %3f\n&amp;quot;, epoch, mean(train_losses), mean(valid_losses)))
 }&lt;/code&gt;&lt;/pre&gt;
@@ -6394,7 +6777,7 @@ find_lr &amp;lt;- function(init_value = 1e-8, final_value = 10, beta = 0.98) {
   best_loss &amp;lt;- 0
   batch_num &amp;lt;- 0
 
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
 
     batch_num &amp;lt;- batch_num + 1
     optimizer$zero_grad()
@@ -6419,7 +6802,7 @@ find_lr &amp;lt;- function(init_value = 1e-8, final_value = 10, beta = 0.98) {
     #Update the lr for the next step
     lr &amp;lt;- lr * mult
     optimizer$param_groups[[1]]$lr &amp;lt;- lr
-  }
+  })
 }
 
 find_lr()
@@ -6476,18 +6859,18 @@ for (epoch in 1:num_epochs) {
   model$train()
   train_losses &amp;lt;- c()
 
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     loss &amp;lt;- train_batch(b)
     train_losses &amp;lt;- c(train_losses, loss)
-  }
+  })
 
   model$eval()
   valid_losses &amp;lt;- c()
 
-  for (b in enumerate(valid_dl)) {
+  coro::loop(for (b in valid_dl) {
     loss &amp;lt;- valid_batch(b)
     valid_losses &amp;lt;- c(valid_losses, loss)
-  }
+  })
 
   cat(sprintf(&amp;quot;\nLoss at epoch %d: training: %3f, validation: %3f\n&amp;quot;, epoch, mean(train_losses), mean(valid_losses)))
 }&lt;/code&gt;&lt;/pre&gt;
@@ -8519,7 +8902,7 @@ loss &amp;lt;- nnf_cross_entropy(output, b[[2]]$to(device = &amp;quot;cuda&amp;q
 
   l &amp;lt;- c()
 
-  for (b in enumerate(train_dl)) {
+  coro::loop(for (b in train_dl) {
     # make sure each batch&amp;#39;s gradient updates are calculated from a fresh start
     optimizer$zero_grad()
     # get model predictions
@@ -8532,7 +8915,7 @@ loss &amp;lt;- nnf_cross_entropy(output, b[[2]]$to(device = &amp;quot;cuda&amp;q
     optimizer$step()
     # track losses
     l &amp;lt;- c(l, loss$item())
-  }
+  })
 
   cat(sprintf(&amp;quot;Loss at epoch %d: %3f\n&amp;quot;, epoch, mean(l)))
 }&lt;/code&gt;&lt;/pre&gt;
@@ -8558,7 +8941,7 @@ optimizer$step()&lt;/code&gt;&lt;/pre&gt;
 total &amp;lt;- 0
 correct &amp;lt;- 0
 
-for (b in enumerate(test_dl)) {
+coro::loop(for (b in test_dl) {
   output &amp;lt;- model(b[[1]]$to(device = &amp;quot;cuda&amp;quot;))
   labels &amp;lt;- b[[2]]$to(device = &amp;quot;cuda&amp;quot;)
   loss &amp;lt;- nnf_cross_entropy(output, labels)
@@ -8569,7 +8952,7 @@ for (b in enumerate(test_dl)) {
   total &amp;lt;- total + labels$size(1)
   # add number of correct classifications in this batch to the aggregate
   correct &amp;lt;- correct + (predicted == labels)$sum()$item()
-}
+})
 
 mean(test_losses)&lt;/code&gt;&lt;/pre&gt;
 &lt;pre&gt;&lt;code&gt;[1] 1.53784480643349&lt;/code&gt;&lt;/pre&gt;

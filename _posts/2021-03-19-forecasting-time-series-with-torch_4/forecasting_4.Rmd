@@ -1,7 +1,7 @@
 ---
-title: "torch time series, season one, final episode: Attention"
+title: "torch time series, final episode: Attention"
 description: > 
-  We conclude our mini-series on time-series forecasting with torch by augmenting last time's sequence-to-sequence architecture with a technique both immensely popular in natural language processing  and inspired by human (and animal) cognition: attention.
+  We conclude our mini-series on time-series forecasting with torch by augmenting last time's sequence-to-sequence architecture with a technique both immensely popular in natural language processing and inspired by human (and animal) cognition: attention.
 author:
   - name: Sigrid Keydana
     affiliation: RStudio
@@ -24,23 +24,25 @@ preview: images/preview.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-This is the final post in a four-part introduction to time-series forecasting with `torch`. These posts have been the story of a quest for multiple-step prediction, and by now, we've seen three different approaches: forecasting in a loop, incorporating an MLP, and sequence-to-sequence models. Here's a quick recap.
+This is the final post in a four-part introduction to time-series forecasting with `torch`. These posts have been the story of a quest for multiple-step prediction, and by now, we've seen three different approaches: forecasting in a loop, incorporating a multi-layer perceptron (MLP), and sequence-to-sequence models. Here's a quick recap.
 
--   As one should when one sets out for an adventurous journey, we [started](https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/) with an in-depth study of the tools at our disposal: recurrent neural networks (RNNs). We trained a model to predict the very next observation in line, and then, thought of a clever hack: How about we use this for multi-step prediction, feeding back individual predictions in a loop? The result , it turned out, was quite acceptable.
+-   As one should when one sets out for an adventurous journey, we started with an [in-depth study](https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/) of the tools at our disposal: recurrent neural networks (RNNs). We trained a model to predict the very next observation in line, and then, thought of a clever hack: How about we use this for multi-step prediction, feeding back individual predictions in a loop? The result , it turned out, was quite acceptable.
 
--   [Then](https://blogs.rstudio.com/ai/posts/2021-03-11-forecasting-time-series-with-torch_2/), the adventure really started. We built our first model "natively" for multi-step prediction, relieving the RNN a bit of its workload and involving a second player, a tiny-ish multi-layer perceptron (MLP). Now, it was the MLP's task to project RNN output to several time points in the future. Although results were pretty satisfactory, we didn't stop there.
+-   Then, the adventure really started. We built our first model ["natively" for multi-step prediction,](https://blogs.rstudio.com/ai/posts/2021-03-11-forecasting-time-series-with-torch_2/) relieving the RNN a bit of its workload and involving a second player, a tiny-ish MLP. Now, it was the MLP's task to project RNN output to several time points in the future. Although results were pretty satisfactory, we didn't stop there.
 
--   Instead, we [applied](https://blogs.rstudio.com/ai/posts/2021-03-16-forecasting-time-series-with-torch_3/) to numerical time series a technique commonly used in natural language processing (NLP): sequence-to-sequence (*seq2seq*) prediction. While forecast performance was not much different from the previous case, we found the technique to be more intuitively appealing, since it reflects the *causal* relationship between successive forecasts.
+-   Instead, we applied to numerical time series a technique commonly used in natural language processing (NLP): [sequence-to-sequence (*seq2seq*)](https://blogs.rstudio.com/ai/posts/2021-03-16-forecasting-time-series-with-torch_3/) prediction. While forecast performance was not much different from the previous case, we found the technique to be more intuitively appealing, since it reflects the *causal* relationship between successive forecasts.
 
-Today, we don't replace *seq2seq* by something completely different. Instead, we enrich it, adding in a new component: the so-called *attention* module. Originally introduced around 2014[^1], attention mechanisms have gained enormous traction, so much so that a recent paper title starts out "Attention is Not All You Need"[^2].
+Today we'll enrich the seq2seq approach by adding a new component: the *attention* module. Originally introduced around 2014[^1], attention mechanisms have gained enormous traction, so much so that a recent paper title starts out "Attention is Not All You Need"[^2].
 
 [^1]: For important papers see: @BahdanauCB14, @VinyalsKKPSH14, @XuBKCCSZB15.
 
 [^2]: @2021arXiv210303404D, thus replying to @2017arXiv170603762V, whose 2017 paper "went viral" for stating the opposite.
 
+The idea is the following.
+
 In the classic encoder-decoder setup, the decoder gets "primed" with an encoder summary just a single time: the time it starts its forecasting loop. From then on, it's on its own. With attention, however, it gets to see the complete sequence of encoder outputs again every time it forecasts a new value. What's more, every time, it gets to zoom in on *those* outputs that seem *relevant for the current prediction step*.
 
-This is a particularly useful strategy in translation: In generating the next word, a model will need to know what part of the source sentence to focus on. How much the technique helps with numerical sequences, in contrast, will likely depend on the features of the series in question. Meaning: Even if, in our current case, it should turn out to have little effect, it will still be worthwhile just to have learned about the technique.
+This is a particularly useful strategy in translation: In generating the next word, a model will need to know what part of the source sentence to focus on. How much the technique helps with numerical sequences, in contrast, will likely depend on the features of the series in question.
 
 # Data input
 
@@ -76,7 +78,9 @@ train_sd <- sd(elec_train)
 
 ```
 
-We'll attempt to forecast demand up to fourteen days ahead. How long, then, should be the input sequences? As usual, this is a matter of experimentation; all the more now that we're adding in the attention mechanism. (Intuitively, it might not handle very long sequences so well). Below, we go with fourteen days here too, but that may not necessarily be the best possible choice for this series.
+We'll attempt to forecast demand up to fourteen days ahead. How long, then, should be the input sequences? This is a matter of experimentation; all the more so now that we're adding in the attention mechanism. (I suspect that it might not handle very long sequences so well).
+
+Below, we go with fourteen days for input length, too, but that may not necessarily be the best possible choice for this series.
 
 ```{r}
 
@@ -181,11 +185,11 @@ encoder_module <- nn_module(
 
 ### Attention module
 
-In basic seq2seq, whenever it had to generate a new value, the decoder took into account two things: its prior state, and the previous output generated. In an attention-enriched setup, the decoder additionally receives the complete output from the encoder. In deciding what subset of that output should matter right now, it gets help from a new agent, the attention module.
+In basic seq2seq, whenever it had to generate a new value, the decoder took into account two things: its prior state, and the previous output generated. In an attention-enriched setup, the decoder additionally receives the complete output from the encoder. In deciding what subset of that output should matter, it gets help from a new agent, the attention module.
 
-Attention may be implemented in a number of different ways. Whatever the implementation, the goal is the same: given current decoder state and well as complete encoder outputs, obtain a weighting of those outputs indicative of how relevant they are to what the decoder is currently up to. This procedure results in the so-called *attention weights*: a normalized score, for each time step in the encoding, that quantify its respective importance.
+This, then, is the attention module's raison d'être: Given current decoder state and well as complete encoder outputs, obtain a weighting of those outputs indicative of how relevant they are to what the decoder is currently up to. This procedure results in the so-called *attention weights*: a normalized score, for each time step in the encoding, that quantify their respective importance.
 
-Here, we show two implementation options, one additive, and one multiplicative.
+Attention may be implemented in a number of different ways. Here, we show two implementation options, one additive, and one multiplicative.
 
 #### Additive attention
 
@@ -275,7 +279,7 @@ attention_module_multiplicative <- nn_module(
 
 ### Decoder
 
-Once attention weights have been computed, their actual application is handled by the decoder. Concretely, the aptly named method, `weighted_encoder_outputs()`, computes a product of weights and encoder outputs, making sure that each output will have appropriate impact.
+Once attention weights have been computed, their actual application is handled by the decoder. Concretely, the method in question, `weighted_encoder_outputs()`, computes a product of weights and encoder outputs, making sure that each output will have appropriate impact.
 
 The rest of the action then happens in `forward()`. A concatenation of weighted encoder outputs (often called "context") and current input is run through an RNN. Then, an ensemble of RNN output, context, and input is passed to an MLP. Finally, both RNN state and current prediction are returned.
 
@@ -426,7 +430,7 @@ net <- net$to(device = device)
 
 # Training
 
-Just like last time, in model training, we choose the degree of teacher forcing. Below, we go with a fraction of 0.0, that is, no forcing at all.
+Just like last time, in model training, we get to choose the degree of teacher forcing. Below, we go with a fraction of 0.0, that is, no forcing at all.
 
 ```{r}
 optimizer <- optim_adam(net$parameters, lr = 0.001)

@@ -12,7 +12,519 @@
       <link>https://blogs.rstudio.com/tensorflow/</link>
     </image>
     <generator>Distill</generator>
-    <lastBuildDate>Tue, 16 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Fri, 19 Mar 2021 00:00:00 +0000</lastBuildDate>
+    <item>
+      <title>torch time series, final episode: Attention</title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>
+      <link>https://blogs.rstudio.com/tensorflow/posts/2021-03-19-forecasting-time-series-with-torch_4</link>
+      <description>
+
+
+&lt;p&gt;This is the final post in a four-part introduction to time-series forecasting with &lt;code&gt;torch&lt;/code&gt;. These posts have been the story of a quest for multiple-step prediction, and by now, we’ve seen three different approaches: forecasting in a loop, incorporating a multi-layer perceptron (MLP), and sequence-to-sequence models. Here’s a quick recap.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;As one should when one sets out for an adventurous journey, we started with an &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/"&gt;in-depth study&lt;/a&gt; of the tools at our disposal: recurrent neural networks (RNNs). We trained a model to predict the very next observation in line, and then, thought of a clever hack: How about we use this for multi-step prediction, feeding back individual predictions in a loop? The result , it turned out, was quite acceptable.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Then, the adventure really started. We built our first model &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-11-forecasting-time-series-with-torch_2/"&gt;“natively” for multi-step prediction,&lt;/a&gt; relieving the RNN a bit of its workload and involving a second player, a tiny-ish MLP. Now, it was the MLP’s task to project RNN output to several time points in the future. Although results were pretty satisfactory, we didn’t stop there.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Instead, we applied to numerical time series a technique commonly used in natural language processing (NLP): &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-16-forecasting-time-series-with-torch_3/"&gt;sequence-to-sequence (&lt;em&gt;seq2seq&lt;/em&gt;)&lt;/a&gt; prediction. While forecast performance was not much different from the previous case, we found the technique to be more intuitively appealing, since it reflects the &lt;em&gt;causal&lt;/em&gt; relationship between successive forecasts.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Today we’ll enrich the seq2seq approach by adding a new component: the &lt;em&gt;attention&lt;/em&gt; module. Originally introduced around 2014&lt;a href="#fn1" class="footnote-ref" id="fnref1"&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;, attention mechanisms have gained enormous traction, so much so that a recent paper title starts out “Attention is Not All You Need”&lt;a href="#fn2" class="footnote-ref" id="fnref2"&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;The idea is the following.&lt;/p&gt;
+&lt;p&gt;In the classic encoder-decoder setup, the decoder gets “primed” with an encoder summary just a single time: the time it starts its forecasting loop. From then on, it’s on its own. With attention, however, it gets to see the complete sequence of encoder outputs again every time it forecasts a new value. What’s more, every time, it gets to zoom in on &lt;em&gt;those&lt;/em&gt; outputs that seem &lt;em&gt;relevant for the current prediction step&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;This is a particularly useful strategy in translation: In generating the next word, a model will need to know what part of the source sentence to focus on. How much the technique helps with numerical sequences, in contrast, will likely depend on the features of the series in question.&lt;/p&gt;
+&lt;h1 id="data-input"&gt;Data input&lt;/h1&gt;
+&lt;p&gt;As before, we work with &lt;code&gt;vic_elec&lt;/code&gt;, but this time, we partly deviate from the way we used to employ it. With the original, bi-hourly dataset, training the current model takes a long time, longer than readers will want to wait when experimenting. So instead, we aggregate observations by day. In order to have enough data, we train on years 2012 and 2013, reserving 2014 for validation as well as post-training inspection.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;vic_elec_daily &amp;lt;- vic_elec %&amp;gt;%
+  select(Time, Demand) %&amp;gt;%
+  index_by(Date = date(Time)) %&amp;gt;%
+  summarise(
+    Demand = sum(Demand) / 1e3) 
+
+elec_train &amp;lt;- vic_elec_daily %&amp;gt;% 
+  filter(year(Date) %in% c(2012, 2013)) %&amp;gt;%
+  as_tibble() %&amp;gt;%
+  select(Demand) %&amp;gt;%
+  as.matrix()
+
+elec_valid &amp;lt;- vic_elec_daily %&amp;gt;% 
+  filter(year(Date) == 2014) %&amp;gt;%
+  as_tibble() %&amp;gt;%
+  select(Demand) %&amp;gt;%
+  as.matrix()
+
+elec_test &amp;lt;- vic_elec_daily %&amp;gt;% 
+  filter(year(Date) %in% c(2014), month(Date) %in% 1:4) %&amp;gt;%
+  as_tibble() %&amp;gt;%
+  select(Demand) %&amp;gt;%
+  as.matrix()
+
+train_mean &amp;lt;- mean(elec_train)
+train_sd &amp;lt;- sd(elec_train)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We’ll attempt to forecast demand up to fourteen days ahead. How long, then, should be the input sequences? This is a matter of experimentation; all the more so now that we’re adding in the attention mechanism. (I suspect that it might not handle very long sequences so well).&lt;/p&gt;
+&lt;p&gt;Below, we go with fourteen days for input length, too, but that may not necessarily be the best possible choice for this series.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;n_timesteps &amp;lt;- 7 * 2
+n_forecast &amp;lt;- 7 * 2
+
+elec_dataset &amp;lt;- dataset(
+  name = &amp;quot;elec_dataset&amp;quot;,
+  
+  initialize = function(x, n_timesteps, sample_frac = 1) {
+    
+    self$n_timesteps &amp;lt;- n_timesteps
+    self$x &amp;lt;- torch_tensor((x - train_mean) / train_sd)
+    
+    n &amp;lt;- length(self$x) - self$n_timesteps - 1
+    
+    self$starts &amp;lt;- sort(sample.int(
+      n = n,
+      size = n * sample_frac
+    ))
+    
+  },
+  
+  .getitem = function(i) {
+    
+    start &amp;lt;- self$starts[i]
+    end &amp;lt;- start + self$n_timesteps - 1
+    lag &amp;lt;- 1
+    
+    list(
+      x = self$x[start:end],
+      y = self$x[(start+lag):(end+lag)]$squeeze(2)
+    )
+    
+  },
+  
+  .length = function() {
+    length(self$starts) 
+  }
+)
+
+batch_size &amp;lt;- 32
+
+train_ds &amp;lt;- elec_dataset(elec_train, n_timesteps, sample_frac = 0.5)
+train_dl &amp;lt;- train_ds %&amp;gt;% dataloader(batch_size = batch_size, shuffle = TRUE)
+
+valid_ds &amp;lt;- elec_dataset(elec_valid, n_timesteps, sample_frac = 0.5)
+valid_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = batch_size)
+
+test_ds &amp;lt;- elec_dataset(elec_test, n_timesteps)
+test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="model"&gt;Model&lt;/h1&gt;
+&lt;p&gt;Model-wise, we again encounter the three &lt;em&gt;modules&lt;/em&gt; familiar from the previous post: encoder, decoder, and top-level seq2seq module. However, there is an additional component: the &lt;em&gt;attention&lt;/em&gt; module, used by the decoder to obtain &lt;em&gt;attention weights&lt;/em&gt;.&lt;/p&gt;
+&lt;h3 id="encoder"&gt;Encoder&lt;/h3&gt;
+&lt;p&gt;The encoder still works the same way. It wraps an RNN, and returns the final state.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;encoder_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, num_layers = 1, dropout = 0) {
+    
+    self$type &amp;lt;- type
+    
+    self$rnn &amp;lt;- if (self$type == &amp;quot;gru&amp;quot;) {
+      nn_gru(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    } else {
+      nn_lstm(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        dropout = dropout,
+        batch_first = TRUE
+      )
+    }
+    
+  },
+  
+  forward = function(x) {
+    
+    x &amp;lt;- self$rnn(x)
+    
+    # return last states for all layers
+    # per layer, a single tensor for GRU, a list of 2 tensors for LSTM
+    x &amp;lt;- x[[2]]
+    x
+    
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="attention-module"&gt;Attention module&lt;/h3&gt;
+&lt;p&gt;In basic seq2seq, whenever it had to generate a new value, the decoder took into account two things: its prior state, and the previous output generated. In an attention-enriched setup, the decoder additionally receives the complete output from the encoder. In deciding what subset of that output should matter, it gets help from a new agent, the attention module.&lt;/p&gt;
+&lt;p&gt;This, then, is the attention module’s raison d’être: Given current decoder state and well as complete encoder outputs, obtain a weighting of those outputs indicative of how relevant they are to what the decoder is currently up to. This procedure results in the so-called &lt;em&gt;attention weights&lt;/em&gt;: a normalized score, for each time step in the encoding, that quantify their respective importance.&lt;/p&gt;
+&lt;p&gt;Attention may be implemented in a number of different ways. Here, we show two implementation options, one additive, and one multiplicative.&lt;/p&gt;
+&lt;h4 id="additive-attention"&gt;Additive attention&lt;/h4&gt;
+&lt;p&gt;In additive attention, encoder outputs and decoder state are commonly either added or concatenated (we choose to do the latter, below). The resulting tensor is run through a linear layer, and a softmax is applied for normalization.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;attention_module_additive &amp;lt;- nn_module(
+  
+  initialize = function(hidden_dim, attention_size) {
+    
+    self$attention &amp;lt;- nn_linear(2 * hidden_dim, attention_size)
+    
+  },
+  
+  forward = function(state, encoder_outputs) {
+    
+    # function argument shapes
+    # encoder_outputs: (bs, timesteps, hidden_dim)
+    # state: (1, bs, hidden_dim)
+    
+    # multiplex state to allow for concatenation (dimensions 1 and 2 must agree)
+    seq_len &amp;lt;- dim(encoder_outputs)[2]
+    # resulting shape: (bs, timesteps, hidden_dim)
+    state_rep &amp;lt;- state$permute(c(2, 1, 3))$repeat_interleave(seq_len, 2)
+    
+    # concatenate along feature dimension
+    concat &amp;lt;- torch_cat(list(state_rep, encoder_outputs), dim = 3)
+    
+    # run through linear layer with tanh
+    # resulting shape: (bs, timesteps, attention_size)
+    scores &amp;lt;- self$attention(concat) %&amp;gt;% 
+      torch_tanh()
+    
+    # sum over attention dimension and normalize
+    # resulting shape: (bs, timesteps) 
+    attention_weights &amp;lt;- scores %&amp;gt;%
+      torch_sum(dim = 3) %&amp;gt;%
+      nnf_softmax(dim = 2)
+    
+    # a normalized score for every source token
+    attention_weights
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h4 id="multiplicative-attention"&gt;Multiplicative attention&lt;/h4&gt;
+&lt;p&gt;In multiplicative attention, scores are obtained by computing dot products between decoder state and all of the encoder outputs. Here too, a softmax is then used for normalization.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;attention_module_multiplicative &amp;lt;- nn_module(
+  
+  initialize = function() {
+    
+    NULL
+    
+  },
+  
+  forward = function(state, encoder_outputs) {
+    
+    # function argument shapes
+    # encoder_outputs: (bs, timesteps, hidden_dim)
+    # state: (1, bs, hidden_dim)
+
+    # allow for matrix multiplication with encoder_outputs
+    state &amp;lt;- state$permute(c(2, 3, 1))
+ 
+    # prepare for scaling by number of features
+    d &amp;lt;- torch_tensor(dim(encoder_outputs)[3], dtype = torch_float())
+       
+    # scaled dot products between state and outputs
+    # resulting shape: (bs, timesteps, 1)
+    scores &amp;lt;- torch_bmm(encoder_outputs, state) %&amp;gt;%
+      torch_div(torch_sqrt(d))
+    
+    # normalize
+    # resulting shape: (bs, timesteps) 
+    attention_weights &amp;lt;- scores$squeeze(3) %&amp;gt;%
+      nnf_softmax(dim = 2)
+    
+    # a normalized score for every source token
+    attention_weights
+  }
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="decoder"&gt;Decoder&lt;/h3&gt;
+&lt;p&gt;Once attention weights have been computed, their actual application is handled by the decoder. Concretely, the method in question, &lt;code&gt;weighted_encoder_outputs()&lt;/code&gt;, computes a product of weights and encoder outputs, making sure that each output will have appropriate impact.&lt;/p&gt;
+&lt;p&gt;The rest of the action then happens in &lt;code&gt;forward()&lt;/code&gt;. A concatenation of weighted encoder outputs (often called “context”) and current input is run through an RNN. Then, an ensemble of RNN output, context, and input is passed to an MLP. Finally, both RNN state and current prediction are returned.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;decoder_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, attention_type, attention_size = 8, num_layers = 1) {
+    
+    self$type &amp;lt;- type
+    
+    self$rnn &amp;lt;- if (self$type == &amp;quot;gru&amp;quot;) {
+      nn_gru(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        batch_first = TRUE
+      )
+    } else {
+      nn_lstm(
+        input_size = input_size,
+        hidden_size = hidden_size,
+        num_layers = num_layers,
+        batch_first = TRUE
+      )
+    }
+    
+    self$linear &amp;lt;- nn_linear(2 * hidden_size + 1, 1)
+    
+    self$attention &amp;lt;- if (attention_type == &amp;quot;multiplicative&amp;quot;) attention_module_multiplicative()
+      else attention_module_additive(hidden_size, attention_size)
+    
+  },
+  
+  weighted_encoder_outputs = function(state, encoder_outputs) {
+
+    # encoder_outputs is (bs, timesteps, hidden_dim)
+    # state is (1, bs, hidden_dim)
+    # resulting shape: (bs * timesteps)
+    attention_weights &amp;lt;- self$attention(state, encoder_outputs)
+    
+    # resulting shape: (bs, 1, seq_len)
+    attention_weights &amp;lt;- attention_weights$unsqueeze(2)
+    
+    # resulting shape: (bs, 1, hidden_size)
+    weighted_encoder_outputs &amp;lt;- torch_bmm(attention_weights, encoder_outputs)
+    
+    weighted_encoder_outputs
+    
+  },
+  
+  forward = function(x, state, encoder_outputs) {
+ 
+    # encoder_outputs is (bs, timesteps, hidden_dim)
+    # state is (1, bs, hidden_dim)
+    
+    # resulting shape: (bs, 1, hidden_size)
+    context &amp;lt;- self$weighted_encoder_outputs(state, encoder_outputs)
+    
+    # concatenate input and context
+    # NOTE: this repeating is done to compensate for the absence of an embedding module
+    # that, in NLP, would give x a higher proportion in the concatenation
+    x_rep &amp;lt;- x$repeat_interleave(dim(context)[3], 3) 
+    rnn_input &amp;lt;- torch_cat(list(x_rep, context), dim = 3)
+    
+    # resulting shapes: (bs, 1, hidden_size) and (1, bs, hidden_size)
+    rnn_out &amp;lt;- self$rnn(rnn_input, state)
+    rnn_output &amp;lt;- rnn_out[[1]]
+    next_hidden &amp;lt;- rnn_out[[2]]
+    
+    mlp_input &amp;lt;- torch_cat(list(rnn_output$squeeze(2), context$squeeze(2), x$squeeze(2)), dim = 2)
+    
+    output &amp;lt;- self$linear(mlp_input)
+    
+    # shapes: (bs, 1) and (1, bs, hidden_size)
+    list(output, next_hidden)
+  }
+  
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id="seq2seq-module"&gt;&lt;code&gt;seq2seq&lt;/code&gt; module&lt;/h3&gt;
+&lt;p&gt;The &lt;code&gt;seq2seq&lt;/code&gt; module is basically unchanged (apart from the fact that now, it allows for attention module configuration). For a detailed explanation of what happens here, please consult the &lt;a href="https://blogs.rstudio.com/ai/posts/2021-03-16-forecasting-time-series-with-torch_3/"&gt;previous post&lt;/a&gt;.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;seq2seq_module &amp;lt;- nn_module(
+  
+  initialize = function(type, input_size, hidden_size, attention_type, attention_size, n_forecast, 
+                        num_layers = 1, encoder_dropout = 0) {
+    
+    self$encoder &amp;lt;- encoder_module(type = type, input_size = input_size, hidden_size = hidden_size,
+                                   num_layers, encoder_dropout)
+    self$decoder &amp;lt;- decoder_module(type = type, input_size = 2 * hidden_size, hidden_size = hidden_size,
+                                   attention_type = attention_type, attention_size = attention_size, num_layers)
+    self$n_forecast &amp;lt;- n_forecast
+    
+  },
+  
+  forward = function(x, y, teacher_forcing_ratio) {
+    
+    outputs &amp;lt;- torch_zeros(dim(x)[1], self$n_forecast)$to(device = device)
+    encoded &amp;lt;- self$encoder(x)
+    encoder_outputs &amp;lt;- encoded[[1]]
+    hidden &amp;lt;- encoded[[2]]
+    # list of (batch_size, 1), (1, batch_size, hidden_size)
+    out &amp;lt;- self$decoder(x[ , n_timesteps, , drop = FALSE], hidden, encoder_outputs)
+    # (batch_size, 1)
+    pred &amp;lt;- out[[1]]
+    # (1, batch_size, hidden_size)
+    state &amp;lt;- out[[2]]
+    outputs[ , 1] &amp;lt;- pred$squeeze(2)
+    
+    for (t in 2:self$n_forecast) {
+      
+      teacher_forcing &amp;lt;- runif(1) &amp;lt; teacher_forcing_ratio
+      input &amp;lt;- if (teacher_forcing == TRUE) pred$unsqueeze(3) else y[ , t - 1]
+      out &amp;lt;- self$decoder(pred$unsqueeze(3), state, encoder_outputs)
+      pred &amp;lt;- out[[1]]
+      state &amp;lt;- out[[2]]
+      outputs[ , t] &amp;lt;- pred$squeeze(2)
+      
+    }
+    
+    outputs
+  }
+  
+)&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;When instantiating the top-level model, we now have an additional choice: that between additive and multiplicative attention. In the “accuracy” sense of performance, my tests did not show any differences. However, the multiplicative variant is a lot faster.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net &amp;lt;- seq2seq_module(&amp;quot;gru&amp;quot;, input_size = 1, hidden_size = 32, attention_type = &amp;quot;multiplicative&amp;quot;,
+                      attention_size = 8, n_forecast = n_timesteps)
+
+# training RNNs on the GPU currently prints a warning that may clutter 
+# the console
+# see https://github.com/mlverse/torch/issues/461
+# alternatively, use 
+# device &amp;lt;- &amp;quot;cpu&amp;quot;
+device &amp;lt;- torch_device(if (cuda_is_available()) &amp;quot;cuda&amp;quot; else &amp;quot;cpu&amp;quot;)
+
+net &amp;lt;- net$to(device = device)&lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="training"&gt;Training&lt;/h1&gt;
+&lt;p&gt;Just like last time, in model training, we get to choose the degree of teacher forcing. Below, we go with a fraction of 0.0, that is, no forcing at all.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(net$parameters, lr = 0.001)
+
+num_epochs &amp;lt;- 100
+
+train_batch &amp;lt;- function(b, teacher_forcing_ratio) {
+  
+  optimizer$zero_grad()
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss$backward()
+  optimizer$step()
+  
+  loss$item()
+  
+}
+
+valid_batch &amp;lt;- function(b, teacher_forcing_ratio = 0) {
+  
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
+  target &amp;lt;- b$y$to(device = device)
+  
+  loss &amp;lt;- nnf_mse_loss(output, target)
+  
+  loss$item()
+  
+}
+
+for (epoch in 1:num_epochs) {
+  
+  net$train()
+  train_loss &amp;lt;- c()
+  
+  coro::loop(for (b in train_dl) {
+    loss &amp;lt;-train_batch(b, teacher_forcing_ratio = 0.3)
+    train_loss &amp;lt;- c(train_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, training: loss: %3.5f \n&amp;quot;, epoch, mean(train_loss)))
+  
+  net$eval()
+  valid_loss &amp;lt;- c()
+  
+  coro::loop(for (b in valid_dl) {
+    loss &amp;lt;- valid_batch(b)
+    valid_loss &amp;lt;- c(valid_loss, loss)
+  })
+  
+  cat(sprintf(&amp;quot;\nEpoch %d, validation: loss: %3.5f \n&amp;quot;, epoch, mean(valid_loss)))
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;# Epoch 1, training: loss: 0.83752 
+# Epoch 1, validation: loss: 0.83167
+
+# Epoch 2, training: loss: 0.72803 
+# Epoch 2, validation: loss: 0.80804 
+
+# ...
+# ...
+
+# Epoch 99, training: loss: 0.10385 
+# Epoch 99, validation: loss: 0.21259 
+
+# Epoch 100, training: loss: 0.10396 
+# Epoch 100, validation: loss: 0.20975 &lt;/code&gt;&lt;/pre&gt;
+&lt;h1 id="evaluation"&gt;Evaluation&lt;/h1&gt;
+&lt;p&gt;For visual inspection, we pick a few forecasts from the test set.&lt;/p&gt;
+&lt;pre class="r"&gt;&lt;code&gt;net$eval()
+
+test_preds &amp;lt;- vector(mode = &amp;quot;list&amp;quot;, length = length(test_dl))
+
+i &amp;lt;- 1
+
+vic_elec_test &amp;lt;- vic_elec_daily %&amp;gt;%
+  filter(year(Date) == 2014, month(Date) %in% 1:4)
+
+
+coro::loop(for (b in test_dl) {
+  
+  input &amp;lt;- b$x
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio = 0)
+  preds &amp;lt;- as.numeric(output)
+  
+  test_preds[[i]] &amp;lt;- preds
+  i &amp;lt;&amp;lt;- i + 1
+  
+})
+
+test_pred1 &amp;lt;- test_preds[[1]]
+test_pred1 &amp;lt;- c(rep(NA, n_timesteps), test_pred1, rep(NA, nrow(vic_elec_test) - n_timesteps - n_forecast))
+
+test_pred2 &amp;lt;- test_preds[[21]]
+test_pred2 &amp;lt;- c(rep(NA, n_timesteps + 20), test_pred2, rep(NA, nrow(vic_elec_test) - 20 - n_timesteps - n_forecast))
+
+test_pred3 &amp;lt;- test_preds[[41]]
+test_pred3 &amp;lt;- c(rep(NA, n_timesteps + 40), test_pred3, rep(NA, nrow(vic_elec_test) - 40 - n_timesteps - n_forecast))
+
+test_pred4 &amp;lt;- test_preds[[61]]
+test_pred4 &amp;lt;- c(rep(NA, n_timesteps + 60), test_pred4, rep(NA, nrow(vic_elec_test) - 60 - n_timesteps - n_forecast))
+
+test_pred5 &amp;lt;- test_preds[[81]]
+test_pred5 &amp;lt;- c(rep(NA, n_timesteps + 80), test_pred5, rep(NA, nrow(vic_elec_test) - 80 - n_timesteps - n_forecast))
+
+
+preds_ts &amp;lt;- vic_elec_test %&amp;gt;%
+  select(Demand, Date) %&amp;gt;%
+  add_column(
+    ex_1 = test_pred1 * train_sd + train_mean,
+    ex_2 = test_pred2 * train_sd + train_mean,
+    ex_3 = test_pred3 * train_sd + train_mean,
+    ex_4 = test_pred4 * train_sd + train_mean,
+    ex_5 = test_pred5 * train_sd + train_mean) %&amp;gt;%
+  pivot_longer(-Date) %&amp;gt;%
+  update_tsibble(key = name)
+
+
+preds_ts %&amp;gt;%
+  autoplot() +
+  scale_color_hue(h = c(80, 300), l = 70) +
+  theme_minimal()&lt;/code&gt;&lt;/pre&gt;
+&lt;div class="figure"&gt;
+&lt;img src="https://blogs.rstudio.com/tensorflow//posts/2021-03-19-forecasting-time-series-with-torch_4/images/att_preds.png" alt="A sample of two-weeks-ahead predictions for the test set, 2014." width="600" /&gt;
+&lt;p class="caption"&gt;
+(#fig:unnamed-chunk-11)A sample of two-weeks-ahead predictions for the test set, 2014.
+&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;We can’t directly compare performance here to that of previous models in our series, as we’ve pragmatically redefined the task. The main goal, however, has been to introduce the concept of attention. Specifically, how to &lt;em&gt;manually&lt;/em&gt; implement the technique – something that, once you’ve understood the concept, you may never have to do in practice. Instead, you would likely make use of existing tools that come with &lt;code&gt;torch&lt;/code&gt; (multi-head attention and transformer modules), tools we may introduce in a future “season” of this series.&lt;/p&gt;
+&lt;p&gt;Thanks for reading!&lt;/p&gt;
+&lt;p&gt;Photo by &lt;a href="https://unsplash.com/@davidclode?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;David Clode&lt;/a&gt; on &lt;a href="/?utm_source=unsplash&amp;amp;utm_medium=referral&amp;amp;utm_content=creditCopyText"&gt;Unsplash&lt;/a&gt;&lt;/p&gt;
+&lt;pre class="r distill-force-highlighting-css"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;div id="refs" class="references hanging-indent"&gt;
+&lt;div id="ref-BahdanauCB14"&gt;
+&lt;p&gt;Bahdanau, Dzmitry, Kyunghyun Cho, and Yoshua Bengio. 2014. “Neural Machine Translation by Jointly Learning to Align and Translate.” &lt;em&gt;CoRR&lt;/em&gt; abs/1409.0473. &lt;a href="http://arxiv.org/abs/1409.0473"&gt;http://arxiv.org/abs/1409.0473&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-2021arXiv210303404D"&gt;
+&lt;p&gt;Dong, Yihe, Jean-Baptiste Cordonnier, and Andreas Loukas. 2021. “Attention is Not All You Need: Pure Attention Loses Rank Doubly Exponentially with Depth.” &lt;em&gt;arXiv E-Prints&lt;/em&gt;, March, arXiv:2103.03404. &lt;a href="http://arxiv.org/abs/2103.03404"&gt;http://arxiv.org/abs/2103.03404&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-2017arXiv170603762V"&gt;
+&lt;p&gt;Vaswani, Ashish, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017. “Attention Is All You Need.” &lt;em&gt;arXiv E-Prints&lt;/em&gt;, June, arXiv:1706.03762. &lt;a href="http://arxiv.org/abs/1706.03762"&gt;http://arxiv.org/abs/1706.03762&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-VinyalsKKPSH14"&gt;
+&lt;p&gt;Vinyals, Oriol, Lukasz Kaiser, Terry Koo, Slav Petrov, Ilya Sutskever, and Geoffrey E. Hinton. 2014. “Grammar as a Foreign Language.” &lt;em&gt;CoRR&lt;/em&gt; abs/1412.7449. &lt;a href="http://arxiv.org/abs/1412.7449"&gt;http://arxiv.org/abs/1412.7449&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div id="ref-XuBKCCSZB15"&gt;
+&lt;p&gt;Xu, Kelvin, Jimmy Ba, Ryan Kiros, Kyunghyun Cho, Aaron C. Courville, Ruslan Salakhutdinov, Richard S. Zemel, and Yoshua Bengio. 2015. “Show, Attend and Tell: Neural Image Caption Generation with Visual Attention.” &lt;em&gt;CoRR&lt;/em&gt; abs/1502.03044. &lt;a href="http://arxiv.org/abs/1502.03044"&gt;http://arxiv.org/abs/1502.03044&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;div class="footnotes"&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id="fn1"&gt;&lt;p&gt;For important papers see: &lt;span class="citation"&gt;Bahdanau, Cho, and Bengio (2014)&lt;/span&gt;, &lt;span class="citation"&gt;Vinyals et al. (2014)&lt;/span&gt;, &lt;span class="citation"&gt;Xu et al. (2015)&lt;/span&gt;.&lt;a href="#fnref1" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id="fn2"&gt;&lt;p&gt;&lt;span class="citation"&gt;Dong, Cordonnier, and Loukas (2021)&lt;/span&gt;, thus replying to &lt;span class="citation"&gt;Vaswani et al. (2017)&lt;/span&gt;, whose 2017 paper “went viral” for stating the opposite.&lt;a href="#fnref2" class="footnote-back"&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</description>
+      <distill:md5 xmlns:distill="https://distill.pub/journal/">c95f9b4e1ac5d87ff55dca44b4af5a8a</distill:md5>
+      <category>Torch</category>
+      <category>R</category>
+      <category>Time Series</category>
+      <guid>https://blogs.rstudio.com/tensorflow/posts/2021-03-19-forecasting-time-series-with-torch_4</guid>
+      <pubDate>Fri, 19 Mar 2021 00:00:00 +0000</pubDate>
+      <media:content xmlns:media="http://search.yahoo.com/mrss/" url="https://blogs.rstudio.com/tensorflow/posts/2021-03-19-forecasting-time-series-with-torch_4/images/preview.jpg" medium="image" type="image/jpeg"/>
+    </item>
     <item>
       <title>torch time series, take three: Sequence-to-sequence prediction</title>
       <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Sigrid Keydana</dc:creator>

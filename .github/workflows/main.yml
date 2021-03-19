@@ -16,12 +16,14 @@ jobs:
         run: |
           Rscript -e 'install.packages(c("distill", "reticulate", "remotes", "dplyr", "data.table", "DT"))'
           Rscript -e 'remotes::install_github("hadley/emo")'
+      - name: Install GNU parallel
+        run: sudo DEBIAN_FRONTEND='noninteractive' apt-get -y install parallel
       - name: Build Site
         run: |
           rm -rf docs/
           mv _posts/2019-12-20-differential-privacy/differential_privacy.Rmd _posts/2019-12-20-differential-privacy/differential_privacy_2019.Rmd
-          R -e 'rmarkdown::render_site()'
-          R -e 'for (post in dir("_posts/", pattern = "*.Rmd", recursive = TRUE)) rmarkdown::render(file.path("_posts", post))'
+          Rscript -e 'rmarkdown::render_site()'
+          find _posts -type f -name '*.Rmd' -print0 | parallel -j 16 -k -0 Rscript --vanilla -e "'rmarkdown::render(commandArgs(trailingOnly=TRUE)[[1]])'" '{}' '2>&1'
       - name: Deploy to GitHub
         uses: s0/git-publish-subdir-action@develop
         if: github.ref == 'refs/heads/master'

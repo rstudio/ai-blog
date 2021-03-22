@@ -545,7 +545,15 @@ preds_ts %&amp;gt;%
 &lt;p&gt;We continue working with &lt;code&gt;vic_elec&lt;/code&gt; , provided by &lt;code&gt;tsibbledata&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;Again, the dataset definition in the current post looks a bit different from the way it did before; it’s the shape of the target that differs. This time, &lt;code&gt;y&lt;/code&gt; equals &lt;code&gt;x&lt;/code&gt;, shifted to the left by one.&lt;/p&gt;
 &lt;p&gt;The reason we do this is owed to the way we are going to train the network. With &lt;em&gt;seq2seq&lt;/em&gt;, people often use a technique called “teacher forcing” where, instead of feeding back its own prediction into the decoder module, you pass it the value it &lt;em&gt;should&lt;/em&gt; have predicted. To be clear, this is done during training only, and to a configurable degree.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;n_timesteps &amp;lt;- 7 * 24 * 2
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(tidyverse)
+library(tsibble)
+library(tsibbledata)
+library(lubridate)
+library(fable)
+library(zeallot)
+
+n_timesteps &amp;lt;- 7 * 24 * 2
 n_forecast &amp;lt;- n_timesteps
 
 vic_elec_get_year &amp;lt;- function(year, month = NULL) {
@@ -854,8 +862,7 @@ i &amp;lt;- 1
 
 coro::loop(for (b in test_dl) {
   
-  input &amp;lt;- b$x
-  output &amp;lt;- net(input$to(device = device))
+  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio = 0)
   preds &amp;lt;- as.numeric(output)
   
   test_preds[[i]] &amp;lt;- preds

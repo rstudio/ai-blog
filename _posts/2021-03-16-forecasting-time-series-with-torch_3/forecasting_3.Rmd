@@ -23,7 +23,6 @@ preview: images/preview.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-
 Today, we continue our exploration of multi-step time-series forecasting with `torch`. This post is the third in a series.
 
 -   [Initially](https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/), we covered basics of recurrent neural networks (RNNs), and trained a model to predict the very next value in a sequence. We also found we could forecast quite a few steps ahead by feeding back individual predictions in a loop.
@@ -47,6 +46,14 @@ Again, the dataset definition in the current post looks a bit different from the
 The reason we do this is owed to the way we are going to train the network. With *seq2seq*, people often use a technique called "teacher forcing" where, instead of feeding back its own prediction into the decoder module, you pass it the value it *should* have predicted. To be clear, this is done during training only, and to a configurable degree.
 
 ```{r}
+library(torch)
+library(tidyverse)
+library(tsibble)
+library(tsibbledata)
+library(lubridate)
+library(fable)
+library(zeallot)
+
 n_timesteps <- 7 * 24 * 2
 n_forecast <- n_timesteps
 
@@ -396,7 +403,7 @@ i <- 1
 coro::loop(for (b in test_dl) {
   
   input <- b$x
-  output <- net(input$to(device = device))
+  output <- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio = 0)
   preds <- as.numeric(output)
   
   test_preds[[i]] <- preds

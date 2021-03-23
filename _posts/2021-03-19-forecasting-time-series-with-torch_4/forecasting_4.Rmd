@@ -49,6 +49,14 @@ This is a particularly useful strategy in translation: In generating the next wo
 As before, we work with `vic_elec`, but this time, we partly deviate from the way we used to employ it. With the original, bi-hourly dataset, training the current model takes a long time, longer than readers will want to wait when experimenting. So instead, we aggregate observations by day. In order to have enough data, we train on years 2012 and 2013, reserving 2014 for validation as well as post-training inspection.
 
 ```{r}
+library(torch)
+library(tidyverse)
+library(tsibble)
+library(tsibbledata)
+library(lubridate)
+library(fable)
+library(zeallot)
+
 vic_elec_daily <- vic_elec %>%
   select(Time, Demand) %>%
   index_by(Date = date(Time)) %>%
@@ -124,10 +132,10 @@ elec_dataset <- dataset(
 
 batch_size <- 32
 
-train_ds <- elec_dataset(elec_train, n_timesteps, sample_frac = 0.5)
+train_ds <- elec_dataset(elec_train, n_timesteps)
 train_dl <- train_ds %>% dataloader(batch_size = batch_size, shuffle = TRUE)
 
-valid_ds <- elec_dataset(elec_valid, n_timesteps, sample_frac = 0.5)
+valid_ds <- elec_dataset(elec_valid, n_timesteps)
 valid_dl <- valid_ds %>% dataloader(batch_size = batch_size)
 
 test_ds <- elec_dataset(elec_test, n_timesteps)
@@ -172,12 +180,8 @@ encoder_module <- nn_module(
   
   forward = function(x) {
     
-    x <- self$rnn(x)
-    
-    # return last states for all layers
-    # per layer, a single tensor for GRU, a list of 2 tensors for LSTM
-    x <- x[[2]]
-    x
+    # return outputs for all timesteps, as well as last-timestep states for all layers
+    x %>% self$rnn()
     
   }
 )
@@ -381,7 +385,7 @@ seq2seq_module <- nn_module(
   
   forward = function(x, y, teacher_forcing_ratio) {
     
-    outputs <- torch_zeros(dim(x)[1], self$n_forecast)$to(device = device)
+    outputs <- torch_zeros(dim(x)[1], self$n_forecast)
     encoded <- self$encoder(x)
     encoder_outputs <- encoded[[1]]
     hidden <- encoded[[2]]
@@ -416,16 +420,9 @@ When instantiating the top-level model, we now have an additional choice: that b
 
 ```{r}
 net <- seq2seq_module("gru", input_size = 1, hidden_size = 32, attention_type = "multiplicative",
-                      attention_size = 8, n_forecast = n_timesteps)
+                      attention_size = 8, n_forecast = n_forecast)
 
-# training RNNs on the GPU currently prints a warning that may clutter 
-# the console
-# see https://github.com/mlverse/torch/issues/461
-# alternatively, use 
-# device <- "cpu"
-device <- torch_device(if (cuda_is_available()) "cuda" else "cpu")
 
-net <- net$to(device = device)
 ```
 
 # Training
@@ -435,15 +432,15 @@ Just like last time, in model training, we get to choose the degree of teacher f
 ```{r}
 optimizer <- optim_adam(net$parameters, lr = 0.001)
 
-num_epochs <- 100
+num_epochs <- 1000
 
 train_batch <- function(b, teacher_forcing_ratio) {
   
   optimizer$zero_grad()
-  output <- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
-  target <- b$y$to(device = device)
+  output <- net(b$x, b$y, teacher_forcing_ratio)
+  target <- b$y
   
-  loss <- nnf_mse_loss(output, target)
+  loss <- nnf_mse_loss(output, target[ , 1:(dim(output)[2])])
   loss$backward()
   optimizer$step()
   
@@ -453,10 +450,10 @@ train_batch <- function(b, teacher_forcing_ratio) {
 
 valid_batch <- function(b, teacher_forcing_ratio = 0) {
   
-  output <- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
-  target <- b$y$to(device = device)
+  output <- net(b$x, b$y, teacher_forcing_ratio)
+  target <- b$y
   
-  loss <- nnf_mse_loss(output, target)
+  loss <- nnf_mse_loss(output, target[ , 1:(dim(output)[2])])
   
   loss$item()
   
@@ -468,7 +465,7 @@ for (epoch in 1:num_epochs) {
   train_loss <- c()
   
   coro::loop(for (b in train_dl) {
-    loss <-train_batch(b, teacher_forcing_ratio = 0.3)
+    loss <-train_batch(b, teacher_forcing_ratio = 0.0)
     train_loss <- c(train_loss, loss)
   })
   
@@ -518,9 +515,8 @@ vic_elec_test <- vic_elec_daily %>%
 
 
 coro::loop(for (b in test_dl) {
-  
-  input <- b$x
-  output <- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio = 0)
+
+  output <- net(b$x, b$y, teacher_forcing_ratio = 0)
   preds <- as.numeric(output)
   
   test_preds[[i]] <- preds

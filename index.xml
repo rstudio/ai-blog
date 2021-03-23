@@ -32,7 +32,15 @@
 &lt;p&gt;This is a particularly useful strategy in translation: In generating the next word, a model will need to know what part of the source sentence to focus on. How much the technique helps with numerical sequences, in contrast, will likely depend on the features of the series in question.&lt;/p&gt;
 &lt;h1 id="data-input"&gt;Data input&lt;/h1&gt;
 &lt;p&gt;As before, we work with &lt;code&gt;vic_elec&lt;/code&gt;, but this time, we partly deviate from the way we used to employ it. With the original, bi-hourly dataset, training the current model takes a long time, longer than readers will want to wait when experimenting. So instead, we aggregate observations by day. In order to have enough data, we train on years 2012 and 2013, reserving 2014 for validation as well as post-training inspection.&lt;/p&gt;
-&lt;pre class="r"&gt;&lt;code&gt;vic_elec_daily &amp;lt;- vic_elec %&amp;gt;%
+&lt;pre class="r"&gt;&lt;code&gt;library(torch)
+library(tidyverse)
+library(tsibble)
+library(tsibbledata)
+library(lubridate)
+library(fable)
+library(zeallot)
+
+vic_elec_daily &amp;lt;- vic_elec %&amp;gt;%
   select(Time, Demand) %&amp;gt;%
   index_by(Date = date(Time)) %&amp;gt;%
   summarise(
@@ -100,10 +108,10 @@ elec_dataset &amp;lt;- dataset(
 
 batch_size &amp;lt;- 32
 
-train_ds &amp;lt;- elec_dataset(elec_train, n_timesteps, sample_frac = 0.5)
+train_ds &amp;lt;- elec_dataset(elec_train, n_timesteps)
 train_dl &amp;lt;- train_ds %&amp;gt;% dataloader(batch_size = batch_size, shuffle = TRUE)
 
-valid_ds &amp;lt;- elec_dataset(elec_valid, n_timesteps, sample_frac = 0.5)
+valid_ds &amp;lt;- elec_dataset(elec_valid, n_timesteps)
 valid_dl &amp;lt;- valid_ds %&amp;gt;% dataloader(batch_size = batch_size)
 
 test_ds &amp;lt;- elec_dataset(elec_test, n_timesteps)
@@ -140,12 +148,8 @@ test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;
   
   forward = function(x) {
     
-    x &amp;lt;- self$rnn(x)
-    
-    # return last states for all layers
-    # per layer, a single tensor for GRU, a list of 2 tensors for LSTM
-    x &amp;lt;- x[[2]]
-    x
+    # return outputs for all timesteps, as well as last-timestep states for all layers
+    x %&amp;gt;% self$rnn()
     
   }
 )&lt;/code&gt;&lt;/pre&gt;
@@ -322,7 +326,7 @@ test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;
   
   forward = function(x, y, teacher_forcing_ratio) {
     
-    outputs &amp;lt;- torch_zeros(dim(x)[1], self$n_forecast)$to(device = device)
+    outputs &amp;lt;- torch_zeros(dim(x)[1], self$n_forecast)
     encoded &amp;lt;- self$encoder(x)
     encoder_outputs &amp;lt;- encoded[[1]]
     hidden &amp;lt;- encoded[[2]]
@@ -351,29 +355,20 @@ test_dl &amp;lt;- test_ds %&amp;gt;% dataloader(batch_size = 1)&lt;/code&gt;&lt;
 )&lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;When instantiating the top-level model, we now have an additional choice: that between additive and multiplicative attention. In the “accuracy” sense of performance, my tests did not show any differences. However, the multiplicative variant is a lot faster.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;net &amp;lt;- seq2seq_module(&amp;quot;gru&amp;quot;, input_size = 1, hidden_size = 32, attention_type = &amp;quot;multiplicative&amp;quot;,
-                      attention_size = 8, n_forecast = n_timesteps)
-
-# training RNNs on the GPU currently prints a warning that may clutter 
-# the console
-# see https://github.com/mlverse/torch/issues/461
-# alternatively, use 
-# device &amp;lt;- &amp;quot;cpu&amp;quot;
-device &amp;lt;- torch_device(if (cuda_is_available()) &amp;quot;cuda&amp;quot; else &amp;quot;cpu&amp;quot;)
-
-net &amp;lt;- net$to(device = device)&lt;/code&gt;&lt;/pre&gt;
+                      attention_size = 8, n_forecast = n_forecast)&lt;/code&gt;&lt;/pre&gt;
 &lt;h1 id="training"&gt;Training&lt;/h1&gt;
 &lt;p&gt;Just like last time, in model training, we get to choose the degree of teacher forcing. Below, we go with a fraction of 0.0, that is, no forcing at all.&lt;/p&gt;
 &lt;pre class="r"&gt;&lt;code&gt;optimizer &amp;lt;- optim_adam(net$parameters, lr = 0.001)
 
-num_epochs &amp;lt;- 100
+num_epochs &amp;lt;- 1000
 
 train_batch &amp;lt;- function(b, teacher_forcing_ratio) {
   
   optimizer$zero_grad()
-  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
-  target &amp;lt;- b$y$to(device = device)
+  output &amp;lt;- net(b$x, b$y, teacher_forcing_ratio)
+  target &amp;lt;- b$y
   
-  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss &amp;lt;- nnf_mse_loss(output, target[ , 1:(dim(output)[2])])
   loss$backward()
   optimizer$step()
   
@@ -383,10 +378,10 @@ train_batch &amp;lt;- function(b, teacher_forcing_ratio) {
 
 valid_batch &amp;lt;- function(b, teacher_forcing_ratio = 0) {
   
-  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio)
-  target &amp;lt;- b$y$to(device = device)
+  output &amp;lt;- net(b$x, b$y, teacher_forcing_ratio)
+  target &amp;lt;- b$y
   
-  loss &amp;lt;- nnf_mse_loss(output, target)
+  loss &amp;lt;- nnf_mse_loss(output, target[ , 1:(dim(output)[2])])
   
   loss$item()
   
@@ -398,7 +393,7 @@ for (epoch in 1:num_epochs) {
   train_loss &amp;lt;- c()
   
   coro::loop(for (b in train_dl) {
-    loss &amp;lt;-train_batch(b, teacher_forcing_ratio = 0.3)
+    loss &amp;lt;-train_batch(b, teacher_forcing_ratio = 0.0)
     train_loss &amp;lt;- c(train_loss, loss)
   })
   
@@ -441,9 +436,8 @@ vic_elec_test &amp;lt;- vic_elec_daily %&amp;gt;%
 
 
 coro::loop(for (b in test_dl) {
-  
-  input &amp;lt;- b$x
-  output &amp;lt;- net(b$x$to(device = device), b$y$to(device = device), teacher_forcing_ratio = 0)
+
+  output &amp;lt;- net(b$x, b$y, teacher_forcing_ratio = 0)
   preds &amp;lt;- as.numeric(output)
   
   test_preds[[i]] &amp;lt;- preds
@@ -11104,8 +11098,8 @@ for (i in 1:length(ai_m)) {
 }, simplify = F) %&amp;gt;% do.call(plyr::rbind.fill,.) %&amp;gt;% 
   mutate(rowname = stringr::str_extract(rowname, &amp;#39;loss|val_loss|auc|val_auc&amp;#39;)) %&amp;gt;% 
   rename(epoch_1 = V1, epoch_2 = V2)&lt;/code&gt;&lt;/pre&gt;
-&lt;div id="htmlwidget-40756d9173ff1673f95b" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
-&lt;script type="application/json" data-for="htmlwidget-40756d9173ff1673f95b"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
+&lt;div id="htmlwidget-fc6b6325d62c36c44a6b" style="width:100%;height:auto;" class="datatables html-widget"&gt;&lt;/div&gt;
+&lt;script type="application/json" data-for="htmlwidget-fc6b6325d62c36c44a6b"&gt;{"x":{"filter":"none","data":[["1","2","3"],["val_auc","val_auc","val_auc"],[0.892,0.868,0.844],[0.893,0.855,0.845],["TFRobertaModel","TFGPT2Model","TFElectraModel"]],"container":"&lt;table class=\"display\"&gt;\n  &lt;thead&gt;\n    &lt;tr&gt;\n      &lt;th&gt; &lt;\/th&gt;\n      &lt;th&gt;metric&lt;\/th&gt;\n      &lt;th&gt;epoch_1&lt;\/th&gt;\n      &lt;th&gt;epoch_2&lt;\/th&gt;\n      &lt;th&gt;model_names&lt;\/th&gt;\n    &lt;\/tr&gt;\n  &lt;\/thead&gt;\n&lt;\/table&gt;","options":{"dom":"t","columnDefs":[{"className":"dt-right","targets":[2,3]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}&lt;/script&gt;
 &lt;p&gt;Both the &lt;em&gt;RoBERTa&lt;/em&gt; and &lt;em&gt;Electra&lt;/em&gt; models show some additional improvements after 2 epochs of training, which cannot be said of &lt;em&gt;GPT-2&lt;/em&gt;. In this case, it is clear that it can be enough to train a state-of-the-art model even for a single epoch.&lt;/p&gt;
 &lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
 &lt;p&gt;In this post, we showed how to use state-of-the-art NLP models from R. To understand how to apply them to more complex tasks, it is highly recommended to review the &lt;a href="https://github.com/huggingface/transformers/tree/master/examples"&gt;transformers tutorial&lt;/a&gt;.&lt;/p&gt;

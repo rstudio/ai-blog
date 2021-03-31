@@ -3,6 +3,13 @@ on:
   push:
   pull_request:
     types: [opened, synchronize]
+
+env:
+  # Version of pandoc to be used for rendering blog posts
+  AI_BLOG_PANDOC_VERSION: '2.10.1'
+  # R packages that are required for rendering blog posts
+  AI_BLOG_REQUIRED_PKGS: 'rmarkdown,distill,reticulate,dplyr,data.table,DT'
+
 jobs:
   build:
     runs-on: ubuntu-18.04
@@ -11,17 +18,69 @@ jobs:
       - uses: r-lib/actions/setup-r@master
       - uses: r-lib/actions/setup-pandoc@v1
         with:
-          pandoc-version: '2.10.1'
-      - name: Install dependencies
+          pandoc-version: ${{ env.AI_BLOG_PANDOC_VERSION }}
+      - name: Install Rsync
         run: |
-          Rscript -e 'install.packages(c("distill", "reticulate", "remotes", "dplyr", "data.table", "DT"))'
-          Rscript -e 'remotes::install_github("hadley/emo")'
-      - name: Build Site
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y rsync
+      - name: Query Dependencies
+        run: |
+          print(R.version)
+          install.packages('remotes')
+
+          pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
+          pkg_versions <- lapply(
+            pkgs,
+            function(x) {
+              tryCatch(packageVersion(x), error = function(e) NULL )
+            }
+          )
+          saveRDS(pkg_versions, '.github/pkg-versions.Rds', version = 2)
+          saveRDS(remotes::package_deps(pkgs, dependencies = TRUE), '.github/pkg-deps.Rds', version = 2)
+
+          writeLines(sprintf('R-%i.%i', getRversion()$major, getRversion()$minor), '.github/R-version')
+
+          writeLines(Sys.getenv('AI_BLOG_PANDOC_VERSION'), '.github/pandoc-version')
+        shell: Rscript {0}
+
+      - name: Cache R Packages
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
+          restore-keys: ${{ hashFiles('.github/R-version') }}-
+
+      - name: Upgrade Dependent Packages
+        run: |
+          pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
+          remotes::install_cran(pkgs = pkgs, upgrade = TRUE)
+          remotes::install_github('hadley/emo')
+        shell: Rscript {0}
+
+      - name: Cache Build Artifacts
+        uses: actions/cache@v2
+        with:
+          path: /tmp/_posts
+          key: ${{ hashFiles('.github/pandoc-version') }}-${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
+
+      - name: Render Posts
         run: |
           rm -rf docs/
           mv _posts/2019-12-20-differential-privacy/differential_privacy.Rmd _posts/2019-12-20-differential-privacy/differential_privacy_2019.Rmd
+          set -x
+          for file in $(find _posts -type f -name '*.Rmd')
+          do
+            (\
+              diff -q {,/tmp/}"${file}" && \
+                rsync -rv {/tmp/,}$(dirname "${file}")/ \
+            ) || \
+              R -e "rmarkdown::render('${file}')"
+          done
+          rm -rf /tmp/_posts
+          cp -r _posts /tmp
+        shell: bash
+      - name: Render Site
+        run: |
           R -e 'rmarkdown::render_site()'
-          R -e 'for (post in dir("_posts/", pattern = "*.Rmd", recursive = TRUE)) rmarkdown::render(file.path("_posts", post))'
       - name: Deploy to GitHub
         uses: s0/git-publish-subdir-action@develop
         if: github.ref == 'refs/heads/master'

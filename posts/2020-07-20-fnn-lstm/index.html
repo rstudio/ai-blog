@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -2128,7 +2129,7 @@ gtag('config', 'UA-20375833-3');
   <a href="../../index.html#category:Unsupervised_Learning" class="dt-tag">Unsupervised Learning</a>
 </div>
 <!--/radix_placeholder_categories-->
-<p><p>In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, “vanilla LSTM”, FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.</p></p>
+<p><p>In a recent post, we showed how an LSTM autoencoder, regularized by false nearest neighbors (FNN) loss, can be used to reconstruct the attractor of a nonlinear, chaotic dynamical system. Here, we explore how that same technique assists in prediction. Matched up with a comparable, capacity-wise, “vanilla LSTM,” FNN-LSTM improves performance on a set of very different, real-world datasets, especially for the initial steps in a multi-step forecast.</p></p>
 </div>
 
 <div class="d-byline">
@@ -2139,9 +2140,9 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>Today, we pick up on the plan alluded to in the conclusion of the recent <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">Deep attractors: Where deep learning meets chaos</a>: employ that same technique to generate <em>forecasts</em> for empirical time series data.</p>
-<p>“That same technique”, which for conciseness, I’ll take the liberty of referring to as FNN-LSTM, is due to William Gilpin’s 2020 paper “Deep reconstruction of strange attractors from time series” <span class="citation" data-cites="gilpin2020deep">(Gilpin <a href="#ref-gilpin2020deep" role="doc-biblioref">2020</a>)</span>.</p>
+<p>“That same technique,” which for conciseness, I’ll take the liberty of referring to as FNN-LSTM, is due to William Gilpin’s 2020 paper “Deep reconstruction of strange attractors from time series” <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>.</p>
 <p>In a nutshell<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, the problem addressed is as follows: A system, known or assumed to be nonlinear and highly dependent on initial conditions, is observed, resulting in a scalar series of measurements. The measurements are not just – inevitably – noisy, but in addition, they are – at best – a projection of a multidimensional state space onto a line.</p>
-<p>Classically in nonlinear time series analysis, such scalar series of observations are augmented by supplementing, at every point in time, delayed measurements of that same series – a technique called <em>delay coordinate embedding</em> <span class="citation" data-cites="embedology">(Sauer, Yorke, and Casdagli <a href="#ref-embedology" role="doc-biblioref">1991</a>)</span>. For example, instead of just a single vector <code>X1</code>, we could have a matrix of vectors <code>X1</code>, <code>X2</code>, and <code>X3</code>, with <code>X2</code> containing the same values as <code>X1</code>, but starting from the third observation, and <code>X3</code>, from the fifth. In this case, the <em>delay</em> would be 2, and the <em>embedding dimension</em>, 3. Various <a href="https://en.wikipedia.org/wiki/Takens&#39;s_theorem">theorems</a> state that if these parameters are chosen adequately, it is possible to reconstruct the complete state space. There is a problem though: The theorems assume that the dimensionality of the true state space is known, which in many real-world applications, won’t be the case.</p>
+<p>Classically in nonlinear time series analysis, such scalar series of observations are augmented by supplementing, at every point in time, delayed measurements of that same series – a technique called <em>delay coordinate embedding</em> <span class="citation" data-cites="embedology">(<a href="#ref-embedology" role="doc-biblioref">Sauer, Yorke, and Casdagli 1991</a>)</span>. For example, instead of just a single vector <code>X1</code>, we could have a matrix of vectors <code>X1</code>, <code>X2</code>, and <code>X3</code>, with <code>X2</code> containing the same values as <code>X1</code>, but starting from the third observation, and <code>X3</code>, from the fifth. In this case, the <em>delay</em> would be 2, and the <em>embedding dimension</em>, 3. Various <a href="https://en.wikipedia.org/wiki/Takens&#39;s_theorem">theorems</a> state that if these parameters are chosen adequately, it is possible to reconstruct the complete state space. There is a problem though: The theorems assume that the dimensionality of the true state space is known, which in many real-world applications, won’t be the case.</p>
 <p>This is where Gilpin’s idea comes in: Train an autoencoder, whose intermediate representation encapsulates the system’s attractor. Not just any MSE-optimized autoencoder though. The latent representation is regularized by <em>false nearest neighbors</em> (FNN) loss, a technique commonly used with delay coordinate embedding to determine an adequate embedding dimension. False neighbors are those who are close in <code>n</code>-dimensional space, but significantly farther apart in <code>n+1</code>-dimensional space. In the aforementioned introductory <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">post</a>, we showed how this technique allowed to reconstruct the attractor of the (synthetic) Lorenz system. Now, we want to move on to prediction.</p>
 <p>We first describe the setup, including model definitions, training procedures, and data preparation. Then, we tell you how it went.</p>
 <h2 id="setup">Setup</h2>
@@ -2362,7 +2363,7 @@ gtag('config', 'UA-20375833-3');
 <p>Training is unchanged as well, apart from the fact that now, we continually output latent variable variances in addition to the losses. This is because with FNN-LSTM, we have to choose an adequate weight for the FNN loss component. An “adequate weight” is one where the variance drops sharply after the first <code>n</code> variables, with <code>n</code> thought to correspond to attractor dimensionality. For the Lorenz system discussed in the previous post, this is how these variances looked:</p>
 <pre><code>     V1       V2        V3        V4        V5        V6        V7        V8        V9       V10
  0.0739   0.0582   1.12e-6   3.13e-4   1.43e-5   1.52e-8   1.35e-6   1.86e-4   1.67e-4   4.39e-5</code></pre>
-<p>If we take variance as an indicator of <em>importance</em>, the first two variables are clearly more important than the rest. This finding nicely corresponds to “official” estimates of Lorenz attractor dimensionality. For example, the correlation dimension is estimated to lie around 2.05 <span class="citation" data-cites="GRASSBERGER1983189">(Grassberger and Procaccia <a href="#ref-GRASSBERGER1983189" role="doc-biblioref">1983</a>)</span>.</p>
+<p>If we take variance as an indicator of <em>importance</em>, the first two variables are clearly more important than the rest. This finding nicely corresponds to “official” estimates of Lorenz attractor dimensionality. For example, the correlation dimension is estimated to lie around 2.05 <span class="citation" data-cites="GRASSBERGER1983189">(<a href="#ref-GRASSBERGER1983189" role="doc-biblioref">Grassberger and Procaccia 1983</a>)</span>.</p>
 <p>Thus, here we have the training routine:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2773,7 +2774,7 @@ Figure 9: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green
 <p>On this dataset, we certainly would want to explore other architectures better able to capture the presence of high <em>and</em> low frequencies in the data, such as mixture models. But – were we forced to stay with one of these, and could do a one-step-ahead, rolling forecast, we’d go with FNN-LSTM.</p>
 <p>Speaking of mixed frequencies – we haven’t seen the extremes yet …</p>
 <h3 id="mouse-dataset">Mouse dataset</h3>
-<p>“Mouse”, that’s spike rates recorded from a mouse thalamus.</p>
+<p>“Mouse,” that’s spike rates recorded from a mouse thalamus.</p>
 <blockquote>
 <p><code>mouse.pkl</code> A time series of spiking rates for a neuron in a mouse thalamus. Raw spike data was obtained from <a href="http://crcns.org/data-sets/thalamus/th-1/about-th-1">CRCNS</a> and processed with the authors' code in order to generate a spike rate time series.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
 </blockquote>
@@ -2788,9 +2789,9 @@ Figure 10: Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on th
 <p>Obviously, this dataset will be very hard to predict. How, after “long” silence, do you know that a neuron is going to fire?</p>
 <p>As usual, we inspect latent code variances (<code>fnn_multiplier</code> was set to <code>0.4</code>):</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>     V1       V2        V3         V4       V5       V6        V7      V8       V9        V10</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a> <span class="fl">0.0796</span>  <span class="fl">0.00246</span>  <span class="fl">0.000214</span>    <span class="fl">2.26e-7</span>   <span class="fl">.71e-9</span>  <span class="fl">4.22e-8</span>  <span class="fl">6.45e-10</span> <span class="fl">1.61e-4</span> <span class="fl">2.63e-10</span>    <span class="fl">2.05e-8</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a><span class="op">&gt;</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>     V1       V2        V3         V4       V5       V6        V7      V8       V9        V10</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a> <span class="fl">0.0796</span>  <span class="fl">0.00246</span>  <span class="fl">0.000214</span>    <span class="fl">2.26e-7</span>   .<span class="fl">71e-9</span>  <span class="fl">4.22e-8</span>  <span class="fl">6.45e-10</span> <span class="fl">1.61e-4</span> <span class="fl">2.63e-10</span>    <span class="fl">2.05e-8</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="sc">&gt;</span></span></code></pre></div>
 </div>
 <p>Again, we don’t see the first variable explaining much variance. Still, interestingly, when inspecting forecast errors we get a picture very similar to the one obtained on our first, <code>geyser</code>, dataset:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
@@ -2811,7 +2812,7 @@ Figure 12: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (gree
 </p>
 </div>
 </div>
-<p>In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to happen”, vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track” as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an obvious decision with this dataset.</p>
+<p>In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to happen,” vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track” as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an obvious decision with this dataset.</p>
 <h2 id="discussion">Discussion</h2>
 <p>When, in timeseries forecasting, would we consider FNN-LSTM? Judging by the above experiments, conducted on four very different datasets: Whenever we consider a deep learning approach. Of course, this has been a casual exploration – and it was meant to be, as – hopefully – was evident from the nonchalant and bloomy (sometimes) writing style.</p>
 <p>Throughout the text, we’ve emphasized <em>utility</em> – how could this technique be used to improve predictions? But, looking at the above results, a number of interesting questions come to mind. We already speculated (though in an indirect way) whether the number of high-variance variables in the latent code was relatable to how far we could sensibly forecast into the future. However, even more intriguing is the question of how characteristics of the <em>dataset itself</em> affect FNN efficiency.</p>
@@ -2821,21 +2822,21 @@ Figure 12: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (gree
 <li><p>To what degree does the system appear to be sensitively dependent on initial conditions? In other words, what is the value of its (estimated, from the observations) highest <a href="https://en.wikipedia.org/wiki/Lyapunov_exponent">Lyapunov exponent</a>?</p></li>
 <li><p>What is its (estimated) dimensionality, for example, in terms of <a href="https://en.wikipedia.org/wiki/Correlation_dimension">correlation dimension</a>?</p></li>
 </ul>
-<p>While it is easy to obtain those estimates, using, for instance, the <a href="https://cran.r-project.org/web/packages/nonlinearTseries/">nonlinearTseries</a> package explicitly modeled after practices described in Kantz &amp; Schreiber’s classic <span class="citation" data-cites="Kantz">(Kantz and Schreiber <a href="#ref-Kantz" role="doc-biblioref">2004</a>)</span>, we don’t want to extrapolate from our tiny sample of datasets, and leave such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its conceptual attractivity.</p>
+<p>While it is easy to obtain those estimates, using, for instance, the <a href="https://cran.r-project.org/web/packages/nonlinearTseries/">nonlinearTseries</a> package explicitly modeled after practices described in Kantz &amp; Schreiber’s classic <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span>, we don’t want to extrapolate from our tiny sample of datasets, and leave such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its conceptual attractivity.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-gilpin2020deep">
-<p>Gilpin, William. 2020. “Deep Reconstruction of Strange Attractors from Time Series.” <a href="http://arxiv.org/abs/2002.05909">http://arxiv.org/abs/2002.05909</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-gilpin2020deep" class="csl-entry" role="doc-biblioentry">
+Gilpin, William. 2020. <span>“Deep Reconstruction of Strange Attractors from Time Series.”</span> <a href="https://arxiv.org/abs/2002.05909">https://arxiv.org/abs/2002.05909</a>.
 </div>
-<div id="ref-GRASSBERGER1983189">
-<p>Grassberger, Peter, and Itamar Procaccia. 1983. “Measuring the Strangeness of Strange Attractors.” <em>Physica D: Nonlinear Phenomena</em> 9 (1): 189–208. <a href="https://doi.org/https://doi.org/10.1016/0167-2789(83)90298-1">https://doi.org/https://doi.org/10.1016/0167-2789(83)90298-1</a>.</p>
+<div id="ref-GRASSBERGER1983189" class="csl-entry" role="doc-biblioentry">
+Grassberger, Peter, and Itamar Procaccia. 1983. <span>“Measuring the Strangeness of Strange Attractors.”</span> <em>Physica D: Nonlinear Phenomena</em> 9 (1): 189–208. https://doi.org/<a href="https://doi.org/10.1016/0167-2789(83)90298-1">https://doi.org/10.1016/0167-2789(83)90298-1</a>.
 </div>
-<div id="ref-Kantz">
-<p>Kantz, Holger, and Thomas Schreiber. 2004. <em>Nonlinear Time Series Analysis</em>. Cambridge University Press.</p>
+<div id="ref-Kantz" class="csl-entry" role="doc-biblioentry">
+Kantz, Holger, and Thomas Schreiber. 2004. <em>Nonlinear Time Series Analysis</em>. Cambridge University Press.
 </div>
-<div id="ref-embedology">
-<p>Sauer, Tim, James A. Yorke, and Martin Casdagli. 1991. “Embedology.” <em>Journal of Statistical Physics</em> 65 (3-4): 579–616. <a href="https://doi.org/10.1007/BF01053745">https://doi.org/10.1007/BF01053745</a>.</p>
+<div id="ref-embedology" class="csl-entry" role="doc-biblioentry">
+Sauer, Tim, James A. Yorke, and Martin Casdagli. 1991. <span>“<span>Embedology</span>.”</span> <em>Journal of Statistical Physics</em> 65 (3-4): 579–616. <a href="https://doi.org/10.1007/BF01053745">https://doi.org/10.1007/BF01053745</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -2169,7 +2170,7 @@ gtag('config', 'UA-20375833-3');
 <h1 id="el-niño-la-niña">El Niño, la Niña</h1>
 <p>ENSO refers to a changing pattern of sea surface temperatures and sea-level pressures occurring in the equatorial Pacific. From its three overall states, probably the best-known is El Niño. El Niño occurs when surface water temperatures in the eastern Pacific are higher than normal, and the strong winds that normally blow from east to west are unusually weak. The opposite conditions are termed La Niña. Everything in-between is classified as normal.</p>
 <p>ENSO has great impact on the weather worldwide, and routinely harms ecosystems and societies through storms, droughts and flooding, possibly resulting in famines and economic crises. The best societies can do is try to adapt and mitigate severe consequences. Such efforts are aided by accurate forecasts, the further ahead the better.</p>
-<p>Here, deep learning (DL) can potentially help: Variables like sea surface temperatures and pressures are given on a spatial grid – that of the earth – and as we know, DL is good at extracting spatial (e.g., image) features. For ENSO prediction, architectures like convolutional neural networks (<span class="citation" data-cites="2019Natur">Ham, Kim, and Luo (<a href="#ref-2019Natur" role="doc-biblioref">2019</a>)</span>) or convolutional-recurrent hybrids<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> are habitually used. One such hybrid is just our convLSTM; it operates on sequences of features given on a spatial grid. Today, thus, we’ll be training a model for ENSO forecasting. This model will have a convLSTM for its central ingredient.</p>
+<p>Here, deep learning (DL) can potentially help: Variables like sea surface temperatures and pressures are given on a spatial grid – that of the earth – and as we know, DL is good at extracting spatial (e.g., image) features. For ENSO prediction, architectures like convolutional neural networks (<span class="citation" data-cites="2019Natur"><a href="#ref-2019Natur" role="doc-biblioref">Ham, Kim, and Luo</a> (<a href="#ref-2019Natur" role="doc-biblioref">2019a</a>)</span>) or convolutional-recurrent hybrids<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> are habitually used. One such hybrid is just our convLSTM; it operates on sequences of features given on a spatial grid. Today, thus, we’ll be training a model for ENSO forecasting. This model will have a convLSTM for its central ingredient.</p>
 <p>Before we start, a note. While our model fits well with architectures described in the relevant papers, the same cannot be said for amount of training data used. For reasons of practicality, we use actual observations only; consequently, we end up with a small (relative to the task) dataset. In contrast, research papers tend to make use of climate simulations<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>, resulting in significantly more data to work with.</p>
 <p>From the outset, then, we don’t expect stellar performance. Nevertheless, this should make for an interesting case study, and a useful code template for our readers to apply to their own data.</p>
 <h1 id="data">Data</h1>
@@ -2299,7 +2300,7 @@ Figure 1: Monthly sea surface temperatures, 2020/01/01 - 2020/01/12.
 </code></pre>
 </div>
 </div>
-<p>Next, as is done by e.g. <span class="citation" data-cites="dlenso">Ham, Kim, and Luo (<a href="#ref-dlenso" role="doc-biblioref">2019</a>)</span>, we only use grid points between 55° south and 60° north. This has the additional advantage of reducing memory requirements.</p>
+<p>Next, as is done by e.g. <span class="citation" data-cites="dlenso"><a href="#ref-dlenso" role="doc-biblioref">Ham, Kim, and Luo</a> (<a href="#ref-dlenso" role="doc-biblioref">2019b</a>)</span>, we only use grid points between 55° south and 60° north. This has the additional advantage of reducing memory requirements.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sst</span> <span class='op'>&lt;-</span> <span class='va'>grb</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>between</span><span class='op'>(</span><span class='va'>y</span>,<span class='op'>-</span><span class='fl'>55</span>, <span class='fl'>60</span><span class='op'>)</span><span class='op'>)</span>
@@ -2417,7 +2418,7 @@ Figure 1: Monthly sea surface temperatures, 2020/01/01 - 2020/01/12.
 <li><p><code>batch_size</code> is the number of observations worked on in one round of computations,</p></li>
 <li><p><code>timesteps</code> chains consecutive observations from adjacent months,</p></li>
 <li><p><code>width</code> and <code>height</code> together constitute the spatial grid, and</p></li>
-<li><p><code>channels</code> corresponds to available visual channels in the “image”.</p></li>
+<li><p><code>channels</code> corresponds to available visual channels in the “image.”</p></li>
 </ul>
 <p>In <code>.getitem()</code>, we select the consecutive observations, starting at a given index, and stack them in dimension one. (One, not two, as batches will only start to exist once the <code>dataloader</code> comes into play.)</p>
 <p>Now, what about the target? Our ultimate goal was – is – predicting the Niño 3.4 Index. However, as you see we define three targets: One is the index, as expected; an additional one holds the spatially-gridded sea surface temperatures for the prediction month. Why? Our main instrument, the most prominent constituent of the model, will be a convLSTM, an architecture designed for <em>spatial</em> prediction. Thus, to train it efficiently, we want to give it the opportunity to predict values on a spatial grid. So far so good; but there’s one more target, the phase/category. This was added for experimentation purposes: Maybe predicting <em>both</em> index <em>and</em> phase helps in training?</p>
@@ -4495,12 +4496,12 @@ https://ds.data.jma.go.jp/tcc/tcc/products/elnino/cobesst/gpvdata/2020-2029/sst2
 </div>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-2019Natur">
-<p>Ham, Yoo-Geun, Jeong-Hwan Kim, and Jing-Jia Luo. 2019. “Deep learning for multi-year ENSO forecasts” 573 (7775): 568–72. <a href="https://doi.org/10.1038/s41586-019-1559-7">https://doi.org/10.1038/s41586-019-1559-7</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-dlenso" class="csl-entry" role="doc-biblioentry">
+Ham, Yoo-Geun, Jeong-Hwan Kim, and Jing-Jia Luo. 2019b. <span>“<span class="nocase">Deep learning for multi-year ENSO forecasts</span>”</span> 573 (7775): 568–72. <a href="https://doi.org/10.1038/s41586-019-1559-7">https://doi.org/10.1038/s41586-019-1559-7</a>.
 </div>
-<div id="ref-dlenso">
-<p>Ham, Yoo-Geun, Jeong-Hwan Kim, and Jing-Jia Luo. 2019. “Deep learning for multi-year ENSO forecasts” 573 (7775): 568–72. <a href="https://doi.org/10.1038/s41586-019-1559-7">https://doi.org/10.1038/s41586-019-1559-7</a>.</p>
+<div id="ref-2019Natur" class="csl-entry" role="doc-biblioentry">
+———. 2019a. <span>“<span class="nocase">Deep learning for multi-year ENSO forecasts</span>”</span> 573 (7775): 568–72. <a href="https://doi.org/10.1038/s41586-019-1559-7">https://doi.org/10.1038/s41586-019-1559-7</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

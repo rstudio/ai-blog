@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -131,7 +132,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Optimizing classifier performance via an approximation to the Wilcoxon-Mann-Whitney statistic;citation_publication_date=2003;citation_author=Lian Yan;citation_author=Robert H Dodier;citation_author=Michael Mozer;citation_author=Richard H Wolniewicz"/>
+  <meta name="citation_reference" content="citation_title=Optimizing classifier performance via an approximation to the wilcoxon-mann-whitney statistic;citation_publication_date=2003;citation_author=Lian Yan;citation_author=Robert H Dodier;citation_author=Michael Mozer;citation_author=Richard H Wolniewicz"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2142,8 +2143,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>It’s 2019; no one doubts the effectiveness of deep learning in computer vision. Or natural language processing. With “normal”, Excel-style, a.k.a. <em>tabular</em> data however, the situation is different.</p>
-<p>Basically there are two cases: One, you have numeric data only. Then, creating the network is straightforward, and all will be about optimization and hyperparameter search. Two, you have a mix of numeric and categorical data, where categorical could be anything from ordered-numeric to symbolic (e.g., text). In this latter case, with categorical data entering the picture, there is an extremely nice idea you can make use of: <em>embed</em> what are equidistant symbols into a high-dimensional, numeric representation. In that new representation, we can define a distance metric that allows us to make statements like “cycling is closer to running than to baseball”, or “😃 is closer to 😂 than to 😠”. When not dealing with language data, this technique is referred to as <em>entity embeddings</em>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<p>It’s 2019; no one doubts the effectiveness of deep learning in computer vision. Or natural language processing. With “normal,” Excel-style, a.k.a. <em>tabular</em> data however, the situation is different.</p>
+<p>Basically there are two cases: One, you have numeric data only. Then, creating the network is straightforward, and all will be about optimization and hyperparameter search. Two, you have a mix of numeric and categorical data, where categorical could be anything from ordered-numeric to symbolic (e.g., text). In this latter case, with categorical data entering the picture, there is an extremely nice idea you can make use of: <em>embed</em> what are equidistant symbols into a high-dimensional, numeric representation. In that new representation, we can define a distance metric that allows us to make statements like “cycling is closer to running than to baseball,” or “😃 is closer to 😂 than to 😠.” When not dealing with language data, this technique is referred to as <em>entity embeddings</em>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
 <p>Nice as this sounds, why don’t we see entity embeddings used all the time? Well, creating a Keras network that processes a mix of numeric and categorical data used to require a bit of an effort. With TensorFlow’s new <em>feature columns</em>, usable from R through a combination of <code>tfdatasets</code> and <code>keras</code>, there is a much easier way to achieve this. What’s more, <code>tfdatasets</code> follows the popular <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes</a> idiom to initialize, refine, and apply a feature specification <code>%&gt;%</code>-style. And finally, there are ready-made steps for bucketizing a numeric column, or hashing it, or creating <em>crossed columns</em> to capture interactions.</p>
 <p>This post introduces feature specs starting from a scenario where they don’t exist: basically, the status quo until very recently. Imagine you have a dataset like that from the <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">Porto Seguro car insurance competition</a> where some of the columns are numeric, and some are categorical. You want to train a fully connected network on it, with all categorical columns fed into embedding layers. How can you do that? We then contrast this with the feature spec way, which makes things <em>a lot</em> easier – especially when there’s a lot of categorical columns. In a second applied example, we demonstrate the use of <em>crossed columns</em> on the <em>rugged</em> dataset from Richard McElreath’s <em>rethinking</em> package. Here, we also direct attention to a few technical details that are worth knowing about.</p>
 <h2 id="mixing-numeric-data-and-embeddings-the-pre-feature-spec-way">Mixing numeric data and embeddings, the pre-feature-spec way</h2>
@@ -2154,7 +2155,7 @@ gtag('config', 'UA-20375833-3');
 <li>scale the remaining numeric features to mean 0 and variance 1, and</li>
 <li>embed the categorical variables (each one by itself).</li>
 </ul>
-<p>We’ll then define a dense network to predict <code>target</code>, the binary outcome. So first, let’s see how we could get our data into shape, as well as build up the network, in a “manual”, pre-feature-columns way.</p>
+<p>We’ll then define a dense network to predict <code>target</code>, the binary outcome. So first, let’s see how we could get our data into shape, as well as build up the network, in a “manual,” pre-feature-columns way.</p>
 <p>When loading libraries, we already use the versions we’ll need very soon: Tensorflow 2 (&gt;= beta 1), and the development (= Github) versions of <code>tfdatasets</code> and <code>keras</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2437,7 +2438,7 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 </code></pre>
 </div>
 </div>
-<p>In the Kaggle competition, submissions are <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/overview/evaluation">evaluated using the normalized Gini coefficient</a>, which we can calculate with the help of a new metric available in Keras, <code>tf$keras$metrics$AUC()</code>. For training, we can use an approximation to the AUC due to Yan et al. (2003) <span class="citation" data-cites="yan2003optimizing">(Yan et al. <a href="#ref-yan2003optimizing" role="doc-biblioref">2003</a>)</span>. Then training is as straightforward as:</p>
+<p>In the Kaggle competition, submissions are <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction/overview/evaluation">evaluated using the normalized Gini coefficient</a>, which we can calculate with the help of a new metric available in Keras, <code>tf$keras$metrics$AUC()</code>. For training, we can use an approximation to the AUC due to Yan et al. (2003) <span class="citation" data-cites="yan2003optimizing">(<a href="#ref-yan2003optimizing" role="doc-biblioref">Yan et al. 2003</a>)</span>. Then training is as straightforward as:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='va'>auc</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>AUC</span><span class='op'>(</span><span class='op'>)</span>
@@ -2645,9 +2646,9 @@ IndicatorColumn(categorical_column=CrossedColumn(keys=(IdentityCategoricalColumn
 <h2 id="in-a-nutshell">In a nutshell</h2>
 <p><em>Feature specs</em> are a convenient, elegant way of making categorical data available to Keras, as well as to chain useful transformations like bucketizing and creating crossed columns. The time you save data wrangling may go into tuning and experimentation. Enjoy, and thanks for reading!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-yan2003optimizing">
-<p>Yan, Lian, Robert H Dodier, Michael Mozer, and Richard H Wolniewicz. 2003. “Optimizing Classifier Performance via an Approximation to the Wilcoxon-Mann-Whitney Statistic.” In <em>Proceedings of the 20th International Conference on Machine Learning (Icml-03)</em>, 848–55.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-yan2003optimizing" class="csl-entry" role="doc-biblioentry">
+Yan, Lian, Robert H Dodier, Michael Mozer, and Richard H Wolniewicz. 2003. <span>“Optimizing Classifier Performance via an Approximation to the Wilcoxon-Mann-Whitney Statistic.”</span> In <em>Proceedings of the 20th International Conference on Machine Learning (ICML-03)</em>, 848–55.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

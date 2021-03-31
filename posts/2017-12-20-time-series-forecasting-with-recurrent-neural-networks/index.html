@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -2541,42 +2542,42 @@ $ `wd (deg)`        &lt;dbl&gt; 152.3, 136.1, 171.6, 198.0, 214.3, 192.7, 166.5.
 <p><img src="images/6-3_loss_plot_reversed_gru-r.png" style="width:100.0%" /></p>
 <p>The reversed-order GRU underperforms even the common-sense baseline, indicating that in this case, chronological processing is important to the success of your approach. This makes perfect sense: the underlying GRU layer will typically be better at remembering the recent past than the distant past, and naturally the more recent weather data points are more predictive than older data points for the problem (that’s what makes the common-sense baseline fairly strong). Thus the chronological version of the layer is bound to outperform the reversed-order version. Importantly, this isn’t true for many other problems, including natural language: intuitively, the importance of a word in understanding a sentence isn’t usually dependent on its position in the sentence. Let’s try the same trick on the LSTM IMDB example from section 6.2.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">library</span>(keras)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a><span class="co"># Number of words to consider as features</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>max_features &lt;-<span class="st"> </span><span class="dv">10000</span>  </span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a><span class="co"># Cuts off texts after this number of words</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>maxlen &lt;-<span class="st"> </span><span class="dv">500</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>imdb &lt;-<span class="st"> </span><span class="kw">dataset_imdb</span>(<span class="dt">num_words =</span> max_features)</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a><span class="kw">c</span>(<span class="kw">c</span>(x_train, y_train), <span class="kw">c</span>(x_test, y_test)) <span class="op">%&lt;-%</span><span class="st"> </span>imdb</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a><span class="co"># Reverses sequences</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true"></a>x_train &lt;-<span class="st"> </span><span class="kw">lapply</span>(x_train, rev)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true"></a>x_test &lt;-<span class="st"> </span><span class="kw">lapply</span>(x_test, rev) </span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true"></a></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true"></a><span class="co"># Pads sequences</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true"></a>x_train &lt;-<span class="st"> </span><span class="kw">pad_sequences</span>(x_train, <span class="dt">maxlen =</span> maxlen)  <span class="op">&lt;</span><span class="dv">4</span><span class="op">&gt;</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true"></a>x_test &lt;-<span class="st"> </span><span class="kw">pad_sequences</span>(x_test, <span class="dt">maxlen =</span> maxlen)</span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true"></a></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true"></a>model &lt;-<span class="st"> </span><span class="kw">keras_model_sequential</span>() <span class="op">%&gt;%</span><span class="st"> </span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true"></a><span class="st">  </span><span class="kw">layer_embedding</span>(<span class="dt">input_dim =</span> max_features, <span class="dt">output_dim =</span> <span class="dv">128</span>) <span class="op">%&gt;%</span><span class="st"> </span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true"></a><span class="st">  </span><span class="kw">layer_lstm</span>(<span class="dt">units =</span> <span class="dv">32</span>) <span class="op">%&gt;%</span><span class="st"> </span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true"></a><span class="st">  </span><span class="kw">layer_dense</span>(<span class="dt">units =</span> <span class="dv">1</span>, <span class="dt">activation =</span> <span class="st">&quot;sigmoid&quot;</span>)</span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true"></a></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true"></a>model <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">compile</span>(</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true"></a>  <span class="dt">optimizer =</span> <span class="st">&quot;rmsprop&quot;</span>,</span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true"></a>  <span class="dt">loss =</span> <span class="st">&quot;binary_crossentropy&quot;</span>,</span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true"></a>  <span class="dt">metrics =</span> <span class="kw">c</span>(<span class="st">&quot;acc&quot;</span>)</span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true"></a>)</span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true"></a>  </span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true"></a>history &lt;-<span class="st"> </span>model <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">fit</span>(</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true"></a>  x_train, y_train,</span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true"></a>  <span class="dt">epochs =</span> <span class="dv">10</span>,</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true"></a>  <span class="dt">batch_size =</span> <span class="dv">128</span>,</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true"></a>  <span class="dt">validation_split =</span> <span class="fl">0.2</span></span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(keras)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of words to consider as features</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>max_features <span class="ot">&lt;-</span> <span class="dv">10000</span>  </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Cuts off texts after this number of words</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>maxlen <span class="ot">&lt;-</span> <span class="dv">500</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>imdb <span class="ot">&lt;-</span> <span class="fu">dataset_imdb</span>(<span class="at">num_words =</span> max_features)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(<span class="fu">c</span>(x_train, y_train), <span class="fu">c</span>(x_test, y_test)) <span class="sc">%&lt;-%</span> imdb</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Reverses sequences</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>x_train <span class="ot">&lt;-</span> <span class="fu">lapply</span>(x_train, rev)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>x_test <span class="ot">&lt;-</span> <span class="fu">lapply</span>(x_test, rev) </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Pads sequences</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>x_train <span class="ot">&lt;-</span> <span class="fu">pad_sequences</span>(x_train, <span class="at">maxlen =</span> maxlen)  <span class="sc">&lt;</span><span class="dv">4</span><span class="sc">&gt;</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>x_test <span class="ot">&lt;-</span> <span class="fu">pad_sequences</span>(x_test, <span class="at">maxlen =</span> maxlen)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">keras_model_sequential</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">layer_embedding</span>(<span class="at">input_dim =</span> max_features, <span class="at">output_dim =</span> <span class="dv">128</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">layer_lstm</span>(<span class="at">units =</span> <span class="dv">32</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">layer_dense</span>(<span class="at">units =</span> <span class="dv">1</span>, <span class="at">activation =</span> <span class="st">&quot;sigmoid&quot;</span>)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>model <span class="sc">%&gt;%</span> <span class="fu">compile</span>(</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">optimizer =</span> <span class="st">&quot;rmsprop&quot;</span>,</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  <span class="at">loss =</span> <span class="st">&quot;binary_crossentropy&quot;</span>,</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="at">metrics =</span> <span class="fu">c</span>(<span class="st">&quot;acc&quot;</span>)</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>history <span class="ot">&lt;-</span> model <span class="sc">%&gt;%</span> <span class="fu">fit</span>(</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  x_train, y_train,</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  <span class="at">epochs =</span> <span class="dv">10</span>,</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  <span class="at">batch_size =</span> <span class="dv">128</span>,</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  <span class="at">validation_split =</span> <span class="fl">0.2</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 </div>
 <p>You get performance nearly identical to that of the chronological-order LSTM. Remarkably, on such a text dataset, reversed-order processing works just as well as chronological processing, confirming the hypothesis that, although word order <em>does</em> matter in understanding language, <em>which</em> order you use isn’t crucial. Importantly, an RNN trained on reversed sequences will learn different representations than one trained on the original sequences, much as you would have different mental models if time flowed backward in the real world – if you lived a life where you died on your first day and were born on your last day. In machine learning, representations that are <em>different</em> yet <em>useful</em> are always worth exploiting, and the more they differ, the better: they offer a new angle from which to look at your data, capturing aspects of the data that were missed by other approaches, and thus they can help boost performance on a task. This is the intuition behind <em>ensembling</em>, a concept we’ll explore in chapter 7.</p>
 <p>A bidirectional RNN exploits this idea to improve on the performance of chronological-order RNNs. It looks at its input sequence both ways, obtaining potentially richer representations and capturing patterns that may have been missed by the chronological-order version alone.</p>

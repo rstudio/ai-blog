@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -2895,71 +2896,71 @@ As a caveat, please note we’re talking about mapping concepts to technical app
 </div>
 <p>Just like model outputs and losses are both lists, the data generator has to return the ground truth samples in a list. Fitting the model then goes as usual.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a>loc_class_generator &lt;-</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="st">  </span><span class="cf">function</span>(data,</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>           target_height,</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>           target_width,</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>           shuffle,</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>           batch_size) {</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a>    i &lt;-<span class="st"> </span><span class="dv">1</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a>    <span class="cf">function</span>() {</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a>      <span class="cf">if</span> (shuffle) {</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a>        indices &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(data), <span class="dt">size =</span> batch_size)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>      } <span class="cf">else</span> {</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true"></a>        <span class="cf">if</span> (i <span class="op">+</span><span class="st"> </span>batch_size <span class="op">&gt;=</span><span class="st"> </span><span class="kw">nrow</span>(data))</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true"></a>          i &lt;&lt;-<span class="st"> </span><span class="dv">1</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true"></a>        indices &lt;-<span class="st"> </span><span class="kw">c</span>(i<span class="op">:</span><span class="kw">min</span>(i <span class="op">+</span><span class="st"> </span>batch_size <span class="op">-</span><span class="st"> </span><span class="dv">1</span>, <span class="kw">nrow</span>(data)))</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true"></a>        i &lt;&lt;-<span class="st"> </span>i <span class="op">+</span><span class="st"> </span><span class="kw">length</span>(indices)</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true"></a>      }</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true"></a>      x &lt;-</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true"></a><span class="st">        </span><span class="kw">array</span>(<span class="dv">0</span>, <span class="dt">dim =</span> <span class="kw">c</span>(<span class="kw">length</span>(indices), target_height, target_width, <span class="dv">3</span>))</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true"></a>      y1 &lt;-<span class="st"> </span><span class="kw">array</span>(<span class="dv">0</span>, <span class="dt">dim =</span> <span class="kw">c</span>(<span class="kw">length</span>(indices), <span class="dv">4</span>))</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true"></a>      y2 &lt;-<span class="st"> </span><span class="kw">array</span>(<span class="dv">0</span>, <span class="dt">dim =</span> <span class="kw">c</span>(<span class="kw">length</span>(indices), <span class="dv">1</span>))</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true"></a>      </span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true"></a>      <span class="cf">for</span> (j <span class="cf">in</span> <span class="dv">1</span><span class="op">:</span><span class="kw">length</span>(indices)) {</span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true"></a>        x[j, , , ] &lt;-</span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true"></a><span class="st">          </span><span class="kw">load_and_preprocess_image</span>(data[[indices[j], <span class="st">&quot;file_name&quot;</span>]], </span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true"></a>                                    target_height, target_width)</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true"></a>        y1[j, ] &lt;-</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true"></a><span class="st">          </span>data[indices[j], <span class="kw">c</span>(<span class="st">&quot;x_left&quot;</span>, <span class="st">&quot;y_top&quot;</span>, <span class="st">&quot;x_right&quot;</span>, <span class="st">&quot;y_bottom&quot;</span>)] </span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true"></a>            <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">as.matrix</span>()</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true"></a>        y2[j, ] &lt;-</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true"></a><span class="st">          </span>data[[indices[j], <span class="st">&quot;category_id&quot;</span>]] <span class="op">-</span><span class="st"> </span><span class="dv">1</span></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true"></a>      }</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true"></a>      x &lt;-<span class="st"> </span>x <span class="op">/</span><span class="st"> </span><span class="dv">255</span></span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true"></a>      <span class="kw">list</span>(x, <span class="kw">list</span>(y1, y2))</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true"></a>    }</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true"></a>  }</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true"></a>train_gen &lt;-<span class="st"> </span><span class="kw">loc_class_generator</span>(</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true"></a>  train_data,</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true"></a>  <span class="dt">target_height =</span> target_height,</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true"></a>  <span class="dt">target_width =</span> target_width,</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true"></a>  <span class="dt">shuffle =</span> <span class="ot">TRUE</span>,</span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true"></a>  <span class="dt">batch_size =</span> batch_size</span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true"></a>)</span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true"></a></span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true"></a>valid_gen &lt;-<span class="st"> </span><span class="kw">loc_class_generator</span>(</span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true"></a>  validation_data,</span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true"></a>  <span class="dt">target_height =</span> target_height,</span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true"></a>  <span class="dt">target_width =</span> target_width,</span>
-<span id="cb3-49"><a href="#cb3-49" aria-hidden="true"></a>  <span class="dt">shuffle =</span> <span class="ot">FALSE</span>,</span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true"></a>  <span class="dt">batch_size =</span> batch_size</span>
-<span id="cb3-51"><a href="#cb3-51" aria-hidden="true"></a>)</span>
-<span id="cb3-52"><a href="#cb3-52" aria-hidden="true"></a></span>
-<span id="cb3-53"><a href="#cb3-53" aria-hidden="true"></a>model <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">fit_generator</span>(</span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true"></a>  train_gen,</span>
-<span id="cb3-55"><a href="#cb3-55" aria-hidden="true"></a>  <span class="dt">epochs =</span> <span class="dv">20</span>,</span>
-<span id="cb3-56"><a href="#cb3-56" aria-hidden="true"></a>  <span class="dt">steps_per_epoch =</span> <span class="kw">nrow</span>(train_data) <span class="op">/</span><span class="st"> </span>batch_size,</span>
-<span id="cb3-57"><a href="#cb3-57" aria-hidden="true"></a>  <span class="dt">validation_data =</span> valid_gen,</span>
-<span id="cb3-58"><a href="#cb3-58" aria-hidden="true"></a>  <span class="dt">validation_steps =</span> <span class="kw">nrow</span>(validation_data) <span class="op">/</span><span class="st"> </span>batch_size,</span>
-<span id="cb3-59"><a href="#cb3-59" aria-hidden="true"></a>  <span class="dt">callbacks =</span> <span class="kw">list</span>(</span>
-<span id="cb3-60"><a href="#cb3-60" aria-hidden="true"></a>    <span class="kw">callback_model_checkpoint</span>(</span>
-<span id="cb3-61"><a href="#cb3-61" aria-hidden="true"></a>      <span class="kw">file.path</span>(<span class="st">&quot;loc_class&quot;</span>, <span class="st">&quot;weights.{epoch:02d}-{val_loss:.2f}.hdf5&quot;</span>)</span>
-<span id="cb3-62"><a href="#cb3-62" aria-hidden="true"></a>    ),</span>
-<span id="cb3-63"><a href="#cb3-63" aria-hidden="true"></a>    <span class="kw">callback_early_stopping</span>(<span class="dt">patience =</span> <span class="dv">2</span>)</span>
-<span id="cb3-64"><a href="#cb3-64" aria-hidden="true"></a>  )</span>
-<span id="cb3-65"><a href="#cb3-65" aria-hidden="true"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>loc_class_generator <span class="ot">&lt;-</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(data,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>           target_height,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>           target_width,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>           shuffle,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>           batch_size) {</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    i <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">function</span>() {</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (shuffle) {</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        indices <span class="ot">&lt;-</span> <span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(data), <span class="at">size =</span> batch_size)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>      } <span class="cf">else</span> {</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (i <span class="sc">+</span> batch_size <span class="sc">&gt;=</span> <span class="fu">nrow</span>(data))</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>          i <span class="ot">&lt;&lt;-</span> <span class="dv">1</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        indices <span class="ot">&lt;-</span> <span class="fu">c</span>(i<span class="sc">:</span><span class="fu">min</span>(i <span class="sc">+</span> batch_size <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">nrow</span>(data)))</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        i <span class="ot">&lt;&lt;-</span> i <span class="sc">+</span> <span class="fu">length</span>(indices)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>      x <span class="ot">&lt;-</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="fu">array</span>(<span class="dv">0</span>, <span class="at">dim =</span> <span class="fu">c</span>(<span class="fu">length</span>(indices), target_height, target_width, <span class="dv">3</span>))</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>      y1 <span class="ot">&lt;-</span> <span class="fu">array</span>(<span class="dv">0</span>, <span class="at">dim =</span> <span class="fu">c</span>(<span class="fu">length</span>(indices), <span class="dv">4</span>))</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>      y2 <span class="ot">&lt;-</span> <span class="fu">array</span>(<span class="dv">0</span>, <span class="at">dim =</span> <span class="fu">c</span>(<span class="fu">length</span>(indices), <span class="dv">1</span>))</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> (j <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(indices)) {</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        x[j, , , ] <span class="ot">&lt;-</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>          <span class="fu">load_and_preprocess_image</span>(data[[indices[j], <span class="st">&quot;file_name&quot;</span>]], </span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>                                    target_height, target_width)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        y1[j, ] <span class="ot">&lt;-</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>          data[indices[j], <span class="fu">c</span>(<span class="st">&quot;x_left&quot;</span>, <span class="st">&quot;y_top&quot;</span>, <span class="st">&quot;x_right&quot;</span>, <span class="st">&quot;y_bottom&quot;</span>)] </span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>            <span class="sc">%&gt;%</span> <span class="fu">as.matrix</span>()</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        y2[j, ] <span class="ot">&lt;-</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>          data[[indices[j], <span class="st">&quot;category_id&quot;</span>]] <span class="sc">-</span> <span class="dv">1</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>      x <span class="ot">&lt;-</span> x <span class="sc">/</span> <span class="dv">255</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>      <span class="fu">list</span>(x, <span class="fu">list</span>(y1, y2))</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>train_gen <span class="ot">&lt;-</span> <span class="fu">loc_class_generator</span>(</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>  train_data,</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>  <span class="at">target_height =</span> target_height,</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>  <span class="at">target_width =</span> target_width,</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>  <span class="at">shuffle =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>  <span class="at">batch_size =</span> batch_size</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>valid_gen <span class="ot">&lt;-</span> <span class="fu">loc_class_generator</span>(</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>  validation_data,</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>  <span class="at">target_height =</span> target_height,</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>  <span class="at">target_width =</span> target_width,</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>  <span class="at">shuffle =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>  <span class="at">batch_size =</span> batch_size</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>model <span class="sc">%&gt;%</span> <span class="fu">fit_generator</span>(</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>  train_gen,</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>  <span class="at">epochs =</span> <span class="dv">20</span>,</span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>  <span class="at">steps_per_epoch =</span> <span class="fu">nrow</span>(train_data) <span class="sc">/</span> batch_size,</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>  <span class="at">validation_data =</span> valid_gen,</span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>  <span class="at">validation_steps =</span> <span class="fu">nrow</span>(validation_data) <span class="sc">/</span> batch_size,</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>  <span class="at">callbacks =</span> <span class="fu">list</span>(</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>    <span class="fu">callback_model_checkpoint</span>(</span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>      <span class="fu">file.path</span>(<span class="st">&quot;loc_class&quot;</span>, <span class="st">&quot;weights.{epoch:02d}-{val_loss:.2f}.hdf5&quot;</span>)</span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>    <span class="fu">callback_early_stopping</span>(<span class="at">patience =</span> <span class="dv">2</span>)</span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 </div>
 <p>What about model predictions? A priori we might expect the bounding boxes to look better than in the regression-only model, as a significant part of the model is shared between classification and localization. Intuitively, I should be able to more precisely indicate the boundaries of <em>something</em> if I have an idea what that <em>something</em> is.</p>
 <p>Unfortunately, that didn’t quite happen. The model has become <em>very</em> biased to detecting a <em>person</em> everywhere, which might be advantageous (thinking safety) in an autonomous driving application but isn’t quite what we’d hoped for here.</p>
@@ -2971,9 +2972,9 @@ As a caveat, please note we’re talking about mapping concepts to technical app
 </figure>
 <p>Just to double-check this really has to do with class imbalance, here are the actual frequencies:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a>imageinfo <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">group_by</span>(name)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">summarise</span>(<span class="dt">cnt =</span> <span class="kw">n</span>()) </span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">arrange</span>(<span class="kw">desc</span>(cnt))</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>imageinfo <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(name)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="sc">%&gt;%</span> <span class="fu">summarise</span>(<span class="at">cnt =</span> <span class="fu">n</span>()) </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(<span class="fu">desc</span>(cnt))</span></code></pre></div>
 </div>
 <pre><code># A tibble: 20 x 2
    name          cnt

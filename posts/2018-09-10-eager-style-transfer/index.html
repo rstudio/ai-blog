@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -128,7 +129,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=A Neural Algorithm of Artistic Style;citation_publication_date=2015;citation_volume=abs/1508.06576;citation_author=Leon A. Gatys;citation_author=Alexander S. Ecker;citation_author=Matthias Bethge"/>
+  <meta name="citation_reference" content="citation_title=A neural algorithm of artistic style;citation_publication_date=2015;citation_volume=abs/1508.06576;citation_author=Leon A. Gatys;citation_author=Alexander S. Ecker;citation_author=Matthias Bethge"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2139,15 +2140,15 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>How would your summer holiday’s photos look had Edvard Munch painted them? (Perhaps it’s better not to know). Let’s take a more comforting example: How would a nice, summarly river landscape look if painted by Katsushika Hokusai?</p>
-<p>Style transfer on images is not new, but got a boost when Gatys, Ecker, and Bethge<span class="citation" data-cites="GatysEB15a">(Gatys, Ecker, and Bethge <a href="#ref-GatysEB15a" role="doc-biblioref">2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
+<p>Style transfer on images is not new, but got a boost when Gatys, Ecker, and Bethge<span class="citation" data-cites="GatysEB15a">(<a href="#ref-GatysEB15a" role="doc-biblioref">Gatys, Ecker, and Bethge 2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
 <p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow. However, there is an important difference: This post uses TensorFlow <a href="https://www.tensorflow.org/guide/eager">Eager Execution</a>, allowing for an imperative way of coding that makes it easy to map concepts to code. Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
 <p>As usual, please make sure you have the required package versions installed. And no need to copy the snippets - you’ll find the complete code among the <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/eager_styletransfer.R">Keras examples</a>.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>The code in this post depends on the most recent versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">install.packages</span>(<span class="kw">c</span>(<span class="st">&quot;tensorflow&quot;</span>, <span class="st">&quot;keras&quot;</span>, <span class="st">&quot;tfdatasets&quot;</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(<span class="st">&quot;tensorflow&quot;</span>, <span class="st">&quot;keras&quot;</span>, <span class="st">&quot;tfdatasets&quot;</span>))</span></code></pre></div>
 <p>You should also be sure that you are running the very latest version of TensorFlow (v1.10), which you can install like so:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">library</span>(tensorflow)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="kw">install_tensorflow</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tensorflow)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">install_tensorflow</span>()</span></code></pre></div>
 <p>There are additional requirements for using TensorFlow eager execution. First, we need to call <code>tfe_enable_eager_execution()</code> right at the beginning of the program. Second, we need to use the implementation of Keras included in TensorFlow, rather than the base Keras implementation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2410,7 +2411,7 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="training-phase">Training phase</h2>
-<p>Now it’s time to train! While the natural continuation of this sentence would have been “… the model”, the model we’re training here is not VGG19 (that one we’re just using as a tool), but a minimal setup of just:</p>
+<p>Now it’s time to train! While the natural continuation of this sentence would have been “… the model,” the model we’re training here is not VGG19 (that one we’re just using as a tool), but a minimal setup of just:</p>
 <ul>
 <li>a <code>Variable</code> that holds our to-be-optimized image</li>
 <li>the loss functions we defined above</li>
@@ -2507,9 +2508,9 @@ gtag('config', 'UA-20375833-3');
 <h2 id="conclusion">Conclusion</h2>
 <p>With neural style transfer, some fiddling around may be needed until you get the result you want. But as our example shows, this doesn’t mean the code has to be complicated. Additionally to being easy to grasp, eager execution also lets you add debugging output, and step through the code line-by-line to check on tensor shapes. Until next time in our eager execution series!</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-GatysEB15a">
-<p>Gatys, Leon A., Alexander S. Ecker, and Matthias Bethge. 2015. “A Neural Algorithm of Artistic Style.” <em>CoRR</em> abs/1508.06576. <a href="http://arxiv.org/abs/1508.06576">http://arxiv.org/abs/1508.06576</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-GatysEB15a" class="csl-entry" role="doc-biblioentry">
+Gatys, Leon A., Alexander S. Ecker, and Matthias Bethge. 2015. <span>“A Neural Algorithm of Artistic Style.”</span> <em>CoRR</em> abs/1508.06576. <a href="http://arxiv.org/abs/1508.06576">http://arxiv.org/abs/1508.06576</a>.
 </div>
 </div>
 <!--radix_placeholder_article_footer-->

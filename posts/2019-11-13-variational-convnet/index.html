@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -128,7 +129,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Transition-Aware Human Activity Recognition Using Smartphones;citation_publication_date=2016;citation_publisher=Elsevier Science Publishers B. V.;citation_volume=171;citation_doi=10.1016/j.neucom.2015.07.085;citation_issn=0925-2312;citation_author=Jorge-L. Reyes-Ortiz;citation_author=Luca Oneto;citation_author=Albert Samà;citation_author=Xavier Parra;citation_author=Davide Anguita"/>
+  <meta name="citation_reference" content="citation_title=Transition-aware human activity recognition using smartphones;citation_publication_date=2016;citation_publisher=Elsevier Science Publishers B. V.;citation_volume=171;citation_doi=10.1016/j.neucom.2015.07.085;citation_issn=0925-2312;citation_author=Jorge-L. Reyes-Ortiz;citation_author=Luca Oneto;citation_author=Albert Samà;citation_author=Xavier Parra;citation_author=Davide Anguita"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2128,7 +2129,7 @@ gtag('config', 'UA-20375833-3');
   <a href="../../index.html#category:TensorFlow/Keras" class="dt-tag">TensorFlow/Keras</a>
 </div>
 <!--/radix_placeholder_categories-->
-<p><p>In a Bayesian neural network, layer weights are distributions, not tensors. Using tfprobability, the R wrapper to TensorFlow Probability, we can build regular Keras models that have probabilistic layers, and thus get uncertainty estimates “for free”. In this post, we show how to define, train and obtain predictions from a probabilistic convolutional neural network.</p></p>
+<p><p>In a Bayesian neural network, layer weights are distributions, not tensors. Using tfprobability, the R wrapper to TensorFlow Probability, we can build regular Keras models that have probabilistic layers, and thus get uncertainty estimates “for free.” In this post, we show how to define, train and obtain predictions from a probabilistic convolutional neural network.</p></p>
 </div>
 
 <div class="d-byline">
@@ -2139,11 +2140,11 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>A bit more than a year ago, in his beautiful <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/">guest post</a>, Nick Strayer showed how to classify a set of everyday activities using smartphone-recorded gyroscope and accelerometer data. Accuracy was very good, but Nick went on to inspect classification results more closely. Were there activities more prone to misclassification than others? And how about those erroneous results: Did the network report them with equal, or less confidence than those that were correct?</p>
-<p>Technically, when we speak of <em>confidence</em> in that manner, we’re referring to the <em>score</em> obtained for the “winning” class after softmax activation.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> If that winning score is 0.9, we might say “the network is sure that’s a gentoo penguin”; if it’s 0.2, we’d instead conclude “to the network, neither option seemed fitting, but cheetah looked best”.</p>
+<p>Technically, when we speak of <em>confidence</em> in that manner, we’re referring to the <em>score</em> obtained for the “winning” class after softmax activation.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> If that winning score is 0.9, we might say “the network is sure that’s a gentoo penguin”; if it’s 0.2, we’d instead conclude “to the network, neither option seemed fitting, but cheetah looked best.”</p>
 <p>This use of “confidence” is convincing, but it has nothing to do with confidence – or credibility, or prediction, what have you – intervals. What we’d really like to be able to do is put distributions over the network’s weights and make it <em>Bayesian</em>. Using <em>tfprobability</em>’s variational Keras-compatible layers, this is something we actually can do.</p>
 <p><a href="https://blogs.rstudio.com/tensorflow/posts/2019-06-05-uncertainty-estimates-tfprobability/">Adding uncertainty estimates to Keras models with tfprobability</a> shows how to use a variational dense layer to obtain estimates of epistemic uncertainty. In this post, we modify the convnet used in Nick’s post to be variational throughout. Before we start, let’s quickly summarize the task.</p>
 <h2 id="the-task">The task</h2>
-<p>To create the <a href="http://archive.ics.uci.edu/ml/datasets/Smartphone-Based+Recognition+of+Human+Activities+and+Postural+Transitions">Smartphone-Based Recognition of Human Activities and Postural Transitions Data Set</a> <span class="citation" data-cites="Reyes-Ortiz">(Reyes-Ortiz et al. <a href="#ref-Reyes-Ortiz" role="doc-biblioref">2016</a>)</span>, the researchers had subjects walk, sit, stand, and transition from one of those activities to another. Meanwhile, two types of smartphone sensors were used to record motion data: <em>Accelerometers</em> measure linear acceleration in three<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> dimensions, while <em>gyroscopes</em> are used to track angular velocity around the coordinate axes. Here are the respective raw sensor data for six types of activities from Nick’s original post:</p>
+<p>To create the <a href="http://archive.ics.uci.edu/ml/datasets/Smartphone-Based+Recognition+of+Human+Activities+and+Postural+Transitions">Smartphone-Based Recognition of Human Activities and Postural Transitions Data Set</a> <span class="citation" data-cites="Reyes-Ortiz">(<a href="#ref-Reyes-Ortiz" role="doc-biblioref">Reyes-Ortiz et al. 2016</a>)</span>, the researchers had subjects walk, sit, stand, and transition from one of those activities to another. Meanwhile, two types of smartphone sensors were used to record motion data: <em>Accelerometers</em> measure linear acceleration in three<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> dimensions, while <em>gyroscopes</em> are used to track angular velocity around the coordinate axes. Here are the respective raw sensor data for six types of activities from Nick’s original post:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span id="fig:unnamed-chunk-1"></span>
 <img src="images/raw-data.png" alt="Source: https://blogs.rstudio.com/tensorflow/posts/2018-07-17-activity-detection/" width="1152" />
@@ -2675,9 +2676,9 @@ $ observationId &lt;int&gt; 11, 12, 15, 16, 31, 32, 41, 42, 51, 52, 55, 56, 71, 
 </div>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-Reyes-Ortiz">
-<p>Reyes-Ortiz, Jorge-L., Luca Oneto, Albert Samà, Xavier Parra, and Davide Anguita. 2016. “Transition-Aware Human Activity Recognition Using Smartphones.” <em>Neurocomput.</em> 171 (C): 754–67. <a href="https://doi.org/10.1016/j.neucom.2015.07.085">https://doi.org/10.1016/j.neucom.2015.07.085</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-Reyes-Ortiz" class="csl-entry" role="doc-biblioentry">
+Reyes-Ortiz, Jorge-L., Luca Oneto, Albert Samà, Xavier Parra, and Davide Anguita. 2016. <span>“Transition-Aware Human Activity Recognition Using Smartphones.”</span> <em>Neurocomput.</em> 171 (C): 754–67. <a href="https://doi.org/10.1016/j.neucom.2015.07.085">https://doi.org/10.1016/j.neucom.2015.07.085</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

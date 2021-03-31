@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -128,7 +129,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=U-Net: Convolutional Networks for Biomedical Image Segmentation;citation_publication_date=2015;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
+  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_publication_date=2015;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
   <meta name="citation_reference" content="citation_title=Association of genomic subtypes of lower-grade gliomas with shape features automatically extracted by a deep learning algorithm;citation_publication_date=2019;citation_volume=109;citation_doi=https://doi.org/10.1016/j.compbiomed.2019.05.002;citation_issn=0010-4825;citation_author=Mateusz Buda;citation_author=Ashirbani Saha;citation_author=Maciej A. Mazurowski"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
@@ -2167,14 +2168,14 @@ gtag('config', 'UA-20375833-3');
 <p>Image segmentation is a form of supervised learning: Some kind of ground truth is needed. Here, it comes in form of a <em>mask</em> – an image, of spatial resolution identical to that of the input data, that designates the true class for every pixel. Accordingly, classification loss is calculated pixel-wise; losses are then summed up to yield an aggregate to be used in optimization.</p>
 <p>The “canonical” architecture for image segmentation is <em>U-Net</em> (around since 2015).</p>
 <h2 id="u-net">U-Net</h2>
-<p>Here is the prototypical U-Net, as depicted in the original Rönneberger et al. paper <span class="citation" data-cites="RonnebergerFB15">(Ronneberger, Fischer, and Brox <a href="#ref-RonnebergerFB15" role="doc-biblioref">2015</a>)</span>.</p>
+<p>Here is the prototypical U-Net, as depicted in the original Rönneberger et al. paper <span class="citation" data-cites="RonnebergerFB15">(<a href="#ref-RonnebergerFB15" role="doc-biblioref">Ronneberger, Fischer, and Brox 2015</a>)</span>.</p>
 <p>Of this architecture, numerous variants exist. You could use different layer sizes, activations, ways to achieve downsizing and upsizing, and more. However, there is one defining characteristic: the U-shape, stabilized by the “bridges” crossing over horizontally at all levels.</p>
 <p><img src="images/unet.png" title="The original U-Net, as depicted in Ronnerberger et al. (2015)." /></p>
 <p>In a nutshell, the left-hand side of the U resembles the convolutional architectures used in image classification. It successively reduces spatial resolution. At the same time, another dimension – the <em>channels</em> dimension – is used to build up a hierarchy of features, ranging from very basic to very specialized.</p>
 <p>Unlike in classification, however, the output should have the same spatial resolution as the input. Thus, we need to upsize again – this is taken care of by the right-hand side of the U. But, how are we going to arrive at a good <em>per-pixel</em> classification, now that so much spatial information has been lost?</p>
 <p>This is what the “bridges” are for: At each level, the input to an upsampling layer is a <em>concatenation</em> of the previous layer’s output – which went through the whole compression/decompression routine – and some preserved intermediate representation from the downsizing phase. In this way, a U-Net architecture combines attention to detail with feature extraction.</p>
 <h2 id="brain-image-segmentation">Brain image segmentation</h2>
-<p>With U-Net, domain applicability is as broad as the architecture is flexible. Here, we want to detect abnormalities in brain scans. The dataset, used in <span class="citation" data-cites="BUDA2019218">Buda, Saha, and Mazurowski (<a href="#ref-BUDA2019218" role="doc-biblioref">2019</a>)</span>, contains MRI images together with manually created <a href="https://en.wikipedia.org/wiki/Fluid-attenuated_inversion_recovery">FLAIR</a> abnormality segmentation masks. It is available on <a href="https://www.kaggle.com/mateuszbuda/lgg-mri-segmentation">Kaggle</a>.</p>
+<p>With U-Net, domain applicability is as broad as the architecture is flexible. Here, we want to detect abnormalities in brain scans. The dataset, used in <span class="citation" data-cites="BUDA2019218"><a href="#ref-BUDA2019218" role="doc-biblioref">Buda, Saha, and Mazurowski</a> (<a href="#ref-BUDA2019218" role="doc-biblioref">2019</a>)</span>, contains MRI images together with manually created <a href="https://en.wikipedia.org/wiki/Fluid-attenuated_inversion_recovery">FLAIR</a> abnormality segmentation masks. It is available on <a href="https://www.kaggle.com/mateuszbuda/lgg-mri-segmentation">Kaggle</a>.</p>
 <p>Nicely, the paper is accompanied by a <a href="https://github.com/mateuszbuda/brain-segmentation-pytorch">GitHub repository</a>. Below, we closely follow (though not exactly replicate) the authors’ preprocessing and data augmentation code.</p>
 <p>As is often the case in medical imaging, there is notable class imbalance in the data. For every patient, sections have been taken at multiple positions. (Number of sections per patient varies.) Most sections do not exhibit any lesions; the corresponding masks are colored black everywhere.</p>
 <p>Here are three examples where the masks <em>do</em> indicate abnormalities:</p>
@@ -2491,7 +2492,7 @@ gtag('config', 'UA-20375833-3');
 <h2 id="model">Model</h2>
 <p>Our model nicely illustrates the kind of modular code that comes “naturally” with <code>torch</code>. We approach things top-down, starting with the U-Net container itself.</p>
 <p><code>unet</code> takes care of the global composition – how far “down” do we go, shrinking the image while incrementing the number of filters, and then how do we go “up” again?</p>
-<p>Importantly, it is also in the system’s memory. In <code>forward()</code>, it keeps track of layer outputs seen going “down”, to be added back in going “up”.</p>
+<p>Importantly, it is also in the system’s memory. In <code>forward()</code>, it keeps track of layer outputs seen going “down,” to be added back in going “up.”</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='va'>unet</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
@@ -2805,12 +2806,12 @@ Sample 8, bce: 2.310956, dice: 0.999824</code></pre>
 <p>This has been our most complex <code>torch</code> post so far; however, we hope you’ve found the time well spent. For one, among applications of deep learning, medical image segmentation stands out as highly societally useful. Secondly, U-Net-like architectures are employed in many other areas. And finally, we once more saw <code>torch</code>’s flexibility and intuitive behavior in action.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-BUDA2019218">
-<p>Buda, Mateusz, Ashirbani Saha, and Maciej A. Mazurowski. 2019. “Association of Genomic Subtypes of Lower-Grade Gliomas with Shape Features Automatically Extracted by a Deep Learning Algorithm.” <em>Computers in Biology and Medicine</em> 109: 218–25. <a href="https://doi.org/https://doi.org/10.1016/j.compbiomed.2019.05.002">https://doi.org/https://doi.org/10.1016/j.compbiomed.2019.05.002</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-BUDA2019218" class="csl-entry" role="doc-biblioentry">
+Buda, Mateusz, Ashirbani Saha, and Maciej A. Mazurowski. 2019. <span>“Association of Genomic Subtypes of Lower-Grade Gliomas with Shape Features Automatically Extracted by a Deep Learning Algorithm.”</span> <em>Computers in Biology and Medicine</em> 109: 218–25. https://doi.org/<a href="https://doi.org/10.1016/j.compbiomed.2019.05.002">https://doi.org/10.1016/j.compbiomed.2019.05.002</a>.
 </div>
-<div id="ref-RonnebergerFB15">
-<p>Ronneberger, Olaf, Philipp Fischer, and Thomas Brox. 2015. “U-Net: Convolutional Networks for Biomedical Image Segmentation.” <em>CoRR</em> abs/1505.04597. <a href="http://arxiv.org/abs/1505.04597">http://arxiv.org/abs/1505.04597</a>.</p>
+<div id="ref-RonnebergerFB15" class="csl-entry" role="doc-biblioentry">
+Ronneberger, Olaf, Philipp Fischer, and Thomas Brox. 2015. <span>“U-Net: Convolutional Networks for Biomedical Image Segmentation.”</span> <em>CoRR</em> abs/1505.04597. <a href="http://arxiv.org/abs/1505.04597">http://arxiv.org/abs/1505.04597</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

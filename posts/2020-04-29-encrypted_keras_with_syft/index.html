@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -124,9 +125,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Federated Learning of Deep Networks using Model Averaging;citation_publication_date=2016;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
-  <meta name="citation_reference" content="citation_title=Differential Privacy;citation_publication_date=2006;citation_publisher=Springer Verlag;citation_volume=4052;citation_author=Cynthia Dwork"/>
-  <meta name="citation_reference" content="citation_title=Calibrating Noise to Sensitivity in Private Data Analysis;citation_publication_date=2006;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
+  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_publication_date=2016;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
+  <meta name="citation_reference" content="citation_title=Differential privacy;citation_publication_date=2006;citation_publisher=Springer Verlag;citation_volume=4052;citation_author=Cynthia Dwork"/>
+  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publication_date=2006;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2142,7 +2143,7 @@ gtag('config', 'UA-20375833-3');
 <h2 id="aspects-of-privacy-in-deep-learning">Aspects of privacy in deep learning</h2>
 <p>Say you work at a hospital, and would be interested in training a deep learning model to help diagnose some disease from brain scans. Where you work, you don’t have many patients with this disease; moreover, they tend to mostly be affected by the same subtypes: Your training set, were you to create one, would not reflect the overall distribution very well. It would, thus, make sense to cooperate with other hospitals; but that isn’t so easy, as the data collected is protected by privacy regulations. So, the first requirement is: The data has to stay where it is; e.g., it may not be sent to a central server.</p>
 <h4 id="federated-learning">Federated learning</h4>
-<p>This first <em>sine qua non</em> is addressed by <a href="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/">federated learning</a> <span class="citation" data-cites="McMahanMRA16">(McMahan et al. <a href="#ref-McMahanMRA16" role="doc-biblioref">2016</a>)</span>. Federated learning is not “just” desirable for privacy reasons. On the contrary, in many use cases, it may be the only viable way (like with smartphones or sensors, which collect gigantic amounts of data). In federated learning, each participant receives a copy of the model, trains on their own data, and sends back the gradients obtained to the central server, where gradients are averaged and applied to the model.</p>
+<p>This first <em>sine qua non</em> is addressed by <a href="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/">federated learning</a> <span class="citation" data-cites="McMahanMRA16">(<a href="#ref-McMahanMRA16" role="doc-biblioref">McMahan et al. 2016</a>)</span>. Federated learning is not “just” desirable for privacy reasons. On the contrary, in many use cases, it may be the only viable way (like with smartphones or sensors, which collect gigantic amounts of data). In federated learning, each participant receives a copy of the model, trains on their own data, and sends back the gradients obtained to the central server, where gradients are averaged and applied to the model.</p>
 <p>This is good insofar as the data never leaves the individual devices; however, a lot of information can still be extracted from plain-text gradients. Imagine a smartphone app that provides trainable auto-completion for text messages. Even if gradient updates from many iterations are averaged, their distributions will greatly vary between individuals. Some form of encryption is needed. But then how is the server going to make sense of the encrypted gradients?</p>
 <p>One way to accomplish this relies on <em>secure multi-party computation</em> (SMPC).</p>
 <h4 id="secure-multi-party-computation">Secure multi-party computation</h4>
@@ -2217,9 +2218,9 @@ gtag('config', 'UA-20375833-3');
 <p>Julia, Greg and me each want to train on our own private data. Together, we will be responsible for gradient averaging, that is, we’ll form a <em>cluster</em> of <em>workers</em> united in that task. Now, the model owner <em>secret shares</em> the model, and we start training, each on their own data. After some number of iterations, we use secure averaging to combine our respective gradients. Then, all the server gets to see is the mean gradient, and there is no way to determine our respective contributions.</p>
 <h4 id="beyond-private-gradients">Beyond private gradients</h4>
 <p>Amazingly, it is even possible to <em>train</em> on encrypted data – amongst others, using that same technique of secret sharing. Of course, this has to negatively affect training speed. But it’s good to know that if one’s use case were to demand it, it would be feasible. (One possible use case is when training on one party’s data alone doesn’t make any sense, but data is sensitive, so others won’t let you access their data unless encrypted.)</p>
-<p>So with encryption available on an all-you-need basis, are we completely safe, privacy-wise? The answer is no. The model can still leak information. For example, in some cases it is possible to perform <em>model inversion</em> [@abs-1805-04049], that is, with just black-box access to a model, train an <em>attack model</em> that allows reconstructing some of the original training data. Needless to say, this kind of leakage has to be avoided. <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">Differential privacy</a> <span class="citation" data-cites="Dwork2006">(Dwork et al. <a href="#ref-Dwork2006" role="doc-biblioref">2006</a>)</span>, <span class="citation" data-cites="dwork2006differential">(Dwork <a href="#ref-dwork2006differential" role="doc-biblioref">2006</a>)</span> demands that results obtained from querying a model be independent from the presence or absence, in the dataset employed for training, of a single individual. In general, this is ensured by adding noise to the answer to every query. In training deep learning models, we add noise to the gradients, as well as clip them according to some chosen norm.</p>
+<p>So with encryption available on an all-you-need basis, are we completely safe, privacy-wise? The answer is no. The model can still leak information. For example, in some cases it is possible to perform <em>model inversion</em> [@abs-1805-04049], that is, with just black-box access to a model, train an <em>attack model</em> that allows reconstructing some of the original training data. Needless to say, this kind of leakage has to be avoided. <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">Differential privacy</a> <span class="citation" data-cites="Dwork2006">(<a href="#ref-Dwork2006" role="doc-biblioref">Dwork et al. 2006</a>)</span>, <span class="citation" data-cites="dwork2006differential">(<a href="#ref-dwork2006differential" role="doc-biblioref">Dwork 2006</a>)</span> demands that results obtained from querying a model be independent from the presence or absence, in the dataset employed for training, of a single individual. In general, this is ensured by adding noise to the answer to every query. In training deep learning models, we add noise to the gradients, as well as clip them according to some chosen norm.</p>
 <p>At some point, then, we will want all of those in combination: federated learning, encryption, and differential privacy.</p>
-<p><em>Syft</em> is a very promising, very actively developed framework that aims for providing all of them. Instead of “aims for”, I should perhaps have written “provides” – it depends. We need some more context.</p>
+<p><em>Syft</em> is a very promising, very actively developed framework that aims for providing all of them. Instead of “aims for,” I should perhaps have written “provides” – it depends. We need some more context.</p>
 <h2 id="introducing-syft">Introducing Syft</h2>
 <p>Syft – also known as <a href="https://github.com/OpenMined/PySyft">PySyft</a>, since as of today, its most mature implementation is written in and for Python – is maintained by <a href="https://www.openmined.org/">OpenMined</a>, an open source community dedicated to enabling privacy-preserving AI. It’s worth it reproducing their mission statement here:</p>
 <blockquote>
@@ -2409,15 +2410,15 @@ Actual:  1 , predicted:  1 </code></pre>
 <p>Thanks for reading!</p>
 <h2 id="section"></h2>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-dwork2006differential">
-<p>Dwork, Cynthia. 2006. “Differential Privacy.” In <em>33rd International Colloquium on Automata, Languages and Programming, Part Ii (Icalp 2006)</em>, 33rd International Colloquium on Automata, Languages and Programming, part II (ICALP 2006), 4052:1–12. Lecture Notes in Computer Science. Springer Verlag. <a href="https://www.microsoft.com/en-us/research/publication/differential-privacy/">https://www.microsoft.com/en-us/research/publication/differential-privacy/</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-dwork2006differential" class="csl-entry" role="doc-biblioentry">
+Dwork, Cynthia. 2006. <span>“Differential Privacy.”</span> In <em>33rd International Colloquium on Automata, Languages and Programming, Part II (ICALP 2006)</em>, 33rd International Colloquium on Automata, Languages and Programming, part II (ICALP 2006), 4052:1–12. Lecture Notes in Computer Science. Springer Verlag. <a href="https://www.microsoft.com/en-us/research/publication/differential-privacy/">https://www.microsoft.com/en-us/research/publication/differential-privacy/</a>.
 </div>
-<div id="ref-Dwork2006">
-<p>Dwork, Cynthia, Frank McSherry, Kobbi Nissim, and Adam Smith. 2006. “Calibrating Noise to Sensitivity in Private Data Analysis.” In <em>Proceedings of the Third Conference on Theory of Cryptography</em>, 265–84. TCC’06. Berlin, Heidelberg: Springer-Verlag. <a href="https://doi.org/10.1007/11681878_14">https://doi.org/10.1007/11681878_14</a>.</p>
+<div id="ref-Dwork2006" class="csl-entry" role="doc-biblioentry">
+Dwork, Cynthia, Frank McSherry, Kobbi Nissim, and Adam Smith. 2006. <span>“Calibrating Noise to Sensitivity in Private Data Analysis.”</span> In <em>Proceedings of the Third Conference on Theory of Cryptography</em>, 265–84. TCC’06. Berlin, Heidelberg: Springer-Verlag. <a href="https://doi.org/10.1007/11681878_14">https://doi.org/10.1007/11681878_14</a>.
 </div>
-<div id="ref-McMahanMRA16">
-<p>McMahan, H. Brendan, Eider Moore, Daniel Ramage, and Blaise Agüera y Arcas. 2016. “Federated Learning of Deep Networks Using Model Averaging.” <em>CoRR</em> abs/1602.05629. <a href="http://arxiv.org/abs/1602.05629">http://arxiv.org/abs/1602.05629</a>.</p>
+<div id="ref-McMahanMRA16" class="csl-entry" role="doc-biblioentry">
+McMahan, H. Brendan, Eider Moore, Daniel Ramage, and Blaise Agüera y Arcas. 2016. <span>“Federated Learning of Deep Networks Using Model Averaging.”</span> <em>CoRR</em> abs/1602.05629. <a href="http://arxiv.org/abs/1602.05629">http://arxiv.org/abs/1602.05629</a>.
 </div>
 </div>
 <!--radix_placeholder_article_footer-->

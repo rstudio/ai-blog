@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -128,13 +129,13 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Masked Autoregressive Flow for Density Estimation;citation_publication_date=2017;citation_author=George Papamakarios;citation_author=Theo Pavlakou;citation_author=Iain Murray"/>
-  <meta name="citation_reference" content="citation_title=Conditional Image Generation with PixelCNN Decoders;citation_publication_date=2016;citation_volume=abs/1606.05328;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Oriol Vinyals;citation_author=Lasse Espeholt;citation_author=Alex Graves;citation_author=Koray Kavukcuoglu"/>
-  <meta name="citation_reference" content="citation_title=Density estimation using Real NVP;citation_publication_date=2016;citation_volume=abs/1605.08803;citation_author=Laurent Dinh;citation_author=Jascha Sohl-Dickstein;citation_author=Samy Bengio"/>
-  <meta name="citation_reference" content="citation_title=PixelCNN++: Improving the PixelCNN with Discretized Logistic Mixture Likelihood and Other Modifications;citation_publication_date=2017;citation_volume=abs/1701.05517;citation_author=Tim Salimans;citation_author=Andrej Karpathy;citation_author=Xi Chen;citation_author=Diederik P. Kingma"/>
-  <meta name="citation_reference" content="citation_title=PixelSNAIL: An Improved Autoregressive Generative Model;citation_publication_date=2017;citation_volume=abs/1712.09763;citation_author=Xi Chen;citation_author=Nikhil Mishra;citation_author=Mostafa Rohaninejad;citation_author=Pieter Abbeel"/>
-  <meta name="citation_reference" content="citation_title=Image Transformer;citation_publication_date=2018;citation_volume=abs/1802.05751;citation_author=Niki Parmar;citation_author=Ashish Vaswani;citation_author=Jakob Uszkoreit;citation_author=Lukasz Kaiser;citation_author=Noam Shazeer;citation_author=Alexander Ku"/>
-  <meta name="citation_reference" content="citation_title=MADE: Masked Autoencoder for Distribution Estimation;citation_publication_date=2015;citation_volume=abs/1502.03509;citation_author=Mathieu Germain;citation_author=Karol Gregor;citation_author=Iain Murray;citation_author=Hugo Larochelle"/>
+  <meta name="citation_reference" content="citation_title=Masked autoregressive flow for density estimation;citation_publication_date=2017;citation_author=George Papamakarios;citation_author=Theo Pavlakou;citation_author=Iain Murray"/>
+  <meta name="citation_reference" content="citation_title=Conditional image generation with PixelCNN decoders;citation_publication_date=2016;citation_volume=abs/1606.05328;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Oriol Vinyals;citation_author=Lasse Espeholt;citation_author=Alex Graves;citation_author=Koray Kavukcuoglu"/>
+  <meta name="citation_reference" content="citation_title=Density estimation using real NVP;citation_publication_date=2016;citation_volume=abs/1605.08803;citation_author=Laurent Dinh;citation_author=Jascha Sohl-Dickstein;citation_author=Samy Bengio"/>
+  <meta name="citation_reference" content="citation_title=PixelCNN++: Improving the PixelCNN with discretized logistic mixture likelihood and other modifications;citation_publication_date=2017;citation_volume=abs/1701.05517;citation_author=Tim Salimans;citation_author=Andrej Karpathy;citation_author=Xi Chen;citation_author=Diederik P. Kingma"/>
+  <meta name="citation_reference" content="citation_title=PixelSNAIL: An improved autoregressive generative model;citation_publication_date=2017;citation_volume=abs/1712.09763;citation_author=Xi Chen;citation_author=Nikhil Mishra;citation_author=Mostafa Rohaninejad;citation_author=Pieter Abbeel"/>
+  <meta name="citation_reference" content="citation_title=Image transformer;citation_publication_date=2018;citation_volume=abs/1802.05751;citation_author=Niki Parmar;citation_author=Ashish Vaswani;citation_author=Jakob Uszkoreit;citation_author=Lukasz Kaiser;citation_author=Noam Shazeer;citation_author=Alexander Ku"/>
+  <meta name="citation_reference" content="citation_title=MADE: Masked autoencoder for distribution estimation;citation_publication_date=2015;citation_volume=abs/1502.03509;citation_author=Mathieu Germain;citation_author=Karol Gregor;citation_author=Iain Murray;citation_author=Hugo Larochelle"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2147,13 +2148,13 @@ gtag('config', 'UA-20375833-3');
 <p>In the <a href="https://blogs.rstudio.com/tensorflow/posts/2019-04-05-bijectors-flows/">first part of this mini-series on autoregressive flow models</a>, we looked at <em>bijectors</em> in TensorFlow Probability (TFP), and saw how to use them for sampling and density estimation. We singled out the <em>affine bijector</em> to demonstrate the mechanics of flow construction: We start from a distribution that is easy to sample from, and that allows for straightforward calculation of its density. Then, we attach some number of invertible transformations, optimizing for data-likelihood under the final transformed distribution. The efficiency of that (log)likelihood calculation is where normalizing flows excel: Loglikelihood under the (unknown) target distribution is obtained as a sum of the density under the base distribution of the inverse-transformed data plus the absolute log determinant of the inverse Jacobian.</p>
 <p>Now, an affine flow will seldom be powerful enough to model nonlinear, complex transformations. In constrast, autoregressive models have shown substantive success in density estimation as well as sample generation. Combined with more involved architectures, feature engineering, and extensive compute, the concept of autoregressivity has powered – and is powering – state-of-the-art architectures in areas such as image, speech and video modeling.</p>
 <p>This post will be concerned with the building blocks of autoregressive flows in TFP. While we won’t exactly be building state-of-the-art models, we’ll try to understand and play with some major ingredients, hopefully enabling the reader to do her own experiments on her own data.</p>
-<p>This post has three parts: First, we’ll look at autoregressivity and its implementation in TFP. Then, we try to (approximately) reproduce one of the experiments in the “MAF paper” (<em>Masked Autoregressive Flows for Distribution Estimation</em> <span class="citation" data-cites="2017arXiv170507057P">(Papamakarios, Pavlakou, and Murray <a href="#ref-2017arXiv170507057P" role="doc-biblioref">2017</a>)</span>) – essentially a proof of concept. Finally, for the third time on this blog, we come back to the task of analysing audio data, with mixed results.</p>
+<p>This post has three parts: First, we’ll look at autoregressivity and its implementation in TFP. Then, we try to (approximately) reproduce one of the experiments in the “MAF paper” (<em>Masked Autoregressive Flows for Distribution Estimation</em> <span class="citation" data-cites="2017arXiv170507057P">(<a href="#ref-2017arXiv170507057P" role="doc-biblioref">Papamakarios, Pavlakou, and Murray 2017</a>)</span>) – essentially a proof of concept. Finally, for the third time on this blog, we come back to the task of analysing audio data, with mixed results.</p>
 <h2 id="autoregressivity-and-masking">Autoregressivity and masking</h2>
 <p>In distribution estimation, autoregressivity enters the scene via the chain rule of probability that decomposes a joint density into a product of conditional densities:</p>
 <p><span class="math display">\[
 p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
 \]</span></p>
-<p>In practice, this means that autoregressive models have to impose an order on the variables - an order which might or might not “make sense”. Approaches here include choosing orderings at random and/or using different orderings for each layer. While in recurrent neural networks, autoregressivity is conserved due to the recurrence relation inherent in state updating, it is not clear a priori how autoregressivity is to be achieved in a densely connected architecture. A computationally efficient solution was proposed in <em>MADE: Masked Autoencoder for Distribution Estimation</em><span class="citation" data-cites="GermainGML15">(Germain et al. <a href="#ref-GermainGML15" role="doc-biblioref">2015</a>)</span>: Starting from a densely connected layer, mask out all connections that should not be allowed, i.e., all connections from input feature <span class="math inline">\(i\)</span> to said layer’s activations <span class="math inline">\(1 ... i-1\)</span>. Or expressed differently, activation <span class="math inline">\(i\)</span> may be connected to input features <span class="math inline">\(1 ... i-1\)</span> only. Then when adding more layers, care must be taken to ensure that all required connections are masked so that at the end, output <span class="math inline">\(i\)</span> will only ever have seen inputs <span class="math inline">\(1 ... i-1\)</span>.</p>
+<p>In practice, this means that autoregressive models have to impose an order on the variables - an order which might or might not “make sense.” Approaches here include choosing orderings at random and/or using different orderings for each layer. While in recurrent neural networks, autoregressivity is conserved due to the recurrence relation inherent in state updating, it is not clear a priori how autoregressivity is to be achieved in a densely connected architecture. A computationally efficient solution was proposed in <em>MADE: Masked Autoencoder for Distribution Estimation</em><span class="citation" data-cites="GermainGML15">(<a href="#ref-GermainGML15" role="doc-biblioref">Germain et al. 2015</a>)</span>: Starting from a densely connected layer, mask out all connections that should not be allowed, i.e., all connections from input feature <span class="math inline">\(i\)</span> to said layer’s activations <span class="math inline">\(1 ... i-1\)</span>. Or expressed differently, activation <span class="math inline">\(i\)</span> may be connected to input features <span class="math inline">\(1 ... i-1\)</span> only. Then when adding more layers, care must be taken to ensure that all required connections are masked so that at the end, output <span class="math inline">\(i\)</span> will only ever have seen inputs <span class="math inline">\(1 ... i-1\)</span>.</p>
 <p>Thus masked autoregressive flows are a fusion of two major approaches - autoregressive models (which need not be flows) and flows (which need not be autoregressive). In TFP these are provided by <code>MaskedAutoregressiveFlow</code>,<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> to be used as a bijector in a <code>TransformedDistribution</code>.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <p>While the documentation shows how to use this bijector, the step from theoretical understanding to coding a “black box” may seem wide. If you’re anything like the author, here you might feel the urge to “look under the hood” and verify that things really are the way you’re assuming. So let’s give in to curiosity and allow ourselves a little escapade into the source code.</p>
 <p>Peeking ahead, this is how we’ll construct a masked autoregressive flow in TFP (again using the still new-ish R bindings provided by <a href="http://github.io/tfprobability">tfprobability</a>):</p>
@@ -2172,31 +2173,31 @@ p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
 <p>Pulling apart the relevant entities here, <code>tfb_masked_autoregressive_flow</code> is a bijector, with the usual methods <code>tfb_forward()</code>, <code>tfb_inverse()</code>, <code>tfb_forward_log_det_jacobian()</code> and <code>tfb_inverse_log_det_jacobian()</code>. The default <code>shift_and_log_scale_fn</code>, <code>tfb_masked_autoregressive_default_template</code>, constructs a little neural network of its own, with a configurable number of hidden units per layer, a configurable activation function and optionally, other configurable parameters to be passed to the underlying <code>dense</code> layers. It’s these dense layers that have to respect the autoregressive property. Can we take a look at how this is done? Yes we can, provided we’re not afraid of a little Python.</p>
 <p><code>masked_autoregressive_default_template</code> (now leaving out the <code>tfb_</code> as we’ve entered Python-land) uses <code>masked_dense</code> to do what you’d suppose a thus-named function might be doing: construct a dense layer that has part of the weight matrix masked out. How? We’ll see after a few Python setup statements.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="im">import</span> tensorflow <span class="im">as</span> tf</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="im">import</span> tensorflow_probability <span class="im">as</span> tfp</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>tfd <span class="op">=</span> tfp.distributions</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>tfb <span class="op">=</span> tfp.bijectors</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>tf.enable_eager_execution()</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> tensorflow <span class="im">as</span> tf</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> tensorflow_probability <span class="im">as</span> tfp</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>tfd <span class="op">=</span> tfp.distributions</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>tfb <span class="op">=</span> tfp.bijectors</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>tf.enable_eager_execution()</span></code></pre></div>
 </div>
 <p>The following code snippets are taken from <code>masked_dense</code> (in its <a href="https://github.com/tensorflow/probability/blob/master/tensorflow_probability/python/bijectors/masked_autoregressive.py">current form on master</a>), and when possible, simplified for better readability, accommodating just the specifics of the chosen example - a toy matrix of shape 2x3:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co"># construct some toy input data (this line obviously not from the original code)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>inputs <span class="op">=</span> tf.constant(np.arange(<span class="fl">1.</span>,<span class="dv">7</span>), shape <span class="op">=</span> (<span class="dv">2</span>, <span class="dv">3</span>))</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="co"># (partly) determine shape of mask from shape of input</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>input_depth <span class="op">=</span> tf.compat.dimension_value(inputs.shape.with_rank_at_least(<span class="dv">1</span>)[<span class="op">-</span><span class="dv">1</span>])</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a>num_blocks <span class="op">=</span> input_depth</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>num_blocks <span class="co"># 3</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># construct some toy input data (this line obviously not from the original code)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> tf.constant(np.arange(<span class="fl">1.</span>,<span class="dv">7</span>), shape <span class="op">=</span> (<span class="dv">2</span>, <span class="dv">3</span>))</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># (partly) determine shape of mask from shape of input</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>input_depth <span class="op">=</span> tf.compat.dimension_value(inputs.shape.with_rank_at_least(<span class="dv">1</span>)[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>num_blocks <span class="op">=</span> input_depth</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>num_blocks <span class="co"># 3</span></span></code></pre></div>
 </div>
 <p>Our toy layer should have 4 units:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a>units <span class="op">=</span> <span class="dv">4</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>units <span class="op">=</span> <span class="dv">4</span></span></code></pre></div>
 </div>
 <p>The mask is initialized to all zeros. Considering it will be used to elementwise multiply the weight matrix, we’re a bit surprised at its shape (shouldn’t it be the other way round?). No worries; all will turn out correct in the end.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a>mask <span class="op">=</span> np.zeros([units, input_depth], dtype<span class="op">=</span>tf.float32.as_numpy_dtype())</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>mask</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>mask <span class="op">=</span> np.zeros([units, input_depth], dtype<span class="op">=</span>tf.float32.as_numpy_dtype())</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mask</span></code></pre></div>
 </div>
 <pre><code>array([[0., 0., 0.],
        [0., 0., 0.],
@@ -2204,25 +2205,25 @@ p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
        [0., 0., 0.]], dtype=float32)</code></pre>
 <p>Now to “whitelist” the allowed connections, we have to fill in ones whenever information flow <em>is</em> allowed by the autoregressive property:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">def</span> _gen_slices(num_blocks, n_in, n_out):</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>  slices <span class="op">=</span> []</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  col <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>  d_in <span class="op">=</span> n_in <span class="op">//</span> num_blocks</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>  d_out <span class="op">=</span> n_out <span class="op">//</span> num_blocks</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>  row <span class="op">=</span> d_out </span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a>  <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(num_blocks):</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>    row_slice <span class="op">=</span> <span class="bu">slice</span>(row, <span class="va">None</span>)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>    col_slice <span class="op">=</span> <span class="bu">slice</span>(col, col <span class="op">+</span> d_in)</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>    slices.append([row_slice, col_slice])</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true"></a>    col <span class="op">+=</span> d_in</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true"></a>    row <span class="op">+=</span> d_out</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true"></a>  <span class="cf">return</span> slices</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true"></a></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true"></a>slices <span class="op">=</span> _gen_slices(num_blocks, input_depth, units)</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true"></a><span class="cf">for</span> [row_slice, col_slice] <span class="kw">in</span> slices:</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true"></a>  mask[row_slice, col_slice] <span class="op">=</span> <span class="dv">1</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true"></a></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true"></a>mask</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _gen_slices(num_blocks, n_in, n_out):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  slices <span class="op">=</span> []</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  col <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  d_in <span class="op">=</span> n_in <span class="op">//</span> num_blocks</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  d_out <span class="op">=</span> n_out <span class="op">//</span> num_blocks</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  row <span class="op">=</span> d_out </span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(num_blocks):</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    row_slice <span class="op">=</span> <span class="bu">slice</span>(row, <span class="va">None</span>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    col_slice <span class="op">=</span> <span class="bu">slice</span>(col, col <span class="op">+</span> d_in)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    slices.append([row_slice, col_slice])</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    col <span class="op">+=</span> d_in</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    row <span class="op">+=</span> d_out</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> slices</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>slices <span class="op">=</span> _gen_slices(num_blocks, input_depth, units)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> [row_slice, col_slice] <span class="kw">in</span> slices:</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  mask[row_slice, col_slice] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>mask</span></code></pre></div>
 </div>
 <pre><code>array([[0., 0., 0.],
        [1., 0., 0.],
@@ -2230,41 +2231,41 @@ p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
        [1., 1., 1.]], dtype=float32)</code></pre>
 <p>Again, does this look mirror-inverted? A transpose fixes shape and logic both:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>mask <span class="op">=</span> mask.t</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>mask</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>mask <span class="op">=</span> mask.t</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>mask</span></code></pre></div>
 </div>
 <pre><code>array([[0., 1., 1., 1.],
        [0., 0., 1., 1.],
        [0., 0., 0., 1.]], dtype=float32)</code></pre>
 <p>Now that we have the mask, we can create the layer (interestingly, as of this writing not (yet?) a <code>tf.keras</code> layer):</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>layer <span class="op">=</span> tf.compat.v1.layers.Dense(</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>        units,</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>        kernel_initializer<span class="op">=</span>masked_initializer, <span class="co"># 1</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>        kernel_constraint<span class="op">=</span><span class="kw">lambda</span> x: mask <span class="op">*</span> x   <span class="co"># 2</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>        )</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>layer <span class="op">=</span> tf.compat.v1.layers.Dense(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>        units,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        kernel_initializer<span class="op">=</span>masked_initializer, <span class="co"># 1</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        kernel_constraint<span class="op">=</span><span class="kw">lambda</span> x: mask <span class="op">*</span> x   <span class="co"># 2</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
 </div>
 <p>Here we see masking going on in two ways. For one, the weight initializer is masked:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a>kernel_initializer <span class="op">=</span> tf.compat.v1.glorot_normal_initializer()</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="kw">def</span> masked_initializer(shape, dtype<span class="op">=</span><span class="va">None</span>, partition_info<span class="op">=</span><span class="va">None</span>):</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a> <span class="cf">return</span> mask <span class="op">*</span> kernel_initializer(shape, dtype, partition_info)</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>kernel_initializer <span class="op">=</span> tf.compat.v1.glorot_normal_initializer()</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> masked_initializer(shape, dtype<span class="op">=</span><span class="va">None</span>, partition_info<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a> <span class="cf">return</span> mask <span class="op">*</span> kernel_initializer(shape, dtype, partition_info)</span></code></pre></div>
 </div>
 <p>And secondly, a kernel constraint makes sure that after optimization, the relative units are zeroed out again:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>kernel_constraint<span class="op">=</span><span class="kw">lambda</span> x: mask <span class="op">*</span> x </span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>kernel_constraint<span class="op">=</span><span class="kw">lambda</span> x: mask <span class="op">*</span> x </span></code></pre></div>
 </div>
 <p>Just for fun, let’s apply the layer to our toy input:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>layer.<span class="bu">apply</span>(inputs)</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>layer.<span class="bu">apply</span>(inputs)</span></code></pre></div>
 </div>
 <pre><code>&lt;tf.Tensor: id=30, shape=(2, 4), dtype=float64, numpy=
 array([[ 0.        , -0.7489589 , -0.43329933,  1.42710014],
        [ 0.        , -2.9958356 , -1.71647246,  1.09258015]])&gt;</code></pre>
 <p>Zeroes where expected. And double-checking on the weight matrix…</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>layer.kernel</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>layer.kernel</span></code></pre></div>
 </div>
 <pre><code>&lt;tf.Variable &#39;dense/kernel:0&#39; shape=(3, 4) dtype=float64, numpy=
 array([[ 0.        , -0.7489589 , -0.42214942, -0.6473454 ],
@@ -2273,13 +2274,13 @@ array([[ 0.        , -0.7489589 , -0.42214942, -0.6473454 ],
 <p>Good. Now hopefully after this little deep dive, things have become a bit more concrete. Of course in a bigger model, the autoregressive property has to be conserved between layers as well.</p>
 <p>On to the second topic, application of MAF to a real-world dataset.</p>
 <h2 id="masked-autoregressive-flow">Masked Autoregressive Flow</h2>
-<p>The MAF paper<span class="citation" data-cites="2017arXiv170507057P">(Papamakarios, Pavlakou, and Murray <a href="#ref-2017arXiv170507057P" role="doc-biblioref">2017</a>)</span> applied masked autoregressive flows (as well as single-layer-<em>MADE</em><span class="citation" data-cites="GermainGML15">(Germain et al. <a href="#ref-GermainGML15" role="doc-biblioref">2015</a>)</span> and Real NVP <span class="citation" data-cites="DinhSB16">(Dinh, Sohl-Dickstein, and Bengio <a href="#ref-DinhSB16" role="doc-biblioref">2016</a>)</span>) to a number of datasets, including MNIST, CIFAR-10 and several datasets from the <a href="http://archive.ics.uci.edu/ml/index.html">UCI Machine Learning Repository</a>.</p>
+<p>The MAF paper<span class="citation" data-cites="2017arXiv170507057P">(<a href="#ref-2017arXiv170507057P" role="doc-biblioref">Papamakarios, Pavlakou, and Murray 2017</a>)</span> applied masked autoregressive flows (as well as single-layer-<em>MADE</em><span class="citation" data-cites="GermainGML15">(<a href="#ref-GermainGML15" role="doc-biblioref">Germain et al. 2015</a>)</span> and Real NVP <span class="citation" data-cites="DinhSB16">(<a href="#ref-DinhSB16" role="doc-biblioref">Dinh, Sohl-Dickstein, and Bengio 2016</a>)</span>) to a number of datasets, including MNIST, CIFAR-10 and several datasets from the <a href="http://archive.ics.uci.edu/ml/index.html">UCI Machine Learning Repository</a>.</p>
 <p>We pick one of the UCI datasets: <a href="http://archive.ics.uci.edu/ml/datasets/gas+sensors+for+home+activity+monitoring">Gas sensors for home activity monitoring</a>. On this dataset, the MAF authors obtained the best results using a MAF with 10 flows, so this is what we will try.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span id="fig:unnamed-chunk-13"></span>
 <img src="images/maf_results.png" alt="Figure from Masked Autoregressive Flow for Density Estimation[@2017arXiv170507057P]" width="338" />
 <p class="caption">
-Figure 1: Figure from Masked Autoregressive Flow for Density Estimation<span class="citation" data-cites="2017arXiv170507057P">(Papamakarios, Pavlakou, and Murray <a href="#ref-2017arXiv170507057P" role="doc-biblioref">2017</a>)</span>
+Figure 1: Figure from Masked Autoregressive Flow for Density Estimation<span class="citation" data-cites="2017arXiv170507057P">(<a href="#ref-2017arXiv170507057P" role="doc-biblioref">Papamakarios, Pavlakou, and Murray 2017</a>)</span>
 </p>
 </div>
 </div>
@@ -2552,43 +2553,43 @@ Epoch  2 :  Batch      1:   5.212013  --- test:   4.969406 </code></pre>
 <p><em>Batch normalization</em> here was obligatory - and this might go for flows in general. The permutation bijectors, on the other hand, did not make much of a difference on this dataset. Overall the impression is that for flows, we might either need a “bag of tricks” (like is commonly said about GANs), or more involved architectures (see “Outlook” below).</p>
 <p>Finally, we wind up with an experiment, coming back to our favorite audio data, already featured in two posts: <a href="https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/">Simple Audio Classification with Keras</a> and <a href="https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/">Audio classification with Keras: Looking closer at the non-deep learning parts</a>.</p>
 <h2 id="analysing-audio-data-with-maf">Analysing audio data with MAF</h2>
-<p>The <a href="https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz">dataset in question</a> consists of recordings of 30 words, pronounced by a number of different speakers. In those previous posts, a convnet was trained to map spectrograms to those 30 classes. Now instead we want to try something different: Train an MAF on one of the classes - the word “zero”, say - and see if we can use the trained network to mark “non-zero” words as less likely: perform <em>anomaly detection</em>, in a way. Spoiler alert: The results were not too encouraging, and if you are interested in a task like this, you might want to consider a different architecture (again, see “Outlook” below).</p>
+<p>The <a href="https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz">dataset in question</a> consists of recordings of 30 words, pronounced by a number of different speakers. In those previous posts, a convnet was trained to map spectrograms to those 30 classes. Now instead we want to try something different: Train an MAF on one of the classes - the word “zero,” say - and see if we can use the trained network to mark “non-zero” words as less likely: perform <em>anomaly detection</em>, in a way. Spoiler alert: The results were not too encouraging, and if you are interested in a task like this, you might want to consider a different architecture (again, see “Outlook” below).</p>
 <p>Nonetheless, we quickly relate what was done, as this task is a nice example of handling data where features vary over more than one axis.</p>
 <p>Preprocessing starts as in the aforementioned previous posts. Here though, we explicitly use eager execution, and may sometimes hard-code known values to keep the code snippets short.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="kw">library</span>(tensorflow)</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a><span class="kw">library</span>(tfprobability)</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a></span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a><span class="kw">tfe_enable_eager_execution</span>(<span class="dt">device_policy =</span> <span class="st">&quot;silent&quot;</span>)</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a></span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a><span class="kw">library</span>(tfdatasets)</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a><span class="kw">library</span>(dplyr)</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a><span class="kw">library</span>(readr)</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a><span class="kw">library</span>(purrr)</span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a><span class="kw">library</span>(caret)</span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a><span class="kw">library</span>(stringr)</span>
-<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a></span>
-<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a><span class="co"># make decode_wav() run with the current release 1.13.1 as well as with the current master branch</span></span>
-<span id="cb20-14"><a href="#cb20-14" aria-hidden="true"></a>decode_wav &lt;-<span class="st"> </span><span class="cf">function</span>() <span class="cf">if</span> (reticulate<span class="op">::</span><span class="kw">py_has_attr</span>(tf, <span class="st">&quot;audio&quot;</span>)) tf<span class="op">$</span>audio<span class="op">$</span>decode_wav</span>
-<span id="cb20-15"><a href="#cb20-15" aria-hidden="true"></a>  <span class="cf">else</span> tf<span class="op">$</span>contrib<span class="op">$</span>framework<span class="op">$</span>python<span class="op">$</span>ops<span class="op">$</span>audio_ops<span class="op">$</span>decode_wav</span>
-<span id="cb20-16"><a href="#cb20-16" aria-hidden="true"></a><span class="co"># same for stft()</span></span>
-<span id="cb20-17"><a href="#cb20-17" aria-hidden="true"></a>stft &lt;-<span class="st"> </span><span class="cf">function</span>() <span class="cf">if</span> (reticulate<span class="op">::</span><span class="kw">py_has_attr</span>(tf, <span class="st">&quot;signal&quot;</span>)) tf<span class="op">$</span>signal<span class="op">$</span>stft <span class="cf">else</span> tf<span class="op">$</span>spectral<span class="op">$</span>stft</span>
-<span id="cb20-18"><a href="#cb20-18" aria-hidden="true"></a></span>
-<span id="cb20-19"><a href="#cb20-19" aria-hidden="true"></a>files &lt;-<span class="st"> </span>fs<span class="op">::</span><span class="kw">dir_ls</span>(<span class="dt">path =</span> <span class="st">&quot;audio/data_1/speech_commands_v0.01/&quot;</span>, <span class="co"># replace by yours</span></span>
-<span id="cb20-20"><a href="#cb20-20" aria-hidden="true"></a>                    <span class="dt">recursive =</span> <span class="ot">TRUE</span>,</span>
-<span id="cb20-21"><a href="#cb20-21" aria-hidden="true"></a>                    <span class="dt">glob =</span> <span class="st">&quot;*.wav&quot;</span>)</span>
-<span id="cb20-22"><a href="#cb20-22" aria-hidden="true"></a></span>
-<span id="cb20-23"><a href="#cb20-23" aria-hidden="true"></a>files &lt;-<span class="st"> </span>files[<span class="op">!</span><span class="kw">str_detect</span>(files, <span class="st">&quot;background_noise&quot;</span>)]</span>
-<span id="cb20-24"><a href="#cb20-24" aria-hidden="true"></a></span>
-<span id="cb20-25"><a href="#cb20-25" aria-hidden="true"></a>df &lt;-<span class="st"> </span><span class="kw">tibble</span>(</span>
-<span id="cb20-26"><a href="#cb20-26" aria-hidden="true"></a>  <span class="dt">fname =</span> files,</span>
-<span id="cb20-27"><a href="#cb20-27" aria-hidden="true"></a>  <span class="dt">class =</span> fname <span class="op">%&gt;%</span></span>
-<span id="cb20-28"><a href="#cb20-28" aria-hidden="true"></a><span class="st">    </span><span class="kw">str_extract</span>(<span class="st">&quot;v0.01/.*/&quot;</span>) <span class="op">%&gt;%</span></span>
-<span id="cb20-29"><a href="#cb20-29" aria-hidden="true"></a><span class="st">    </span><span class="kw">str_replace_all</span>(<span class="st">&quot;v0.01/&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="op">%&gt;%</span></span>
-<span id="cb20-30"><a href="#cb20-30" aria-hidden="true"></a><span class="st">    </span><span class="kw">str_replace_all</span>(<span class="st">&quot;/&quot;</span>, <span class="st">&quot;&quot;</span>)</span>
-<span id="cb20-31"><a href="#cb20-31" aria-hidden="true"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tensorflow)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tfprobability)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="fu">tfe_enable_eager_execution</span>(<span class="at">device_policy =</span> <span class="st">&quot;silent&quot;</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tfdatasets)</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(caret)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co"># make decode_wav() run with the current release 1.13.1 as well as with the current master branch</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>decode_wav <span class="ot">&lt;-</span> <span class="cf">function</span>() <span class="cf">if</span> (reticulate<span class="sc">::</span><span class="fu">py_has_attr</span>(tf, <span class="st">&quot;audio&quot;</span>)) tf<span class="sc">$</span>audio<span class="sc">$</span>decode_wav</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">else</span> tf<span class="sc">$</span>contrib<span class="sc">$</span>framework<span class="sc">$</span>python<span class="sc">$</span>ops<span class="sc">$</span>audio_ops<span class="sc">$</span>decode_wav</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a><span class="co"># same for stft()</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>stft <span class="ot">&lt;-</span> <span class="cf">function</span>() <span class="cf">if</span> (reticulate<span class="sc">::</span><span class="fu">py_has_attr</span>(tf, <span class="st">&quot;signal&quot;</span>)) tf<span class="sc">$</span>signal<span class="sc">$</span>stft <span class="cf">else</span> tf<span class="sc">$</span>spectral<span class="sc">$</span>stft</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>files <span class="ot">&lt;-</span> fs<span class="sc">::</span><span class="fu">dir_ls</span>(<span class="at">path =</span> <span class="st">&quot;audio/data_1/speech_commands_v0.01/&quot;</span>, <span class="co"># replace by yours</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>                    <span class="at">recursive =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>                    <span class="at">glob =</span> <span class="st">&quot;*.wav&quot;</span>)</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>files <span class="ot">&lt;-</span> files[<span class="sc">!</span><span class="fu">str_detect</span>(files, <span class="st">&quot;background_noise&quot;</span>)]</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">fname =</span> files,</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>  <span class="at">class =</span> fname <span class="sc">%&gt;%</span></span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">str_extract</span>(<span class="st">&quot;v0.01/.*/&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">str_replace_all</span>(<span class="st">&quot;v0.01/&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">str_replace_all</span>(<span class="st">&quot;/&quot;</span>, <span class="st">&quot;&quot;</span>)</span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 </div>
-<p>We train the MAF on pronunciations of the word “zero”.</p>
+<p>We train the MAF on pronunciations of the word “zero.”</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='kw'>for</span> <span class='op'>(</span><span class='va'>c</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>class</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
@@ -2736,30 +2737,30 @@ Epoch  2 :  Batch      1:   5.212013  --- test:   4.969406 </code></pre>
 10      |   2236.4 |   2274.3 |   2191.4 |    2199.7 |   2243.8 |        </code></pre>
 <p>While this does not look too bad, a complete comparison against all twenty-nine non-target classes had “zero” outperformed by seven other classes, with the remaining twenty-two lower in loglikelihood. We don’t have a model for anomaly detection, as yet.</p>
 <h2 id="outlook">Outlook</h2>
-<p>As already alluded to several times, for data with temporal and/or spatial orderings more evolved architectures may prove useful. The very successful <em>PixelCNN</em> family is based on masked convolutions, with more recent developments bringing further refinements (e.g. <em>Gated PixelCNN</em> <span class="citation" data-cites="OordKVEGK16">(Oord et al. <a href="#ref-OordKVEGK16" role="doc-biblioref">2016</a>)</span>, <em>PixelCNN++</em> <span class="citation" data-cites="SalimansKCK17">(Salimans et al. <a href="#ref-SalimansKCK17" role="doc-biblioref">2017</a>)</span>. <strong>Attention</strong>, too, may be masked and thus rendered autoregressive, as employed in the hybrid <em>PixelSNAIL</em> <span class="citation" data-cites="abs-1712-09763">(Chen et al. <a href="#ref-abs-1712-09763" role="doc-biblioref">2017</a>)</span> and the - not surprisingly given its name - transformer-based <em>ImageTransformer</em> <span class="citation" data-cites="abs-1802-05751">(Parmar et al. <a href="#ref-abs-1802-05751" role="doc-biblioref">2018</a>)</span>.</p>
+<p>As already alluded to several times, for data with temporal and/or spatial orderings more evolved architectures may prove useful. The very successful <em>PixelCNN</em> family is based on masked convolutions, with more recent developments bringing further refinements (e.g. <em>Gated PixelCNN</em> <span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>, <em>PixelCNN++</em> <span class="citation" data-cites="SalimansKCK17">(<a href="#ref-SalimansKCK17" role="doc-biblioref">Salimans et al. 2017</a>)</span>. <strong>Attention</strong>, too, may be masked and thus rendered autoregressive, as employed in the hybrid <em>PixelSNAIL</em> <span class="citation" data-cites="abs-1712-09763">(<a href="#ref-abs-1712-09763" role="doc-biblioref">Chen et al. 2017</a>)</span> and the - not surprisingly given its name - transformer-based <em>ImageTransformer</em> <span class="citation" data-cites="abs-1802-05751">(<a href="#ref-abs-1802-05751" role="doc-biblioref">Parmar et al. 2018</a>)</span>.</p>
 <p>To conclude, - while this post was interested in the intersection of flows and autoregressivity - and last not least the use therein of TFP bijectors - an upcoming one might dive deeper into autoregressive models specifically… and who knows, perhaps come back to the audio data for a fourth time.</p>
 <div class="sourceCode" id="cb22"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-abs-1712-09763">
-<p>Chen, Xi, Nikhil Mishra, Mostafa Rohaninejad, and Pieter Abbeel. 2017. “PixelSNAIL: An Improved Autoregressive Generative Model.” <em>CoRR</em> abs/1712.09763. <a href="http://arxiv.org/abs/1712.09763">http://arxiv.org/abs/1712.09763</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-abs-1712-09763" class="csl-entry" role="doc-biblioentry">
+Chen, Xi, Nikhil Mishra, Mostafa Rohaninejad, and Pieter Abbeel. 2017. <span>“PixelSNAIL: An Improved Autoregressive Generative Model.”</span> <em>CoRR</em> abs/1712.09763. <a href="http://arxiv.org/abs/1712.09763">http://arxiv.org/abs/1712.09763</a>.
 </div>
-<div id="ref-DinhSB16">
-<p>Dinh, Laurent, Jascha Sohl-Dickstein, and Samy Bengio. 2016. “Density Estimation Using Real Nvp.” <em>CoRR</em> abs/1605.08803. <a href="http://arxiv.org/abs/1605.08803">http://arxiv.org/abs/1605.08803</a>.</p>
+<div id="ref-DinhSB16" class="csl-entry" role="doc-biblioentry">
+Dinh, Laurent, Jascha Sohl-Dickstein, and Samy Bengio. 2016. <span>“Density Estimation Using Real NVP.”</span> <em>CoRR</em> abs/1605.08803. <a href="http://arxiv.org/abs/1605.08803">http://arxiv.org/abs/1605.08803</a>.
 </div>
-<div id="ref-GermainGML15">
-<p>Germain, Mathieu, Karol Gregor, Iain Murray, and Hugo Larochelle. 2015. “MADE: Masked Autoencoder for Distribution Estimation.” <em>CoRR</em> abs/1502.03509. <a href="http://arxiv.org/abs/1502.03509">http://arxiv.org/abs/1502.03509</a>.</p>
+<div id="ref-GermainGML15" class="csl-entry" role="doc-biblioentry">
+Germain, Mathieu, Karol Gregor, Iain Murray, and Hugo Larochelle. 2015. <span>“MADE: Masked Autoencoder for Distribution Estimation.”</span> <em>CoRR</em> abs/1502.03509. <a href="http://arxiv.org/abs/1502.03509">http://arxiv.org/abs/1502.03509</a>.
 </div>
-<div id="ref-OordKVEGK16">
-<p>Oord, Aaron van den, Nal Kalchbrenner, Oriol Vinyals, Lasse Espeholt, Alex Graves, and Koray Kavukcuoglu. 2016. “Conditional Image Generation with Pixelcnn Decoders.” <em>CoRR</em> abs/1606.05328. <a href="http://arxiv.org/abs/1606.05328">http://arxiv.org/abs/1606.05328</a>.</p>
+<div id="ref-OordKVEGK16" class="csl-entry" role="doc-biblioentry">
+Oord, Aaron van den, Nal Kalchbrenner, Oriol Vinyals, Lasse Espeholt, Alex Graves, and Koray Kavukcuoglu. 2016. <span>“Conditional Image Generation with PixelCNN Decoders.”</span> <em>CoRR</em> abs/1606.05328. <a href="http://arxiv.org/abs/1606.05328">http://arxiv.org/abs/1606.05328</a>.
 </div>
-<div id="ref-2017arXiv170507057P">
-<p>Papamakarios, George, Theo Pavlakou, and Iain Murray. 2017. “Masked Autoregressive Flow for Density Estimation.” <em>arXiv E-Prints</em>, May, arXiv:1705.07057. <a href="http://arxiv.org/abs/1705.07057">http://arxiv.org/abs/1705.07057</a>.</p>
+<div id="ref-2017arXiv170507057P" class="csl-entry" role="doc-biblioentry">
+Papamakarios, George, Theo Pavlakou, and Iain Murray. 2017. <span>“Masked Autoregressive Flow for Density Estimation.”</span> <em>arXiv e-Prints</em>, May, arXiv:1705.07057. <a href="https://arxiv.org/abs/1705.07057">https://arxiv.org/abs/1705.07057</a>.
 </div>
-<div id="ref-abs-1802-05751">
-<p>Parmar, Niki, Ashish Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Noam Shazeer, and Alexander Ku. 2018. “Image Transformer.” <em>CoRR</em> abs/1802.05751. <a href="http://arxiv.org/abs/1802.05751">http://arxiv.org/abs/1802.05751</a>.</p>
+<div id="ref-abs-1802-05751" class="csl-entry" role="doc-biblioentry">
+Parmar, Niki, Ashish Vaswani, Jakob Uszkoreit, Lukasz Kaiser, Noam Shazeer, and Alexander Ku. 2018. <span>“Image Transformer.”</span> <em>CoRR</em> abs/1802.05751. <a href="http://arxiv.org/abs/1802.05751">http://arxiv.org/abs/1802.05751</a>.
 </div>
-<div id="ref-SalimansKCK17">
-<p>Salimans, Tim, Andrej Karpathy, Xi Chen, and Diederik P. Kingma. 2017. “PixelCNN++: Improving the Pixelcnn with Discretized Logistic Mixture Likelihood and Other Modifications.” <em>CoRR</em> abs/1701.05517. <a href="http://arxiv.org/abs/1701.05517">http://arxiv.org/abs/1701.05517</a>.</p>
+<div id="ref-SalimansKCK17" class="csl-entry" role="doc-biblioentry">
+Salimans, Tim, Andrej Karpathy, Xi Chen, and Diederik P. Kingma. 2017. <span>“PixelCNN++: Improving the PixelCNN with Discretized Logistic Mixture Likelihood and Other Modifications.”</span> <em>CoRR</em> abs/1701.05517. <a href="http://arxiv.org/abs/1701.05517">http://arxiv.org/abs/1701.05517</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

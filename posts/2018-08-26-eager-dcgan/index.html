@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -128,8 +129,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks;citation_publication_date=2015;citation_volume=abs/1511.06434;citation_author=Alec Radford;citation_author=Luke Metz;citation_author=Soumith Chintala"/>
-  <meta name="citation_reference" content="citation_title=Generative Adversarial Nets;citation_publication_date=2014;citation_author=Ian J. Goodfellow;citation_author=Jean Pouget-Abadie;citation_author=Mehdi Mirza;citation_author=Bing Xu;citation_author=David Warde-Farley;citation_author=Sherjil Ozair;citation_author=Aaron C. Courville;citation_author=Yoshua Bengio"/>
+  <meta name="citation_reference" content="citation_title=Unsupervised representation learning with deep convolutional generative adversarial networks;citation_publication_date=2015;citation_volume=abs/1511.06434;citation_author=Alec Radford;citation_author=Luke Metz;citation_author=Soumith Chintala"/>
+  <meta name="citation_reference" content="citation_title=Generative adversarial nets;citation_publication_date=2014;citation_author=Ian J. Goodfellow;citation_author=Jean Pouget-Abadie;citation_author=Mehdi Mirza;citation_author=Bing Xu;citation_author=David Warde-Farley;citation_author=Sherjil Ozair;citation_author=Aaron C. Courville;citation_author=Yoshua Bengio"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2141,14 +2142,14 @@ gtag('config', 'UA-20375833-3');
 <div class="d-article">
 <p>The recent announcement of TensorFlow 2.0 names <em>eager execution</em> as the number one central feature of the new major version. What does this mean for R users? As demonstrated in our recent post on neural machine translation, you can use eager execution from R now already, in combination with Keras custom models and the datasets API. It’s good to know you <em>can</em> use it - but why should you? And in which cases?</p>
 <p>In this and a few upcoming posts, we want to show how eager execution can make developing models a lot easier. The degree of simplication will depend on the task - and just <em>how much</em> easier you’ll find the new way might also depend on your experience using the functional API to model more complex relationships. Even if you think that GANs, encoder-decoder architectures, or neural style transfer didn’t pose any problems before the advent of eager execution, you might find that the alternative is a better fit to how we humans mentally picture problems.</p>
-<p>For this post, we are porting code from a recent <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/dcgan.ipynb">Google Colaboratory notebook</a> implementing the DCGAN architecture.<span class="citation" data-cites="RadfordMC15">(Radford, Metz, and Chintala <a href="#ref-RadfordMC15" role="doc-biblioref">2015</a>)</span> No prior knowledge of GANs is required - we’ll keep this post practical (no maths) and focus on how to achieve your goal, mapping a simple and vivid concept into an astonishingly small number of lines of code.</p>
+<p>For this post, we are porting code from a recent <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/dcgan.ipynb">Google Colaboratory notebook</a> implementing the DCGAN architecture.<span class="citation" data-cites="RadfordMC15">(<a href="#ref-RadfordMC15" role="doc-biblioref">Radford, Metz, and Chintala 2015</a>)</span> No prior knowledge of GANs is required - we’ll keep this post practical (no maths) and focus on how to achieve your goal, mapping a simple and vivid concept into an astonishingly small number of lines of code.</p>
 <p>As in the post on machine translation with attention, we first have to cover some prerequisites. By the way, no need to copy out the code snippets - you’ll find the complete code in <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/eager_dcgan.R">eager_dcgan.R</a>).</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>The code in this post depends on the newest CRAN versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">install.packages</span>(<span class="kw">c</span>(<span class="st">&quot;tensorflow&quot;</span>, <span class="st">&quot;keras&quot;</span>, <span class="st">&quot;tfdatasets&quot;</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(<span class="st">&quot;tensorflow&quot;</span>, <span class="st">&quot;keras&quot;</span>, <span class="st">&quot;tfdatasets&quot;</span>))</span></code></pre></div>
 <p>You should also be sure that you are running the very latest version of TensorFlow (v1.10), which you can install like so:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="kw">library</span>(tensorflow)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="kw">install_tensorflow</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tensorflow)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">install_tensorflow</span>()</span></code></pre></div>
 <p>There are additional requirements for using TensorFlow eager execution. First, we need to call <code>tfe_enable_eager_execution()</code> right at the beginning of the program. Second, we need to use the implementation of Keras included in TensorFlow, rather than the base Keras implementation.</p>
 <p>We’ll also use the <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a> package for our input pipeline. So we end up with the following preamble to set things up:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2165,10 +2166,10 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>That’s it. Let’s get started.</p>
 <h2 id="so-whats-a-gan">So what’s a GAN?</h2>
-<p>GAN stands for <em>Generative Adversarial Network</em><span class="citation" data-cites="GoodfellowPMXWOCB14">(Goodfellow et al. <a href="#ref-GoodfellowPMXWOCB14" role="doc-biblioref">2014</a>)</span>. It is a setup of two agents, the <em>generator</em> and the <em>discriminator</em>, that act against each other (thus, <em>adversarial</em>). It is <em>generative</em> because the goal is to generate output (as opposed to, say, classification or regression).</p>
+<p>GAN stands for <em>Generative Adversarial Network</em><span class="citation" data-cites="GoodfellowPMXWOCB14">(<a href="#ref-GoodfellowPMXWOCB14" role="doc-biblioref">Goodfellow et al. 2014</a>)</span>. It is a setup of two agents, the <em>generator</em> and the <em>discriminator</em>, that act against each other (thus, <em>adversarial</em>). It is <em>generative</em> because the goal is to generate output (as opposed to, say, classification or regression).</p>
 <p>In human learning, feedback - direct or indirect - plays a central role. Say we wanted to forge a banknote (as long as those still exist). Assuming we can get away with unsuccessful trials, we would get better and better at forgery over time. Optimizing our technique, we would end up rich. This concept of optimizing from feedback is embodied in the first of the two agents, the <em>generator</em>. It gets its feedback from the <em>discriminator</em>, in an upside-down way: If it can fool the discriminator, making it believe that the banknote was real, all is fine; if the discriminator notices the fake, it has to do things differently. For a neural network, that means it has to update its weights.</p>
 <p>How does the discriminator know what is real and what is fake? It too has to be trained, on real banknotes (or whatever the kind of objects involved) and the fake ones produced by the generator. So the complete setup is two agents competing, one striving to generate realistic-looking fake objects, and the other, to disavow the deception. The purpose of training is to have both evolve and get better, in turn causing the other to get better, too.</p>
-<p>In this system, there is no objective minimum to the loss function: We want both components to learn and getter better “in lockstep”, instead of one winning out over the other. This makes optimization difficult. In practice therefore, tuning a GAN can seem more like alchemy than like science, and it often makes sense to lean on practices and “tricks” reported by others.</p>
+<p>In this system, there is no objective minimum to the loss function: We want both components to learn and getter better “in lockstep,” instead of one winning out over the other. This makes optimization difficult. In practice therefore, tuning a GAN can seem more like alchemy than like science, and it often makes sense to lean on practices and “tricks” reported by others.</p>
 <p>In this example, just like in the Google notebook we’re porting, the goal is to generate MNIST digits. While that may not sound like the most exciting task one could imagine, it lets us focus on the mechanics, and allows us to keep computation and memory requirements (comparatively) low.</p>
 <p>Let’s load the data (training set needed only) and then, look at the first actor in our drama, the generator.</p>
 <h2 id="training-data">Training data</h2>
@@ -2360,25 +2361,25 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>Let’s take the training loop step by step. There will be an outer and an inner loop, one over epochs and one over batches. At the start of each epoch, we create a fresh iterator over the dataset:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="cf">for</span> (epoch <span class="cf">in</span> <span class="kw">seq_len</span>(num_epochs)) {</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>  start &lt;-<span class="st"> </span><span class="kw">Sys.time</span>()</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>  total_loss_gen &lt;-<span class="st"> </span><span class="dv">0</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>  total_loss_disc &lt;-<span class="st"> </span><span class="dv">0</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>  iter &lt;-<span class="st"> </span><span class="kw">make_iterator_one_shot</span>(train_dataset)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (epoch <span class="cf">in</span> <span class="fu">seq_len</span>(num_epochs)) {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  start <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  total_loss_gen <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  total_loss_disc <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  iter <span class="ot">&lt;-</span> <span class="fu">make_iterator_one_shot</span>(train_dataset)</span></code></pre></div>
 </div>
 <p>Now for every batch we obtain from the iterator, we are calling the generator and having it generate images from random noise. Then, we’re calling the dicriminator on real images as well as the fake images just generated. For the discriminator, its relative outputs are directly fed into the loss function. For the generator, its loss will depend on how the discriminator judged its creations:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="kw">until_out_of_range</span>({</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  batch &lt;-<span class="st"> </span><span class="kw">iterator_get_next</span>(iter)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  noise &lt;-<span class="st"> </span><span class="kw">k_random_normal</span>(<span class="kw">c</span>(batch_size, noise_dim))</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>  <span class="kw">with</span>(tf<span class="op">$</span><span class="kw">GradientTape</span>() <span class="op">%as%</span><span class="st"> </span>gen_tape, { <span class="kw">with</span>(tf<span class="op">$</span><span class="kw">GradientTape</span>() <span class="op">%as%</span><span class="st"> </span>disc_tape, {</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    generated_images &lt;-<span class="st"> </span><span class="kw">generator</span>(noise)</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    disc_real_output &lt;-<span class="st"> </span><span class="kw">discriminator</span>(batch, <span class="dt">training =</span> <span class="ot">TRUE</span>)</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>    disc_generated_output &lt;-</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a><span class="st">       </span><span class="kw">discriminator</span>(generated_images, <span class="dt">training =</span> <span class="ot">TRUE</span>)</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>    gen_loss &lt;-<span class="st"> </span><span class="kw">generator_loss</span>(disc_generated_output)</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a>    disc_loss &lt;-<span class="st"> </span><span class="kw">discriminator_loss</span>(disc_real_output, disc_generated_output)</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>  }) })</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">until_out_of_range</span>({</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  batch <span class="ot">&lt;-</span> <span class="fu">iterator_get_next</span>(iter)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  noise <span class="ot">&lt;-</span> <span class="fu">k_random_normal</span>(<span class="fu">c</span>(batch_size, noise_dim))</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">with</span>(tf<span class="sc">$</span><span class="fu">GradientTape</span>() <span class="sc">%as%</span> gen_tape, { <span class="fu">with</span>(tf<span class="sc">$</span><span class="fu">GradientTape</span>() <span class="sc">%as%</span> disc_tape, {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    generated_images <span class="ot">&lt;-</span> <span class="fu">generator</span>(noise)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    disc_real_output <span class="ot">&lt;-</span> <span class="fu">discriminator</span>(batch, <span class="at">training =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    disc_generated_output <span class="ot">&lt;-</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>       <span class="fu">discriminator</span>(generated_images, <span class="at">training =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    gen_loss <span class="ot">&lt;-</span> <span class="fu">generator_loss</span>(disc_generated_output)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    disc_loss <span class="ot">&lt;-</span> <span class="fu">discriminator_loss</span>(disc_real_output, disc_generated_output)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  }) })</span></code></pre></div>
 </div>
 <p>Note that all model calls happen inside <code>tf$GradientTape</code> contexts. This is so the forward passes can be recorded and “played back” to back propagate the losses through the network.</p>
 <p>Obtain the gradients of the losses to the respective models’ variables (<code>tape$gradient</code>) and have the optimizers apply them to the models’ weights (<code>optimizer$apply_gradients</code>):</p>
@@ -2509,12 +2510,12 @@ gtag('config', 'UA-20375833-3');
 <h2 id="conclusion">Conclusion</h2>
 <p>While certainly tuning GANs will remain a challenge, we hope we were able to show that mapping concepts to code is not difficult when using eager execution. In case you’ve played around with GANs before, you may have found you needed to pay careful attention to set up the losses the right way, freeze the discriminator’s weights when needed, etc. This need goes away with eager execution. In upcoming posts, we will show further examples where using it makes model development easier.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-GoodfellowPMXWOCB14">
-<p>Goodfellow, Ian J., Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron C. Courville, and Yoshua Bengio. 2014. “Generative Adversarial Nets.” In <em>Advances in Neural Information Processing Systems 27: Annual Conference on Neural Information Processing Systems 2014, December 8-13 2014, Montreal, Quebec, Canada</em>, 2672–80. <a href="http://papers.nips.cc/paper/5423-generative-adversarial-nets">http://papers.nips.cc/paper/5423-generative-adversarial-nets</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-GoodfellowPMXWOCB14" class="csl-entry" role="doc-biblioentry">
+Goodfellow, Ian J., Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron C. Courville, and Yoshua Bengio. 2014. <span>“Generative Adversarial Nets.”</span> In <em>Advances in Neural Information Processing Systems 27: Annual Conference on Neural Information Processing Systems 2014, December 8-13 2014, Montreal, Quebec, Canada</em>, 2672–80. <a href="http://papers.nips.cc/paper/5423-generative-adversarial-nets">http://papers.nips.cc/paper/5423-generative-adversarial-nets</a>.
 </div>
-<div id="ref-RadfordMC15">
-<p>Radford, Alec, Luke Metz, and Soumith Chintala. 2015. “Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks.” <em>CoRR</em> abs/1511.06434. <a href="http://arxiv.org/abs/1511.06434">http://arxiv.org/abs/1511.06434</a>.</p>
+<div id="ref-RadfordMC15" class="csl-entry" role="doc-biblioentry">
+Radford, Alec, Luke Metz, and Soumith Chintala. 2015. <span>“Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks.”</span> <em>CoRR</em> abs/1511.06434. <a href="http://arxiv.org/abs/1511.06434">http://arxiv.org/abs/1511.06434</a>.
 </div>
 </div>
 <!--radix_placeholder_article_footer-->

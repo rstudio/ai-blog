@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -129,9 +130,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <!--/radix_placeholder_meta_tags-->
   
   <meta name="citation_reference" content="citation_title=Leveraging uncertainty information from deep neural networks for disease detection;citation_publication_date=2017;citation_publisher=Cold Spring Harbor Laboratory;citation_doi=10.1101/084210;citation_author=Christian Leibig;citation_author=Vaneeda Allken;citation_author=Murat Seckin Ayhan;citation_author=Philipp Berens;citation_author=Siegfried Wahl"/>
-  <meta name="citation_reference" content="citation_title=Concrete Dropout;citation_publication_date=2017;citation_author=Y. Gal;citation_author=J. Hron;citation_author=A. Kendall"/>
-  <meta name="citation_reference" content="citation_title=Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning;citation_publication_date=2016;citation_author=Yarin Gal;citation_author=Zoubin Ghahramani"/>
-  <meta name="citation_reference" content="citation_title=What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?;citation_publication_date=2017;citation_publisher=Curran Associates, Inc.;citation_author=Alex Kendall;citation_author=Yarin Gal"/>
+  <meta name="citation_reference" content="citation_title=Concrete dropout;citation_publication_date=2017;citation_author=Y. Gal;citation_author=J. Hron;citation_author=A. Kendall"/>
+  <meta name="citation_reference" content="citation_title=Dropout as a bayesian approximation: Representing model uncertainty in deep learning;citation_publication_date=2016;citation_author=Yarin Gal;citation_author=Zoubin Ghahramani"/>
+  <meta name="citation_reference" content="citation_title=What uncertainties do we need in bayesian deep learning for computer vision?;citation_publication_date=2017;citation_publisher=Curran Associates, Inc.;citation_author=Alex Kendall;citation_author=Yarin Gal"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -2145,23 +2146,23 @@ gtag('config', 'UA-20375833-3');
 <p>In this post, we’ll see a both practical as well as theoretically grounded approach to obtaining uncertainty estimates from neural networks. First, however, let’s quickly talk about why uncertainty is that important - over and above its potential to save a data scientist’s job.</p>
 <h2 id="why-uncertainty">Why uncertainty?</h2>
 <p>In a society where automated algorithms are - and will be - entrusted with more and more life-critical tasks, one answer immediately jumps to mind: If the algorithm correctly quantifies its uncertainty, we may have human experts inspect the more uncertain predictions and potentially revise them.</p>
-<p>This will only work if the network’s self-indicated uncertainty really is indicative of a higher probability of misclassification. Leibig et al.<span class="citation" data-cites="Leibig084210">(Leibig et al. <a href="#ref-Leibig084210" role="doc-biblioref">2017</a>)</span> used a predecessor of the method described below to assess neural network uncertainty in detecting <em>diabetic retinopathy</em>. They found that indeed, the distributions of uncertainty were different depending on whether the answer was correct or not:</p>
+<p>This will only work if the network’s self-indicated uncertainty really is indicative of a higher probability of misclassification. Leibig et al.<span class="citation" data-cites="Leibig084210">(<a href="#ref-Leibig084210" role="doc-biblioref">Leibig et al. 2017</a>)</span> used a predecessor of the method described below to assess neural network uncertainty in detecting <em>diabetic retinopathy</em>. They found that indeed, the distributions of uncertainty were different depending on whether the answer was correct or not:</p>
 <figure>
-<img src="images/retinopathy.png" class="external" style="width:100.0%" alt="Figure from Leibig et al. 2017 (Leibig et al. 2017). Green: uncertainty estimates for wrong predictions. Blue: uncertainty estimates for correct predictions." /><figcaption aria-hidden="true">Figure from Leibig et al. 2017 <span class="citation" data-cites="Leibig084210">(Leibig et al. <a href="#ref-Leibig084210" role="doc-biblioref">2017</a>)</span>. Green: uncertainty estimates for wrong predictions. Blue: uncertainty estimates for correct predictions.</figcaption>
+<img src="images/retinopathy.png" class="external" style="width:100.0%" alt="Figure from Leibig et al. 2017 (Leibig et al. 2017). Green: uncertainty estimates for wrong predictions. Blue: uncertainty estimates for correct predictions." /><figcaption aria-hidden="true">Figure from Leibig et al. 2017 <span class="citation" data-cites="Leibig084210">(<a href="#ref-Leibig084210" role="doc-biblioref">Leibig et al. 2017</a>)</span>. Green: uncertainty estimates for wrong predictions. Blue: uncertainty estimates for correct predictions.</figcaption>
 </figure>
-<p>In addition to quantifying uncertainty, it can make sense to <em>qualify</em> it. In the Bayesian deep learning literature, a distinction is commonly made between <em>epistemic uncertainty</em> and <em>aleatoric uncertainty</em> <span class="citation" data-cites="NIPS2017_7141">(Kendall and Gal <a href="#ref-NIPS2017_7141" role="doc-biblioref">2017</a>)</span>. Epistemic uncertainty refers to imperfections in the model - in the limit of infinite data, this kind of uncertainty should be reducible to 0. Aleatoric uncertainty is due to data sampling and measurement processes and does not depend on the size of the dataset.</p>
+<p>In addition to quantifying uncertainty, it can make sense to <em>qualify</em> it. In the Bayesian deep learning literature, a distinction is commonly made between <em>epistemic uncertainty</em> and <em>aleatoric uncertainty</em> <span class="citation" data-cites="NIPS2017_7141">(<a href="#ref-NIPS2017_7141" role="doc-biblioref">Kendall and Gal 2017</a>)</span>. Epistemic uncertainty refers to imperfections in the model - in the limit of infinite data, this kind of uncertainty should be reducible to 0. Aleatoric uncertainty is due to data sampling and measurement processes and does not depend on the size of the dataset.</p>
 <p>Say we train a model for object detection. With more data, the model should become more sure about what makes a unicycle different from a mountainbike. However, let’s assume all that’s visible of the mountainbike is the front wheel, the fork and the head tube. Then it doesn’t look so different from a unicycle any more!</p>
 <p>What would be the consequences if we could distinguish both types of uncertainty? If epistemic uncertainty is high, we can try to get more training data. The remaining aleatoric uncertainty should then keep us cautioned to factor in safety margins in our application.</p>
 <p>Probably no further justifications are required of why we might want to assess model uncertainty - but how can we do this?</p>
 <h2 id="uncertainty-estimates-through-bayesian-deep-learning">Uncertainty estimates through Bayesian deep learning</h2>
 <p>In a Bayesian world, in principle, uncertainty is for free as we don’t just get point estimates (the maximum aposteriori) but the full posterior distribution. Strictly speaking, in Bayesian deep learning, priors should be put over the weights, and the posterior be determined according to Bayes’ rule. To the deep learning practitioner, this sounds pretty arduous - and how do you do it using Keras?</p>
-<p>In 2016 though, Gal and Ghahramani <span class="citation" data-cites="GalG16">(Gal and Ghahramani <a href="#ref-GalG16" role="doc-biblioref">2016</a>)</span> showed that when viewing a neural network as an approximation to a Gaussian process, uncertainty estimates can be obtained in a theoretically grounded yet very practical way: by training a network with dropout and then, using dropout at test time too. At test time, dropout lets us extract Monte Carlo samples from the posterior, which can then be used to approximate the true posterior distribution.</p>
+<p>In 2016 though, Gal and Ghahramani <span class="citation" data-cites="GalG16">(<a href="#ref-GalG16" role="doc-biblioref">Yarin Gal and Ghahramani 2016</a>)</span> showed that when viewing a neural network as an approximation to a Gaussian process, uncertainty estimates can be obtained in a theoretically grounded yet very practical way: by training a network with dropout and then, using dropout at test time too. At test time, dropout lets us extract Monte Carlo samples from the posterior, which can then be used to approximate the true posterior distribution.</p>
 <aside>
 Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.cam.ac.uk/yarin/blog_3d801aa532c1ce.html">blog</a>.
 </aside>
 <p>This is already good news, but it leaves one question open: How do we choose an appropriate dropout rate? The answer is: let the network learn it.</p>
 <h2 id="learning-dropout-and-uncertainty">Learning dropout and uncertainty</h2>
-<p>In several 2017 papers <span class="citation" data-cites="2017arXiv170507832G">(Gal, Hron, and Kendall <a href="#ref-2017arXiv170507832G" role="doc-biblioref">2017</a>)</span>,<span class="citation" data-cites="NIPS2017_7141">(Kendall and Gal <a href="#ref-NIPS2017_7141" role="doc-biblioref">2017</a>)</span>, Gal and his coworkers demonstrated how a network can be trained to dynamically adapt the dropout rate so it is adequate for the amount and characteristics of the data given.</p>
+<p>In several 2017 papers <span class="citation" data-cites="2017arXiv170507832G">(<a href="#ref-2017arXiv170507832G" role="doc-biblioref">Y. Gal, Hron, and Kendall 2017</a>)</span>,<span class="citation" data-cites="NIPS2017_7141">(<a href="#ref-NIPS2017_7141" role="doc-biblioref">Kendall and Gal 2017</a>)</span>, Gal and his coworkers demonstrated how a network can be trained to dynamically adapt the dropout rate so it is adequate for the amount and characteristics of the data given.</p>
 <p>Besides the predictive mean of the target variable, it can additionally be made to learn the variance. This means we can calculate both types of uncertainty, epistemic and aleatoric, independently, which is useful in the light of their different implications. We then add them up to obtain the overall predictive uncertainty.</p>
 <p>Let’s make this concrete and see how we can implement and test the intended behavior on simulated data. In the implementation, there are three things warranting our special attention:</p>
 <ul>
@@ -2172,7 +2173,7 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>Let’s start with the wrapper.</p>
 <h3 id="a-wrapper-for-learning-dropout">A wrapper for learning dropout</h3>
 <p>In this example, we’ll restrict ourselves to learning dropout for <em>dense</em> layers. Technically, we’ll add a weight and a loss to every dense layer we want to use dropout with. This means we’ll create a <a href="https://github.com/rstudio/keras/blob/master/vignettes/custom_wrappers.Rmd">custom wrapper</a> class that has access to the underlying layer and can modify it.</p>
-<p>The logic implemented in the wrapper is derived mathematically in the <em>Concrete Dropout</em> paper <span class="citation" data-cites="2017arXiv170507832G">(Gal, Hron, and Kendall <a href="#ref-2017arXiv170507832G" role="doc-biblioref">2017</a>)</span>. The below code is a port to R of the Python Keras version found in the <a href="https://github.com/yaringal/ConcreteDropout">paper’s companion github repo</a>.</p>
+<p>The logic implemented in the wrapper is derived mathematically in the <em>Concrete Dropout</em> paper <span class="citation" data-cites="2017arXiv170507832G">(<a href="#ref-2017arXiv170507832G" role="doc-biblioref">Y. Gal, Hron, and Kendall 2017</a>)</span>. The below code is a port to R of the Python Keras version found in the <a href="https://github.com/yaringal/ConcreteDropout">paper’s companion github repo</a>.</p>
 <p>So first, here is the wrapper class - we’ll see how to use it in just a second:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2364,7 +2365,7 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 </div>
 <p>The significant thing here is that we learn <em>different variances for different data points</em>. We thus hope to be able to account for <em>heteroscedasticity</em> (different degrees of variability) in the data.</p>
 <h3 id="heteroscedastic-loss">Heteroscedastic loss</h3>
-<p>Accordingly, instead of mean squared error we use a cost function that does not treat all estimates alike<span class="citation" data-cites="NIPS2017_7141">(Kendall and Gal <a href="#ref-NIPS2017_7141" role="doc-biblioref">2017</a>)</span>:</p>
+<p>Accordingly, instead of mean squared error we use a cost function that does not treat all estimates alike<span class="citation" data-cites="NIPS2017_7141">(<a href="#ref-NIPS2017_7141" role="doc-biblioref">Kendall and Gal 2017</a>)</span>:</p>
 <p><span class="math display">\[\frac{1}{N} \sum_i{\frac{1}{2 \hat{\sigma}^2_i} \ (\mathbf{y}_i - \mathbf{\hat{y}}_i)^2 + \frac{1}{2} log \ \hat{\sigma}^2_i}\]</span></p>
 <p>In addition to the obligatory target vs. prediction check, this cost function contains two regularization terms:</p>
 <ul>
@@ -2419,7 +2420,7 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 </div>
 <p>With training finished, we turn to the validation set to obtain estimates on unseen data - including those uncertainty measures this is all about!</p>
 <h3 id="obtain-uncertainty-estimates-via-monte-carlo-sampling">Obtain uncertainty estimates via Monte Carlo sampling</h3>
-<p>As often in a Bayesian setup, we construct the posterior (and thus, the posterior predictive) via Monte Carlo sampling. Unlike in traditional use of dropout, there is no change in behavior between training and test phases: Dropout stays “on”.</p>
+<p>As often in a Bayesian setup, we construct the posterior (and thus, the posterior predictive) via Monte Carlo sampling. Unlike in traditional use of dropout, there is no change in behavior between training and test phases: Dropout stays “on.”</p>
 <p>So now we get an ensemble of model predictions on the validation set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2606,7 +2607,7 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 </div>
 </div>
 <p>We’ll train each of the five models with a <code>hidden_dim</code> of 64. We then obtain 20 Monte Carlo sample from the posterior predictive distribution and calculate the uncertainties as before.</p>
-<p>Here we show the code for the first predictor, “AT”. It is similar for all other cases.</p>
+<p>Here we show the code for the first predictor, “AT.” It is similar for all other cases.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>get_model</span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>64</span><span class='op'>)</span>
@@ -2676,18 +2677,18 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 This would require a slightly different wrapper class but again, an R implementation could follow the <a href="https://github.com/yaringal/ConcreteDropout/blob/master/spatial-concrete-dropout-keras.ipynb">Python example in Yarin Gal’s repository</a>.
 </aside>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-GalG16">
-<p>Gal, Yarin, and Zoubin Ghahramani. 2016. “Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning.” In <em>Proceedings of the 33nd International Conference on Machine Learning, ICML 2016, New York City, Ny, Usa, June 19-24, 2016</em>, 1050–9. <a href="http://jmlr.org/proceedings/papers/v48/gal16.html">http://jmlr.org/proceedings/papers/v48/gal16.html</a>.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-2017arXiv170507832G" class="csl-entry" role="doc-biblioentry">
+Gal, Y., J. Hron, and A. Kendall. 2017. <span>“Concrete Dropout.”</span> <em>ArXiv e-Prints</em>, May. <a href="https://arxiv.org/abs/1705.07832">https://arxiv.org/abs/1705.07832</a>.
 </div>
-<div id="ref-2017arXiv170507832G">
-<p>Gal, Y., J. Hron, and A. Kendall. 2017. “Concrete Dropout.” <em>ArXiv E-Prints</em>, May. <a href="http://arxiv.org/abs/1705.07832">http://arxiv.org/abs/1705.07832</a>.</p>
+<div id="ref-GalG16" class="csl-entry" role="doc-biblioentry">
+Gal, Yarin, and Zoubin Ghahramani. 2016. <span>“Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning.”</span> In <em>Proceedings of the 33nd International Conference on Machine Learning, <span>ICML</span> 2016, New York City, NY, USA, June 19-24, 2016</em>, 1050–59. <a href="http://jmlr.org/proceedings/papers/v48/gal16.html">http://jmlr.org/proceedings/papers/v48/gal16.html</a>.
 </div>
-<div id="ref-NIPS2017_7141">
-<p>Kendall, Alex, and Yarin Gal. 2017. “What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?” In <em>Advances in Neural Information Processing Systems 30</em>, edited by I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, 5574–84. Curran Associates, Inc. <a href="http://papers.nips.cc/paper/7141-what-uncertainties-do-we-need-in-bayesian-deep-learning-for-computer-vision.pdf">http://papers.nips.cc/paper/7141-what-uncertainties-do-we-need-in-bayesian-deep-learning-for-computer-vision.pdf</a>.</p>
+<div id="ref-NIPS2017_7141" class="csl-entry" role="doc-biblioentry">
+Kendall, Alex, and Yarin Gal. 2017. <span>“What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?”</span> In <em>Advances in Neural Information Processing Systems 30</em>, edited by I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, 5574–84. Curran Associates, Inc. <a href="http://papers.nips.cc/paper/7141-what-uncertainties-do-we-need-in-bayesian-deep-learning-for-computer-vision.pdf">http://papers.nips.cc/paper/7141-what-uncertainties-do-we-need-in-bayesian-deep-learning-for-computer-vision.pdf</a>.
 </div>
-<div id="ref-Leibig084210">
-<p>Leibig, Christian, Vaneeda Allken, Murat Seckin Ayhan, Philipp Berens, and Siegfried Wahl. 2017. “Leveraging Uncertainty Information from Deep Neural Networks for Disease Detection.” <em>bioRxiv</em>. <a href="https://doi.org/10.1101/084210">https://doi.org/10.1101/084210</a>.</p>
+<div id="ref-Leibig084210" class="csl-entry" role="doc-biblioentry">
+Leibig, Christian, Vaneeda Allken, Murat Seckin Ayhan, Philipp Berens, and Siegfried Wahl. 2017. <span>“Leveraging Uncertainty Information from Deep Neural Networks for Disease Detection.”</span> <em>bioRxiv</em>. <a href="https://doi.org/10.1101/084210">https://doi.org/10.1101/084210</a>.
 </div>
 </div>
 <section class="footnotes" role="doc-endnotes">

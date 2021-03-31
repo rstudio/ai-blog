@@ -23,6 +23,7 @@
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -125,7 +126,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <!--/radix_placeholder_meta_tags-->
   
   <meta name="citation_reference" content="citation_title=Imagenet: A large-scale hierarchical image database;citation_publication_date=2009;citation_publisher=Ieee;citation_author=Jia Deng;citation_author=Wei Dong;citation_author=Richard Socher;citation_author=Li-Jia Li;citation_author=Kai Li;citation_author=Li Fei-Fei"/>
-  <meta name="citation_reference" content="citation_title=WordNet: a lexical database for English;citation_publication_date=1995;citation_publisher=ACM New York, NY, USA;citation_volume=38;citation_author=George A Miller"/>
+  <meta name="citation_reference" content="citation_title=WordNet: A lexical database for english;citation_publication_date=1995;citation_publisher=ACM New York, NY, USA;citation_volume=38;citation_author=George A Miller"/>
   <meta name="citation_reference" content="citation_title=Imagenet classification with deep convolutional neural networks;citation_publication_date=2012;citation_author=Alex Krizhevsky;citation_author=Ilya Sutskever;citation_author=Geoffrey E Hinton"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
@@ -2137,7 +2138,7 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p><a href="http://www.image-net.org/">ImageNet</a> <span class="citation" data-cites="deng2009imagenet">(Deng et al. <a href="#ref-deng2009imagenet" role="doc-biblioref">2009</a>)</span> is an image database organized according to the <a href="http://wordnet.princeton.edu/">WordNet</a> <span class="citation" data-cites="miller1995wordnet">(Miller <a href="#ref-miller1995wordnet" role="doc-biblioref">1995</a>)</span> hierarchy which, historically, has been used in computer vision benchmarks and research. However, it was not until AlexNet <span class="citation" data-cites="krizhevsky2012imagenet">(Krizhevsky, Sutskever, and Hinton <a href="#ref-krizhevsky2012imagenet" role="doc-biblioref">2012</a>)</span> demonstrated the efficiency of deep learning using convolutional neural networks on GPUs that the computer-vision discipline turned to deep learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, this post introduces tools and techniques to consider when training ImageNet and other large-scale datasets with R.</p>
+<p><a href="http://www.image-net.org/">ImageNet</a> <span class="citation" data-cites="deng2009imagenet">(<a href="#ref-deng2009imagenet" role="doc-biblioref">Deng et al. 2009</a>)</span> is an image database organized according to the <a href="http://wordnet.princeton.edu/">WordNet</a> <span class="citation" data-cites="miller1995wordnet">(<a href="#ref-miller1995wordnet" role="doc-biblioref">Miller 1995</a>)</span> hierarchy which, historically, has been used in computer vision benchmarks and research. However, it was not until AlexNet <span class="citation" data-cites="krizhevsky2012imagenet">(<a href="#ref-krizhevsky2012imagenet" role="doc-biblioref">Krizhevsky, Sutskever, and Hinton 2012</a>)</span> demonstrated the efficiency of deep learning using convolutional neural networks on GPUs that the computer-vision discipline turned to deep learning to achieve state-of-the-art models that revolutionized their field. Given the importance of ImageNet and AlexNet, this post introduces tools and techniques to consider when training ImageNet and other large-scale datasets with R.</p>
 <p>Now, in order to process ImageNet, we will first have to <em>divide and conquer</em>, partitioning the dataset into several manageable subsets. Afterwards, we will train ImageNet using AlexNet across multiple GPUs and compute instances. <a href="#preprocessing-imagenet">Preprocessing ImageNet</a> and <a href="#distributed-training">distributed training</a> are the two topics that this post will present and discuss, starting with preprocessing ImageNet.</p>
 <h2 id="preprocessing-imagenet">Preprocessing ImageNet</h2>
 <p>When dealing with large datasets, even simple tasks like downloading or reading a dataset can be much harder than what you would expect. For instance, since ImageNet is roughly 300GB in size, you will need to make sure to have at least 600GB of free space to leave some room for download and decompression. But no worries, you can always borrow computers with huge disk drives from your favorite cloud provider. While you are at it, you should also request compute instances with multiple GPUs, Solid State Drives (SSDs), and a reasonable amount of CPUs and memory. If you want to use the exact configuration we used, take a look at the <a href="https://github.com/mlverse/imagenet">mlverse/imagenet</a> repo, which contains a Docker image and configuration commands required to provision reasonable computing resources for this task. In summary, make sure you have access to sufficient compute resources.</p>
@@ -2253,7 +2254,7 @@ gtag('config', 'UA-20375833-3');
  103/2269 [&gt;...............] - ETA: 5:52 - loss: 72306.4531 - accuracy: 0.9748</code></pre>
 <p>So far so good! However, this post is about enabling large-scale training across multiple GPUs, so we want to make sure we are using as many as we can. Unfortunately, running <code>nvidia-smi</code> will show that only one GPU currently being used:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="ex">nvidia-smi</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nvidia-smi</span></span></code></pre></div>
 </div>
 <pre><code>+-----------------------------------------------------------------------------+
 | NVIDIA-SMI 418.152.00   Driver Version: 418.152.00   CUDA Version: 10.1     |
@@ -2287,7 +2288,7 @@ gtag('config', 'UA-20375833-3');
 <p>Notice also <code>parallel = 6</code> which configures <code>tfdatasets</code> to make use of multiple CPUs when loading data into our GPUs, see <a href="https://tensorflow.rstudio.com/guide/tfdatasets/introduction/#parallel-mapping">Parallel Mapping</a> for details.</p>
 <p>We can now re-run <code>nvidia-smi</code> to validate all our GPUs are being used:</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="ex">nvidia-smi</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nvidia-smi</span></span></code></pre></div>
 </div>
 <pre><code>+-----------------------------------------------------------------------------+
 | NVIDIA-SMI 418.152.00   Driver Version: 418.152.00   CUDA Version: 10.1     |
@@ -2363,15 +2364,15 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>We hope this post gave you a reasonable overview of what training large-datasets in R looks like – thanks for reading along!</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
-<div id="refs" class="references hanging-indent" role="doc-bibliography">
-<div id="ref-deng2009imagenet">
-<p>Deng, Jia, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. 2009. “Imagenet: A Large-Scale Hierarchical Image Database.” In <em>2009 Ieee Conference on Computer Vision and Pattern Recognition</em>, 248–55. Ieee.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-deng2009imagenet" class="csl-entry" role="doc-biblioentry">
+Deng, Jia, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. 2009. <span>“Imagenet: A Large-Scale Hierarchical Image Database.”</span> In <em>2009 IEEE Conference on Computer Vision and Pattern Recognition</em>, 248–55. Ieee.
 </div>
-<div id="ref-krizhevsky2012imagenet">
-<p>Krizhevsky, Alex, Ilya Sutskever, and Geoffrey E Hinton. 2012. “Imagenet Classification with Deep Convolutional Neural Networks.” In <em>Advances in Neural Information Processing Systems</em>, 1097–1105.</p>
+<div id="ref-krizhevsky2012imagenet" class="csl-entry" role="doc-biblioentry">
+Krizhevsky, Alex, Ilya Sutskever, and Geoffrey E Hinton. 2012. <span>“Imagenet Classification with Deep Convolutional Neural Networks.”</span> In <em>Advances in Neural Information Processing Systems</em>, 1097–1105.
 </div>
-<div id="ref-miller1995wordnet">
-<p>Miller, George A. 1995. “WordNet: A Lexical Database for English.” <em>Communications of the ACM</em> 38 (11): 39–41.</p>
+<div id="ref-miller1995wordnet" class="csl-entry" role="doc-biblioentry">
+Miller, George A. 1995. <span>“WordNet: A Lexical Database for English.”</span> <em>Communications of the ACM</em> 38 (11): 39–41.
 </div>
 </div>
 <!--radix_placeholder_article_footer-->

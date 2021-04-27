@@ -126,7 +126,7 @@ While this works, it really serves to illustrate the principle. With `torch` pro
 
 Instead, we let a `torch` optimizer update the candidate $\mathbf{x}$ for us. Habitually, our first try is *Adam*.
 
-### Adam (?)
+### Adam 
 
 With Adam, optimization proceeds a lot faster. Truth be told, though, choosing a good learning rate *still* takes non-negligeable experimentation. (Try the default learning rate, 0.001, for comparison.)
 
@@ -176,13 +176,13 @@ for (i in 1:num_iterations) {
 
 It took us about a hundred iterations to arrive at a decent value. This is a lot faster than the manual approach above, but still quite a lot. Luckily, further improvements are possible.
 
-### L-BFGS (!)
+### L-BFGS 
 
 Among the many `torch` optimizers commonly used in deep learning (Adam, AdamW, RMSprop ...), there is one "outsider", much better known in classic numerical optimization than in neural-networks space: L-BFGS, a.k.a. [Limited-memory BFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS), a memory-optimized implementation of the [Broyden--Fletcher--Goldfarb--Shanno optimization algorithm](https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm) (BFGS).
 
 BFGS is perhaps the most widely used among the so-called Quasi-Newton, second-order optimization algorithms. As opposed to the family of first-order algorithms that, in deciding on a descent direction, make use of gradient information only, second-order algorithms additionally take curvature information into account. To that end, exact Newton methods actually compute the Hessian (a costly operation), while Quasi-Newton methods avoid that cost and, instead, resort to iterative approximation.
 
-Looking at the contours of the Rosenbrock function, with its prolonged, narrow valley, it is not difficult to imagine that curvature information might make a difference. And, as you'll see in a second, it really does. Before though, one note on the code. When using L-BFGS, it is necessary to wrap function call and gradient evaluation in a closure (`calc_loss()`, in the below snippet), for them to be callable several times per iteration. You can convince yourself that the closure is, in fact, entered repeatedly, by inspecting this code snippet's chatty output:
+Looking at the contours of the Rosenbrock function, with its prolonged, narrow valley, it is not difficult to imagine that curvature information might make a difference. And, as you'll see in a second, it really does. Before though, one note on the code. When using L-BFGS, it is necessary to wrap both function call and gradient evaluation in a closure (`calc_loss()`, in the below snippet), for them to be callable several times per iteration. You can convince yourself that the closure is, in fact, entered repeatedly, by inspecting this code snippet's chatty output:
 
 ```{r}
 num_iterations <- 3
@@ -247,11 +247,11 @@ for (i in 1:num_iterations) {
     Value is:  4.547474e-12 
     Gradient is:  -1.907349e-05 9.536743e-06 
 
-Even though we ran the algorithm for three iterations, the optimal value really is reached after two. Seeing how well this worked, we try L-BFGS on a slightly more complex function, named *flower*, for pretty self-evident reasons.
+Even though we ran the algorithm for three iterations, the optimal value really is reached after two. Seeing how well this worked, we try L-BFGS on a more difficult function, named *flower*, for pretty self-evident reasons.
 
 ## (Yet) more fun with L-BFGS
 
-Here is the *flower* function.[^2] Mathematically, its minimum is near `(0,0)`, though the function itself is technically undefined at  `(0,0)`, since the `atan2` used in the function is not defined in that location.
+Here is the *flower* function.[^2] Mathematically, its minimum is near `(0,0)`, but technically the function itself is undefined at `(0,0)`, since the `atan2` used in the function is not defined there.
 
 [^2]: The code to plot it is, again, found in the [appendix](#flower-function-plotting-code).
 
@@ -269,7 +269,7 @@ flower <- function(x) {
 knitr::include_graphics("images/flower.png")
 ```
 
-We now run the same code as above, starting from `(20,20)` this time.
+We run the same code as above, starting from `(20,20)` this time.
 
 ```{r}
 num_iterations <- 3
@@ -380,7 +380,7 @@ Luckily, there is something we can do.
 
 Taken in isolation, what a Quasi-Newton method like L-BFGS does is determine the best descent direction. However, as we just saw, a good direction is not enough. With the flower function, wherever we are, the optimal path leads to disaster if we stay on it long enough. Thus, we need an algorithm that carefully evaluates not only where to go, but also, how far.
 
-For this reason, L-BFGS implementations commonly incorporate _line search_, that is, a set of rules indicating whether a proposed step length is a good one, or should be improved upon.
+For this reason, L-BFGS implementations commonly incorporate *line search*, that is, a set of rules indicating whether a proposed step length is a good one, or should be improved upon.
 
 Specifically, `torch`'s L-BFGS optimizer implements the [Strong Wolfe conditions](https://en.wikipedia.org/wiki/Wolfe_conditions). We re-run the above code, changing just two lines. Most importantly, the one where the optimizer is instantiated:
 
@@ -579,7 +579,7 @@ Thanks for reading!
 
 ## Appendix
 
-### Rosenbrock function plotting code
+### Rosenbrock function plotting code {#rosenbrock-function-plotting-code}
 
 ```{r}
 library(tidyverse)
@@ -609,7 +609,7 @@ ggplot(data = df,
   theme(aspect.ratio = 1)
 ```
 
-### Flower function plotting code
+### Flower function plotting code {#flower-function-plotting-code}
 
 ```{r}
 a <- 1
@@ -635,6 +635,4 @@ ggplot(data = df,
   theme(aspect.ratio = 1)
 ```
 
-### 
-
-Thanks for reading!
+Photo by <a href="https://unsplash.com/@crmtphotography?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Michael Trimble</a> on <a href="https://unsplash.com/?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>

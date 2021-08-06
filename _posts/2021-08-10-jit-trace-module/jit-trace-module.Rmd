@@ -22,7 +22,7 @@ preview: images/preview.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-*Note: To follow along with this post, you will need `torch` version 0.5, which as of this writing is not yet on CRAN. In the meantime, please install the development version from GitHub.*
+*Note: To follow along with this post, you will need `torch` version 0.5, which as of this writing is not yet on CRAN. In the meantime, please install the development version from [GitHub](https://github.com/mlverse/torch).*
 
 Every domain has its concepts, and these are what one needs to understand, at some point, on one's journey from copy-and-make-it-work to purposeful, deliberate utilization. In addition, unfortunately, every domain has its jargon, whereby terms are used in a way that is technically correct, but fails to evoke a clear image to the yet-uninitiated. (Py-)Torch's JIT is an example.
 
@@ -32,7 +32,7 @@ Every domain has its concepts, and these are what one needs to understand, at so
 
 #### Compiled, interpreted, just-in-time compiled
 
-Starting with the former: "JIT" is a common acronym for "just in time" [to wit: compilation]. *Compilation* means generating machine-executable code; it is something that has to happen to every program for it to be runnable. The question is when.
+"JIT" is a common acronym for "just in time" [to wit: compilation]. *Compilation* means generating machine-executable code; it is something that has to happen to every program for it to be runnable. The question is when.
 
 C code, for example, is compiled "by hand", at some arbitrary time prior to execution. Many other languages, however (among them Java, R, and Python) are -- in their default implementations, at least -- *interpreted*: They come with executables (`java`, `R`, and `python`, resp.) that create machine code *at run time*, based on either the original program as written or an intermediate format called *bytecode*. Interpretation can proceed line-by-line, such as when you enter some code in R's REPL (read-eval-print loop), or in chunks (if there's a whole script or application to be executed). In the latter case, since the interpreter knows what is likely to be run next, it can implement optimizations that would be impossible otherwise. This process is commonly known as *just-in-time compilation*. Thus, in general parlance, JIT compilation is compilation, but at a point in time where the program is already running.
 
@@ -186,7 +186,7 @@ $$
 
 on a tensor *element*, nothing needs to be known about other elements in the tensor. The aggregate operation could then be run on the GPU in a single kernel.
 
-To make this happen, you normally would have to write custom CUDA code. Thanks to the JIT compiler, in many cases you don't have to: It will create such a kernel on the fly*.*
+To make this happen, you normally would have to write custom CUDA code. Thanks to the JIT compiler, in many cases you don't have to: It will create such a kernel on the fly.
 
 To see fusion in action, we use `graph_for()` (a method) instead of `graph` (a property):
 
@@ -354,16 +354,14 @@ for (epoch in 1:num_epochs) {
 
 #### Trace in `eval` mode
 
-Now, for deployment, we want a model that has the same weights as the model we just trained, but does *not* drop out any tensor elements. A way to achieve is to instantiate a fresh model instance, immediately put it into `eval()` mode, trace it, and *then only* endow it with the trained model's weights.
+Now, for deployment, we want a model that does *not* drop out any tensor elements. This means that before tracing, we need to put the model into `eval()` mode.
 
 ```{r}
-deploy_model <- net()$eval()
+train_model$eval()
 
-deploy_model <- jit_trace(deploy_model,  torch_tensor(c(1.2, 3, 0.1))) 
+train_model <- jit_trace(train_model, torch_tensor(c(1.2, 3, 0.1))) 
 
-deploy_model$load_state_dict(train_model$state_dict())
-
-jit_save(deploy_model, "/tmp/model_deploy.zip")
+jit_save(train_model, "/tmp/model.zip")
 ```
 
 The saved model could now be copied to a different system.
@@ -375,13 +373,13 @@ To make use of this model from Python, we `jit.load()` it, then call it like we 
 ```{python}
 import torch
 
-deploy_model = torch.jit.load("/tmp/model_deploy.zip")
+deploy_model = torch.jit.load("/tmp/model.zip")
 deploy_model(torch.tensor((1, 1, 1), dtype = torch.float)) 
 ```
 
     tensor([-1.3630], device='cuda:0', grad_fn=<AddBackward0>)
 
-This is close enough to reassure us that the deployed model really got equipped with the trained model's weights.
+This is close enough to reassure us that the deployed model has kept the trained model's weights.
 
 ## Conclusion
 

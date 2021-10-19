@@ -30,13 +30,13 @@ The present post is not the first on this blog to treat that topic; and like all
 
 [^1]: Cf. [Brain image segmentation with torch](https://blogs.rstudio.com/ai/posts/2020-11-30-torch-brain-segmentation/) (using, non-surprisingly, `torch`), and [Image segmentation with U-Net](https://blogs.rstudio.com/ai/posts/2019-08-23-unet/) (using TensorFlow/Keras).
 
-[^2]:  @RonnebergerFB15
+[^2]: @RonnebergerFB15
 
 1.  It demonstrates how to perform data augmentation for an image segmentation task.
 
 2.  It uses [luz](https://mlverse.github.io/luz/), `torch`'s high-level interface, to train the model.
 
-3.  It [JIT-traces](https://blogs.rstudio.com/ai/posts/2021-08-10-jit-trace-module/) the trained model and saves it for deployment on mobile devices.
+3.  It [JIT-traces](https://blogs.rstudio.com/ai/posts/2021-08-10-jit-trace-module/) the trained model and saves it for deployment on mobile devices. (JIT being the acronym commonly used for the `torch` just-in-time compiler.)
 
 4.  It includes proof-of-concept code (though not a discussion) of the saved model being run on Android.
 
@@ -117,7 +117,7 @@ pet_dataset <- torch::dataset(
 )
 ```
 
-All we have to do now is create a custom function that lets us decide on what augmentation to apply once per input-target pair, and then, manually call the respective transformation functions.
+All we have to do now is create a custom function that lets us decide on what augmentation to apply to each input-target pair, and then, manually call the respective transformation functions.
 
 Here, we flip, on average, every second image, and if we do, we flip the mask as well. The second transformation -- orchestrating random changes in brightness, saturation, and contrast -- is applied to the input image only.
 
@@ -154,7 +154,7 @@ train_dl <- dataloader(train_ds, batch_size = 32, shuffle = TRUE)
 valid_dl <- dataloader(valid_ds, batch_size = 32)
 ```
 
-### Model training and (visual) evaluation 
+### Model training and (visual) evaluation
 
 With `luz`, model training is a matter of two verbs, `setup()` and `fit()`. The learning rate has been determined, for this specific case, using `luz::lr_finder()`; you will likely have to change it when experimenting with different forms of data augmentation (and different data sets).
 
@@ -242,7 +242,11 @@ Now onto running this model "in the wild" (well, sort of).
 
 Tracing the trained model will convert it to a form that can be loaded in R-less environments -- for example, from Python, C++, or Java.
 
-<aside>Please see our [introduction to the torch JIT compiler](https://blogs.rstudio.com/ai/posts/2021-08-10-jit-trace-module/).</aside>
+<aside>
+
+Please see our [introduction to the torch JIT compiler](https://blogs.rstudio.com/ai/posts/2021-08-10-jit-trace-module/).
+
+</aside>
 
 We access the `torch` model underlying the fitted `luz` object, and trace it -- where tracing means calling it once, on a sample observation:
 
@@ -259,7 +263,7 @@ The traced model could now be saved for use with Python or C++, like so:
 traced %>% jit_save("traced_model.pt")
 ```
 
-However, since we already know we'd like to deploy it on Android, we directly make use of the specialized function `jit_save_for_mobile()` that, additionally, generates bytecode:
+However, since we already know we'd like to deploy it on Android, we instead make use of the specialized function `jit_save_for_mobile()` that, additionally, generates bytecode:
 
 ```{r}
 # need torch > 0.6.1

@@ -2156,7 +2156,7 @@ gtag('config', 'UA-20375833-3');
 <p>We will now load the plain text reviews into R.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>readr</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readr.tidyverse.org'>readr</a></span><span class='op'>)</span>
 <span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://stringr.tidyverse.org'>stringr</a></span><span class='op'>)</span>
 <span class='va'>reviews</span> <span class='op'>&lt;-</span> <span class='fu'>read_lines</span><span class='op'>(</span><span class='st'>"finefoods.txt.gz"</span><span class='op'>)</span> 
 <span class='va'>reviews</span> <span class='op'>&lt;-</span> <span class='va'>reviews</span><span class='op'>[</span><span class='fu'><a href='https://stringr.tidyverse.org/reference/str_sub.html'>str_sub</a></span><span class='op'>(</span><span class='va'>reviews</span>, <span class='fl'>1</span>, <span class='fl'>12</span><span class='op'>)</span> <span class='op'>==</span> <span class='st'>"review/text:"</span><span class='op'>]</span>
@@ -2178,9 +2178,9 @@ gtag('config', 'UA-20375833-3');
 <p>We’ll begin with some text pre-processing using a keras <code>text_tokenizer()</code>. The tokenizer will be responsible for transforming each review into a sequence of integer tokens (which will subsequently be used as input into the skip-gram model).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>keras</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span>
 <span class='va'>tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>text_tokenizer</span><span class='op'>(</span>num_words <span class='op'>=</span> <span class='fl'>20000</span><span class='op'>)</span>
-<span class='va'>tokenizer</span> <span class='op'>%&gt;%</span> <span class='fu'>fit_text_tokenizer</span><span class='op'>(</span><span class='va'>reviews</span><span class='op'>)</span>
+<span class='va'>tokenizer</span> <span class='op'><a href='https://stringr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit_text_tokenizer</span><span class='op'>(</span><span class='va'>reviews</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2196,14 +2196,14 @@ gtag('config', 'UA-20375833-3');
 <span class='va'>skipgrams_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>text</span>, <span class='va'>tokenizer</span>, <span class='va'>window_size</span>, <span class='va'>negative_samples</span><span class='op'>)</span> <span class='op'>{</span>
   <span class='va'>gen</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences_generator</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='va'>text</span><span class='op'>)</span><span class='op'>)</span>
   <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>skip</span> <span class='op'>&lt;-</span> <span class='fu'>generator_next</span><span class='op'>(</span><span class='va'>gen</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+    <span class='va'>skip</span> <span class='op'>&lt;-</span> <span class='fu'>generator_next</span><span class='op'>(</span><span class='va'>gen</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
       <span class='fu'>skipgrams</span><span class='op'>(</span>
         vocabulary_size <span class='op'>=</span> <span class='va'>tokenizer</span><span class='op'>$</span><span class='va'>num_words</span>, 
         window_size <span class='op'>=</span> <span class='va'>window_size</span>, 
         negative_samples <span class='op'>=</span> <span class='fl'>1</span>
       <span class='op'>)</span>
-    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='va'>skip</span><span class='op'>$</span><span class='va'>couples</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>.</span> <span class='op'>%&gt;%</span> <span class='va'>unlist</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span>ncol <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>skip</span><span class='op'>$</span><span class='va'>labels</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span>ncol <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
+    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='va'>skip</span><span class='op'>$</span><span class='va'>couples</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='va'>.</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>unlist</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span>ncol <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>
+    <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>skip</span><span class='op'>$</span><span class='va'>labels</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span>ncol <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
     <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span>
   <span class='op'>}</span>
 <span class='op'>}</span>
@@ -2238,12 +2238,12 @@ gtag('config', 'UA-20375833-3');
   name <span class='op'>=</span> <span class='st'>"embedding"</span>
 <span class='op'>)</span>
 
-<span class='va'>target_vector</span> <span class='op'>&lt;-</span> <span class='va'>input_target</span> <span class='op'>%&gt;%</span> 
-  <span class='fu'>embedding</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> 
+<span class='va'>target_vector</span> <span class='op'>&lt;-</span> <span class='va'>input_target</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
+  <span class='fu'>embedding</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
   <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span>
 
-<span class='va'>context_vector</span> <span class='op'>&lt;-</span> <span class='va'>input_context</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>embedding</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<span class='va'>context_vector</span> <span class='op'>&lt;-</span> <span class='va'>input_context</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
+  <span class='fu'>embedding</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
   <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span>
 </code></pre>
 </div>
@@ -2260,7 +2260,7 @@ gtag('config', 'UA-20375833-3');
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>input_target</span>, <span class='va'>input_context</span><span class='op'>)</span>, <span class='va'>output</span><span class='op'>)</span>
-<span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>loss <span class='op'>=</span> <span class='st'>"binary_crossentropy"</span>, optimizer <span class='op'>=</span> <span class='st'>"adam"</span><span class='op'>)</span>
+<span class='va'>model</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>compile</span><span class='op'>(</span>loss <span class='op'>=</span> <span class='st'>"binary_crossentropy"</span>, optimizer <span class='op'>=</span> <span class='st'>"adam"</span><span class='op'>)</span>
 </code></pre>
 </div>
 </div>
@@ -2298,7 +2298,7 @@ ________________________________________________________________________________
 <p>We will fit the model using the <code>fit_generator()</code> function We need to specify the number of training steps as well as number of epochs we want to train. We will train for 100,000 steps for 5 epochs. This is quite slow (~1000 seconds per epoch on a modern GPU). Note that you may also get reasonable results with just one epoch of training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>%&gt;%</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
   <span class='fu'>fit_generator</span><span class='op'>(</span>
     <span class='fu'>skipgrams_generator</span><span class='op'>(</span><span class='va'>reviews</span>, <span class='va'>tokenizer</span>, <span class='va'>skip_window</span>, <span class='va'>negative_samples</span><span class='op'>)</span>, 
     steps_per_epoch <span class='op'>=</span> <span class='fl'>100000</span>, epochs <span class='op'>=</span> <span class='fl'>5</span>
@@ -2328,8 +2328,8 @@ Epoch 5/5
   id <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/unlist.html'>unlist</a></span><span class='op'>(</span><span class='va'>tokenizer</span><span class='op'>$</span><span class='va'>word_index</span><span class='op'>)</span><span class='op'>)</span>
 <span class='op'>)</span>
 
-<span class='va'>words</span> <span class='op'>&lt;-</span> <span class='va'>words</span> <span class='op'>%&gt;%</span>
-  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>id</span> <span class='op'>&lt;=</span> <span class='va'>tokenizer</span><span class='op'>$</span><span class='va'>num_words</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<span class='va'>words</span> <span class='op'>&lt;-</span> <span class='va'>words</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
+  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>id</span> <span class='op'>&lt;=</span> <span class='va'>tokenizer</span><span class='op'>$</span><span class='va'>num_words</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
   <span class='fu'><a href='https://dplyr.tidyverse.org/reference/arrange.html'>arrange</a></span><span class='op'>(</span><span class='va'>id</span><span class='op'>)</span>
 
 <span class='fu'><a href='https://rdrr.io/r/base/row.names.html'>row.names</a></span><span class='op'>(</span><span class='va'>embedding_matrix</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"UNK"</span>, <span class='va'>words</span><span class='op'>$</span><span class='va'>word</span><span class='op'>)</span>
@@ -2340,13 +2340,13 @@ Epoch 5/5
 <p>We can now find words that are close to each other in the embedding. We will use the cosine similarity, since this is what we trained the model to minimize.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>text2vec</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://text2vec.org'>text2vec</a></span><span class='op'>)</span>
 
 <span class='va'>find_similar_words</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>word</span>, <span class='va'>embedding_matrix</span>, <span class='va'>n</span> <span class='op'>=</span> <span class='fl'>5</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>similarities</span> <span class='op'>&lt;-</span> <span class='va'>embedding_matrix</span><span class='op'>[</span><span class='va'>word</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span> <span class='op'>%&gt;%</span>
+  <span class='va'>similarities</span> <span class='op'>&lt;-</span> <span class='va'>embedding_matrix</span><span class='op'>[</span><span class='va'>word</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
     <span class='fu'>sim2</span><span class='op'>(</span><span class='va'>embedding_matrix</span>, y <span class='op'>=</span> <span class='va'>.</span>, method <span class='op'>=</span> <span class='st'>"cosine"</span><span class='op'>)</span>
   
-  <span class='va'>similarities</span><span class='op'>[</span>,<span class='fl'>1</span><span class='op'>]</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span>decreasing <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/utils/head.html'>head</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span>
+  <span class='va'>similarities</span><span class='op'>[</span>,<span class='fl'>1</span><span class='op'>]</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span>decreasing <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/utils/head.html'>head</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span>
 <span class='op'>}</span>
 </code></pre>
 </div>
@@ -2387,15 +2387,15 @@ Epoch 5/5
 <p>This plot may look like a mess, but if you zoom into the small groups you end up seeing some nice patterns. Try, for example, to find a group of web related words like <code>http</code>, <code>href</code>, etc. Another group that may be easy to pick out is the pronouns group: <code>she</code>, <code>he</code>, <code>her</code>, etc.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>Rtsne</span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>ggplot2</span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>plotly</span><span class='op'>)</span>
+<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/jkrijthe/Rtsne'>Rtsne</a></span><span class='op'>)</span>
+<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://ggplot2.tidyverse.org'>ggplot2</a></span><span class='op'>)</span>
+<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://plotly-r.com'>plotly</a></span><span class='op'>)</span>
 
 <span class='va'>tsne</span> <span class='op'>&lt;-</span> <span class='fu'>Rtsne</span><span class='op'>(</span><span class='va'>embedding_matrix</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>:</span><span class='fl'>500</span>,<span class='op'>]</span>, perplexity <span class='op'>=</span> <span class='fl'>50</span>, pca <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
 
-<span class='va'>tsne_plot</span> <span class='op'>&lt;-</span> <span class='va'>tsne</span><span class='op'>$</span><span class='va'>Y</span> <span class='op'>%&gt;%</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/as.data.frame.html'>as.data.frame</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>word <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/row.names.html'>row.names</a></span><span class='op'>(</span><span class='va'>embedding_matrix</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>:</span><span class='fl'>500</span><span class='op'>]</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
+<span class='va'>tsne_plot</span> <span class='op'>&lt;-</span> <span class='va'>tsne</span><span class='op'>$</span><span class='va'>Y</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
+  <span class='fu'><a href='https://rdrr.io/r/base/as.data.frame.html'>as.data.frame</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
+  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>word <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/row.names.html'>row.names</a></span><span class='op'>(</span><span class='va'>embedding_matrix</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>:</span><span class='fl'>500</span><span class='op'>]</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
   <span class='fu'>ggplot</span><span class='op'>(</span><span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>V1</span>, y <span class='op'>=</span> <span class='va'>V2</span>, label <span class='op'>=</span> <span class='va'>word</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> 
   <span class='fu'>geom_text</span><span class='op'>(</span>size <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
 <span class='va'>tsne_plot</span>

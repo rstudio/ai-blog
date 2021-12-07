@@ -25,7 +25,7 @@ preview: images/preview.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-"Why I'm in this business? The data-wrangling stuff it all starts with! said ... no deep learning practitioner ever. --- Well, that's likely wrong. And for sure, it simplifies way too much. The problem is not with pre-processing per se. On the contrary, data manipulation often is part of *exploration*, of getting to know your data -- the sine qua non of all data science. What *can* be hard is the question: Where do I put this in the deep learning workflow?
+In data science, one of hardest -- but also, most important -- tasks is pre-processing, converting the data into a form a model can work with. With deep learning, things get even more difficult. The question is: Where do I put this, in the deep learning workflow?
 
 Until recently, I'd guess that with `keras`, two alternatives were prevailing: one, doing things upfront, in R; and two, constructing [`tfdatasets`](https://github.com/rstudio/tfdatasets) pipelines. The former applied whenever we needed the complete data to extract some summary information. For example, when normalizing to a mean of zero and a standard deviation of one. But often, this meant that we had to transform back-and-forth between normalized and un-normalized versions at several points in the workflow. The `tfdatasets` approach, on the other hand, was elegant; however, it could require one to write a lot of low-level `tensorflow` code.
 
@@ -129,7 +129,7 @@ In the second category, we find layers that execute \[configurable\] random oper
 
 Now we have an idea what these layers do for us, let's focus on the specific case of state-preserving layers.
 
-## Pre-processing layers that keep state
+## Pre-processing layers that keep state {#pre-processing-layers-that-keep-state}
 
 A layer that randomly perturbs images doesn't need to know anything about the data. It just needs to follow a rule: With probability $p$, do $x$. A layer that's supposed to vectorize text, on the other hand, needs to have a lookup table, matching character strings to integers. The same goes for a layer that maps contingent integers to an ordered set. And in both cases, the lookup table needs to be built upfront.
 
@@ -161,13 +161,13 @@ layer(c("azure", "cyan"))
 
 `layer_string_lookup()` works on individual character strings, and consequently, is the transformation adequate for string-valued categorical features. To encode whole sentences (or paragraphs, or any chunks of text) you'd use `layer_text_vectorization()` instead. We'll see how that works in our [second end-to-end example](#example-2-text-vectorization).
 
-## Using pre-processing layers for performance
+## Using pre-processing layers for performance {#using-pre-processing-layers-for-performance}
 
 Above, we said that pre-processing layers could be used in two ways: as part of the model, or as part of the data input pipeline. If these are *layers*, why even allow for the second way?
 
 The main reason is performance. GPUs are great at regular matrix operations, such as those involved in image manipulation and transformations of uniformly-shaped numerical data. Therefore, if you have a GPU to train on, it is preferable to have image processing layers, or layers such as `layer_normalization()`, be part of the model (which is run completely on GPU).
 
-On the other hand, operations involving text, such as `layer_text_vectorization()`, are best executed on the CPU. The same holds if no GPU is available for training. In these cases, you would move the layers to the input pipeline, and strive to benefit from parallel -- on-CPU -- processing. For example, here pre-processing makes use of four parallel CPU threads:
+On the other hand, operations involving text, such as `layer_text_vectorization()`, are best executed on the CPU. The same holds if no GPU is available for training. In these cases, you would move the layers to the input pipeline, and strive to benefit from parallel -- on-CPU -- processing. For example:
 
 ```{r}
 # pseudocode
@@ -175,7 +175,8 @@ On the other hand, operations involving text, such as `layer_text_vectorization(
 preprocessing_layer <- ... # instantiate layer
 
 dataset <- dataset %>%
-  dataset_map(function(x, y) list(preprocessing_layer(x), y)) %>%
+  dataset_map(~list(text_vectorizer(.x), .y),
+              num_parallel_calls = tf$data$AUTOTUNE) %>%
   dataset_prefetch()
 model %>% fit(dataset)
 ```
@@ -204,7 +205,7 @@ This technique makes use of the [functional API](https://tensorflow.rstudio.com/
 
 Having focused on a few things especially "good to know", we now conclude with the promised examples.
 
-## Example 1: Image data augmentation
+## Example 1: Image data augmentation {#example-1-image-data-augmentation}
 
 Our first example demonstrates image data augmentation. Three types of transformations are grouped together, making them stand out clearly in the overall model definition. This group of layers will be active during training only.
 
@@ -246,7 +247,7 @@ model <- keras_model(input, output) %>%
   fit(train_dataset, steps_per_epoch = 5)
 ```
 
-## Example 2: Text vectorization
+## Example 2: Text vectorization {#example-2-text-vectorization}
 
 In natural language processing, we often use embedding layers to present the "workhorse" (recurrent, convolutional, self-attentional, what have you) layers with the continuous, optimally-dimensioned input they need. Embedding layers expect tokens to be encoded as integers, and transform text to integers is what `layer_text_vectorization()` does.
 

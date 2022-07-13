@@ -1,6 +1,6 @@
 ---
 title: "torch, tidymodels, and high-energy physics"
-description: > 
+description: >
  Today we introduce tabnet, a torch implementation of "TabNet: Attentive Interpretable Tabular Learning" that is fully integrated with the tidymodels framework. Per se, already, tabnet was designed to require very little data pre-processing; thanks to tidymodels, hyperparameter tuning (so often cumbersome in deep learning) becomes convenient and even, fun!
 author:
   - name: Sigrid Keydana
@@ -147,7 +147,7 @@ First, split the data:
 ```{r}
 n <- 11000000
 n_test <- 500000
-test_frac <- n/n_all
+test_frac <- n_test/n
 
 split <- initial_time_split(higgs, prop = 1 - test_frac)
 train <- training(split)
@@ -157,7 +157,7 @@ test  <- testing(split)
 Second, create a `recipe`. We want to predict `class` from all other features present:
 
 ```{r}
-rec <- recipe(class ~ ., train) 
+rec <- recipe(class ~ ., train)
 ```
 
 Third, create a `parsnip` model specification of class `tabnet`. The parameters passed are those reported by the TabNet paper, for the S-sized model variant used on this dataset. [^2]
@@ -198,7 +198,7 @@ After three epochs, loss was at 0.609.
 Sixth -- and finally -- we ask the model for test-set predictions and have accuracy computed.
 
 ```{r}
-preds <- test %>% 
+preds <- test %>%
   bind_cols(predict(fitted_model, test))
 
 yardstick::accuracy(preds, class, .pred_class)
@@ -275,9 +275,9 @@ ctrl <- control_race(verbose_elim = TRUE)
 folds <- vfold_cv(train, v = 5)
 set.seed(777)
 
-res <- wf %>% 
+res <- wf %>%
     tune_race_anova(
-    resamples = folds, 
+    resamples = folds,
     grid = grid,
     control = ctrl
   )
@@ -296,7 +296,7 @@ res %>% show_best("accuracy") %>% select(- c(.estimator, .config))
     1     0.0858             24              34         5 accuracy 0.516     5 0.00370
     2     0.0230             38              36         4 accuracy 0.510     5 0.00786
     3     0.0230             31              37         5 accuracy 0.510     5 0.00601
-    4     0.0286             36              25         5 accuracy 0.510     5 0.0136 
+    4     0.0286             36              25         5 accuracy 0.510     5 0.0136
     5     0.0968             27              23         6 accuracy 0.498     5 0.00835
 
 It's hard to imagine how tuning could be more convenient!
@@ -344,7 +344,7 @@ ex_fit$M_explain %>%
   pivot_longer(-observation, names_to = "variable", values_to = "m_agg") %>%
   ggplot(aes(x = observation, y = variable, fill = m_agg)) +
   geom_tile() +
-  theme_minimal() + 
+  theme_minimal() +
   scale_fill_viridis_c()
 ```
 
@@ -357,16 +357,16 @@ knitr::include_graphics("images/agg_masks.png")
 Finally and on the same selection of observations, we again inspect the masks, but this time, per decision step:
 
 ```{r}
-ex_fit$masks %>% 
+ex_fit$masks %>%
   imap_dfr(~mutate(
-    .x, 
+    .x,
     step = sprintf("Step %d", .y),
     observation = row_number()
-  )) %>% 
-  pivot_longer(-c(observation, step), names_to = "variable", values_to = "m_agg") %>% 
+  )) %>%
+  pivot_longer(-c(observation, step), names_to = "variable", values_to = "m_agg") %>%
   ggplot(aes(x = observation, y = variable, fill = m_agg)) +
   geom_tile() +
-  theme_minimal() + 
+  theme_minimal() +
   theme(axis.text = element_text(size = 5)) +
   scale_fill_viridis_c() +
   facet_wrap(~step)

@@ -2189,39 +2189,34 @@ gtag('config', 'UA-20375833-3');
 <p>As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with <code>requires_grad = TRUE</code>. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span>
-
-<span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>To be clear, <code>x</code> now is a tensor <em>with respect to which</em> gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>. If we subsequently perform some operation on that tensor, assigning the result to <code>y</code>,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>we find that <code>y</code> now has a non-empty <code>grad_fn</code> that tells <code>torch</code> how to compute the gradient of <code>y</code> with respect to <code>x</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>y</span><span class='op'>$</span><span class='va'>grad_fn</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='va'>grad_fn</span></span></code></pre>
 </div>
 </div>
 <pre><code>MeanBackward0</code></pre>
 <p>Actual <em>computation</em> of gradients is triggered by calling <code>backward()</code> on the output tensor.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>y</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>After <code>backward()</code> has been called, <code>x</code> has a non-null field termed <code>grad</code> that stores the gradient of <code>y</code> with respect to <code>x</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>x</span><span class='op'>$</span><span class='va'>grad</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>x</span><span class='op'>$</span><span class='va'>grad</span></span></code></pre>
 </div>
 </div>
 <pre><code>torch_tensor 
@@ -2233,68 +2228,61 @@ gtag('config', 'UA-20375833-3');
 <p>We build up a simple graph of tensors, with inputs <code>x1</code> and <code>x2</code> being connected to output <code>out</code> by intermediaries <code>y</code> and <code>z</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>x1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-<span class='va'>x2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>1.1</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-
-<span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x1</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>x2</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>)</span>
-
-<span class='va'>z</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>*</span> <span class='fl'>3</span>
-
-<span class='va'>out</span> <span class='op'>&lt;-</span> <span class='va'>z</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>x1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span><span class='va'>x2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>1.1</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x1</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>x2</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>z</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>*</span> <span class='fl'>3</span></span>
+<span></span>
+<span><span class='va'>out</span> <span class='op'>&lt;-</span> <span class='va'>z</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>To save memory, intermediate gradients are normally not being stored. Calling <code>retain_grad()</code> on a tensor allows one to deviate from this default. Let’s do this here, for the sake of demonstration:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>y</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>z</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>z</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Now we can go backwards through the graph and inspect <code>torch</code>’s action plan for backprop, starting from <code>out$grad_fn</code>, like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># how to compute the gradient for mean, the last operation executed</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for mean, the last operation executed</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span></span></code></pre>
 </div>
 </div>
 <pre><code>MeanBackward0</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for the multiplication by 3 in z = y.pow(2) * 3</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span></span></code></pre>
 </div>
 </div>
 <pre><code>[[1]]
 MulBackward1</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># how to compute the gradient for pow in z = y.pow(2) * 3</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for pow in z = y.pow(2) * 3</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span></span></code></pre>
 </div>
 </div>
 <pre><code>[[1]]
 PowBackward0</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># how to compute the gradient for the multiplication in y = x * (x + 2)</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for the multiplication in y = x * (x + 2)</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span></span></code></pre>
 </div>
 </div>
 <pre><code>[[1]]
 MulBackward0</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># how to compute the gradient for the two branches of y = x * (x + 2),</span>
-<span class='co'># where the left branch is a leaf node (AccumulateGrad for x1)</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for the two branches of y = x * (x + 2),</span></span>
+<span><span class='co'># where the left branch is a leaf node (AccumulateGrad for x1)</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span></span></code></pre>
 </div>
 </div>
 <pre><code>[[1]]
@@ -2303,9 +2291,8 @@ torch::autograd::AccumulateGrad
 AddBackward1</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># here we arrive at the other leaf node (AccumulateGrad for x2)</span>
-<span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># here we arrive at the other leaf node (AccumulateGrad for x2)</span></span>
+<span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>next_functions</span></span></code></pre>
 </div>
 </div>
 <pre><code>[[1]]
@@ -2313,13 +2300,12 @@ torch::autograd::AccumulateGrad</code></pre>
 <p>If we now call <code>out$backward()</code>, all tensors in the graph will have their respective gradients calculated.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>z</span><span class='op'>$</span><span class='va'>grad</span>
-<span class='va'>y</span><span class='op'>$</span><span class='va'>grad</span>
-<span class='va'>x2</span><span class='op'>$</span><span class='va'>grad</span>
-<span class='va'>x1</span><span class='op'>$</span><span class='va'>grad</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>z</span><span class='op'>$</span><span class='va'>grad</span></span>
+<span><span class='va'>y</span><span class='op'>$</span><span class='va'>grad</span></span>
+<span><span class='va'>x2</span><span class='op'>$</span><span class='va'>grad</span></span>
+<span><span class='va'>x1</span><span class='op'>$</span><span class='va'>grad</span></span></code></pre>
 </div>
 </div>
 <pre><code>torch_tensor 
@@ -2343,88 +2329,86 @@ torch_tensor
 <p>With <code>torch</code> keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. We can code forward pass, loss calculation, and backward pass in just three lines:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>y_pred</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>clamp</span><span class='op'>(</span>min <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b2</span><span class='op'>)</span>
-  
-<span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>y_pred</span> <span class='op'>-</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>sum</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y_pred</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>clamp</span><span class='op'>(</span>min <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b2</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>y_pred</span> <span class='op'>-</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>sum</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span>
-
-<span class='co'>### generate training data -----------------------------------------------------</span>
-
-<span class='co'># input dimensionality (number of input features)</span>
-<span class='va'>d_in</span> <span class='op'>&lt;-</span> <span class='fl'>3</span>
-<span class='co'># output dimensionality (number of predicted features)</span>
-<span class='va'>d_out</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-<span class='co'># number of observations in training set</span>
-<span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-
-
-<span class='co'># create random data</span>
-<span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>n</span>, <span class='va'>d_in</span><span class='op'>)</span>
-<span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>1</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>0.2</span> <span class='op'>-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>2</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>1.3</span> <span class='op'>-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>3</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>0.5</span> <span class='op'>+</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>n</span>, <span class='fl'>1</span><span class='op'>)</span>
-
-
-<span class='co'>### initialize weights ---------------------------------------------------------</span>
-
-<span class='co'># dimensionality of hidden layer</span>
-<span class='va'>d_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
-<span class='co'># weights connecting input to hidden layer</span>
-<span class='va'>w1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>d_in</span>, <span class='va'>d_hidden</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-<span class='co'># weights connecting hidden to output layer</span>
-<span class='va'>w2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>d_hidden</span>, <span class='va'>d_out</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-
-<span class='co'># hidden layer bias</span>
-<span class='va'>b1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>d_hidden</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-<span class='co'># output layer bias</span>
-<span class='va'>b2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>d_out</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-
-<span class='co'>### network parameters ---------------------------------------------------------</span>
-
-<span class='va'>learning_rate</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span>
-
-<span class='co'>### training loop --------------------------------------------------------------</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>t</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>200</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='co'>### -------- Forward pass --------</span>
-  
-  <span class='va'>y_pred</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>clamp</span><span class='op'>(</span>min <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b2</span><span class='op'>)</span>
-  
-  <span class='co'>### -------- compute loss -------- </span>
-  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>y_pred</span> <span class='op'>-</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>sum</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>t</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>10</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Epoch: "</span>, <span class='va'>t</span>, <span class='st'>"   Loss: "</span>, <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span>, <span class='st'>"\n"</span><span class='op'>)</span>
-  
-  <span class='co'>### -------- Backpropagation --------</span>
-  
-  <span class='co'># compute gradient of loss w.r.t. all tensors with requires_grad = TRUE</span>
-  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-  
-  <span class='co'>### -------- Update weights -------- </span>
-  
-  <span class='co'># Wrap in with_no_grad() because this is a part we DON'T </span>
-  <span class='co'># want to record for automatic gradient computation</span>
-   <span class='fu'>with_no_grad</span><span class='op'>(</span><span class='op'>{</span>
-     <span class='va'>w1</span> <span class='op'>&lt;-</span> <span class='va'>w1</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>w1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span>
-     <span class='va'>w2</span> <span class='op'>&lt;-</span> <span class='va'>w2</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>w2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span>
-     <span class='va'>b1</span> <span class='op'>&lt;-</span> <span class='va'>b1</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>b1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span>
-     <span class='va'>b2</span> <span class='op'>&lt;-</span> <span class='va'>b2</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>b2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span>  
-     
-     <span class='co'># Zero gradients after every pass, as they'd accumulate otherwise</span>
-     <span class='va'>w1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span>
-     <span class='va'>w2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span>
-     <span class='va'>b1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span>
-     <span class='va'>b2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span>  
-   <span class='op'>}</span><span class='op'>)</span>
-
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'>### generate training data -----------------------------------------------------</span></span>
+<span></span>
+<span><span class='co'># input dimensionality (number of input features)</span></span>
+<span><span class='va'>d_in</span> <span class='op'>&lt;-</span> <span class='fl'>3</span></span>
+<span><span class='co'># output dimensionality (number of predicted features)</span></span>
+<span><span class='va'>d_out</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span><span class='co'># number of observations in training set</span></span>
+<span><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span></span>
+<span></span>
+<span><span class='co'># create random data</span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>n</span>, <span class='va'>d_in</span><span class='op'>)</span></span>
+<span><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>1</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>0.2</span> <span class='op'>-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>2</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>1.3</span> <span class='op'>-</span> <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>3</span>, <span class='cn'>NULL</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>0.5</span> <span class='op'>+</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>n</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span></span>
+<span><span class='co'>### initialize weights ---------------------------------------------------------</span></span>
+<span></span>
+<span><span class='co'># dimensionality of hidden layer</span></span>
+<span><span class='va'>d_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>32</span></span>
+<span><span class='co'># weights connecting input to hidden layer</span></span>
+<span><span class='va'>w1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>d_in</span>, <span class='va'>d_hidden</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span><span class='co'># weights connecting hidden to output layer</span></span>
+<span><span class='va'>w2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='va'>d_hidden</span>, <span class='va'>d_out</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># hidden layer bias</span></span>
+<span><span class='va'>b1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>d_hidden</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span><span class='co'># output layer bias</span></span>
+<span><span class='va'>b2</span> <span class='op'>&lt;-</span> <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>d_out</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'>### network parameters ---------------------------------------------------------</span></span>
+<span></span>
+<span><span class='va'>learning_rate</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span></span>
+<span></span>
+<span><span class='co'>### training loop --------------------------------------------------------------</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>t</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>200</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='co'>### -------- Forward pass --------</span></span>
+<span>  </span>
+<span>  <span class='va'>y_pred</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>clamp</span><span class='op'>(</span>min <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b2</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='co'>### -------- compute loss -------- </span></span>
+<span>  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>y_pred</span> <span class='op'>-</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>pow</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>sum</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>t</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>10</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Epoch: "</span>, <span class='va'>t</span>, <span class='st'>"   Loss: "</span>, <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span>, <span class='st'>"\n"</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='co'>### -------- Backpropagation --------</span></span>
+<span>  </span>
+<span>  <span class='co'># compute gradient of loss w.r.t. all tensors with requires_grad = TRUE</span></span>
+<span>  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='co'>### -------- Update weights -------- </span></span>
+<span>  </span>
+<span>  <span class='co'># Wrap in with_no_grad() because this is a part we DON'T </span></span>
+<span>  <span class='co'># want to record for automatic gradient computation</span></span>
+<span>   <span class='fu'>with_no_grad</span><span class='op'>(</span><span class='op'>{</span></span>
+<span>     <span class='va'>w1</span> <span class='op'>&lt;-</span> <span class='va'>w1</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>w1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span></span>
+<span>     <span class='va'>w2</span> <span class='op'>&lt;-</span> <span class='va'>w2</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>w2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span></span>
+<span>     <span class='va'>b1</span> <span class='op'>&lt;-</span> <span class='va'>b1</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>b1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span></span>
+<span>     <span class='va'>b2</span> <span class='op'>&lt;-</span> <span class='va'>b2</span><span class='op'>$</span><span class='fu'>sub_</span><span class='op'>(</span><span class='va'>learning_rate</span> <span class='op'>*</span> <span class='va'>b2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>)</span>  </span>
+<span>     </span>
+<span>     <span class='co'># Zero gradients after every pass, as they'd accumulate otherwise</span></span>
+<span>     <span class='va'>w1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>     <span class='va'>w2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>     <span class='va'>b1</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>     <span class='va'>b2</span><span class='op'>$</span><span class='va'>grad</span><span class='op'>$</span><span class='fu'>zero_</span><span class='op'>(</span><span class='op'>)</span>  </span>
+<span>   <span class='op'>}</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>As explained above, after <code>some_tensor$backward()</code>, all tensors preceding it in the graph<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> will have their <code>grad</code> fields populated. We make use of these fields to update the weights. But now that <em>autograd</em> is “on”, whenever we execute an operation we <em>don’t</em> want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to <code>with_no_grad()</code>.</p>

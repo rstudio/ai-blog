@@ -2207,221 +2207,217 @@ gtag('config', 'UA-20375833-3');
 <p>The encoder takes the time series, of format <code>batch_size x num_timesteps x num_features</code> just like in the LSTM case, and produces a flat, 10-dimensional output: the latent code, which FNN loss is computed on.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tensorflow'>tensorflow</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfdatasets'>tfdatasets</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://t-kalinowski.github.io/tfautograph/'>tfautograph</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://rstudio.github.io/reticulate/'>reticulate</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span>
-
-<span class='va'>vae_encoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_timesteps</span>,
-                               <span class='va'>n_features</span>,
-                               <span class='va'>n_latent</span>,
-                               <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>3</span>,
-                                filters <span class='op'>=</span> <span class='fl'>16</span>,
-                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>7</span>,
-                                filters <span class='op'>=</span> <span class='fl'>32</span>,
-                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>9</span>,
-                                filters <span class='op'>=</span> <span class='fl'>64</span>,
-                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>
-      kernel_size <span class='op'>=</span> <span class='fl'>9</span>,
-      filters <span class='op'>=</span> <span class='va'>n_latent</span>,
-      strides <span class='op'>=</span> <span class='fl'>2</span>,
-      activation <span class='op'>=</span> <span class='st'>"linear"</span> 
-    <span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>flat</span> <span class='op'>&lt;-</span> <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='kw'>function</span> <span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>flat</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='op'>}</span>
-  <span class='op'>}</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tensorflow'>tensorflow</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfdatasets'>tfdatasets</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://t-kalinowski.github.io/tfautograph/'>tfautograph</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://rstudio.github.io/reticulate/'>reticulate</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>vae_encoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_timesteps</span>,</span>
+<span>                               <span class='va'>n_features</span>,</span>
+<span>                               <span class='va'>n_latent</span>,</span>
+<span>                               <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>3</span>,</span>
+<span>                                filters <span class='op'>=</span> <span class='fl'>16</span>,</span>
+<span>                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>7</span>,</span>
+<span>                                filters <span class='op'>=</span> <span class='fl'>32</span>,</span>
+<span>                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>9</span>,</span>
+<span>                                filters <span class='op'>=</span> <span class='fl'>64</span>,</span>
+<span>                                strides <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d</span><span class='op'>(</span></span>
+<span>      kernel_size <span class='op'>=</span> <span class='fl'>9</span>,</span>
+<span>      filters <span class='op'>=</span> <span class='va'>n_latent</span>,</span>
+<span>      strides <span class='op'>=</span> <span class='fl'>2</span>,</span>
+<span>      activation <span class='op'>=</span> <span class='st'>"linear"</span> </span>
+<span>    <span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>flat</span> <span class='op'>&lt;-</span> <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='kw'>function</span> <span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>flat</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>The decoder starts from this – flat – representation and decompresses it into a time sequence. In both encoder and decoder (de-)conv layers, parameters are chosen to handle a sequence length (<code>num_timesteps</code>) of 120, which is what we’ll use for prediction below.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>vae_decoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_timesteps</span>,
-                               <span class='va'>n_features</span>,
-                               <span class='va'>n_latent</span>,
-                               <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>reshape</span> <span class='op'>&lt;-</span> <span class='fu'>layer_reshape</span><span class='op'>(</span>target_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>n_latent</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>15</span>,
-                                          filters <span class='op'>=</span> <span class='fl'>64</span>,
-                                          strides <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>11</span>,
-                                          filters <span class='op'>=</span> <span class='fl'>32</span>,
-                                          strides <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>
-      kernel_size <span class='op'>=</span> <span class='fl'>9</span>,
-      filters <span class='op'>=</span> <span class='fl'>16</span>,
-      strides <span class='op'>=</span> <span class='fl'>2</span>,
-      output_padding <span class='op'>=</span> <span class='fl'>1</span>
-    <span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>act3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>
-      kernel_size <span class='op'>=</span> <span class='fl'>7</span>,
-      filters <span class='op'>=</span> <span class='fl'>1</span>,
-      strides <span class='op'>=</span> <span class='fl'>1</span>,
-      activation <span class='op'>=</span> <span class='st'>"linear"</span>
-    <span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='kw'>function</span> <span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>reshape</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm4</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='op'>}</span>
-  <span class='op'>}</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>vae_decoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_timesteps</span>,</span>
+<span>                               <span class='va'>n_features</span>,</span>
+<span>                               <span class='va'>n_latent</span>,</span>
+<span>                               <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='va'>name</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>reshape</span> <span class='op'>&lt;-</span> <span class='fu'>layer_reshape</span><span class='op'>(</span>target_shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>n_latent</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>15</span>,</span>
+<span>                                          filters <span class='op'>=</span> <span class='fl'>64</span>,</span>
+<span>                                          strides <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm1</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span>kernel_size <span class='op'>=</span> <span class='fl'>11</span>,</span>
+<span>                                          filters <span class='op'>=</span> <span class='fl'>32</span>,</span>
+<span>                                          strides <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span></span>
+<span>      kernel_size <span class='op'>=</span> <span class='fl'>9</span>,</span>
+<span>      filters <span class='op'>=</span> <span class='fl'>16</span>,</span>
+<span>      strides <span class='op'>=</span> <span class='fl'>2</span>,</span>
+<span>      output_padding <span class='op'>=</span> <span class='fl'>1</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>act3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_activation_leaky_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_1d_transpose</span><span class='op'>(</span></span>
+<span>      kernel_size <span class='op'>=</span> <span class='fl'>7</span>,</span>
+<span>      filters <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>      strides <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>      activation <span class='op'>=</span> <span class='st'>"linear"</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>batchnorm4</span> <span class='op'>&lt;-</span> <span class='fu'>layer_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='kw'>function</span> <span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>reshape</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm1</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm2</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>act3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm3</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv4</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>        <span class='va'>self</span><span class='op'>$</span><span class='fu'>batchnorm4</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>Note that even though we called these constructors <code>vae_encoder_model()</code> and <code>vae_decoder_model()</code>, there is nothing variational to these models per se; they are really just an encoder and a decoder, respectively. Metamorphosis into a VAE will happen in the training procedure; in fact, the only two things that will make this a VAE are going to be the reparameterization of the latent layer and the added-in KL loss.</p>
 <p>Speaking of training, these are the routines we’ll call. The function to compute FNN loss, <code>loss_false_nn()</code>, can be found in both of the abovementioned predecessor posts; we kindly ask the reader to copy it from one of these places.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># to reparameterize encoder output before calling decoder</span>
-<span class='va'>reparameterize</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>logvar</span> <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>eps</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_normal</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>n_latent</span><span class='op'>)</span>
-  <span class='va'>eps</span> <span class='op'>*</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='va'>logvar</span> <span class='op'>*</span> <span class='fl'>0.5</span><span class='op'>)</span> <span class='op'>+</span> <span class='va'>mean</span>
-<span class='op'>}</span>
-
-<span class='co'># loss has 3 components: NLL, KL, and FNN</span>
-<span class='co'># otherwise, this is just normal TF2-style training </span>
-<span class='va'>train_step_vae</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span> <span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'><a href='https://rstudio.github.io/reticulate/reference/with-as-operator.html'>%as%</a></span> <span class='va'>tape</span>, <span class='op'>{</span>
-    <span class='va'>code</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-    <span class='va'>z</span> <span class='op'>&lt;-</span> <span class='fu'>reparameterize</span><span class='op'>(</span><span class='va'>code</span><span class='op'>)</span>
-    <span class='va'>prediction</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
-    
-    <span class='va'>l_mse</span> <span class='op'>&lt;-</span> <span class='fu'>mse_loss</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>, <span class='va'>prediction</span><span class='op'>)</span>
-    <span class='co'># see loss_false_nn in 2 previous posts</span>
-    <span class='va'>l_fnn</span> <span class='op'>&lt;-</span> <span class='fu'>loss_false_nn</span><span class='op'>(</span><span class='va'>code</span><span class='op'>)</span>
-    <span class='co'># KL divergence to a standard normal</span>
-    <span class='va'>l_kl</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='fl'>0.5</span> <span class='op'>*</span> <span class='fu'>k_mean</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='fu'>k_square</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='co'># overall loss is a weighted sum of all 3 components</span>
-    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>l_mse</span> <span class='op'>+</span> <span class='va'>fnn_weight</span> <span class='op'>*</span> <span class='va'>l_fnn</span> <span class='op'>+</span> <span class='va'>kl_weight</span> <span class='op'>*</span> <span class='va'>l_kl</span>
-  <span class='op'>}</span><span class='op'>)</span>
-  
-  <span class='va'>encoder_gradients</span> <span class='op'>&lt;-</span>
-    <span class='va'>tape</span><span class='op'>$</span><span class='fu'>gradient</span><span class='op'>(</span><span class='va'>loss</span>, <span class='va'>encoder</span><span class='op'>$</span><span class='va'>trainable_variables</span><span class='op'>)</span>
-  <span class='va'>decoder_gradients</span> <span class='op'>&lt;-</span>
-    <span class='va'>tape</span><span class='op'>$</span><span class='fu'>gradient</span><span class='op'>(</span><span class='va'>loss</span>, <span class='va'>decoder</span><span class='op'>$</span><span class='va'>trainable_variables</span><span class='op'>)</span>
-  
-  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>apply_gradients</span><span class='op'>(</span><span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-    <span class='va'>encoder_gradients</span>, <span class='va'>encoder</span><span class='op'>$</span><span class='va'>trainable_variables</span>
-  <span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>apply_gradients</span><span class='op'>(</span><span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-    <span class='va'>decoder_gradients</span>, <span class='va'>decoder</span><span class='op'>$</span><span class='va'>trainable_variables</span>
-  <span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-  
-  <span class='fu'>train_loss</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span>
-  <span class='fu'>train_mse</span><span class='op'>(</span><span class='va'>l_mse</span><span class='op'>)</span>
-  <span class='fu'>train_fnn</span><span class='op'>(</span><span class='va'>l_fnn</span><span class='op'>)</span>
-  <span class='fu'>train_kl</span><span class='op'>(</span><span class='va'>l_kl</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='co'># wrap it all in autograph</span>
-<span class='va'>training_loop_vae</span> <span class='op'>&lt;-</span> <span class='fu'>tf_function</span><span class='op'>(</span><span class='fu'>autograph</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>batch</span> <span class='kw'>in</span> <span class='va'>ds_train</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='fu'>train_step_vae</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> 
-  <span class='op'>}</span>
-  
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"Loss: "</span>, <span class='va'>train_loss</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"MSE: "</span>, <span class='va'>train_mse</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"FNN loss: "</span>, <span class='va'>train_fnn</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"KL loss: "</span>, <span class='va'>train_kl</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-  
-  <span class='va'>train_loss</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>train_mse</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>train_fnn</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>train_kl</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span>
-  
-<span class='op'>}</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># to reparameterize encoder output before calling decoder</span></span>
+<span><span class='va'>reparameterize</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>logvar</span> <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>eps</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_normal</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>n_latent</span><span class='op'>)</span></span>
+<span>  <span class='va'>eps</span> <span class='op'>*</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='va'>logvar</span> <span class='op'>*</span> <span class='fl'>0.5</span><span class='op'>)</span> <span class='op'>+</span> <span class='va'>mean</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='co'># loss has 3 components: NLL, KL, and FNN</span></span>
+<span><span class='co'># otherwise, this is just normal TF2-style training </span></span>
+<span><span class='va'>train_step_vae</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span> <span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'><a href='https://rstudio.github.io/reticulate/reference/with-as-operator.html'>%as%</a></span> <span class='va'>tape</span>, <span class='op'>{</span></span>
+<span>    <span class='va'>code</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>    <span class='va'>z</span> <span class='op'>&lt;-</span> <span class='fu'>reparameterize</span><span class='op'>(</span><span class='va'>code</span><span class='op'>)</span></span>
+<span>    <span class='va'>prediction</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>l_mse</span> <span class='op'>&lt;-</span> <span class='fu'>mse_loss</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>, <span class='va'>prediction</span><span class='op'>)</span></span>
+<span>    <span class='co'># see loss_false_nn in 2 previous posts</span></span>
+<span>    <span class='va'>l_fnn</span> <span class='op'>&lt;-</span> <span class='fu'>loss_false_nn</span><span class='op'>(</span><span class='va'>code</span><span class='op'>)</span></span>
+<span>    <span class='co'># KL divergence to a standard normal</span></span>
+<span>    <span class='va'>l_kl</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='fl'>0.5</span> <span class='op'>*</span> <span class='fu'>k_mean</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='fu'>k_square</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='co'># overall loss is a weighted sum of all 3 components</span></span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>l_mse</span> <span class='op'>+</span> <span class='va'>fnn_weight</span> <span class='op'>*</span> <span class='va'>l_fnn</span> <span class='op'>+</span> <span class='va'>kl_weight</span> <span class='op'>*</span> <span class='va'>l_kl</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>encoder_gradients</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>tape</span><span class='op'>$</span><span class='fu'>gradient</span><span class='op'>(</span><span class='va'>loss</span>, <span class='va'>encoder</span><span class='op'>$</span><span class='va'>trainable_variables</span><span class='op'>)</span></span>
+<span>  <span class='va'>decoder_gradients</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>tape</span><span class='op'>$</span><span class='fu'>gradient</span><span class='op'>(</span><span class='va'>loss</span>, <span class='va'>decoder</span><span class='op'>$</span><span class='va'>trainable_variables</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>apply_gradients</span><span class='op'>(</span><span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>    <span class='va'>encoder_gradients</span>, <span class='va'>encoder</span><span class='op'>$</span><span class='va'>trainable_variables</span></span>
+<span>  <span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>apply_gradients</span><span class='op'>(</span><span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/transpose.html'>transpose</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>    <span class='va'>decoder_gradients</span>, <span class='va'>decoder</span><span class='op'>$</span><span class='va'>trainable_variables</span></span>
+<span>  <span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'>train_loss</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span></span>
+<span>  <span class='fu'>train_mse</span><span class='op'>(</span><span class='va'>l_mse</span><span class='op'>)</span></span>
+<span>  <span class='fu'>train_fnn</span><span class='op'>(</span><span class='va'>l_fnn</span><span class='op'>)</span></span>
+<span>  <span class='fu'>train_kl</span><span class='op'>(</span><span class='va'>l_kl</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='co'># wrap it all in autograph</span></span>
+<span><span class='va'>training_loop_vae</span> <span class='op'>&lt;-</span> <span class='fu'>tf_function</span><span class='op'>(</span><span class='fu'>autograph</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>batch</span> <span class='kw'>in</span> <span class='va'>ds_train</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='fu'>train_step_vae</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> </span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"Loss: "</span>, <span class='va'>train_loss</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"MSE: "</span>, <span class='va'>train_mse</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"FNN loss: "</span>, <span class='va'>train_fnn</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>print</span><span class='op'>(</span><span class='st'>"KL loss: "</span>, <span class='va'>train_kl</span><span class='op'>$</span><span class='fu'>result</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>train_loss</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>train_mse</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>train_fnn</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>train_kl</span><span class='op'>$</span><span class='fu'>reset_states</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='op'>}</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>To finish up the model section, here is the actual training code. This is nearly identical to what we did for FNN-LSTM before.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_latent</span> <span class='op'>&lt;-</span> <span class='fl'>10L</span>
-<span class='va'>n_features</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-
-<span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>vae_encoder_model</span><span class='op'>(</span><span class='va'>n_timesteps</span>,
-                         <span class='va'>n_features</span>,
-                         <span class='va'>n_latent</span><span class='op'>)</span>
-
-<span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>vae_decoder_model</span><span class='op'>(</span><span class='va'>n_timesteps</span>,
-                         <span class='va'>n_features</span>,
-                         <span class='va'>n_latent</span><span class='op'>)</span>
-<span class='va'>mse_loss</span> <span class='op'>&lt;-</span>
-  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>SUM</span><span class='op'>)</span>
-
-<span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_loss'</span><span class='op'>)</span>
-<span class='va'>train_fnn</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_fnn'</span><span class='op'>)</span>
-<span class='va'>train_mse</span> <span class='op'>&lt;-</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_mse'</span><span class='op'>)</span>
-<span class='va'>train_kl</span> <span class='op'>&lt;-</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_kl'</span><span class='op'>)</span>
-
-<span class='va'>fnn_multiplier</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='co'># default value used in nearly all cases (see text)</span>
-<span class='va'>fnn_weight</span> <span class='op'>&lt;-</span> <span class='va'>fnn_multiplier</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span><span class='op'>/</span><span class='va'>batch_size</span>
-
-<span class='va'>kl_weight</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-
-<span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span>lr <span class='op'>=</span> <span class='fl'>1e-3</span><span class='op'>)</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>100</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Epoch: "</span>, <span class='va'>epoch</span>, <span class='st'>" -----------\n"</span><span class='op'>)</span>
-  <span class='fu'>training_loop_vae</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span>
- 
-  <span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>encoded</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>test_batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1000</span><span class='op'>]</span><span class='op'>)</span>
-  <span class='va'>test_var</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>math</span><span class='op'>$</span><span class='fu'>reduce_variance</span><span class='op'>(</span><span class='va'>encoded</span>, axis <span class='op'>=</span> <span class='fl'>0L</span><span class='op'>)</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='va'>test_var</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>5</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>n_latent</span> <span class='op'>&lt;-</span> <span class='fl'>10L</span></span>
+<span><span class='va'>n_features</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span></span>
+<span><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>vae_encoder_model</span><span class='op'>(</span><span class='va'>n_timesteps</span>,</span>
+<span>                         <span class='va'>n_features</span>,</span>
+<span>                         <span class='va'>n_latent</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>vae_decoder_model</span><span class='op'>(</span><span class='va'>n_timesteps</span>,</span>
+<span>                         <span class='va'>n_features</span>,</span>
+<span>                         <span class='va'>n_latent</span><span class='op'>)</span></span>
+<span><span class='va'>mse_loss</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span>reduction <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='va'>Reduction</span><span class='op'>$</span><span class='va'>SUM</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_loss'</span><span class='op'>)</span></span>
+<span><span class='va'>train_fnn</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_fnn'</span><span class='op'>)</span></span>
+<span><span class='va'>train_mse</span> <span class='op'>&lt;-</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_mse'</span><span class='op'>)</span></span>
+<span><span class='va'>train_kl</span> <span class='op'>&lt;-</span>  <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>'train_kl'</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>fnn_multiplier</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='co'># default value used in nearly all cases (see text)</span></span>
+<span><span class='va'>fnn_weight</span> <span class='op'>&lt;-</span> <span class='va'>fnn_multiplier</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span><span class='op'>/</span><span class='va'>batch_size</span></span>
+<span></span>
+<span><span class='va'>kl_weight</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span></span>
+<span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optimizer_adam</span><span class='op'>(</span>lr <span class='op'>=</span> <span class='fl'>1e-3</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>100</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Epoch: "</span>, <span class='va'>epoch</span>, <span class='st'>" -----------\n"</span><span class='op'>)</span></span>
+<span>  <span class='fu'>training_loop_vae</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span></span>
+<span> </span>
+<span>  <span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>encoded</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='va'>test_batch</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>1000</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>  <span class='va'>test_var</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>math</span><span class='op'>$</span><span class='fu'>reduce_variance</span><span class='op'>(</span><span class='va'>encoded</span>, axis <span class='op'>=</span> <span class='fl'>0L</span><span class='op'>)</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='va'>test_var</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>5</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <h2 id="experimental-setup-and-data">Experimental setup and data</h2>
@@ -2437,52 +2433,50 @@ Figure 1: Roessler attractor, two-dimensional projections.
 <p>Like we did for the Lorenz system in the first part of this series, we use <code>deSolve</code> to generate data from the Roessler equations.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://desolve.r-forge.r-project.org/'>deSolve</a></span><span class='op'>)</span>
-
-<span class='va'>parameters</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>a <span class='op'>=</span> <span class='fl'>.2</span>,
-                b <span class='op'>=</span> <span class='fl'>.2</span>,
-                c <span class='op'>=</span> <span class='fl'>5.7</span><span class='op'>)</span>
-
-<span class='va'>initial_state</span> <span class='op'>&lt;-</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span>,
-    y <span class='op'>=</span> <span class='fl'>1</span>,
-    z <span class='op'>=</span> <span class='fl'>1.05</span><span class='op'>)</span>
-
-<span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>t</span>, <span class='va'>state</span>, <span class='va'>parameters</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>as.list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>state</span>, <span class='va'>parameters</span><span class='op'>)</span><span class='op'>)</span>, <span class='op'>{</span>
-    <span class='va'>dx</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>y</span> <span class='op'>-</span> <span class='va'>z</span>
-    <span class='va'>dy</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>+</span> <span class='va'>a</span> <span class='op'>*</span> <span class='va'>y</span>
-    <span class='va'>dz</span> <span class='op'>=</span> <span class='va'>b</span> <span class='op'>+</span> <span class='va'>z</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>x</span> <span class='op'>-</span> <span class='va'>c</span><span class='op'>)</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>dx</span>, <span class='va'>dy</span>, <span class='va'>dz</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='op'>}</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>times</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>2500</span>, length.out <span class='op'>=</span> <span class='fl'>20000</span><span class='op'>)</span>
-
-<span class='va'>roessler_ts</span> <span class='op'>&lt;-</span>
-  <span class='fu'>ode</span><span class='op'>(</span>
-    y <span class='op'>=</span> <span class='va'>initial_state</span>,
-    times <span class='op'>=</span> <span class='va'>times</span>,
-    func <span class='op'>=</span> <span class='va'>roessler</span>,
-    parms <span class='op'>=</span> <span class='va'>parameters</span>,
-    method <span class='op'>=</span> <span class='st'>"lsoda"</span>
-  <span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/class.html'>unclass</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fl'>10000</span>
-<span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='va'>roessler_ts</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n</span><span class='op'>]</span>
-
-<span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://desolve.r-forge.r-project.org/'>deSolve</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>parameters</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>a <span class='op'>=</span> <span class='fl'>.2</span>,</span>
+<span>                b <span class='op'>=</span> <span class='fl'>.2</span>,</span>
+<span>                c <span class='op'>=</span> <span class='fl'>5.7</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>initial_state</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>    y <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>    z <span class='op'>=</span> <span class='fl'>1.05</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>t</span>, <span class='va'>state</span>, <span class='va'>parameters</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>as.list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>state</span>, <span class='va'>parameters</span><span class='op'>)</span><span class='op'>)</span>, <span class='op'>{</span></span>
+<span>    <span class='va'>dx</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>y</span> <span class='op'>-</span> <span class='va'>z</span></span>
+<span>    <span class='va'>dy</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>+</span> <span class='va'>a</span> <span class='op'>*</span> <span class='va'>y</span></span>
+<span>    <span class='va'>dz</span> <span class='op'>=</span> <span class='va'>b</span> <span class='op'>+</span> <span class='va'>z</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>x</span> <span class='op'>-</span> <span class='va'>c</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>dx</span>, <span class='va'>dy</span>, <span class='va'>dz</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>times</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fl'>2500</span>, length.out <span class='op'>=</span> <span class='fl'>20000</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>roessler_ts</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='fu'>ode</span><span class='op'>(</span></span>
+<span>    y <span class='op'>=</span> <span class='va'>initial_state</span>,</span>
+<span>    times <span class='op'>=</span> <span class='va'>times</span>,</span>
+<span>    func <span class='op'>=</span> <span class='va'>roessler</span>,</span>
+<span>    parms <span class='op'>=</span> <span class='va'>parameters</span>,</span>
+<span>    method <span class='op'>=</span> <span class='st'>"lsoda"</span></span>
+<span>  <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/class.html'>unclass</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fl'>10000</span></span>
+<span><span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='va'>roessler_ts</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Then, noise is added, to the desired degree, by drawing from a normal distribution, centered at zero, with standard deviations varying between 1 and 2.5.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># add noise</span>
-<span class='va'>noise</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='co'># also used 1.5, 2, 2.5</span>
-<span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='va'>roessler</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='fl'>10000</span>, mean <span class='op'>=</span> <span class='fl'>0</span>, sd <span class='op'>=</span> <span class='va'>noise</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># add noise</span></span>
+<span><span class='va'>noise</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='co'># also used 1.5, 2, 2.5</span></span>
+<span><span class='va'>roessler</span> <span class='op'>&lt;-</span> <span class='va'>roessler</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='fl'>10000</span>, mean <span class='op'>=</span> <span class='fl'>0</span>, sd <span class='op'>=</span> <span class='va'>noise</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Here you can compare effects of not adding any noise (left), standard deviation-1 (middle), and standard deviation-2.5 Gaussian noise:</p>
@@ -2497,41 +2491,40 @@ Figure 2: Roessler series with added noise. Top: none. Middle: SD = 1. Bottom: S
 <p>Otherwise, preprocessing proceeds as in the previous posts. In the upcoming results section, we’ll compare forecasts not just to the “real,” after noise addition, test split of the data, but also to the underlying Roessler system – that is, the thing we’re really interested in. (Just that in the real world, we can’t do that check.) This second test set is prepared for forecasting just like the other one; to avoid duplication we don’t reproduce the code.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>120</span>
-<span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
-
-<span class='va'>gen_timesteps</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>n_timesteps</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/do.call.html'>do.call</a></span><span class='op'>(</span><span class='va'>rbind</span>,
-          <span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_along</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>,
-                     <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
-                       <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>i</span>
-                       <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>i</span> <span class='op'>+</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span>
-                       <span class='va'>out</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span><span class='op'>]</span>
-                       <span class='va'>out</span>
-                     <span class='op'>}</span><span class='op'>)</span>
-  <span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-    <span class='fu'><a href='https://rdrr.io/r/stats/na.fail.html'>na.omit</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>train</span> <span class='op'>&lt;-</span> <span class='fu'>gen_timesteps</span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>n_timesteps</span><span class='op'>)</span>
-<span class='va'>test</span> <span class='op'>&lt;-</span> <span class='fu'>gen_timesteps</span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>:</span><span class='va'>n</span><span class='op'>]</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>n_timesteps</span><span class='op'>)</span> 
-
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>train</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>train</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>)</span>
-
-<span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_timesteps</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span>
-<span class='va'>y_train</span> <span class='op'>&lt;-</span> <span class='va'>train</span><span class='op'>[</span> , <span class='op'>(</span><span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>*</span><span class='va'>n_timesteps</span><span class='op'>)</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span>
-
-<span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>y_train</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>dataset_shuffle</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span>
-
-<span class='va'>x_test</span> <span class='op'>&lt;-</span> <span class='va'>test</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_timesteps</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span>
-<span class='va'>y_test</span> <span class='op'>&lt;-</span> <span class='va'>test</span><span class='op'>[</span> , <span class='op'>(</span><span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>*</span><span class='va'>n_timesteps</span><span class='op'>)</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span>
-
-<span class='va'>ds_test</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x_test</span>, <span class='va'>y_test</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://purrr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>120</span></span>
+<span><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span></span>
+<span></span>
+<span><span class='va'>gen_timesteps</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>n_timesteps</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/do.call.html'>do.call</a></span><span class='op'>(</span><span class='va'>rbind</span>,</span>
+<span>          <span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_along</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>,</span>
+<span>                     <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>                       <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>i</span></span>
+<span>                       <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>i</span> <span class='op'>+</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span></span>
+<span>                       <span class='va'>out</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span><span class='op'>]</span></span>
+<span>                       <span class='va'>out</span></span>
+<span>                     <span class='op'>}</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/stats/na.fail.html'>na.omit</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='fu'>gen_timesteps</span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>n_timesteps</span><span class='op'>)</span></span>
+<span><span class='va'>test</span> <span class='op'>&lt;-</span> <span class='fu'>gen_timesteps</span><span class='op'>(</span><span class='va'>roessler</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>:</span><span class='va'>n</span><span class='op'>]</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>n_timesteps</span><span class='op'>)</span> </span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>train</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>train</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test</span><span class='op'>)</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_timesteps</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span></span>
+<span><span class='va'>y_train</span> <span class='op'>&lt;-</span> <span class='va'>train</span><span class='op'>[</span> , <span class='op'>(</span><span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>*</span><span class='va'>n_timesteps</span><span class='op'>)</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>y_train</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>dataset_shuffle</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>x_test</span> <span class='op'>&lt;-</span> <span class='va'>test</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_timesteps</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span></span>
+<span><span class='va'>y_test</span> <span class='op'>&lt;-</span> <span class='va'>test</span><span class='op'>[</span> , <span class='op'>(</span><span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>*</span><span class='va'>n_timesteps</span><span class='op'>)</span>, , drop <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='va'>ds_test</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x_test</span>, <span class='va'>y_test</span><span class='op'>)</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h2 id="results">Results</h2>

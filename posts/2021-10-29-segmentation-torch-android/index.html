@@ -2228,107 +2228,103 @@ gtag('config', 'UA-20375833-3');
 <p>A call to <code>oxford_pet_dataset(root = dir)</code> will trigger the initial download:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># need torch &gt; 0.6.1</span>
-<span class='co'># may have to run remotes::install_github("mlverse/torch", ref = remotes::github_pull("713")) depending on when you read this</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span> 
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torchvision.mlverse.org'>torchvision</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://mlverse.github.io/torchdatasets/'>torchdatasets</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://mlverse.github.io/luz/'>luz</a></span><span class='op'>)</span>
-
-<span class='va'>dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/.torch-datasets/oxford_pet_dataset"</span>
-
-<span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>oxford_pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># need torch &gt; 0.6.1</span></span>
+<span><span class='co'># may have to run remotes::install_github("mlverse/torch", ref = remotes::github_pull("713")) depending on when you read this</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span> </span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torchvision.mlverse.org'>torchvision</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://mlverse.github.io/torchdatasets/'>torchdatasets</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://mlverse.github.io/luz/'>luz</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>dir</span> <span class='op'>&lt;-</span> <span class='st'>"~/.torch-datasets/oxford_pet_dataset"</span></span>
+<span></span>
+<span><span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>oxford_pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Images (and corresponding masks) come in different sizes. For training, however, we’ll need all of them to be the same size. This can be accomplished by passing in <code>transform =</code> and <code>target_transform =</code> arguments. But what about data augmentation (basically always a useful measure to take)? Imagine we make use of random flipping. An input image will be flipped – or not – according to some probability. But if the image is flipped, the mask better had be, as well! Input and target transformations are not independent, in this case.</p>
 <p>A solution is to create a wrapper around <code>oxford_pet_dataset()</code> that lets us “hook into” the <code>.getitem()</code> method, like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>pet_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>torch</span><span class='fu'>::</span><span class='fu'>dataset</span><span class='op'>(</span>
-  
-  inherit <span class='op'>=</span> <span class='va'>oxford_pet_dataset</span>,
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>...</span>, <span class='va'>size</span>, <span class='va'>normalize</span> <span class='op'>=</span> <span class='cn'>TRUE</span>, <span class='va'>augmentation</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>augmentation</span> <span class='op'>&lt;-</span> <span class='va'>augmentation</span>
-    
-    <span class='va'>input_transform</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span>
-        <span class='fu'>transform_to_tensor</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-        <span class='fu'>transform_resize</span><span class='op'>(</span><span class='va'>size</span><span class='op'>)</span> 
-      <span class='co'># we'll make use of pre-trained MobileNet v2 as a feature extractor</span>
-      <span class='co'># =&gt; normalize in order to match the distribution of images it was trained with</span>
-      <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Logic.html'>isTRUE</a></span><span class='op'>(</span><span class='va'>normalize</span><span class='op'>)</span><span class='op'>)</span> <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span>
-        <span class='fu'>transform_normalize</span><span class='op'>(</span>mean <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.485</span>, <span class='fl'>0.456</span>, <span class='fl'>0.406</span><span class='op'>)</span>,
-                            std <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.229</span>, <span class='fl'>0.224</span>, <span class='fl'>0.225</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='va'>x</span>
-    <span class='op'>}</span>
-    
-    <span class='va'>target_transform</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='va'>x</span>, dtype <span class='op'>=</span> <span class='fu'>torch_long</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>newaxis</span>,<span class='va'>..</span><span class='op'>]</span>
-      <span class='co'># interpolation = 0 makes sure we still end up with integer classes</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_resize</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>size</span>, interpolation <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span>
-    <span class='op'>}</span>
-    
-    <span class='va'>super</span><span class='op'>$</span><span class='fu'>initialize</span><span class='op'>(</span>
-      <span class='va'>...</span>,
-      transform <span class='op'>=</span> <span class='va'>input_transform</span>,
-      target_transform <span class='op'>=</span> <span class='va'>target_transform</span>
-    <span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>item</span> <span class='op'>&lt;-</span> <span class='va'>super</span><span class='op'>$</span><span class='fu'>.getitem</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span>
-    <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>augmentation</span><span class='op'>)</span><span class='op'>)</span> 
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>augmentation</span><span class='op'>(</span><span class='va'>item</span><span class='op'>)</span>
-    <span class='kw'>else</span>
-      <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>,<span class='va'>..</span><span class='op'>]</span><span class='op'>)</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>pet_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>torch</span><span class='fu'>::</span><span class='fu'>dataset</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  inherit <span class='op'>=</span> <span class='va'>oxford_pet_dataset</span>,</span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>...</span>, <span class='va'>size</span>, <span class='va'>normalize</span> <span class='op'>=</span> <span class='cn'>TRUE</span>, <span class='va'>augmentation</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>augmentation</span> <span class='op'>&lt;-</span> <span class='va'>augmentation</span></span>
+<span>    </span>
+<span>    <span class='va'>input_transform</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span></span>
+<span>        <span class='fu'>transform_to_tensor</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>        <span class='fu'>transform_resize</span><span class='op'>(</span><span class='va'>size</span><span class='op'>)</span> </span>
+<span>      <span class='co'># we'll make use of pre-trained MobileNet v2 as a feature extractor</span></span>
+<span>      <span class='co'># =&gt; normalize in order to match the distribution of images it was trained with</span></span>
+<span>      <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Logic.html'>isTRUE</a></span><span class='op'>(</span><span class='va'>normalize</span><span class='op'>)</span><span class='op'>)</span> <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span></span>
+<span>        <span class='fu'>transform_normalize</span><span class='op'>(</span>mean <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.485</span>, <span class='fl'>0.456</span>, <span class='fl'>0.406</span><span class='op'>)</span>,</span>
+<span>                            std <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.229</span>, <span class='fl'>0.224</span>, <span class='fl'>0.225</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='va'>x</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    </span>
+<span>    <span class='va'>target_transform</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='va'>x</span>, dtype <span class='op'>=</span> <span class='fu'>torch_long</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>newaxis</span>,<span class='va'>..</span><span class='op'>]</span></span>
+<span>      <span class='co'># interpolation = 0 makes sure we still end up with integer classes</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_resize</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>size</span>, interpolation <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    </span>
+<span>    <span class='va'>super</span><span class='op'>$</span><span class='fu'>initialize</span><span class='op'>(</span></span>
+<span>      <span class='va'>...</span>,</span>
+<span>      transform <span class='op'>=</span> <span class='va'>input_transform</span>,</span>
+<span>      target_transform <span class='op'>=</span> <span class='va'>target_transform</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>item</span> <span class='op'>&lt;-</span> <span class='va'>super</span><span class='op'>$</span><span class='fu'>.getitem</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span></span>
+<span>    <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>augmentation</span><span class='op'>)</span><span class='op'>)</span> </span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>augmentation</span><span class='op'>(</span><span class='va'>item</span><span class='op'>)</span></span>
+<span>    <span class='kw'>else</span></span>
+<span>      <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>,<span class='va'>..</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>All we have to do now is create a custom function that lets us decide on what augmentation to apply to each input-target pair, and then, manually call the respective transformation functions.</p>
 <p>Here, we flip, on average, every second image, and if we do, we flip the mask as well. The second transformation – orchestrating random changes in brightness, saturation, and contrast – is applied to the input image only.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>augmentation</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>item</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>vflip</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span> <span class='op'>&gt;</span> <span class='fl'>0.5</span>
-  
-  <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>x</span>
-  <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>y</span>
-  
-  <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Logic.html'>isTRUE</a></span><span class='op'>(</span><span class='va'>vflip</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_vflip</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
-    <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='fu'>transform_vflip</span><span class='op'>(</span><span class='va'>y</span><span class='op'>)</span>
-  <span class='op'>}</span>
-  
-  <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_color_jitter</span><span class='op'>(</span><span class='va'>x</span>, brightness <span class='op'>=</span> <span class='fl'>0.5</span>, saturation <span class='op'>=</span> <span class='fl'>0.3</span>, contrast <span class='op'>=</span> <span class='fl'>0.3</span><span class='op'>)</span>
-  
-  <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>,<span class='va'>..</span><span class='op'>]</span><span class='op'>)</span>
-  
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>augmentation</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>item</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>vflip</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span> <span class='op'>&gt;</span> <span class='fl'>0.5</span></span>
+<span>  </span>
+<span>  <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>x</span></span>
+<span>  <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>item</span><span class='op'>$</span><span class='va'>y</span></span>
+<span>  </span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Logic.html'>isTRUE</a></span><span class='op'>(</span><span class='va'>vflip</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_vflip</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span>    <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='fu'>transform_vflip</span><span class='op'>(</span><span class='va'>y</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span>  <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>transform_color_jitter</span><span class='op'>(</span><span class='va'>x</span>, brightness <span class='op'>=</span> <span class='fl'>0.5</span>, saturation <span class='op'>=</span> <span class='fl'>0.3</span>, contrast <span class='op'>=</span> <span class='fl'>0.3</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>,<span class='va'>..</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>We now make use of the wrapper, <code>pet_dataset()</code>, to instantiate the training and validation sets, and create the respective data loaders.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>train_ds</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span>,
-                        split <span class='op'>=</span> <span class='st'>"train"</span>,
-                        size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span>,
-                        augmentation <span class='op'>=</span> <span class='va'>augmentation</span><span class='op'>)</span>
-<span class='va'>valid_ds</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span>,
-                        split <span class='op'>=</span> <span class='st'>"valid"</span>,
-                        size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>train_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>train_ds</span>, batch_size <span class='op'>=</span> <span class='fl'>32</span>, shuffle <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-<span class='va'>valid_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>valid_ds</span>, batch_size <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>train_ds</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span>,</span>
+<span>                        split <span class='op'>=</span> <span class='st'>"train"</span>,</span>
+<span>                        size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span>,</span>
+<span>                        augmentation <span class='op'>=</span> <span class='va'>augmentation</span><span class='op'>)</span></span>
+<span><span class='va'>valid_ds</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span>root <span class='op'>=</span> <span class='va'>dir</span>,</span>
+<span>                        split <span class='op'>=</span> <span class='st'>"valid"</span>,</span>
+<span>                        size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>train_ds</span>, batch_size <span class='op'>=</span> <span class='fl'>32</span>, shuffle <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span><span class='va'>valid_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>valid_ds</span>, batch_size <span class='op'>=</span> <span class='fl'>32</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h3 id="model-definition">Model definition</h3>
@@ -2338,147 +2334,142 @@ gtag('config', 'UA-20375833-3');
 <p>The encoder splits up MobileNet v2’s feature extraction blocks into several stages, and applies one stage after the other. Respective results are saved in a list.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>model_mobilenet_v2</span><span class='op'>(</span>pretrained <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-      <span class='fu'>nn_identity</span><span class='op'>(</span><span class='op'>)</span>,
-      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>2</span><span class='op'>]</span>,
-      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>3</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span>,
-      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>5</span><span class='op'>:</span><span class='fl'>7</span><span class='op'>]</span>,
-      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>8</span><span class='op'>:</span><span class='fl'>14</span><span class='op'>]</span>,
-      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>15</span><span class='op'>:</span><span class='fl'>18</span><span class='op'>]</span>
-    <span class='op'>)</span><span class='op'>)</span>
-
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>par</span> <span class='kw'>in</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>parameters</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>par</span><span class='op'>$</span><span class='fu'>requires_grad_</span><span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span>
-    <span class='op'>}</span>
-
-  <span class='op'>}</span>,
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>features</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span>
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
-      <span class='va'>features</span><span class='op'>[[</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>x</span>
-    <span class='op'>}</span>
-    <span class='va'>features</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>model_mobilenet_v2</span><span class='op'>(</span>pretrained <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>      <span class='fu'>nn_identity</span><span class='op'>(</span><span class='op'>)</span>,</span>
+<span>      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>2</span><span class='op'>]</span>,</span>
+<span>      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>3</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span>,</span>
+<span>      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>5</span><span class='op'>:</span><span class='fl'>7</span><span class='op'>]</span>,</span>
+<span>      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>8</span><span class='op'>:</span><span class='fl'>14</span><span class='op'>]</span>,</span>
+<span>      <span class='va'>model</span><span class='op'>$</span><span class='va'>features</span><span class='op'>[</span><span class='fl'>15</span><span class='op'>:</span><span class='fl'>18</span><span class='op'>]</span></span>
+<span>    <span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>par</span> <span class='kw'>in</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>parameters</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>par</span><span class='op'>$</span><span class='fu'>requires_grad_</span><span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>features</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>stages</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span>      <span class='va'>features</span><span class='op'>[[</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>x</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    <span class='va'>features</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h4 id="decoder">Decoder</h4>
 <p>The decoder is made up of configurable blocks. A block receives two input tensors: one that is the result of applying the previous decoder block, and one that holds the feature map produced in the matching encoder stage. In the forward pass, first the former is upsampled, and passed through a nonlinearity. The intermediate result is then prepended to the second argument, the channeled-through feature map. On the resultant tensor, a convolution is applied, followed by another nonlinearity.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>decoder_block</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>in_channels</span>, <span class='va'>skip_channels</span>, <span class='va'>out_channels</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>upsample</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv_transpose2d</span><span class='op'>(</span>
-      in_channels <span class='op'>=</span> <span class='va'>in_channels</span>,
-      out_channels <span class='op'>=</span> <span class='va'>out_channels</span>,
-      kernel_size <span class='op'>=</span> <span class='fl'>2</span>,
-      stride <span class='op'>=</span> <span class='fl'>2</span>
-    <span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>activation</span> <span class='op'>&lt;-</span> <span class='fu'>nn_relu</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv2d</span><span class='op'>(</span>
-      in_channels <span class='op'>=</span> <span class='va'>out_channels</span> <span class='op'>+</span> <span class='va'>skip_channels</span>,
-      out_channels <span class='op'>=</span> <span class='va'>out_channels</span>,
-      kernel_size <span class='op'>=</span> <span class='fl'>3</span>,
-      padding <span class='op'>=</span> <span class='st'>"same"</span>
-    <span class='op'>)</span>
-  <span class='op'>}</span>,
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>skip</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>upsample</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>activation</span><span class='op'>(</span><span class='op'>)</span>
-
-    <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>skip</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-
-    <span class='va'>input</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>activation</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>decoder_block</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>in_channels</span>, <span class='va'>skip_channels</span>, <span class='va'>out_channels</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>upsample</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv_transpose2d</span><span class='op'>(</span></span>
+<span>      in_channels <span class='op'>=</span> <span class='va'>in_channels</span>,</span>
+<span>      out_channels <span class='op'>=</span> <span class='va'>out_channels</span>,</span>
+<span>      kernel_size <span class='op'>=</span> <span class='fl'>2</span>,</span>
+<span>      stride <span class='op'>=</span> <span class='fl'>2</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>activation</span> <span class='op'>&lt;-</span> <span class='fu'>nn_relu</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv2d</span><span class='op'>(</span></span>
+<span>      in_channels <span class='op'>=</span> <span class='va'>out_channels</span> <span class='op'>+</span> <span class='va'>skip_channels</span>,</span>
+<span>      out_channels <span class='op'>=</span> <span class='va'>out_channels</span>,</span>
+<span>      kernel_size <span class='op'>=</span> <span class='fl'>3</span>,</span>
+<span>      padding <span class='op'>=</span> <span class='st'>"same"</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>skip</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>upsample</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>activation</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>skip</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='va'>input</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>activation</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>The decoder itself “just” instantiates and runs through the blocks:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span>
-    <span class='va'>decoder_channels</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>256</span>, <span class='fl'>128</span>, <span class='fl'>64</span>, <span class='fl'>32</span>, <span class='fl'>16</span><span class='op'>)</span>,
-    <span class='va'>encoder_channels</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>16</span>, <span class='fl'>24</span>, <span class='fl'>32</span>, <span class='fl'>96</span>, <span class='fl'>320</span><span class='op'>)</span>
-  <span class='op'>)</span> <span class='op'>{</span>
-
-    <span class='va'>encoder_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>)</span>
-    <span class='va'>skip_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span>, <span class='fl'>3</span><span class='op'>)</span>
-    <span class='va'>in_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, <span class='va'>decoder_channels</span><span class='op'>)</span>
-
-    <span class='va'>depth</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>)</span>
-
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_len</a></span><span class='op'>(</span><span class='va'>depth</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>$</span><span class='fu'>append</span><span class='op'>(</span><span class='fu'>decoder_block</span><span class='op'>(</span>
-        in_channels <span class='op'>=</span> <span class='va'>in_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>,
-        skip_channels <span class='op'>=</span> <span class='va'>skip_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>,
-        out_channels <span class='op'>=</span> <span class='va'>decoder_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>
-      <span class='op'>)</span><span class='op'>)</span>
-    <span class='op'>}</span>
-
-  <span class='op'>}</span>,
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>features</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span>
-    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>features</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_along</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>features</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>+</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-    <span class='op'>}</span>
-    <span class='va'>x</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span></span>
+<span>    <span class='va'>decoder_channels</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>256</span>, <span class='fl'>128</span>, <span class='fl'>64</span>, <span class='fl'>32</span>, <span class='fl'>16</span><span class='op'>)</span>,</span>
+<span>    <span class='va'>encoder_channels</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>16</span>, <span class='fl'>24</span>, <span class='fl'>32</span>, <span class='fl'>96</span>, <span class='fl'>320</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span> <span class='op'>{</span></span>
+<span></span>
+<span>    <span class='va'>encoder_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>)</span></span>
+<span>    <span class='va'>skip_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>[</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>]</span>, <span class='fl'>3</span><span class='op'>)</span></span>
+<span>    <span class='va'>in_channels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, <span class='va'>decoder_channels</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='va'>depth</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>encoder_channels</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_len</a></span><span class='op'>(</span><span class='va'>depth</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>$</span><span class='fu'>append</span><span class='op'>(</span><span class='fu'>decoder_block</span><span class='op'>(</span></span>
+<span>        in_channels <span class='op'>=</span> <span class='va'>in_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>,</span>
+<span>        skip_channels <span class='op'>=</span> <span class='va'>skip_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>,</span>
+<span>        out_channels <span class='op'>=</span> <span class='va'>decoder_channels</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span></span>
+<span>      <span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>features</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='va'>features</span><span class='op'>)</span></span>
+<span>    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>features</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq_along</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>blocks</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>features</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>+</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    <span class='va'>x</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h4 id="top-level-module">Top-level module</h4>
 <p>Finally, the top-level module generates the class score. In our task, there are three pixel classes. The score-producing submodule can then just be a final convolution, producing three channels:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span>
-      <span class='fu'>nn_conv2d</span><span class='op'>(</span>in_channels <span class='op'>=</span> <span class='fl'>16</span>,
-                out_channels <span class='op'>=</span> <span class='fl'>3</span>,
-                kernel_size <span class='op'>=</span> <span class='fl'>3</span>,
-                padding <span class='op'>=</span> <span class='st'>"same"</span><span class='op'>)</span>
-    <span class='op'>)</span>
-  <span class='op'>}</span>,
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>x</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>encoder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>decoder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>output</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>encoder</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>decoder</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span></span>
+<span>      <span class='fu'>nn_conv2d</span><span class='op'>(</span>in_channels <span class='op'>=</span> <span class='fl'>16</span>,</span>
+<span>                out_channels <span class='op'>=</span> <span class='fl'>3</span>,</span>
+<span>                kernel_size <span class='op'>=</span> <span class='fl'>3</span>,</span>
+<span>                padding <span class='op'>=</span> <span class='st'>"same"</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>x</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>encoder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>decoder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>output</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h3 id="model-training-and-visual-evaluation">Model training and (visual) evaluation</h3>
 <p>With <code>luz</code>, model training is a matter of two verbs, <code>setup()</code> and <code>fit()</code>. The learning rate has been determined, for this specific case, using <code>luz::lr_finder()</code>; you will likely have to change it when experimenting with different forms of data augmentation (and different data sets).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>setup</span><span class='op'>(</span>optimizer <span class='op'>=</span> <span class='va'>optim_adam</span>, loss <span class='op'>=</span> <span class='fu'>nn_cross_entropy_loss</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>fitted</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>set_opt_hparams</span><span class='op'>(</span>lr <span class='op'>=</span> <span class='fl'>1e-3</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>fit</span><span class='op'>(</span><span class='va'>train_dl</span>, epochs <span class='op'>=</span> <span class='fl'>10</span>, valid_data <span class='op'>=</span> <span class='va'>valid_dl</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>setup</span><span class='op'>(</span>optimizer <span class='op'>=</span> <span class='va'>optim_adam</span>, loss <span class='op'>=</span> <span class='fu'>nn_cross_entropy_loss</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>fitted</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>set_opt_hparams</span><span class='op'>(</span>lr <span class='op'>=</span> <span class='fl'>1e-3</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>fit</span><span class='op'>(</span><span class='va'>train_dl</span>, epochs <span class='op'>=</span> <span class='fl'>10</span>, valid_data <span class='op'>=</span> <span class='va'>valid_dl</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Here is an excerpt of how training performance developed in my case:</p>
@@ -2503,50 +2494,47 @@ gtag('config', 'UA-20375833-3');
 <p>Numbers are just numbers – how good is the trained model really at segmenting pet images? To find out, we generate segmentation masks for the first eight observations in the validation set, and plot them overlaid on the images. A convenient way to plot an image and superimpose a mask is provided by the <code>raster</code> package.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://rspatial.org/raster'>raster</a></span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://rspatial.org/raster'>raster</a></span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Pixel intensities have to be between zero and one, which is why in the dataset wrapper, we have made it so normalization can be switched off. To plot the actual images, we just instantiate a clone of <code>valid_ds</code> that leaves the pixel values unchanged. (The predictions, on the other hand, will still have to be obtained from the original validation set.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>valid_ds_4plot</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span>
-  root <span class='op'>=</span> <span class='va'>dir</span>,
-  split <span class='op'>=</span> <span class='st'>"valid"</span>,
-  size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span>,
-  normalize <span class='op'>=</span> <span class='cn'>FALSE</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>valid_ds_4plot</span> <span class='op'>&lt;-</span> <span class='fu'>pet_dataset</span><span class='op'>(</span></span>
+<span>  root <span class='op'>=</span> <span class='va'>dir</span>,</span>
+<span>  split <span class='op'>=</span> <span class='st'>"valid"</span>,</span>
+<span>  size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>224</span>, <span class='fl'>224</span><span class='op'>)</span>,</span>
+<span>  normalize <span class='op'>=</span> <span class='cn'>FALSE</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Finally, the predictions are generated in a loop, and overlaid over the images one-by-one:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>indices</span> <span class='op'>&lt;-</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>8</span>
-
-<span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>fitted</span>, <span class='fu'>dataloader</span><span class='op'>(</span><span class='fu'>dataset_subset</span><span class='op'>(</span><span class='va'>valid_ds</span>, <span class='va'>indices</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/grDevices/png.html'>png</a></span><span class='op'>(</span><span class='st'>"pet_segmentation.png"</span>, width <span class='op'>=</span> <span class='fl'>1200</span>, height <span class='op'>=</span> <span class='fl'>600</span>, bg <span class='op'>=</span> <span class='st'>"black"</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/graphics/par.html'>par</a></span><span class='op'>(</span>mfcol <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span><span class='op'>)</span>, mar <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='va'>indices</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>mask</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='fu'>torch_argmax</span><span class='op'>(</span><span class='va'>preds</span><span class='op'>[</span><span class='va'>i</span>,<span class='va'>..</span><span class='op'>]</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='st'>"cpu"</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>mask</span> <span class='op'>&lt;-</span> <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>ratify</span><span class='op'>(</span><span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>raster</span><span class='op'>(</span><span class='va'>mask</span><span class='op'>)</span><span class='op'>)</span>
-  
-  <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>valid_ds_4plot</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>permute</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>,<span class='fl'>3</span>,<span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>cond</span> <span class='op'>&lt;-</span> <span class='va'>img</span> <span class='op'>&gt;</span> <span class='fl'>0.99999</span>
-  <span class='va'>img</span><span class='op'>[</span><span class='va'>cond</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fl'>0.99999</span>
-  <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>brick</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span>
-  
-  <span class='co'># plot image</span>
-  <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>plotRGB</span><span class='op'>(</span><span class='va'>img</span>, scale <span class='op'>=</span> <span class='fl'>1</span>, asp <span class='op'>=</span> <span class='fl'>1</span>, margins <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-  <span class='co'># overlay mask</span>
-  <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>mask</span>, alpha <span class='op'>=</span> <span class='fl'>0.4</span>, legend <span class='op'>=</span> <span class='cn'>FALSE</span>, axes <span class='op'>=</span> <span class='cn'>FALSE</span>, add <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-  
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>indices</span> <span class='op'>&lt;-</span> <span class='fl'>1</span><span class='op'>:</span><span class='fl'>8</span></span>
+<span></span>
+<span><span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>fitted</span>, <span class='fu'>dataloader</span><span class='op'>(</span><span class='fu'>dataset_subset</span><span class='op'>(</span><span class='va'>valid_ds</span>, <span class='va'>indices</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/grDevices/png.html'>png</a></span><span class='op'>(</span><span class='st'>"pet_segmentation.png"</span>, width <span class='op'>=</span> <span class='fl'>1200</span>, height <span class='op'>=</span> <span class='fl'>600</span>, bg <span class='op'>=</span> <span class='st'>"black"</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/graphics/par.html'>par</a></span><span class='op'>(</span>mfcol <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span><span class='op'>)</span>, mar <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='va'>indices</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>mask</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='fu'>torch_argmax</span><span class='op'>(</span><span class='va'>preds</span><span class='op'>[</span><span class='va'>i</span>,<span class='va'>..</span><span class='op'>]</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='st'>"cpu"</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>mask</span> <span class='op'>&lt;-</span> <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>ratify</span><span class='op'>(</span><span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>raster</span><span class='op'>(</span><span class='va'>mask</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>valid_ds_4plot</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>permute</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>,<span class='fl'>3</span>,<span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>cond</span> <span class='op'>&lt;-</span> <span class='va'>img</span> <span class='op'>&gt;</span> <span class='fl'>0.99999</span></span>
+<span>  <span class='va'>img</span><span class='op'>[</span><span class='va'>cond</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fl'>0.99999</span></span>
+<span>  <span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>brick</span><span class='op'>(</span><span class='va'>img</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='co'># plot image</span></span>
+<span>  <span class='fu'>raster</span><span class='fu'>::</span><span class='fu'>plotRGB</span><span class='op'>(</span><span class='va'>img</span>, scale <span class='op'>=</span> <span class='fl'>1</span>, asp <span class='op'>=</span> <span class='fl'>1</span>, margins <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span>  <span class='co'># overlay mask</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>mask</span>, alpha <span class='op'>=</span> <span class='fl'>0.4</span>, legend <span class='op'>=</span> <span class='cn'>FALSE</span>, axes <span class='op'>=</span> <span class='cn'>FALSE</span>, add <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <figure>
@@ -2561,26 +2549,23 @@ gtag('config', 'UA-20375833-3');
 <p>We access the <code>torch</code> model underlying the fitted <code>luz</code> object, and trace it – where tracing means calling it once, on a sample observation:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='va'>fitted</span><span class='op'>$</span><span class='va'>model</span>
-<span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>collect</span><span class='op'>(</span><span class='va'>train_dl</span>, <span class='fl'>1</span><span class='op'>)</span>
-
-<span class='va'>traced</span> <span class='op'>&lt;-</span> <span class='fu'>jit_trace</span><span class='op'>(</span><span class='va'>m</span>, <span class='va'>x</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='va'>fitted</span><span class='op'>$</span><span class='va'>model</span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>collect</span><span class='op'>(</span><span class='va'>train_dl</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>traced</span> <span class='op'>&lt;-</span> <span class='fu'>jit_trace</span><span class='op'>(</span><span class='va'>m</span>, <span class='va'>x</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>The traced model could now be saved for use with Python or C++, like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>traced</span> <span class='op'>%&gt;%</span> <span class='fu'>jit_save</span><span class='op'>(</span><span class='st'>"traced_model.pt"</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>traced</span> <span class='op'>%&gt;%</span> <span class='fu'>jit_save</span><span class='op'>(</span><span class='st'>"traced_model.pt"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>However, since we already know we’d like to deploy it on Android, we instead make use of the specialized function <code>jit_save_for_mobile()</code> that, additionally, generates bytecode:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># need torch &gt; 0.6.1</span>
-<span class='fu'>jit_save_for_mobile</span><span class='op'>(</span><span class='va'>traced_model</span>, <span class='st'>"model_bytecode.pt"</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># need torch &gt; 0.6.1</span></span>
+<span><span class='fu'>jit_save_for_mobile</span><span class='op'>(</span><span class='va'>traced_model</span>, <span class='st'>"model_bytecode.pt"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>And that’s it for the R side!</p>

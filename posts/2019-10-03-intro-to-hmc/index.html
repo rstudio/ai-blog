@@ -2308,45 +2308,44 @@ min(1, exp(−H(q∗, p∗) +H(q, p)))
 <p>We’ve talked about concepts, and we’ve seen the math, but between analogies and equations, it’s easy to lose track of the overall algorithm. Nicely, Radford Neal’s paper <span class="citation" data-cites="2012arXiv1206.1901N">(<a href="#ref-2012arXiv1206.1901N" role="doc-biblioref">Neal 2012</a>)</span> has some code, too! Here it is reproduced, with just a few additional comments added (many comments were preexisting):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># U is a function that returns the potential energy given q</span>
-<span class='co'># grad_U returns the respective partial derivatives</span>
-<span class='co'># epsilon stepsize</span>
-<span class='co'># L number of leapfrog steps</span>
-<span class='co'># current_q current position</span>
-
-<span class='co'># kinetic energy is assumed to be sum(p^2/2) (mass == 1)</span>
-<span class='va'>HMC</span> <span class='op'>&lt;-</span> <span class='kw'>function</span> <span class='op'>(</span><span class='va'>U</span>, <span class='va'>grad_U</span>, <span class='va'>epsilon</span>, <span class='va'>L</span>, <span class='va'>current_q</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>q</span> <span class='op'>&lt;-</span> <span class='va'>current_q</span>
-  <span class='co'># independent standard normal variates</span>
-  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>, <span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>  
-  <span class='co'># Make a half step for momentum at the beginning</span>
-  <span class='va'>current_p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> 
-  <span class='co'># Alternate full steps for position and momentum</span>
-  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span> 
-  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>L</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='co'># Make a full step for the position</span>
-    <span class='va'>q</span> <span class='op'>&lt;-</span> <span class='va'>q</span> <span class='op'>+</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='va'>p</span>
-    <span class='co'># Make a full step for the momentum, except at end of trajectory</span>
-    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>i</span> <span class='op'>!=</span> <span class='va'>L</span><span class='op'>)</span> <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>
-    <span class='op'>}</span>
-  <span class='co'># Make a half step for momentum at the end</span>
-  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span>
-  <span class='co'># Negate momentum at end of trajectory to make the proposal symmetric</span>
-  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>p</span>
-  <span class='co'># Evaluate potential and kinetic energies at start and end of trajectory </span>
-  <span class='va'>current_U</span> <span class='op'>&lt;-</span> <span class='fu'>U</span><span class='op'>(</span><span class='va'>current_q</span><span class='op'>)</span>
-  <span class='va'>current_K</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sum.html'>sum</a></span><span class='op'>(</span><span class='va'>current_p</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span>
-  <span class='va'>proposed_U</span> <span class='op'>&lt;-</span> <span class='fu'>U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>
-  <span class='va'>proposed_K</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sum.html'>sum</a></span><span class='op'>(</span><span class='va'>p</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span>
-  <span class='co'># Accept or reject the state at end of trajectory, returning either</span>
-  <span class='co'># the position at the end of the trajectory or the initial position</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span> <span class='op'>&lt;</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='va'>current_U</span><span class='op'>-</span><span class='va'>proposed_U</span><span class='op'>+</span><span class='va'>current_K</span><span class='op'>-</span><span class='va'>proposed_K</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='kw'><a href='https://rdrr.io/r/base/function.html'>return</a></span> <span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>  <span class='co'># accept</span>
-  <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span>
-    <span class='kw'><a href='https://rdrr.io/r/base/function.html'>return</a></span> <span class='op'>(</span><span class='va'>current_q</span><span class='op'>)</span>  <span class='co'># reject</span>
-  <span class='op'>}</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># U is a function that returns the potential energy given q</span></span>
+<span><span class='co'># grad_U returns the respective partial derivatives</span></span>
+<span><span class='co'># epsilon stepsize</span></span>
+<span><span class='co'># L number of leapfrog steps</span></span>
+<span><span class='co'># current_q current position</span></span>
+<span></span>
+<span><span class='co'># kinetic energy is assumed to be sum(p^2/2) (mass == 1)</span></span>
+<span><span class='va'>HMC</span> <span class='op'>&lt;-</span> <span class='kw'>function</span> <span class='op'>(</span><span class='va'>U</span>, <span class='va'>grad_U</span>, <span class='va'>epsilon</span>, <span class='va'>L</span>, <span class='va'>current_q</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>q</span> <span class='op'>&lt;-</span> <span class='va'>current_q</span></span>
+<span>  <span class='co'># independent standard normal variates</span></span>
+<span>  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>, <span class='fl'>0</span>, <span class='fl'>1</span><span class='op'>)</span>  </span>
+<span>  <span class='co'># Make a half step for momentum at the beginning</span></span>
+<span>  <span class='va'>current_p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> </span>
+<span>  <span class='co'># Alternate full steps for position and momentum</span></span>
+<span>  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span> </span>
+<span>  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>L</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='co'># Make a full step for the position</span></span>
+<span>    <span class='va'>q</span> <span class='op'>&lt;-</span> <span class='va'>q</span> <span class='op'>+</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='va'>p</span></span>
+<span>    <span class='co'># Make a full step for the momentum, except at end of trajectory</span></span>
+<span>    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>i</span> <span class='op'>!=</span> <span class='va'>L</span><span class='op'>)</span> <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>  <span class='co'># Make a half step for momentum at the end</span></span>
+<span>  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='va'>p</span> <span class='op'>-</span> <span class='va'>epsilon</span> <span class='op'>*</span> <span class='fu'>grad_U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span></span>
+<span>  <span class='co'># Negate momentum at end of trajectory to make the proposal symmetric</span></span>
+<span>  <span class='va'>p</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>p</span></span>
+<span>  <span class='co'># Evaluate potential and kinetic energies at start and end of trajectory </span></span>
+<span>  <span class='va'>current_U</span> <span class='op'>&lt;-</span> <span class='fu'>U</span><span class='op'>(</span><span class='va'>current_q</span><span class='op'>)</span></span>
+<span>  <span class='va'>current_K</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sum.html'>sum</a></span><span class='op'>(</span><span class='va'>current_p</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span></span>
+<span>  <span class='va'>proposed_U</span> <span class='op'>&lt;-</span> <span class='fu'>U</span><span class='op'>(</span><span class='va'>q</span><span class='op'>)</span></span>
+<span>  <span class='va'>proposed_K</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sum.html'>sum</a></span><span class='op'>(</span><span class='va'>p</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>)</span> <span class='op'>/</span> <span class='fl'>2</span></span>
+<span>  <span class='co'># Accept or reject the state at end of trajectory, returning either</span></span>
+<span>  <span class='co'># the position at the end of the trajectory or the initial position</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span> <span class='op'>&lt;</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='va'>current_U</span><span class='op'>-</span><span class='va'>proposed_U</span><span class='op'>+</span><span class='va'>current_K</span><span class='op'>-</span><span class='va'>proposed_K</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='kw'><a href='https://rdrr.io/r/base/function.html'>return</a></span> <span class='op'>(</span><span class='va'>q</span><span class='op'>)</span>  <span class='co'># accept</span></span>
+<span>  <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span></span>
+<span>    <span class='kw'><a href='https://rdrr.io/r/base/function.html'>return</a></span> <span class='op'>(</span><span class='va'>current_q</span><span class='op'>)</span>  <span class='co'># reject</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>Hopefully, you find this piece of code as helpful as I do. Are we through yet? Well, so far we haven’t encountered the last magic word: NUTS. What, or who, is NUTS?</p>

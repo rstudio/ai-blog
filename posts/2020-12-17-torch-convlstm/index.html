@@ -2226,18 +2226,16 @@ Keras, on the other hand, has one. If you’re interested in quickly playing aro
 <p>In Keras, to create an LSTM you may write something like this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>The <code>torch</code> equivalent would be:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span>
-  input_size <span class='op'>=</span> <span class='fl'>2</span>, <span class='co'># number of input features</span>
-  hidden_size <span class='op'>=</span> <span class='fl'>1</span> <span class='co'># number of hidden (and output!) features</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span></span>
+<span>  input_size <span class='op'>=</span> <span class='fl'>2</span>, <span class='co'># number of input features</span></span>
+<span>  hidden_size <span class='op'>=</span> <span class='fl'>1</span> <span class='co'># number of hidden (and output!) features</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Don’t focus on <code>torch</code>‘s <code>input_size</code> parameter for this discussion. (It’s the number of features in the input tensor.) The parallel occurs between Keras’ <code>units</code> and <code>torch</code>’s <code>hidden_size</code>. If you’ve been using Keras, you’re probably thinking of <code>units</code> as the thing that determines output size (equivalently, the number of features in the output). So when <code>torch</code> lets us arrive at the same result using <code>hidden_size</code>, what does that mean? It means that somehow we’re specifying the same thing, using different terminology. And it does make sense, since at every time step current input and previous hidden state are added<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>:</p>
@@ -2352,57 +2350,56 @@ h_t = o_t \odot \tanh(c_t)
 <p>Note how the <code>channels</code> dimension, which in the original input data would correspond to different variables, is creatively used to consolidate four convolutions into one: Each channel output will be passed to just one of the four cell gates. Once in possession of the convolution output, <code>forward()</code> applies the gate logic, resulting in the two types of states it needs to send back to the caller.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/nteetor/zeallot'>zeallot</a></span><span class='op'>)</span>
-
-<span class='va'>convlstm_cell</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dim</span>, <span class='va'>kernel_size</span>, <span class='va'>bias</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span> <span class='op'>&lt;-</span> <span class='va'>hidden_dim</span>
-    
-    <span class='va'>padding</span> <span class='op'>&lt;-</span> <span class='va'>kernel_size</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%/%</a></span> <span class='fl'>2</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv2d</span><span class='op'>(</span>
-      in_channels <span class='op'>=</span> <span class='va'>input_dim</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,
-      <span class='co'># for each of input, forget, output, and cell gates</span>
-      out_channels <span class='op'>=</span> <span class='fl'>4</span> <span class='op'>*</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,
-      kernel_size <span class='op'>=</span> <span class='va'>kernel_size</span>,
-      padding <span class='op'>=</span> <span class='va'>padding</span>,
-      bias <span class='op'>=</span> <span class='va'>bias</span>
-    <span class='op'>)</span>
-  <span class='op'>}</span>,
-  
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>prev_states</span><span class='op'>)</span> <span class='op'>{</span>
-
-    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h_prev</span>, <span class='va'>c_prev</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>prev_states</span>
-    
-    <span class='va'>combined</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>h_prev</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>  <span class='co'># concatenate along channel axis</span>
-    <span class='va'>combined_conv</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv</span><span class='op'>(</span><span class='va'>combined</span><span class='op'>)</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>cc_i</span>, <span class='va'>cc_f</span>, <span class='va'>cc_o</span>, <span class='va'>cc_g</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>torch_split</span><span class='op'>(</span><span class='va'>combined_conv</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-    
-    <span class='co'># input, forget, output, and cell gates (corresponding to torch's LSTM)</span>
-    <span class='va'>i</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_i</span><span class='op'>)</span>
-    <span class='va'>f</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_f</span><span class='op'>)</span>
-    <span class='va'>o</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_o</span><span class='op'>)</span>
-    <span class='va'>g</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>cc_g</span><span class='op'>)</span>
-    
-    <span class='co'># cell state</span>
-    <span class='va'>c_next</span> <span class='op'>&lt;-</span> <span class='va'>f</span> <span class='op'>*</span> <span class='va'>c_prev</span> <span class='op'>+</span> <span class='va'>i</span> <span class='op'>*</span> <span class='va'>g</span>
-    <span class='co'># hidden state</span>
-    <span class='va'>h_next</span> <span class='op'>&lt;-</span> <span class='va'>o</span> <span class='op'>*</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>c_next</span><span class='op'>)</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h_next</span>, <span class='va'>c_next</span><span class='op'>)</span>
-  <span class='op'>}</span>,
-  
-  init_hidden <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span>,
-      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/nteetor/zeallot'>zeallot</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>convlstm_cell</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dim</span>, <span class='va'>kernel_size</span>, <span class='va'>bias</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span> <span class='op'>&lt;-</span> <span class='va'>hidden_dim</span></span>
+<span>    </span>
+<span>    <span class='va'>padding</span> <span class='op'>&lt;-</span> <span class='va'>kernel_size</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%/%</a></span> <span class='fl'>2</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span> <span class='op'>&lt;-</span> <span class='fu'>nn_conv2d</span><span class='op'>(</span></span>
+<span>      in_channels <span class='op'>=</span> <span class='va'>input_dim</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,</span>
+<span>      <span class='co'># for each of input, forget, output, and cell gates</span></span>
+<span>      out_channels <span class='op'>=</span> <span class='fl'>4</span> <span class='op'>*</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>,</span>
+<span>      kernel_size <span class='op'>=</span> <span class='va'>kernel_size</span>,</span>
+<span>      padding <span class='op'>=</span> <span class='va'>padding</span>,</span>
+<span>      bias <span class='op'>=</span> <span class='va'>bias</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>prev_states</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h_prev</span>, <span class='va'>c_prev</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>prev_states</span></span>
+<span>    </span>
+<span>    <span class='va'>combined</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>h_prev</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>  <span class='co'># concatenate along channel axis</span></span>
+<span>    <span class='va'>combined_conv</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='fu'>conv</span><span class='op'>(</span><span class='va'>combined</span><span class='op'>)</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>cc_i</span>, <span class='va'>cc_f</span>, <span class='va'>cc_o</span>, <span class='va'>cc_g</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>torch_split</span><span class='op'>(</span><span class='va'>combined_conv</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='co'># input, forget, output, and cell gates (corresponding to torch's LSTM)</span></span>
+<span>    <span class='va'>i</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_i</span><span class='op'>)</span></span>
+<span>    <span class='va'>f</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_f</span><span class='op'>)</span></span>
+<span>    <span class='va'>o</span> <span class='op'>&lt;-</span> <span class='fu'>torch_sigmoid</span><span class='op'>(</span><span class='va'>cc_o</span><span class='op'>)</span></span>
+<span>    <span class='va'>g</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>cc_g</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='co'># cell state</span></span>
+<span>    <span class='va'>c_next</span> <span class='op'>&lt;-</span> <span class='va'>f</span> <span class='op'>*</span> <span class='va'>c_prev</span> <span class='op'>+</span> <span class='va'>i</span> <span class='op'>*</span> <span class='va'>g</span></span>
+<span>    <span class='co'># hidden state</span></span>
+<span>    <span class='va'>h_next</span> <span class='op'>&lt;-</span> <span class='va'>o</span> <span class='op'>*</span> <span class='fu'>torch_tanh</span><span class='op'>(</span><span class='va'>c_next</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h_next</span>, <span class='va'>c_next</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  init_hidden <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span>,</span>
+<span>      <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>hidden_dim</span>, <span class='va'>height</span>, <span class='va'>width</span>, device <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>conv</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>device</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Now <code>convlstm_cell</code> has to be called for every time step. This is done by <code>convlstm</code>.</p>
@@ -2412,78 +2409,77 @@ h_t = o_t \odot \tanh(c_t)
 <p>We also keep track of intermediate outputs, so we’ll be able to return the complete list of <code>hidden_state</code>s seen during the process. Unlike a <code>torch</code> LSTM, we do this <em>for every layer</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>convlstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  <span class='co'># hidden_dims and kernel_sizes are vectors, with one element for each layer in n_layers</span>
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dims</span>, <span class='va'>kernel_sizes</span>, <span class='va'>n_layers</span>, <span class='va'>bias</span> <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>{</span>
- 
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span> <span class='op'>&lt;-</span> <span class='va'>n_layers</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>cur_input_dim</span> <span class='op'>&lt;-</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>i</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span> <span class='va'>input_dim</span> <span class='kw'>else</span> <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>]</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>$</span><span class='fu'>append</span><span class='op'>(</span><span class='fu'>convlstm_cell</span><span class='op'>(</span><span class='va'>cur_input_dim</span>, <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>kernel_sizes</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>bias</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='op'>}</span>
-  <span class='op'>}</span>,
-  
-  <span class='co'># we always assume batch-first</span>
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>seq_len</span>, <span class='va'>num_channels</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>size</span><span class='op'>(</span><span class='op'>)</span>
-   
-    <span class='co'># initialize hidden states</span>
-    <span class='va'>init_hidden</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>init_hidden</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>init_hidden</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span>
-    <span class='op'>}</span>
-    
-    <span class='co'># list containing the outputs, of length seq_len, for each layer</span>
-    <span class='co'># this is the same as h, at each step in the sequence</span>
-    <span class='va'>layer_output_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
-    
-    <span class='co'># list containing the last states (h, c) for each layer</span>
-    <span class='va'>layer_state_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span>
-
-    <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>x</span>
-    <span class='va'>hidden_states</span> <span class='op'>&lt;-</span> <span class='va'>init_hidden</span>
-    
-    <span class='co'># loop over layers</span>
-    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span>
-      
-      <span class='co'># every layer's hidden state starts from 0 (non-stateful)</span>
-      <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>hidden_states</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span>
-      <span class='co'># outputs, of length seq_len, for this layer</span>
-      <span class='co'># equivalently, list of h states for each time step</span>
-      <span class='va'>output_sequence</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>seq_len</span><span class='op'>)</span>
-      
-      <span class='co'># loop over time steps</span>
-      <span class='kw'>for</span> <span class='op'>(</span><span class='va'>t</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>seq_len</span><span class='op'>)</span> <span class='op'>{</span>
-        <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>cur_layer_input</span><span class='op'>[</span> , <span class='va'>t</span>, , , <span class='op'>]</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span><span class='op'>)</span>
-        <span class='co'># keep track of output (h) for every time step</span>
-        <span class='co'># h has dim (batch_size, hidden_size, height, width)</span>
-        <span class='va'>output_sequence</span><span class='op'>[[</span><span class='va'>t</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>h</span>
-      <span class='op'>}</span>
-
-      <span class='co'># stack hs for all time steps over seq_len dimension</span>
-      <span class='co'># stacked_outputs has dim (batch_size, seq_len, hidden_size, height, width)</span>
-      <span class='co'># same as input to forward (x)</span>
-      <span class='va'>stacked_outputs</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>output_sequence</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-      
-      <span class='co'># pass the list of outputs (hs) to next layer</span>
-      <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span>
-      
-      <span class='co'># keep track of list of outputs or this layer</span>
-      <span class='va'>layer_output_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span>
-      <span class='co'># keep track of last state for this layer</span>
-      <span class='va'>layer_state_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span>
-    <span class='op'>}</span>
- 
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>layer_output_list</span>, <span class='va'>layer_state_list</span><span class='op'>)</span>
-  <span class='op'>}</span>
-    
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>convlstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  <span class='co'># hidden_dims and kernel_sizes are vectors, with one element for each layer in n_layers</span></span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dims</span>, <span class='va'>kernel_sizes</span>, <span class='va'>n_layers</span>, <span class='va'>bias</span> <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span> </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span> <span class='op'>&lt;-</span> <span class='va'>n_layers</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module_list</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>cur_input_dim</span> <span class='op'>&lt;-</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>i</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span> <span class='va'>input_dim</span> <span class='kw'>else</span> <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>]</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>$</span><span class='fu'>append</span><span class='op'>(</span><span class='fu'>convlstm_cell</span><span class='op'>(</span><span class='va'>cur_input_dim</span>, <span class='va'>hidden_dims</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>kernel_sizes</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>bias</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  <span class='co'># we always assume batch-first</span></span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>seq_len</span>, <span class='va'>num_channels</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>size</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>   </span>
+<span>    <span class='co'># initialize hidden states</span></span>
+<span>    <span class='va'>init_hidden</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>init_hidden</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>init_hidden</span><span class='op'>(</span><span class='va'>batch_size</span>, <span class='va'>height</span>, <span class='va'>width</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    </span>
+<span>    <span class='co'># list containing the outputs, of length seq_len, for each layer</span></span>
+<span>    <span class='co'># this is the same as h, at each step in the sequence</span></span>
+<span>    <span class='va'>layer_output_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='co'># list containing the last states (h, c) for each layer</span></span>
+<span>    <span class='va'>layer_state_list</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>x</span></span>
+<span>    <span class='va'>hidden_states</span> <span class='op'>&lt;-</span> <span class='va'>init_hidden</span></span>
+<span>    </span>
+<span>    <span class='co'># loop over layers</span></span>
+<span>    <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>self</span><span class='op'>$</span><span class='va'>n_layers</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      </span>
+<span>      <span class='co'># every layer's hidden state starts from 0 (non-stateful)</span></span>
+<span>      <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>hidden_states</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span></span>
+<span>      <span class='co'># outputs, of length seq_len, for this layer</span></span>
+<span>      <span class='co'># equivalently, list of h states for each time step</span></span>
+<span>      <span class='va'>output_sequence</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>seq_len</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='co'># loop over time steps</span></span>
+<span>      <span class='kw'>for</span> <span class='op'>(</span><span class='va'>t</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>seq_len</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>        <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>cell_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span><span class='op'>(</span><span class='va'>cur_layer_input</span><span class='op'>[</span> , <span class='va'>t</span>, , , <span class='op'>]</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>        <span class='co'># keep track of output (h) for every time step</span></span>
+<span>        <span class='co'># h has dim (batch_size, hidden_size, height, width)</span></span>
+<span>        <span class='va'>output_sequence</span><span class='op'>[[</span><span class='va'>t</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>h</span></span>
+<span>      <span class='op'>}</span></span>
+<span></span>
+<span>      <span class='co'># stack hs for all time steps over seq_len dimension</span></span>
+<span>      <span class='co'># stacked_outputs has dim (batch_size, seq_len, hidden_size, height, width)</span></span>
+<span>      <span class='co'># same as input to forward (x)</span></span>
+<span>      <span class='va'>stacked_outputs</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>output_sequence</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='co'># pass the list of outputs (hs) to next layer</span></span>
+<span>      <span class='va'>cur_layer_input</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span></span>
+<span>      </span>
+<span>      <span class='co'># keep track of list of outputs or this layer</span></span>
+<span>      <span class='va'>layer_output_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>stacked_outputs</span></span>
+<span>      <span class='co'># keep track of last state for this layer</span></span>
+<span>      <span class='va'>layer_state_list</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>h</span>, <span class='va'>c</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span> </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>layer_output_list</span>, <span class='va'>layer_state_list</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span>    </span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h3 id="calling-the-convlstm">Calling the <code>convlstm</code></h3>
@@ -2491,72 +2487,67 @@ h_t = o_t \odot \tanh(c_t)
 <p>Here is a suitable input tensor.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># batch_size, seq_len, channels, height, width</span>
-<span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_rand</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span>, <span class='fl'>3</span>, <span class='fl'>16</span>, <span class='fl'>16</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># batch_size, seq_len, channels, height, width</span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_rand</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>4</span>, <span class='fl'>3</span>, <span class='fl'>16</span>, <span class='fl'>16</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>First we make use of a single layer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fl'>5</span>, kernel_sizes <span class='op'>=</span> <span class='fl'>3</span>, n_layers <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fl'>5</span>, kernel_sizes <span class='op'>=</span> <span class='fl'>3</span>, n_layers <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>We get back a list of length two, which we immediately split up into the two types of output returned: intermediate outputs from all layers, and final states (of both types) for the last layer.</p>
 <p>With just a single layer, <code>layer_outputs[[1]]</code>holds all of the layer’s intermediate outputs, stacked on dimension two.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># [1]  2  4  5 16 16</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># [1]  2  4  5 16 16</span></span></code></pre>
 </div>
 </div>
 <p><code>layer_last_states[[1]]</code>is a list of tensors, the first of which holds the single layer’s final hidden state, and the second, its final cell state.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># [1]  2  5 16 16</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># [1]  2  5 16 16</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># [1]  2  5 16 16</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># [1]  2  5 16 16</span></span></code></pre>
 </div>
 </div>
 <p>For comparison, this is how return values look for a multi-layer architecture.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
-
-<span class='co'># for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># 2  4  5 16 16</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># 2  4  1 16 16</span>
-
-<span class='co'># list of 2 tensors for each layer</span>
-<span class='fu'><a href='https://rdrr.io/r/utils/str.html'>str</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>)</span>
-<span class='co'># List of 3</span>
-<span class='co'>#  $ :List of 2</span>
-<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
-<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
-<span class='co'>#  $ :List of 2</span>
-<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
-<span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span>
-<span class='co'>#  $ :List of 2</span>
-<span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span>
-<span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span>
-
-<span class='co'># h, of size (batch_size, hidden_size, height, width)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># 2  1 16 16</span>
-
-<span class='co'># c, of size (batch_size, hidden_size, height, width)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span>
-<span class='co'># 2  1 16 16</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>3</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>5</span>, <span class='fl'>5</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>layer_outputs</span>, <span class='va'>layer_last_states</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># for each layer, tensor of size (batch_size, seq_len, hidden_size, height, width)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># 2  4  5 16 16</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_outputs</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># 2  4  1 16 16</span></span>
+<span></span>
+<span><span class='co'># list of 2 tensors for each layer</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/utils/str.html'>str</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>)</span></span>
+<span><span class='co'># List of 3</span></span>
+<span><span class='co'>#  $ :List of 2</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span></span>
+<span><span class='co'>#  $ :List of 2</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:5, 1:16, 1:16]</span></span>
+<span><span class='co'>#  $ :List of 2</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span></span>
+<span><span class='co'>#   ..$ :Float [1:2, 1:1, 1:16, 1:16]</span></span>
+<span></span>
+<span><span class='co'># h, of size (batch_size, hidden_size, height, width)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># 2  1 16 16</span></span>
+<span></span>
+<span><span class='co'># c, of size (batch_size, hidden_size, height, width)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>layer_last_states</span><span class='op'>[[</span><span class='fl'>3</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='co'># 2  1 16 16</span></span></code></pre>
 </div>
 </div>
 <p>Now we want to sanity-check this module with the simplest-possible dummy data.</p>
@@ -2565,99 +2556,94 @@ h_t = o_t \odot \tanh(c_t)
 <p>Each sequence consists of six time steps, and each beam of six pixels. Just a single sequence is created manually. To create that one sequence, we start from a single beam:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torchvision.mlverse.org'>torchvision</a></span><span class='op'>)</span>
-
-<span class='va'>beams</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>6</span><span class='op'>)</span>
-<span class='va'>beam</span> <span class='op'>&lt;-</span> <span class='fu'>torch_eye</span><span class='op'>(</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>nnf_pad</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>6</span>, <span class='fl'>12</span>, <span class='fl'>12</span>, <span class='fl'>6</span><span class='op'>)</span><span class='op'>)</span> <span class='co'># left, right, top, bottom</span>
-<span class='va'>beams</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>beam</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torchvision.mlverse.org'>torchvision</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>beams</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>6</span><span class='op'>)</span></span>
+<span><span class='va'>beam</span> <span class='op'>&lt;-</span> <span class='fu'>torch_eye</span><span class='op'>(</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>nnf_pad</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>6</span>, <span class='fl'>12</span>, <span class='fl'>12</span>, <span class='fl'>6</span><span class='op'>)</span><span class='op'>)</span> <span class='co'># left, right, top, bottom</span></span>
+<span><span class='va'>beams</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>beam</span></span></code></pre>
 </div>
 </div>
 <p>Using <code>torch_roll()</code> , we create a pattern where this beam moves up diagonally, and stack the individual tensors along the <code>timesteps</code> dimension.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>beams</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>torch_roll</span><span class='op'>(</span><span class='va'>beam</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='op'>(</span><span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>,<span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>init_sequence</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>beams</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>6</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>beams</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>torch_roll</span><span class='op'>(</span><span class='va'>beam</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>-</span><span class='op'>(</span><span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>,<span class='va'>i</span><span class='op'>-</span><span class='fl'>1</span><span class='op'>)</span>, <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>init_sequence</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>beams</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>That’s a single sequence. Thanks to <code>torchvision::transform_random_affine()</code>, we almost effortlessly produce a dataset of a hundred sequences. Moving beams start at random points in the spatial frame, but they all share that upward-diagonal motion.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sequences</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span>
-<span class='va'>sequences</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>init_sequence</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>100</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>sequences</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>transform_random_affine</span><span class='op'>(</span><span class='va'>init_sequence</span>, degrees <span class='op'>=</span> <span class='fl'>0</span>, translate <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.5</span>, <span class='fl'>0.5</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>sequences</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-
-<span class='co'># add channels dimension</span>
-<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='va'>input</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>3</span><span class='op'>)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-<span class='co'># [1] 100   6  1  24  24</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>sequences</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span></span>
+<span><span class='va'>sequences</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>init_sequence</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>2</span><span class='op'>:</span><span class='fl'>100</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>sequences</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>transform_random_affine</span><span class='op'>(</span><span class='va'>init_sequence</span>, degrees <span class='op'>=</span> <span class='fl'>0</span>, translate <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.5</span>, <span class='fl'>0.5</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_stack</span><span class='op'>(</span><span class='va'>sequences</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># add channels dimension</span></span>
+<span><span class='va'>input</span> <span class='op'>&lt;-</span> <span class='va'>input</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>3</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span><span class='co'># [1] 100   6  1  24  24</span></span></code></pre>
 </div>
 </div>
 <p>That’s it for the raw data. Now we still need a <code>dataset</code> and a <code>dataloader</code>. Of the six time steps, we use the first five as input and try to predict the last one.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>dummy_ds</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='va'>data</span>
-  <span class='op'>}</span>,
-  
-  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>5</span>, <span class='va'>..</span><span class='op'>]</span>, y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>6</span>, <span class='va'>..</span><span class='op'>]</span><span class='op'>)</span>
-  <span class='op'>}</span>,
-  
-  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>)</span>
-  <span class='op'>}</span>
-<span class='op'>)</span>
-
-<span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>dummy_ds</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-<span class='va'>dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>ds</span>, batch_size <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>dummy_ds</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='va'>data</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>5</span>, <span class='va'>..</span><span class='op'>]</span>, y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>6</span>, <span class='va'>..</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>data</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>dummy_ds</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span><span class='va'>dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>ds</span>, batch_size <span class='op'>=</span> <span class='fl'>100</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Here is a tiny-ish convLSTM, trained for motion prediction:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>1</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-
-<span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optim_adam</span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span><span class='op'>)</span>
-
-<span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>model</span><span class='op'>$</span><span class='fu'>train</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span>
-  
-  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='fu'>enumerate</span><span class='op'>(</span><span class='va'>dl</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>zero_grad</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='co'># last-time-step output from last layer</span>
-    <span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
-  
-    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>preds</span>, <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>)</span>
-    <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_losses</span>, <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-    
-    <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>step</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='op'>}</span>
-  
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>10</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, training loss:%3f\n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>batch_losses</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>convlstm</span><span class='op'>(</span>input_dim <span class='op'>=</span> <span class='fl'>1</span>, hidden_dims <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>1</span><span class='op'>)</span>, kernel_sizes <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>3</span><span class='op'>)</span>, n_layers <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optim_adam</span><span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>model</span><span class='op'>$</span><span class='fu'>train</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='fu'>enumerate</span><span class='op'>(</span><span class='va'>dl</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>zero_grad</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='co'># last-time-step output from last layer</span></span>
+<span>    <span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span></span>
+<span>  </span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>preds</span>, <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>)</span></span>
+<span>    <span class='va'>batch_losses</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>batch_losses</span>, <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>step</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>10</span> <span class='op'>==</span> <span class='fl'>0</span><span class='op'>)</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, training loss:%3f\n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>batch_losses</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <pre><code>Epoch 10, training loss:0.008522
@@ -2683,8 +2669,7 @@ Epoch 100, training loss:0.001171</code></pre>
 <p>For printing, I’m zooming in on the relevant region in the 24x24-pixel frame. Here is the ground truth for time step six:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span></span></code></pre>
 </div>
 </div>
 <pre><code>0  0  0  0  0  0  0  0  0  0
@@ -2700,8 +2685,7 @@ Epoch 100, training loss:0.001171</code></pre>
 <p>And here is the forecast. This does not look bad at all, given there was neither experimentation nor tuning involved.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>preds</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span><span class='op'>)</span>, <span class='fl'>2</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>preds</span><span class='op'>[</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>6</span><span class='op'>:</span><span class='fl'>15</span>, <span class='fl'>10</span><span class='op'>:</span><span class='fl'>19</span><span class='op'>]</span><span class='op'>)</span>, <span class='fl'>2</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <pre><code>       [,1]  [,2]  [,3]  [,4]  [,5]  [,6]  [,7]  [,8]  [,9] [,10]
@@ -2723,193 +2707,189 @@ Epoch 100, training loss:0.001171</code></pre>
 <h4 id="lstm">LSTM</h4>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span>
-
-<span class='co'># batch of 3, with 4 time steps each and a single feature</span>
-<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_normal</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3L</span>, <span class='fl'>4L</span>, <span class='fl'>1L</span><span class='op'>)</span><span class='op'>)</span>
-<span class='va'>input</span>
-
-<span class='co'># default args</span>
-<span class='co'># return shape = (batch_size, units)</span>
-<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_sequences = TRUE</span>
-<span class='co'># return shape = (batch_size, time steps, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span>
-<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-  <span class='co'># bias is by default initialized to 0</span>
-<span class='op'>)</span>
-<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_state = TRUE</span>
-<span class='co'># return shape = list of:</span>
-<span class='co'>#                - outputs, of shape: (batch_size, units)</span>
-<span class='co'>#                - "memory states" for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how the first and second list items are identical!</span>
-<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_state = TRUE, return_sequences = TRUE</span>
-<span class='co'># return shape = list of:</span>
-<span class='co'>#                - outputs, of shape: (batch_size, time steps, units)</span>
-<span class='co'>#                - "memory" states for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how again, the "memory" state found in list item 2 matches the final-time step outputs reported in item 1</span>
-<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># batch of 3, with 4 time steps each and a single feature</span></span>
+<span><span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_normal</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3L</span>, <span class='fl'>4L</span>, <span class='fl'>1L</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='va'>input</span></span>
+<span></span>
+<span><span class='co'># default args</span></span>
+<span><span class='co'># return shape = (batch_size, units)</span></span>
+<span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_sequences = TRUE</span></span>
+<span><span class='co'># return shape = (batch_size, time steps, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span></span>
+<span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span>  <span class='co'># bias is by default initialized to 0</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_state = TRUE</span></span>
+<span><span class='co'># return shape = list of:</span></span>
+<span><span class='co'>#                - outputs, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#                - "memory states" for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how the first and second list items are identical!</span></span>
+<span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_state = TRUE, return_sequences = TRUE</span></span>
+<span><span class='co'># return shape = list of:</span></span>
+<span><span class='co'>#                - outputs, of shape: (batch_size, time steps, units)</span></span>
+<span><span class='co'>#                - "memory" states for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#                - "carry states" for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how again, the "memory" state found in list item 2 matches the final-time step outputs reported in item 1</span></span>
+<span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>layer_lstm</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h4 id="gru">GRU</h4>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># default args</span>
-<span class='co'># return shape = (batch_size, units)</span>
-<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_sequences = TRUE</span>
-<span class='co'># return shape = (batch_size, time steps, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span>
-<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_state = TRUE</span>
-<span class='co'># return shape = list of:</span>
-<span class='co'>#    - outputs, of shape: (batch_size, units)</span>
-<span class='co'>#    - "memory" states for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how the list items are identical!</span>
-<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-
-<span class='co'># return_state = TRUE, return_sequences = TRUE</span>
-<span class='co'># return shape = list of:</span>
-<span class='co'>#    - outputs, of shape: (batch_size, time steps, units)</span>
-<span class='co'>#    - "memory states" for the last time step, of shape: (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note how again, the "memory state" found in list item 2 matches the final-time-step outputs reported in item 1</span>
-<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span>
-  units <span class='op'>=</span> <span class='fl'>1</span>,
-  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,
-  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
-  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-<span class='op'>)</span>
-<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># default args</span></span>
+<span><span class='co'># return shape = (batch_size, units)</span></span>
+<span><span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_sequences = TRUE</span></span>
+<span><span class='co'># return shape = (batch_size, time steps, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how for each item in the batch, the value for time step 4 equals that obtained above</span></span>
+<span><span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_state = TRUE</span></span>
+<span><span class='co'># return shape = list of:</span></span>
+<span><span class='co'>#    - outputs, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#    - "memory" states for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how the list items are identical!</span></span>
+<span><span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># return_state = TRUE, return_sequences = TRUE</span></span>
+<span><span class='co'># return shape = list of:</span></span>
+<span><span class='co'>#    - outputs, of shape: (batch_size, time steps, units)</span></span>
+<span><span class='co'>#    - "memory states" for the last time step, of shape: (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note how again, the "memory state" found in list item 2 matches the final-time-step outputs reported in item 1</span></span>
+<span><span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>layer_gru</span><span class='op'>(</span></span>
+<span>  units <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>  return_sequences <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  return_state <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  kernel_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>  recurrent_initializer <span class='op'>=</span> <span class='fu'>initializer_constant</span><span class='op'>(</span>value <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h3 id="torch"><code>torch</code></h3>
 <h4 id="lstm-non-stacked-architecture">LSTM (non-stacked architecture)</h4>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span>
-
-<span class='co'># batch of 3, with 4 time steps each and a single feature</span>
-<span class='co'># we will specify batch_first = TRUE when creating the LSTM</span>
-<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>4</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>
-<span class='va'>input</span>
-
-<span class='co'># default args</span>
-<span class='co'># return shape = (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked LSTM - effectively composing two LSTM modules</span>
-<span class='co'># default for num_layers is 1 though </span>
-<span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span>
-  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span>
-  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span>
-  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span>
-<span class='op'>)</span>
-
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
-
-<span class='co'># returns a list of length 2, namely</span>
-<span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span>
-<span class='co'>#       Note 1: If this is a stacked LSTM, these are the outputs from the last layer only.</span>
-<span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer LSTMs.</span>
-<span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span>
-<span class='co'>#  - list of:</span>
-<span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
-<span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
-<span class='co'>#      Note 3: For a single-layer LSTM, the hidden states are already provided in the first list item.</span>
-
-<span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># batch of 3, with 4 time steps each and a single feature</span></span>
+<span><span class='co'># we will specify batch_first = TRUE when creating the LSTM</span></span>
+<span><span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>4</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='va'>input</span></span>
+<span></span>
+<span><span class='co'># default args</span></span>
+<span><span class='co'># return shape = (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked LSTM - effectively composing two LSTM modules</span></span>
+<span><span class='co'># default for num_layers is 1 though </span></span>
+<span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='fu'>nn_lstm</span><span class='op'>(</span></span>
+<span>  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span></span>
+<span>  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span></span>
+<span>  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>lstm</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># returns a list of length 2, namely</span></span>
+<span><span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span></span>
+<span><span class='co'>#       Note 1: If this is a stacked LSTM, these are the outputs from the last layer only.</span></span>
+<span><span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer LSTMs.</span></span>
+<span><span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span></span>
+<span><span class='co'>#  - list of:</span></span>
+<span><span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span></span>
+<span><span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span></span>
+<span><span class='co'>#      Note 3: For a single-layer LSTM, the hidden states are already provided in the first list item.</span></span>
+<span></span>
+<span><span class='fu'>lstm</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h4 id="gru-non-stacked-architecture">GRU (non-stacked architecture)</h4>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># default args</span>
-<span class='co'># return shape = (batch_size, units)</span>
-<span class='co'>#</span>
-<span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked GRU - effectively composing two GRU modules</span>
-<span class='co'># default for num_layers is 1 though </span>
-<span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>nn_gru</span><span class='op'>(</span>
-  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span>
-  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span>
-  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span>
-<span class='op'>)</span>
-
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
-<span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span>
-
-<span class='co'># returns a list of length 2, namely</span>
-<span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span>
-<span class='co'>#       Note 1: If this is a stacked GRU, these are the outputs from the last layer only.</span>
-<span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer GRUs.</span>
-<span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span>
-<span class='co'>#  - list of:</span>
-<span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
-<span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span>
-<span class='co'>#       Note 3: For a single-layer GRU, these values are already provided in the first list item.</span>
-<span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># default args</span></span>
+<span><span class='co'># return shape = (batch_size, units)</span></span>
+<span><span class='co'>#</span></span>
+<span><span class='co'># note: there is an additional argument num_layers that we could use to specify a stacked GRU - effectively composing two GRU modules</span></span>
+<span><span class='co'># default for num_layers is 1 though </span></span>
+<span><span class='va'>gru</span> <span class='op'>&lt;-</span> <span class='fu'>nn_gru</span><span class='op'>(</span></span>
+<span>  input_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of input features</span></span>
+<span>  hidden_size <span class='op'>=</span> <span class='fl'>1</span>, <span class='co'># number of hidden (and output!) features</span></span>
+<span>  batch_first <span class='op'>=</span> <span class='cn'>TRUE</span> <span class='co'># for easy comparability with Keras</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_ih_l1</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>weight_hh_l1</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_ih_l1</span>, <span class='fl'>0</span><span class='op'>)</span></span>
+<span><span class='fu'>nn_init_constant_</span><span class='op'>(</span><span class='va'>gru</span><span class='op'>$</span><span class='va'>bias_hh_l1</span>, <span class='fl'>0</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># returns a list of length 2, namely</span></span>
+<span><span class='co'>#   - outputs, of shape (batch_size, time steps, hidden_size) - given we specified batch_first</span></span>
+<span><span class='co'>#       Note 1: If this is a stacked GRU, these are the outputs from the last layer only.</span></span>
+<span><span class='co'>#               For our current purpose, this is irrelevant, as we're restricting ourselves to single-layer GRUs.</span></span>
+<span><span class='co'>#       Note 2: hidden_size here is equivalent to units in Keras - both specify number of features</span></span>
+<span><span class='co'>#  - list of:</span></span>
+<span><span class='co'>#    - hidden state for the last time step, of shape (num_layers, batch_size, hidden_size)</span></span>
+<span><span class='co'>#    - cell state for the last time step, of shape (num_layers, batch_size, hidden_size)</span></span>
+<span><span class='co'>#       Note 3: For a single-layer GRU, these values are already provided in the first list item.</span></span>
+<span><span class='fu'>gru</span><span class='op'>(</span><span class='va'>input</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>

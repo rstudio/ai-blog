@@ -2232,140 +2232,138 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>So first, here is the wrapper class - we’ll see how to use it in just a second:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span>
-
-<span class='co'># R6 wrapper class, a subclass of KerasWrapper</span>
-<span class='va'>ConcreteDropout</span> <span class='op'>&lt;-</span> <span class='fu'>R6</span><span class='fu'>::</span><span class='kw'><a href='https://r6.r-lib.org/reference/R6Class.html'>R6Class</a></span><span class='op'>(</span><span class='st'>"ConcreteDropout"</span>,
-  
-  inherit <span class='op'>=</span> <span class='va'>KerasWrapper</span>,
-  
-  public <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-    weight_regularizer <span class='op'>=</span> <span class='cn'>NULL</span>,
-    dropout_regularizer <span class='op'>=</span> <span class='cn'>NULL</span>,
-    init_min <span class='op'>=</span> <span class='cn'>NULL</span>,
-    init_max <span class='op'>=</span> <span class='cn'>NULL</span>,
-    is_mc_dropout <span class='op'>=</span> <span class='cn'>NULL</span>,
-    supports_masking <span class='op'>=</span> <span class='cn'>TRUE</span>,
-    p_logit <span class='op'>=</span> <span class='cn'>NULL</span>,
-    p <span class='op'>=</span> <span class='cn'>NULL</span>,
-    
-    initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>weight_regularizer</span>,
-                          <span class='va'>dropout_regularizer</span>,
-                          <span class='va'>init_min</span>,
-                          <span class='va'>init_max</span>,
-                          <span class='va'>is_mc_dropout</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>weight_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>weight_regularizer</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>is_mc_dropout</span> <span class='op'>&lt;-</span> <span class='va'>is_mc_dropout</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>init_min</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>init_min</span><span class='op'>)</span> <span class='op'>-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>init_min</span><span class='op'>)</span>
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>init_max</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>init_max</span><span class='op'>)</span> <span class='op'>-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>init_max</span><span class='op'>)</span>
-    <span class='op'>}</span>,
-    
-    build <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_shape</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>super</span><span class='op'>$</span><span class='fu'>build</span><span class='op'>(</span><span class='va'>input_shape</span><span class='op'>)</span>
-      
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>p_logit</span> <span class='op'>&lt;-</span> <span class='va'>super</span><span class='op'>$</span><span class='fu'>add_weight</span><span class='op'>(</span>
-        name <span class='op'>=</span> <span class='st'>"p_logit"</span>,
-        shape <span class='op'>=</span> <span class='fu'>shape</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,
-        initializer <span class='op'>=</span> <span class='fu'>initializer_random_uniform</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>init_min</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>init_max</span><span class='op'>)</span>,
-        trainable <span class='op'>=</span> <span class='cn'>TRUE</span>
-      <span class='op'>)</span>
-
-      <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>&lt;-</span> <span class='fu'>k_sigmoid</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p_logit</span><span class='op'>)</span>
-
-      <span class='va'>input_dim</span> <span class='op'>&lt;-</span> <span class='va'>input_shape</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span>
-
-      <span class='va'>weight</span> <span class='op'>&lt;-</span> <span class='va'>private</span><span class='op'>$</span><span class='va'>py_wrapper</span><span class='op'>$</span><span class='va'>layer</span><span class='op'>$</span><span class='va'>kernel</span>
-      
-      <span class='va'>kernel_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>weight_regularizer</span> <span class='op'>*</span> 
-                            <span class='fu'>k_sum</span><span class='op'>(</span><span class='fu'>k_square</span><span class='op'>(</span><span class='va'>weight</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> 
-                            <span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span>
-      
-      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>*</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span>
-      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span> <span class='op'>+</span>  
-                             <span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span> <span class='op'>*</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span>
-      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span> <span class='op'>*</span> 
-                             <span class='va'>self</span><span class='op'>$</span><span class='va'>dropout_regularizer</span> <span class='op'>*</span> 
-                             <span class='fu'>k_cast</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='fu'>k_floatx</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-
-      <span class='va'>regularizer</span> <span class='op'>&lt;-</span> <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>kernel_regularizer</span> <span class='op'>+</span> <span class='va'>dropout_regularizer</span><span class='op'>)</span>
-      <span class='va'>super</span><span class='op'>$</span><span class='fu'>add_loss</span><span class='op'>(</span><span class='va'>regularizer</span><span class='op'>)</span>
-    <span class='op'>}</span>,
-    
-    concrete_dropout <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>eps</span> <span class='op'>&lt;-</span> <span class='fu'>k_cast_to_floatx</span><span class='op'>(</span><span class='fu'>k_epsilon</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='va'>temp</span> <span class='op'>&lt;-</span> <span class='fl'>0.1</span>
-      
-      <span class='va'>unif_noise</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_uniform</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'>k_shape</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
-      
-      <span class='va'>drop_prob</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>-</span> 
-                   <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>+</span> 
-                   <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>unif_noise</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>-</span> 
-                   <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>unif_noise</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span>
-      <span class='va'>drop_prob</span> <span class='op'>&lt;-</span> <span class='fu'>k_sigmoid</span><span class='op'>(</span><span class='va'>drop_prob</span> <span class='op'>/</span> <span class='va'>temp</span><span class='op'>)</span>
-      
-      <span class='va'>random_tensor</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='op'>-</span> <span class='va'>drop_prob</span>
-      
-      <span class='va'>retain_prob</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>*</span> <span class='va'>random_tensor</span>
-      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>/</span> <span class='va'>retain_prob</span>
-      <span class='va'>x</span>
-    <span class='op'>}</span>,
-
-    call <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>training</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='kw'>if</span> <span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>is_mc_dropout</span><span class='op'>)</span> <span class='op'>{</span>
-        <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>concrete_dropout</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span>
-        <span class='fu'>k_in_train_phase</span><span class='op'>(</span>
-          <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span>
-            <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>concrete_dropout</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>,
-          <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>,
-          training <span class='op'>=</span> <span class='va'>training</span>
-        <span class='op'>)</span>
-      <span class='op'>}</span>
-    <span class='op'>}</span>
-  <span class='op'>)</span>
-<span class='op'>)</span>
-
-<span class='co'># function for instantiating custom wrapper</span>
-<span class='va'>layer_concrete_dropout</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>object</span>, 
-                                   <span class='va'>layer</span>,
-                                   <span class='va'>weight_regularizer</span> <span class='op'>=</span> <span class='fl'>1e-6</span>,
-                                   <span class='va'>dropout_regularizer</span> <span class='op'>=</span> <span class='fl'>1e-5</span>,
-                                   <span class='va'>init_min</span> <span class='op'>=</span> <span class='fl'>0.1</span>,
-                                   <span class='va'>init_max</span> <span class='op'>=</span> <span class='fl'>0.1</span>,
-                                   <span class='va'>is_mc_dropout</span> <span class='op'>=</span> <span class='cn'>TRUE</span>,
-                                   <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>,
-                                   <span class='va'>trainable</span> <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'>create_wrapper</span><span class='op'>(</span><span class='va'>ConcreteDropout</span>, <span class='va'>object</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-    layer <span class='op'>=</span> <span class='va'>layer</span>,
-    weight_regularizer <span class='op'>=</span> <span class='va'>weight_regularizer</span>,
-    dropout_regularizer <span class='op'>=</span> <span class='va'>dropout_regularizer</span>,
-    init_min <span class='op'>=</span> <span class='va'>init_min</span>,
-    init_max <span class='op'>=</span> <span class='va'>init_max</span>,
-    is_mc_dropout <span class='op'>=</span> <span class='va'>is_mc_dropout</span>,
-    name <span class='op'>=</span> <span class='va'>name</span>,
-    trainable <span class='op'>=</span> <span class='va'>trainable</span>
-  <span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># R6 wrapper class, a subclass of KerasWrapper</span></span>
+<span><span class='va'>ConcreteDropout</span> <span class='op'>&lt;-</span> <span class='fu'>R6</span><span class='fu'>::</span><span class='kw'><a href='https://r6.r-lib.org/reference/R6Class.html'>R6Class</a></span><span class='op'>(</span><span class='st'>"ConcreteDropout"</span>,</span>
+<span>  </span>
+<span>  inherit <span class='op'>=</span> <span class='va'>KerasWrapper</span>,</span>
+<span>  </span>
+<span>  public <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>    weight_regularizer <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    dropout_regularizer <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    init_min <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    init_max <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    is_mc_dropout <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    supports_masking <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>    p_logit <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    p <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>    </span>
+<span>    initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>weight_regularizer</span>,</span>
+<span>                          <span class='va'>dropout_regularizer</span>,</span>
+<span>                          <span class='va'>init_min</span>,</span>
+<span>                          <span class='va'>init_max</span>,</span>
+<span>                          <span class='va'>is_mc_dropout</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>weight_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>weight_regularizer</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>is_mc_dropout</span> <span class='op'>&lt;-</span> <span class='va'>is_mc_dropout</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>init_min</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>init_min</span><span class='op'>)</span> <span class='op'>-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>init_min</span><span class='op'>)</span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>init_max</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>init_max</span><span class='op'>)</span> <span class='op'>-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>init_max</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span>,</span>
+<span>    </span>
+<span>    build <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_shape</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>super</span><span class='op'>$</span><span class='fu'>build</span><span class='op'>(</span><span class='va'>input_shape</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>p_logit</span> <span class='op'>&lt;-</span> <span class='va'>super</span><span class='op'>$</span><span class='fu'>add_weight</span><span class='op'>(</span></span>
+<span>        name <span class='op'>=</span> <span class='st'>"p_logit"</span>,</span>
+<span>        shape <span class='op'>=</span> <span class='fu'>shape</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>        initializer <span class='op'>=</span> <span class='fu'>initializer_random_uniform</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>init_min</span>, <span class='va'>self</span><span class='op'>$</span><span class='va'>init_max</span><span class='op'>)</span>,</span>
+<span>        trainable <span class='op'>=</span> <span class='cn'>TRUE</span></span>
+<span>      <span class='op'>)</span></span>
+<span></span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>&lt;-</span> <span class='fu'>k_sigmoid</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p_logit</span><span class='op'>)</span></span>
+<span></span>
+<span>      <span class='va'>input_dim</span> <span class='op'>&lt;-</span> <span class='va'>input_shape</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span></span>
+<span></span>
+<span>      <span class='va'>weight</span> <span class='op'>&lt;-</span> <span class='va'>private</span><span class='op'>$</span><span class='va'>py_wrapper</span><span class='op'>$</span><span class='va'>layer</span><span class='op'>$</span><span class='va'>kernel</span></span>
+<span>      </span>
+<span>      <span class='va'>kernel_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>weight_regularizer</span> <span class='op'>*</span> </span>
+<span>                            <span class='fu'>k_sum</span><span class='op'>(</span><span class='fu'>k_square</span><span class='op'>(</span><span class='va'>weight</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> </span>
+<span>                            <span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>*</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span></span>
+<span>      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span> <span class='op'>+</span>  </span>
+<span>                             <span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span> <span class='op'>*</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span><span class='op'>)</span></span>
+<span>      <span class='va'>dropout_regularizer</span> <span class='op'>&lt;-</span> <span class='va'>dropout_regularizer</span> <span class='op'>*</span> </span>
+<span>                             <span class='va'>self</span><span class='op'>$</span><span class='va'>dropout_regularizer</span> <span class='op'>*</span> </span>
+<span>                             <span class='fu'>k_cast</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='fu'>k_floatx</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span>      <span class='va'>regularizer</span> <span class='op'>&lt;-</span> <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>kernel_regularizer</span> <span class='op'>+</span> <span class='va'>dropout_regularizer</span><span class='op'>)</span></span>
+<span>      <span class='va'>super</span><span class='op'>$</span><span class='fu'>add_loss</span><span class='op'>(</span><span class='va'>regularizer</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span>,</span>
+<span>    </span>
+<span>    concrete_dropout <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>eps</span> <span class='op'>&lt;-</span> <span class='fu'>k_cast_to_floatx</span><span class='op'>(</span><span class='fu'>k_epsilon</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='va'>temp</span> <span class='op'>&lt;-</span> <span class='fl'>0.1</span></span>
+<span>      </span>
+<span>      <span class='va'>unif_noise</span> <span class='op'>&lt;-</span> <span class='fu'>k_random_uniform</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'>k_shape</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='va'>drop_prob</span> <span class='op'>&lt;-</span> <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>-</span> </span>
+<span>                   <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>+</span> </span>
+<span>                   <span class='fu'>k_log</span><span class='op'>(</span><span class='va'>unif_noise</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span> <span class='op'>-</span> </span>
+<span>                   <span class='fu'>k_log</span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>-</span> <span class='va'>unif_noise</span> <span class='op'>+</span> <span class='va'>eps</span><span class='op'>)</span></span>
+<span>      <span class='va'>drop_prob</span> <span class='op'>&lt;-</span> <span class='fu'>k_sigmoid</span><span class='op'>(</span><span class='va'>drop_prob</span> <span class='op'>/</span> <span class='va'>temp</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='va'>random_tensor</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='op'>-</span> <span class='va'>drop_prob</span></span>
+<span>      </span>
+<span>      <span class='va'>retain_prob</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>p</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>*</span> <span class='va'>random_tensor</span></span>
+<span>      <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span> <span class='op'>/</span> <span class='va'>retain_prob</span></span>
+<span>      <span class='va'>x</span></span>
+<span>    <span class='op'>}</span>,</span>
+<span></span>
+<span>    call <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>mask</span> <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>training</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='kw'>if</span> <span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>is_mc_dropout</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>        <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>concrete_dropout</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span></span>
+<span>        <span class='fu'>k_in_train_phase</span><span class='op'>(</span></span>
+<span>          <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>            <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='fu'>concrete_dropout</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>,</span>
+<span>          <span class='va'>super</span><span class='op'>$</span><span class='fu'>call</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>,</span>
+<span>          training <span class='op'>=</span> <span class='va'>training</span></span>
+<span>        <span class='op'>)</span></span>
+<span>      <span class='op'>}</span></span>
+<span>    <span class='op'>}</span></span>
+<span>  <span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># function for instantiating custom wrapper</span></span>
+<span><span class='va'>layer_concrete_dropout</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>object</span>, </span>
+<span>                                   <span class='va'>layer</span>,</span>
+<span>                                   <span class='va'>weight_regularizer</span> <span class='op'>=</span> <span class='fl'>1e-6</span>,</span>
+<span>                                   <span class='va'>dropout_regularizer</span> <span class='op'>=</span> <span class='fl'>1e-5</span>,</span>
+<span>                                   <span class='va'>init_min</span> <span class='op'>=</span> <span class='fl'>0.1</span>,</span>
+<span>                                   <span class='va'>init_max</span> <span class='op'>=</span> <span class='fl'>0.1</span>,</span>
+<span>                                   <span class='va'>is_mc_dropout</span> <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>                                   <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span>,</span>
+<span>                                   <span class='va'>trainable</span> <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'>create_wrapper</span><span class='op'>(</span><span class='va'>ConcreteDropout</span>, <span class='va'>object</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>    layer <span class='op'>=</span> <span class='va'>layer</span>,</span>
+<span>    weight_regularizer <span class='op'>=</span> <span class='va'>weight_regularizer</span>,</span>
+<span>    dropout_regularizer <span class='op'>=</span> <span class='va'>dropout_regularizer</span>,</span>
+<span>    init_min <span class='op'>=</span> <span class='va'>init_min</span>,</span>
+<span>    init_max <span class='op'>=</span> <span class='va'>init_max</span>,</span>
+<span>    is_mc_dropout <span class='op'>=</span> <span class='va'>is_mc_dropout</span>,</span>
+<span>    name <span class='op'>=</span> <span class='va'>name</span>,</span>
+<span>    trainable <span class='op'>=</span> <span class='va'>trainable</span></span>
+<span>  <span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>The wrapper instantiator has default arguments, but two of them should be adapted to the data: <code>weight_regularizer</code> and <code>dropout_regularizer</code>. Following the authors’ recommendations, they should be set as follows.</p>
 <p>First, choose a value for hyperparameter <span class="math inline">\(l\)</span>. In this view of a neural network as an approximation to a Gaussian process, <span class="math inline">\(l\)</span> is the <em>prior length-scale</em>, our a priori assumption about the frequency characteristics of the data. Here, we follow Gal’s demo in setting <code>l := 1e-4</code>. Then the initial values for <code>weight_regularizer</code> and <code>dropout_regularizer</code> are derived from the length-scale and the sample size.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># sample size (training data)</span>
-<span class='va'>n_train</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span>
-<span class='co'># sample size (validation data)</span>
-<span class='va'>n_val</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span>
-<span class='co'># prior length-scale</span>
-<span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span>
-<span class='co'># initial value for weight regularizer </span>
-<span class='va'>wd</span> <span class='op'>&lt;-</span> <span class='va'>l</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>/</span><span class='va'>n_train</span>
-<span class='co'># initial value for dropout regularizer</span>
-<span class='va'>dd</span> <span class='op'>&lt;-</span> <span class='fl'>2</span><span class='op'>/</span><span class='va'>n_train</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># sample size (training data)</span></span>
+<span><span class='va'>n_train</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span></span>
+<span><span class='co'># sample size (validation data)</span></span>
+<span><span class='va'>n_val</span> <span class='op'>&lt;-</span> <span class='fl'>1000</span></span>
+<span><span class='co'># prior length-scale</span></span>
+<span><span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span></span>
+<span><span class='co'># initial value for weight regularizer </span></span>
+<span><span class='va'>wd</span> <span class='op'>&lt;-</span> <span class='va'>l</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>/</span><span class='va'>n_train</span></span>
+<span><span class='co'># initial value for dropout regularizer</span></span>
+<span><span class='va'>dd</span> <span class='op'>&lt;-</span> <span class='fl'>2</span><span class='op'>/</span><span class='va'>n_train</span></span></code></pre>
 </div>
 </div>
 <p>Now let’s see how to use the wrapper in a model.</p>
@@ -2373,49 +2371,47 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>In our demonstration, we’ll have a model with three hidden dense layers, each of which will have its dropout rate calculated by a dedicated wrapper.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># we use one-dimensional input data here, but this isn't a necessity</span>
-<span class='va'>input_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-<span class='co'># this too could be &gt; 1 if we wanted</span>
-<span class='va'>output_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-<span class='va'>hidden_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1024</span>
-
-<span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>input_dim</span><span class='op'>)</span>
-
-<span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>input</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-  <span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-  <span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># we use one-dimensional input data here, but this isn't a necessity</span></span>
+<span><span class='va'>input_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span><span class='co'># this too could be &gt; 1 if we wanted</span></span>
+<span><span class='va'>output_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span><span class='va'>hidden_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1024</span></span>
+<span></span>
+<span><span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>input_dim</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>input</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Now, model output is interesting: We have the model yielding not just the <em>predictive (conditional) mean</em>, but also the <em>predictive variance</em> (<span class="math inline">\(\tau^{-1}\)</span> in Gaussian process parlance):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>output</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,
-  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-<span class='op'>)</span>
-
-<span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>output</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-  <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,
-  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-<span class='op'>)</span>
-
-<span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>layer_concatenate</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>log_var</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='va'>input</span>, <span class='va'>output</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>output</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>  layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,</span>
+<span>  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>output</span> <span class='op'>%&gt;%</span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>  <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,</span>
+<span>  weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>  dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>layer_concatenate</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>log_var</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='va'>input</span>, <span class='va'>output</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>The significant thing here is that we learn <em>different variances for different data points</em>. We thus hope to be able to account for <em>heteroscedasticity</em> (different degrees of variability) in the data.</p>
@@ -2430,47 +2426,45 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>This logic maps directly to the code (except that as usual, we’re calculating with the log of the variance, for reasons of numerical stability):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>heteroscedastic_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>
-    <span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>
-    <span class='va'>precision</span> <span class='op'>&lt;-</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_var</span><span class='op'>)</span>
-    <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>precision</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>y_true</span> <span class='op'>-</span> <span class='va'>mean</span><span class='op'>)</span> <span class='op'>^</span> <span class='fl'>2</span> <span class='op'>+</span> <span class='va'>log_var</span>, axis <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-  <span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>heteroscedastic_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span></span>
+<span>    <span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span></span>
+<span>    <span class='va'>precision</span> <span class='op'>&lt;-</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_var</span><span class='op'>)</span></span>
+<span>    <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>precision</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>y_true</span> <span class='op'>-</span> <span class='va'>mean</span><span class='op'>)</span> <span class='op'>^</span> <span class='fl'>2</span> <span class='op'>+</span> <span class='va'>log_var</span>, axis <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <h3 id="training-on-simulated-data">Training on simulated data</h3>
 <p>Now we generate some test data and train the model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>gen_data_1d</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>sigma</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-  <span class='va'>X</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>w</span> <span class='op'>&lt;-</span> <span class='fl'>2</span>
-  <span class='va'>b</span> <span class='op'>&lt;-</span> <span class='fl'>8</span>
-  <span class='va'>Y</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='va'>X</span> <span class='op'><a href='https://rdrr.io/r/base/matmult.html'>%*%</a></span> <span class='va'>w</span> <span class='op'>+</span> <span class='va'>b</span> <span class='op'>+</span> <span class='va'>sigma</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span>, <span class='va'>Y</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X</span>, <span class='va'>Y</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>gen_data_1d</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X_train</span>, <span class='va'>Y_train</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_train</span><span class='op'>]</span>, <span class='va'>Y</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_train</span><span class='op'>]</span><span class='op'>)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X_val</span>, <span class='va'>Y_val</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span><span class='op'>]</span>, 
-                          <span class='va'>Y</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span><span class='op'>]</span><span class='op'>)</span>
-
-<span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span>
-  optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,
-  loss <span class='op'>=</span> <span class='va'>heteroscedastic_loss</span>,
-  metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'>custom_metric</span><span class='op'>(</span><span class='st'>"heteroscedastic_loss"</span>, <span class='va'>heteroscedastic_loss</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>)</span>
-
-<span class='va'>history</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span>
-  <span class='va'>X_train</span>,
-  <span class='va'>Y_train</span>,
-  epochs <span class='op'>=</span> <span class='fl'>30</span>,
-  batch_size <span class='op'>=</span> <span class='fl'>10</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>gen_data_1d</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>sigma</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span>  <span class='va'>X</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>w</span> <span class='op'>&lt;-</span> <span class='fl'>2</span></span>
+<span>  <span class='va'>b</span> <span class='op'>&lt;-</span> <span class='fl'>8</span></span>
+<span>  <span class='va'>Y</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span><span class='op'>(</span><span class='va'>X</span> <span class='op'><a href='https://rdrr.io/r/base/matmult.html'>%*%</a></span> <span class='va'>w</span> <span class='op'>+</span> <span class='va'>b</span> <span class='op'>+</span> <span class='va'>sigma</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span>, <span class='va'>Y</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X</span>, <span class='va'>Y</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>gen_data_1d</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X_train</span>, <span class='va'>Y_train</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_train</span><span class='op'>]</span>, <span class='va'>Y</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_train</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>X_val</span>, <span class='va'>Y_val</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span><span class='op'>]</span>, </span>
+<span>                          <span class='va'>Y</span><span class='op'>[</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>n_train</span> <span class='op'>+</span> <span class='va'>n_val</span><span class='op'>)</span><span class='op'>]</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>compile</span><span class='op'>(</span></span>
+<span>  optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,</span>
+<span>  loss <span class='op'>=</span> <span class='va'>heteroscedastic_loss</span>,</span>
+<span>  metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'>custom_metric</span><span class='op'>(</span><span class='st'>"heteroscedastic_loss"</span>, <span class='va'>heteroscedastic_loss</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>history</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'>fit</span><span class='op'>(</span></span>
+<span>  <span class='va'>X_train</span>,</span>
+<span>  <span class='va'>Y_train</span>,</span>
+<span>  epochs <span class='op'>=</span> <span class='fl'>30</span>,</span>
+<span>  batch_size <span class='op'>=</span> <span class='fl'>10</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>With training finished, we turn to the validation set to obtain estimates on unseen data - including those uncertainty measures this is all about!</p>
@@ -2479,68 +2473,62 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>So now we get an ensemble of model predictions on the validation set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>num_MC_samples</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
-
-<span class='va'>MC_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>array</a></span><span class='op'>(</span><span class='fl'>0</span>, dim <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>num_MC_samples</span>, <span class='va'>n_val</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>output_dim</span><span class='op'>)</span><span class='op'>)</span>
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>k</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_MC_samples</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>MC_samples</span><span class='op'>[</span><span class='va'>k</span>, , <span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>num_MC_samples</span> <span class='op'>&lt;-</span> <span class='fl'>20</span></span>
+<span></span>
+<span><span class='va'>MC_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>array</a></span><span class='op'>(</span><span class='fl'>0</span>, dim <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>num_MC_samples</span>, <span class='va'>n_val</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>output_dim</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>k</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_MC_samples</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>MC_samples</span><span class='op'>[</span><span class='va'>k</span>, , <span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>Remember, our model predicts the mean as well as the variance. We’ll use the former for calculating epistemic uncertainty, while aleatoric uncertainty is obtained from the latter.</p>
 <p>First, we determine the predictive mean as an average of the MC samples’ <em>mean</em> output:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># the means are in the first output column</span>
-<span class='va'>means</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>  
-<span class='co'># average over the MC samples</span>
-<span class='va'>predictive_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> 
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># the means are in the first output column</span></span>
+<span><span class='va'>means</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>  </span>
+<span><span class='co'># average over the MC samples</span></span>
+<span><span class='va'>predictive_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> </span></code></pre>
 </div>
 </div>
 <p>To calculate epistemic uncertainty, we again use the <em>mean</em> output, but this time we’re interested in the variance of the MC samples:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>epistemic_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>var</span><span class='op'>)</span> 
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>epistemic_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>var</span><span class='op'>)</span> </span></code></pre>
 </div>
 </div>
 <p>Then aleatoric uncertainty is the average over the MC samples of the <em>variance</em> output.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>logvar</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>
-<span class='va'>aleatoric_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>logvar</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>logvar</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span></span>
+<span><span class='va'>aleatoric_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>logvar</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Note how this procedure gives us uncertainty estimates individually for every prediction. How do they look?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>
-  x <span class='op'>=</span> <span class='va'>X_val</span>,
-  y_pred <span class='op'>=</span> <span class='va'>predictive_mean</span>,
-  e_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,
-  e_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,
-  a_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  a_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  u_overall_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>-</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  u_overall_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>+</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x <span class='op'>=</span> <span class='va'>X_val</span>,</span>
+<span>  y_pred <span class='op'>=</span> <span class='va'>predictive_mean</span>,</span>
+<span>  e_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,</span>
+<span>  e_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,</span>
+<span>  a_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  a_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  u_overall_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>-</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  u_overall_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>+</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Here, first, is epistemic uncertainty, with shaded bands indicating one standard deviation above resp. below the predicted mean:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y_pred</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> 
-  <span class='fu'>geom_point</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span> 
-  <span class='fu'>geom_ribbon</span><span class='op'>(</span><span class='fu'>aes</span><span class='op'>(</span>ymin <span class='op'>=</span> <span class='va'>e_u_lower</span>, ymax <span class='op'>=</span> <span class='va'>e_u_upper</span><span class='op'>)</span>, alpha <span class='op'>=</span> <span class='fl'>0.3</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y_pred</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> </span>
+<span>  <span class='fu'>geom_point</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span> </span>
+<span>  <span class='fu'>geom_ribbon</span><span class='op'>(</span><span class='fu'>aes</span><span class='op'>(</span>ymin <span class='op'>=</span> <span class='va'>e_u_lower</span>, ymax <span class='op'>=</span> <span class='va'>e_u_upper</span><span class='op'>)</span>, alpha <span class='op'>=</span> <span class='fl'>0.3</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <figure>
@@ -2572,135 +2560,131 @@ Yarin Gal has a nice writeup of the why and how on his <a href="http://mlg.eng.c
 <p>Let’s quickly inspect those five variables. Here <code>PE</code> is energy output, the target variable.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readxl.tidyverse.org'>readxl</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://ggobi.github.io/ggally/'>GGally</a></span><span class='op'>)</span>
-
-<span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_xlsx</span><span class='op'>(</span><span class='st'>"CCPP/Folds5x2_pp.xlsx"</span><span class='op'>)</span>
-<span class='fu'>ggscatmat</span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readxl.tidyverse.org'>readxl</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://ggobi.github.io/ggally/'>GGally</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_xlsx</span><span class='op'>(</span><span class='st'>"CCPP/Folds5x2_pp.xlsx"</span><span class='op'>)</span></span>
+<span><span class='fu'>ggscatmat</span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p><img src="images/scattermat.png" style="width:100.0%" /></p>
 <p>We scale and divide up the data</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>df_scaled</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>
-
-<span class='va'>X</span> <span class='op'>&lt;-</span> <span class='va'>df_scaled</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span>
-<span class='va'>train_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_scaled</span><span class='op'>)</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>)</span><span class='op'>)</span>
-<span class='va'>X_train</span> <span class='op'>&lt;-</span> <span class='va'>X</span><span class='op'>[</span><span class='va'>train_samples</span>,<span class='op'>]</span>
-<span class='va'>X_val</span> <span class='op'>&lt;-</span> <span class='va'>X</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_samples</span>,<span class='op'>]</span>
-
-<span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>df_scaled</span><span class='op'>[</span>, <span class='fl'>5</span><span class='op'>]</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>y_train</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>[</span><span class='va'>train_samples</span>,<span class='op'>]</span>
-<span class='va'>y_val</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_samples</span>,<span class='op'>]</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>df_scaled</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>X</span> <span class='op'>&lt;-</span> <span class='va'>df_scaled</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>4</span><span class='op'>]</span></span>
+<span><span class='va'>train_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_scaled</span><span class='op'>)</span>, <span class='fl'>0.8</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='va'>X_train</span> <span class='op'>&lt;-</span> <span class='va'>X</span><span class='op'>[</span><span class='va'>train_samples</span>,<span class='op'>]</span></span>
+<span><span class='va'>X_val</span> <span class='op'>&lt;-</span> <span class='va'>X</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_samples</span>,<span class='op'>]</span></span>
+<span></span>
+<span><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>df_scaled</span><span class='op'>[</span>, <span class='fl'>5</span><span class='op'>]</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>y_train</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>[</span><span class='va'>train_samples</span>,<span class='op'>]</span></span>
+<span><span class='va'>y_val</span> <span class='op'>&lt;-</span> <span class='va'>y</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_samples</span>,<span class='op'>]</span></span></code></pre>
 </div>
 </div>
 <p>and get ready for training a few models.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X_train</span><span class='op'>)</span>
-<span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-<span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-<span class='va'>output_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-<span class='va'>num_MC_samples</span> <span class='op'>&lt;-</span> <span class='fl'>20</span>
-<span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span>
-<span class='va'>wd</span> <span class='op'>&lt;-</span> <span class='va'>l</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>/</span><span class='va'>n</span>
-<span class='va'>dd</span> <span class='op'>&lt;-</span> <span class='fl'>2</span><span class='op'>/</span><span class='va'>n</span>
-
-<span class='va'>get_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dim</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>input_dim</span><span class='op'>)</span>
-  <span class='va'>output</span> <span class='op'>&lt;-</span>
-    <span class='va'>input</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-    <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-    <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,
-      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-    <span class='op'>)</span>
-  
-  <span class='va'>mean</span> <span class='op'>&lt;-</span>
-    <span class='va'>output</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,
-      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-    <span class='op'>)</span>
-  
-  <span class='va'>log_var</span> <span class='op'>&lt;-</span>
-    <span class='va'>output</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span>
-      <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,
-      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,
-      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span>
-    <span class='op'>)</span>
-  
-  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>layer_concatenate</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>log_var</span><span class='op'>)</span><span class='op'>)</span>
-  
-  <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='va'>input</span>, <span class='va'>output</span><span class='op'>)</span>
-  
-  <span class='va'>heteroscedastic_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>
-    <span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>
-    <span class='va'>precision</span> <span class='op'>&lt;-</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_var</span><span class='op'>)</span>
-    <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>precision</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>y_true</span> <span class='op'>-</span> <span class='va'>mean</span><span class='op'>)</span> <span class='op'>^</span> <span class='fl'>2</span> <span class='op'>+</span> <span class='va'>log_var</span>, axis <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>
-  <span class='op'>}</span>
-  
-  <span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>compile</span><span class='op'>(</span>optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,
-                    loss <span class='op'>=</span> <span class='va'>heteroscedastic_loss</span>,
-                    metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"mse"</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>model</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X_train</span><span class='op'>)</span></span>
+<span><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='va'>output_dim</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span><span class='va'>num_MC_samples</span> <span class='op'>&lt;-</span> <span class='fl'>20</span></span>
+<span><span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fl'>1e-4</span></span>
+<span><span class='va'>wd</span> <span class='op'>&lt;-</span> <span class='va'>l</span><span class='op'>^</span><span class='fl'>2</span><span class='op'>/</span><span class='va'>n</span></span>
+<span><span class='va'>dd</span> <span class='op'>&lt;-</span> <span class='fl'>2</span><span class='op'>/</span><span class='va'>n</span></span>
+<span></span>
+<span><span class='va'>get_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>input_dim</span>, <span class='va'>hidden_dim</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='va'>input_dim</span><span class='op'>)</span></span>
+<span>  <span class='va'>output</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>input</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>    <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>    <span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>hidden_dim</span>, activation <span class='op'>=</span> <span class='st'>"relu"</span><span class='op'>)</span>,</span>
+<span>      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>mean</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>output</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>      layer <span class='op'>=</span> <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,</span>
+<span>      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>log_var</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>output</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>layer_concrete_dropout</span><span class='op'>(</span></span>
+<span>      <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='va'>output_dim</span><span class='op'>)</span>,</span>
+<span>      weight_regularizer <span class='op'>=</span> <span class='va'>wd</span>,</span>
+<span>      dropout_regularizer <span class='op'>=</span> <span class='va'>dd</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>layer_concatenate</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>log_var</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='va'>input</span>, <span class='va'>output</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>heteroscedastic_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span></span>
+<span>    <span class='va'>log_var</span> <span class='op'>&lt;-</span> <span class='va'>y_pred</span><span class='op'>[</span>, <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span></span>
+<span>    <span class='va'>precision</span> <span class='op'>&lt;-</span> <span class='fu'>k_exp</span><span class='op'>(</span><span class='op'>-</span><span class='va'>log_var</span><span class='op'>)</span></span>
+<span>    <span class='fu'>k_sum</span><span class='op'>(</span><span class='va'>precision</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>y_true</span> <span class='op'>-</span> <span class='va'>mean</span><span class='op'>)</span> <span class='op'>^</span> <span class='fl'>2</span> <span class='op'>+</span> <span class='va'>log_var</span>, axis <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span>  <span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>compile</span><span class='op'>(</span>optimizer <span class='op'>=</span> <span class='st'>"adam"</span>,</span>
+<span>                    loss <span class='op'>=</span> <span class='va'>heteroscedastic_loss</span>,</span>
+<span>                    metrics <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"mse"</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>model</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>We’ll train each of the five models with a <code>hidden_dim</code> of 64. We then obtain 20 Monte Carlo sample from the posterior predictive distribution and calculate the uncertainties as before.</p>
 <p>Here we show the code for the first predictor, “AT.” It is similar for all other cases.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>get_model</span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>64</span><span class='op'>)</span>
-<span class='va'>hist</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit</span><span class='op'>(</span>
-  <span class='va'>X_train</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span>,
-  <span class='va'>y_train</span>,
-  validation_data <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span>, <span class='va'>y_val</span><span class='op'>)</span>,
-  epochs <span class='op'>=</span> <span class='va'>n_epochs</span>,
-  batch_size <span class='op'>=</span> <span class='va'>batch_size</span>
-<span class='op'>)</span>
-
-<span class='va'>MC_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>array</a></span><span class='op'>(</span><span class='fl'>0</span>, dim <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>num_MC_samples</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>)</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>output_dim</span><span class='op'>)</span><span class='op'>)</span>
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>k</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_MC_samples</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>MC_samples</span><span class='op'>[</span><span class='va'>k</span>, ,<span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>means</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>  
-<span class='va'>predictive_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> 
-<span class='va'>epistemic_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>var</span><span class='op'>)</span> 
-<span class='va'>logvar</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span>
-<span class='va'>aleatoric_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>logvar</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>
-  x1 <span class='op'>=</span> <span class='va'>X_val</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span>,
-  y_true <span class='op'>=</span> <span class='va'>y_val</span>,
-  y_pred <span class='op'>=</span> <span class='va'>predictive_mean</span>,
-  e_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,
-  e_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,
-  a_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  a_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  u_overall_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>-</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,
-  u_overall_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>+</span> 
-                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>get_model</span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>64</span><span class='op'>)</span></span>
+<span><span class='va'>hist</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit</span><span class='op'>(</span></span>
+<span>  <span class='va'>X_train</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span>,</span>
+<span>  <span class='va'>y_train</span>,</span>
+<span>  validation_data <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span>, <span class='va'>y_val</span><span class='op'>)</span>,</span>
+<span>  epochs <span class='op'>=</span> <span class='va'>n_epochs</span>,</span>
+<span>  batch_size <span class='op'>=</span> <span class='va'>batch_size</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>MC_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/array.html'>array</a></span><span class='op'>(</span><span class='fl'>0</span>, dim <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>num_MC_samples</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>)</span>, <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>output_dim</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>k</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_MC_samples</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>MC_samples</span><span class='op'>[</span><span class='va'>k</span>, ,<span class='op'>]</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>X_val</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>means</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='fl'>1</span><span class='op'>:</span><span class='va'>output_dim</span><span class='op'>]</span>  </span>
+<span><span class='va'>predictive_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> </span>
+<span><span class='va'>epistemic_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>means</span>, <span class='fl'>2</span>, <span class='va'>var</span><span class='op'>)</span> </span>
+<span><span class='va'>logvar</span> <span class='op'>&lt;-</span> <span class='va'>MC_samples</span><span class='op'>[</span>, , <span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>output_dim</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span><span class='op'>]</span></span>
+<span><span class='va'>aleatoric_uncertainty</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>exp</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/colSums.html'>colMeans</a></span><span class='op'>(</span><span class='va'>logvar</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x1 <span class='op'>=</span> <span class='va'>X_val</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span>,</span>
+<span>  y_true <span class='op'>=</span> <span class='va'>y_val</span>,</span>
+<span>  y_pred <span class='op'>=</span> <span class='va'>predictive_mean</span>,</span>
+<span>  e_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,</span>
+<span>  e_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span>,</span>
+<span>  a_u_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  a_u_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  u_overall_lower <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>-</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>-</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span>,</span>
+<span>  u_overall_upper <span class='op'>=</span> <span class='va'>predictive_mean</span> <span class='op'>+</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>epistemic_uncertainty</span><span class='op'>)</span> <span class='op'>+</span> </span>
+<span>                    <span class='fu'><a href='https://rdrr.io/r/base/MathFun.html'>sqrt</a></span><span class='op'>(</span><span class='va'>aleatoric_uncertainty</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h3 id="result">Result</h3>

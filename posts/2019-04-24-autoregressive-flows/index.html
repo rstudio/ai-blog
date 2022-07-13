@@ -2215,14 +2215,13 @@ p(\mathbf{x}) = \prod_{i}p(\mathbf{x}_i|\mathbf{x}_{1:i−1})
 <p>Peeking ahead, this is how we’ll construct a masked autoregressive flow in TFP (again using the still new-ish R bindings provided by <a href="http://github.io/tfprobability">tfprobability</a>):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfprobability'>tfprobability</a></span><span class='op'>)</span>
-
-<span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span>
-    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span>
-      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,
-      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span><span class='op'>)</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfprobability'>tfprobability</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span></span>
+<span>    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span></span>
+<span>      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,</span>
+<span>      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Pulling apart the relevant entities here, <code>tfb_masked_autoregressive_flow</code> is a bijector, with the usual methods <code>tfb_forward()</code>, <code>tfb_inverse()</code>, <code>tfb_forward_log_det_jacobian()</code> and <code>tfb_inverse_log_det_jacobian()</code>. The default <code>shift_and_log_scale_fn</code>, <code>tfb_masked_autoregressive_default_template</code>, constructs a little neural network of its own, with a configurable number of hidden units per layer, a configurable activation function and optionally, other configurable parameters to be passed to the underlying <code>dense</code> layers. It’s these dense layers that have to respect the autoregressive property. Can we take a look at how this is done? Yes we can, provided we’re not afraid of a little Python.</p>
@@ -2364,24 +2363,23 @@ Figure 1: Figure from Masked Autoregressive Flow for Density Estimation<span cla
 <p>Following the hints the authors gave us, this is what we do.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># load libraries -------------------------------------------------------------</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tensorflow'>tensorflow</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfprobability'>tfprobability</a></span><span class='op'>)</span>
-
-<span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span>device_policy <span class='op'>=</span> <span class='st'>"silent"</span><span class='op'>)</span>
-
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfdatasets'>tfdatasets</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readr.tidyverse.org'>readr</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/topepo/caret/'>caret</a></span><span class='op'>)</span>
-
-<span class='co'># read data ------------------------------------------------------------------</span>
-<span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_table2</span><span class='op'>(</span><span class='st'>"ethylene_CO.txt"</span>,
-                  skip <span class='op'>=</span> <span class='fl'>1</span>,
-                  col_names <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span>
-<span class='fu'><a href='https://dplyr.tidyverse.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># load libraries -------------------------------------------------------------</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tensorflow'>tensorflow</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfprobability'>tfprobability</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'>tfe_enable_eager_execution</span><span class='op'>(</span>device_policy <span class='op'>=</span> <span class='st'>"silent"</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfdatasets'>tfdatasets</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readr.tidyverse.org'>readr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/topepo/caret/'>caret</a></span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># read data ------------------------------------------------------------------</span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_table2</span><span class='op'>(</span><span class='st'>"ethylene_CO.txt"</span>,</span>
+<span>                  skip <span class='op'>=</span> <span class='fl'>1</span>,</span>
+<span>                  col_names <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://pillar.r-lib.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <pre><code>Observations: 4,208,261
@@ -2407,16 +2405,15 @@ $ X18 &lt;dbl&gt; 7650.61, 7498.79, 7369.67, 7285.13, 7156.74, 7067.61, 6976.13,
 $ X19 &lt;dbl&gt; 6928.42, 6800.66, 6697.47, 6578.52, 6468.32, 6385.31, 6300.97,...</code></pre>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># we don't know if we'll end up with the same columns as the authors did,</span>
-<span class='co'># but we try (at least we do end up with 8 columns)</span>
-<span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span>,<span class='op'>-</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>3</span><span class='op'>)</span><span class='op'>]</span>
-<span class='va'>hc</span> <span class='op'>&lt;-</span> <span class='fu'>findCorrelation</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/cor.html'>cor</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>, cutoff <span class='op'>=</span> <span class='fl'>0.985</span><span class='op'>)</span>
-<span class='va'>df2</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span>,<span class='op'>-</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>hc</span><span class='op'>)</span><span class='op'>]</span>
-
-<span class='co'># scale</span>
-<span class='va'>df2</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span>
-<span class='va'>df2</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># we don't know if we'll end up with the same columns as the authors did,</span></span>
+<span><span class='co'># but we try (at least we do end up with 8 columns)</span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span>,<span class='op'>-</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>3</span><span class='op'>)</span><span class='op'>]</span></span>
+<span><span class='va'>hc</span> <span class='op'>&lt;-</span> <span class='fu'>findCorrelation</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/stats/cor.html'>cor</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span>, cutoff <span class='op'>=</span> <span class='fl'>0.985</span><span class='op'>)</span></span>
+<span><span class='va'>df2</span> <span class='op'>&lt;-</span> <span class='va'>df</span><span class='op'>[</span>,<span class='op'>-</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>hc</span><span class='op'>)</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='co'># scale</span></span>
+<span><span class='va'>df2</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/scale.html'>scale</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span></span>
+<span><span class='va'>df2</span></span></code></pre>
 </div>
 </div>
 <pre><code># A tibble: 4,208,261 x 8
@@ -2436,148 +2433,141 @@ $ X19 &lt;dbl&gt; 6928.42, 6800.66, 6697.47, 6578.52, 6468.32, 6385.31, 6300.97,
 <p>Now set up the data generation process:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># train-test split</span>
-<span class='va'>n_rows</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span> <span class='co'># 4208261</span>
-<span class='va'>train_ids</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_rows</span>, <span class='fl'>0.5</span> <span class='op'>*</span> <span class='va'>n_rows</span><span class='op'>)</span>
-<span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>df2</span><span class='op'>[</span><span class='va'>train_ids</span>, <span class='op'>]</span>
-<span class='va'>x_test</span> <span class='op'>&lt;-</span> <span class='va'>df2</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_ids</span>, <span class='op'>]</span>
-
-<span class='co'># create datasets</span>
-<span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-<span class='va'>train_dataset</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='va'>tensor_slices_dataset</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span>
-
-<span class='va'>test_dataset</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>x_test</span>, <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='va'>tensor_slices_dataset</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># train-test split</span></span>
+<span><span class='va'>n_rows</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span> <span class='co'># 4208261</span></span>
+<span><span class='va'>train_ids</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>n_rows</span>, <span class='fl'>0.5</span> <span class='op'>*</span> <span class='va'>n_rows</span><span class='op'>)</span></span>
+<span><span class='va'>x_train</span> <span class='op'>&lt;-</span> <span class='va'>df2</span><span class='op'>[</span><span class='va'>train_ids</span>, <span class='op'>]</span></span>
+<span><span class='va'>x_test</span> <span class='op'>&lt;-</span> <span class='va'>df2</span><span class='op'>[</span><span class='op'>-</span><span class='va'>train_ids</span>, <span class='op'>]</span></span>
+<span></span>
+<span><span class='co'># create datasets</span></span>
+<span><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='va'>train_dataset</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>x_train</span>, <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='va'>tensor_slices_dataset</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_dataset</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>cast</span><span class='op'>(</span><span class='va'>x_test</span>, <span class='va'>tf</span><span class='op'>$</span><span class='va'>float32</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='va'>tensor_slices_dataset</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>To construct the flow, the first thing needed is the base distribution.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>base_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_multivariate_normal_diag</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>base_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_multivariate_normal_diag</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Now for the flow, by default constructed with batchnorm and permutation of feature order.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>num_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-<span class='va'>dim</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span>
-
-<span class='va'>use_batchnorm</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span>
-<span class='va'>use_permute</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span>
-<span class='va'>num_mafs</span> <span class='op'>&lt;-</span><span class='fl'>10</span>
-<span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='va'>num_mafs</span>
-
-<span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>num_layers</span><span class='op'>)</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>num_layers</span>, by <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span>
-    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span>
-      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,
-      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>maf</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_batchnorm</span><span class='op'>)</span>
-    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span>
-    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_permute</span><span class='op'>(</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='fl'>0</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span> <span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span><span class='op'>[</span><span class='op'>-</span><span class='va'>num_layers</span><span class='op'>]</span>
-
-<span class='va'>flow</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'><a href='https://purrr.tidyverse.org/reference/keep.html'>discard</a></span><span class='op'>(</span><span class='va'>is.null</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='co'># tfb_chain expects arguments in reverse order of application</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>tfb_chain</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>target_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>
-  distribution <span class='op'>=</span> <span class='va'>base_dist</span>,
-  bijector <span class='op'>=</span> <span class='va'>flow</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>num_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='va'>dim</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>use_batchnorm</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span></span>
+<span><span class='va'>use_permute</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span></span>
+<span><span class='va'>num_mafs</span> <span class='op'>&lt;-</span><span class='fl'>10</span></span>
+<span><span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='va'>num_mafs</span></span>
+<span></span>
+<span><span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>num_layers</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>num_layers</span>, by <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span></span>
+<span>    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span></span>
+<span>      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,</span>
+<span>      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>maf</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_batchnorm</span><span class='op'>)</span></span>
+<span>    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span></span>
+<span>    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_permute</span><span class='op'>(</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>ncol</a></span><span class='op'>(</span><span class='va'>df2</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='fl'>0</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span> <span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span><span class='op'>[</span><span class='op'>-</span><span class='va'>num_layers</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='va'>flow</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'><a href='https://purrr.tidyverse.org/reference/keep.html'>discard</a></span><span class='op'>(</span><span class='va'>is.null</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='co'># tfb_chain expects arguments in reverse order of application</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>tfb_chain</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>target_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span></span>
+<span>  distribution <span class='op'>=</span> <span class='va'>base_dist</span>,</span>
+<span>  bijector <span class='op'>=</span> <span class='va'>flow</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>And configuring the optimizer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-4</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-4</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Under that isotropic Gaussian we chose as a base distribution, how likely are the data?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>base_loglik</span> <span class='op'>&lt;-</span> <span class='va'>base_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>base_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>        <span class='co'># -11.33871</span>
-
-<span class='va'>base_loglik_test</span> <span class='op'>&lt;-</span> <span class='va'>base_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>base_loglik_test</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>   <span class='co'># -11.36431</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>base_loglik</span> <span class='op'>&lt;-</span> <span class='va'>base_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
+<span>  <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>base_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>        <span class='co'># -11.33871</span></span>
+<span></span>
+<span><span class='va'>base_loglik_test</span> <span class='op'>&lt;-</span> <span class='va'>base_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
+<span>  <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
+<span>  <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>base_loglik_test</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>   <span class='co'># -11.36431</span></span></code></pre>
 </div>
 </div>
 <p>And, just as a quick sanity check: What is the loglikelihood of the data under the transformed distribution <em>before any training</em>?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>target_loglik_pre</span> <span class='op'>&lt;-</span>
-  <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>target_loglik_pre</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>        <span class='co'># -11.22097</span>
-
-<span class='va'>target_loglik_pre_test</span> <span class='op'>&lt;-</span>
-  <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>target_loglik_pre_test</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>   <span class='co'># -11.36431</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>target_loglik_pre</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_train</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>target_loglik_pre</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>        <span class='co'># -11.22097</span></span>
+<span></span>
+<span><span class='va'>target_loglik_pre_test</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>target_loglik_pre_test</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>   <span class='co'># -11.36431</span></span></code></pre>
 </div>
 </div>
 <p>The values match - good. Here now is the training loop. Being impatient, we already keep checking the loglikelihood on the (complete) test set to see if we’re making any progress.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>10</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_epochs</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
-  <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
-  <span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>train_dataset</span><span class='op'>)</span>
-  
-  <span class='fu'>until_out_of_range</span><span class='op'>(</span><span class='op'>{</span>
-    <span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>iter</span><span class='op'>)</span>
-    <span class='va'>loss</span> <span class='op'>&lt;-</span>
-      <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span>
-        <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>minimize</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span>
-    
-    <span class='va'>loglik</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='va'>agg_loglik</span> <span class='op'>+</span> <span class='va'>loglik</span>
-    <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='va'>num_batches</span> <span class='op'>+</span> <span class='fl'>1</span>
-    
-    <span class='va'>test_iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>test_dataset</span><span class='op'>)</span>
-    <span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>test_iter</span><span class='op'>)</span>
-    <span class='va'>loglik_test_current</span> <span class='op'>&lt;-</span> <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>test_batch</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>num_batches</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>100</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span>
-      <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span>
-        <span class='st'>"Epoch "</span>,
-        <span class='va'>i</span>,
-        <span class='st'>": "</span>,
-        <span class='st'>"Batch "</span>,
-        <span class='va'>num_batches</span>,
-        <span class='st'>": "</span>,
-        <span class='op'>(</span><span class='va'>agg_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>num_batches</span>,
-        <span class='st'>" --- test: "</span>,
-        <span class='va'>loglik_test_current</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>,
-        <span class='st'>"\n"</span>
-      <span class='op'>)</span>
-  <span class='op'>}</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>10</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_epochs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='fl'>0</span></span>
+<span>  <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='fl'>0</span></span>
+<span>  <span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>train_dataset</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'>until_out_of_range</span><span class='op'>(</span><span class='op'>{</span></span>
+<span>    <span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>iter</span><span class='op'>)</span></span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span></span>
+<span>      <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>        <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>minimize</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>loglik</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='va'>agg_loglik</span> <span class='op'>+</span> <span class='va'>loglik</span></span>
+<span>    <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='va'>num_batches</span> <span class='op'>+</span> <span class='fl'>1</span></span>
+<span>    </span>
+<span>    <span class='va'>test_iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>test_dataset</span><span class='op'>)</span></span>
+<span>    <span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>test_iter</span><span class='op'>)</span></span>
+<span>    <span class='va'>loglik_test_current</span> <span class='op'>&lt;-</span> <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>test_batch</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>num_batches</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>100</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span>      <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span></span>
+<span>        <span class='st'>"Epoch "</span>,</span>
+<span>        <span class='va'>i</span>,</span>
+<span>        <span class='st'>": "</span>,</span>
+<span>        <span class='st'>"Batch "</span>,</span>
+<span>        <span class='va'>num_batches</span>,</span>
+<span>        <span class='st'>": "</span>,</span>
+<span>        <span class='op'>(</span><span class='va'>agg_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>num_batches</span>,</span>
+<span>        <span class='st'>" --- test: "</span>,</span>
+<span>        <span class='va'>loglik_test_current</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span>,</span>
+<span>        <span class='st'>"\n"</span></span>
+<span>      <span class='op'>)</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>With both training and test sets amounting to over 2 million records each, we did not have the patience to run this model <em>until no improvement occurred for 30 consecutive epochs on the validation set</em> (like the authors did). However, the picture we get from one complete epoch’s run is pretty clear: The setup seems to work pretty okay.</p>
@@ -2647,134 +2637,131 @@ Epoch  2 :  Batch      1:   5.212013  --- test:   4.969406 </code></pre>
 <p>We train the MAF on pronunciations of the word “zero.”</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'>for</span> <span class='op'>(</span><span class='va'>c</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>class</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/assign.html'>assign</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"df_"</span>, <span class='va'>c</span><span class='op'>)</span>, <span class='va'>df</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>class</span> <span class='op'>==</span> <span class='va'>c</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>fname</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>df_</span> <span class='op'>&lt;-</span> <span class='va'>df_zero</span> <span class='co'># 2 * 1178 rows</span>
-<span class='va'>idx_train</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_</span><span class='op'>)</span>, <span class='fl'>0.5</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_</span><span class='op'>)</span><span class='op'>)</span>
-<span class='va'>df_train</span> <span class='op'>&lt;-</span> <span class='va'>df_</span><span class='op'>[</span><span class='va'>idx_train</span>, <span class='op'>]</span>
-<span class='va'>df_test</span> <span class='op'>&lt;-</span> <span class='va'>df_</span><span class='op'>[</span><span class='op'>-</span><span class='va'>idx_train</span>, <span class='op'>]</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>c</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/unique.html'>unique</a></span><span class='op'>(</span><span class='va'>df</span><span class='op'>$</span><span class='va'>class</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/assign.html'>assign</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"df_"</span>, <span class='va'>c</span><span class='op'>)</span>, <span class='va'>df</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='va'>class</span> <span class='op'>==</span> <span class='va'>c</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='va'>fname</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>df_</span> <span class='op'>&lt;-</span> <span class='va'>df_zero</span> <span class='co'># 2 * 1178 rows</span></span>
+<span><span class='va'>idx_train</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_</span><span class='op'>)</span>, <span class='fl'>0.5</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='va'>df_train</span> <span class='op'>&lt;-</span> <span class='va'>df_</span><span class='op'>[</span><span class='va'>idx_train</span>, <span class='op'>]</span></span>
+<span><span class='va'>df_test</span> <span class='op'>&lt;-</span> <span class='va'>df_</span><span class='op'>[</span><span class='op'>-</span><span class='va'>idx_train</span>, <span class='op'>]</span></span></code></pre>
 </div>
 </div>
 <p>Following the approach detailed in <a href="https://blogs.rstudio.com/tensorflow/posts/2019-02-07-audio-background/">Audio classification with Keras: Looking closer at the non-deep learning parts</a>, we’d like to train the network on spectrograms instead of the raw time domain data. Using the same settings for <code>frame_length</code> and <code>frame_step</code> of the Short Term Fourier Transform as in that post, we’d arrive at data shaped <code>number of frames x number of FFT coefficients</code>. To make this work with the <code>masked_dense()</code> employed in <code>tfb_masked_autoregressive_flow()</code>, the data would then have to be flattened, yielding an impressive 25186 features in the joint distribution.</p>
 <p>With the architecture defined as above in the GAS example, this lead to the network not making much progress. Neither did leaving the data in time domain form, with 16000 features in the joint distribution. Thus, we decided to work with the FFT coefficients computed over the complete window instead, resulting in 257 joint features.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-
-<span class='va'>sampling_rate</span> <span class='op'>&lt;-</span> <span class='fl'>16000L</span>
-<span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>,
-                           <span class='va'>batch_size</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span> 
-  
-  <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='va'>ds</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-    <span class='fu'>dataset_map</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>obs</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='va'>wav</span> <span class='op'>&lt;-</span>
-        <span class='fu'>decode_wav</span><span class='op'>(</span><span class='op'>)</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>read_file</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>reshape</span><span class='op'>(</span><span class='va'>obs</span><span class='op'>$</span><span class='va'>fname</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>audio</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span>
-      
-      <span class='co'># some wave files have fewer than 16000 samples</span>
-      <span class='va'>padding</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fl'>0L</span>, <span class='va'>sampling_rate</span> <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>shape</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span>
-      <span class='va'>padded</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>pad</span><span class='op'>(</span><span class='va'>samples</span>, <span class='va'>padding</span><span class='op'>)</span>
-      
-      <span class='va'>stft_out</span> <span class='op'>&lt;-</span> <span class='fu'>stft</span><span class='op'>(</span><span class='op'>)</span><span class='op'>(</span><span class='va'>padded</span>, <span class='fl'>16000L</span>, <span class='fl'>1L</span>, <span class='fl'>512L</span><span class='op'>)</span>
-      <span class='va'>magnitude_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='va'>stft_out</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='op'>)</span>
-    <span class='op'>}</span><span class='op'>)</span>
-  
-  <span class='va'>ds</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span>
-  
-<span class='op'>}</span>
-
-<span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>data_generator</span><span class='op'>(</span><span class='va'>df_train</span>, <span class='va'>batch_size</span><span class='op'>)</span>
-<span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='va'>ds_train</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='co'># 100 x 257</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span></span>
+<span><span class='va'>sampling_rate</span> <span class='op'>&lt;-</span> <span class='fl'>16000L</span></span>
+<span><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>,</span>
+<span>                           <span class='va'>batch_size</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='fu'>tensor_slices_dataset</span><span class='op'>(</span><span class='va'>df</span><span class='op'>)</span> </span>
+<span>  </span>
+<span>  <span class='va'>ds</span> <span class='op'>&lt;-</span> <span class='va'>ds</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>    <span class='fu'>dataset_map</span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>obs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='va'>wav</span> <span class='op'>&lt;-</span></span>
+<span>        <span class='fu'>decode_wav</span><span class='op'>(</span><span class='op'>)</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>read_file</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>reshape</span><span class='op'>(</span><span class='va'>obs</span><span class='op'>$</span><span class='va'>fname</span>, <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='va'>samples</span> <span class='op'>&lt;-</span> <span class='va'>wav</span><span class='op'>$</span><span class='va'>audio</span><span class='op'>[</span> ,<span class='fl'>1</span><span class='op'>]</span></span>
+<span>      </span>
+<span>      <span class='co'># some wave files have fewer than 16000 samples</span></span>
+<span>      <span class='va'>padding</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fl'>0L</span>, <span class='va'>sampling_rate</span> <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>shape</span><span class='op'>(</span><span class='va'>samples</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>      <span class='va'>padded</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>pad</span><span class='op'>(</span><span class='va'>samples</span>, <span class='va'>padding</span><span class='op'>)</span></span>
+<span>      </span>
+<span>      <span class='va'>stft_out</span> <span class='op'>&lt;-</span> <span class='fu'>stft</span><span class='op'>(</span><span class='op'>)</span><span class='op'>(</span><span class='va'>padded</span>, <span class='fl'>16000L</span>, <span class='fl'>1L</span>, <span class='fl'>512L</span><span class='op'>)</span></span>
+<span>      <span class='va'>magnitude_spectrograms</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='va'>stft_out</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='op'>}</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>ds</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>ds_train</span> <span class='op'>&lt;-</span> <span class='fu'>data_generator</span><span class='op'>(</span><span class='va'>df_train</span>, <span class='va'>batch_size</span><span class='op'>)</span></span>
+<span><span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='va'>ds_train</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
+<span>  <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span> <span class='co'># 100 x 257</span></span></code></pre>
 </div>
 </div>
 <p>Training then proceeded as on the GAS dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># define MAF</span>
-<span class='va'>base_dist</span> <span class='op'>&lt;-</span>
-  <span class='fu'>tfd_multivariate_normal_diag</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>num_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>512</span> 
-<span class='va'>use_batchnorm</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span>
-<span class='va'>use_permute</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span>
-<span class='va'>num_mafs</span> <span class='op'>&lt;-</span> <span class='fl'>10</span> 
-<span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='va'>num_mafs</span>
-
-<span class='co'># store bijectors in a list</span>
-<span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>num_layers</span><span class='op'>)</span>
-
-<span class='co'># fill list, optionally adding batchnorm and permute bijectors</span>
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>num_layers</span>, by <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span>
-    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span>
-      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,
-      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span>,
-      <span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>maf</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_batchnorm</span><span class='op'>)</span>
-    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_batch_normalization</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span>
-    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_permute</span><span class='op'>(</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='fl'>0</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span> <span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span><span class='op'>[</span><span class='op'>-</span><span class='va'>num_layers</span><span class='op'>]</span>
-<span class='va'>flow</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='co'># possibly clean out empty elements (if no batchnorm or no permute)</span>
-  <span class='fu'><a href='https://purrr.tidyverse.org/reference/keep.html'>discard</a></span><span class='op'>(</span><span class='va'>is.null</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span>
-  <span class='fu'>tfb_chain</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>target_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='va'>base_dist</span>,
-                                            bijector <span class='op'>=</span> <span class='va'>flow</span><span class='op'>)</span>
-
-<span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-3</span><span class='op'>)</span>
-
-<span class='co'># train MAF</span>
-<span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span>
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_epochs</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
-  <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='fl'>0</span>
-  <span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span>
-  <span class='fu'>until_out_of_range</span><span class='op'>(</span><span class='op'>{</span>
-    <span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>iter</span><span class='op'>)</span>
-    <span class='va'>loss</span> <span class='op'>&lt;-</span>
-      <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span>
-        <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>minimize</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span>
-    
-    <span class='va'>loglik</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span>
-    <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='va'>agg_loglik</span> <span class='op'>+</span> <span class='va'>loglik</span>
-    <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='va'>num_batches</span> <span class='op'>+</span> <span class='fl'>1</span>
-    
-    <span class='va'>loglik_test_current</span> <span class='op'>&lt;-</span> 
-      <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span>
-
-    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>num_batches</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>20</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span>
-      <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span>
-        <span class='st'>"Epoch "</span>,
-        <span class='va'>i</span>,
-        <span class='st'>": "</span>,
-        <span class='st'>"Batch "</span>,
-        <span class='va'>num_batches</span>,
-        <span class='st'>": "</span>,
-        <span class='op'>(</span><span class='op'>(</span><span class='va'>agg_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>num_batches</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,
-        <span class='st'>" --- test: "</span>,
-        <span class='va'>loglik_test_current</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,
-        <span class='st'>"\n"</span>
-      <span class='op'>)</span>
-  <span class='op'>}</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># define MAF</span></span>
+<span><span class='va'>base_dist</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='fu'>tfd_multivariate_normal_diag</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='fl'>0</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>num_hidden</span> <span class='op'>&lt;-</span> <span class='fl'>512</span> </span>
+<span><span class='va'>use_batchnorm</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span></span>
+<span><span class='va'>use_permute</span> <span class='op'>&lt;-</span> <span class='cn'>TRUE</span></span>
+<span><span class='va'>num_mafs</span> <span class='op'>&lt;-</span> <span class='fl'>10</span> </span>
+<span><span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='fl'>3</span> <span class='op'>*</span> <span class='va'>num_mafs</span></span>
+<span></span>
+<span><span class='co'># store bijectors in a list</span></span>
+<span><span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='va'>num_layers</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># fill list, optionally adding batchnorm and permute bijectors</span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>num_layers</span>, by <span class='op'>=</span> <span class='fl'>3</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>maf</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_masked_autoregressive_flow</span><span class='op'>(</span></span>
+<span>    shift_and_log_scale_fn <span class='op'>=</span> <span class='fu'>tfb_masked_autoregressive_default_template</span><span class='op'>(</span></span>
+<span>      hidden_layers <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>num_hidden</span>, <span class='va'>num_hidden</span><span class='op'>)</span>,</span>
+<span>      activation <span class='op'>=</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>nn</span><span class='op'>$</span><span class='va'>tanh</span>,</span>
+<span>      <span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>maf</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_batchnorm</span><span class='op'>)</span></span>
+<span>    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_batch_normalization</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span></span>
+<span>    <span class='va'>bijectors</span><span class='op'>[[</span><span class='va'>i</span> <span class='op'>+</span> <span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'>tfb_permute</span><span class='op'>(</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span> <span class='op'>-</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='fl'>0</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='kw'>if</span> <span class='op'>(</span><span class='va'>use_permute</span><span class='op'>)</span> <span class='va'>bijectors</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span><span class='op'>[</span><span class='op'>-</span><span class='va'>num_layers</span><span class='op'>]</span></span>
+<span><span class='va'>flow</span> <span class='op'>&lt;-</span> <span class='va'>bijectors</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='co'># possibly clean out empty elements (if no batchnorm or no permute)</span></span>
+<span>  <span class='fu'><a href='https://purrr.tidyverse.org/reference/keep.html'>discard</a></span><span class='op'>(</span><span class='va'>is.null</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/rev.html'>rev</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
+<span>  <span class='fu'>tfb_chain</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>target_dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='va'>base_dist</span>,</span>
+<span>                                            bijector <span class='op'>=</span> <span class='va'>flow</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span><span class='fl'>1e-3</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># train MAF</span></span>
+<span><span class='va'>n_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_epochs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='fl'>0</span></span>
+<span>  <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='fl'>0</span></span>
+<span>  <span class='va'>iter</span> <span class='op'>&lt;-</span> <span class='fu'>make_iterator_one_shot</span><span class='op'>(</span><span class='va'>ds_train</span><span class='op'>)</span></span>
+<span>  <span class='fu'>until_out_of_range</span><span class='op'>(</span><span class='op'>{</span></span>
+<span>    <span class='va'>batch</span> <span class='op'>&lt;-</span> <span class='fu'>iterator_get_next</span><span class='op'>(</span><span class='va'>iter</span><span class='op'>)</span></span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span></span>
+<span>      <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>        <span class='op'>-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>minimize</span><span class='op'>(</span><span class='va'>loss</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>loglik</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>batch</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='va'>agg_loglik</span> <span class='op'>&lt;-</span> <span class='va'>agg_loglik</span> <span class='op'>+</span> <span class='va'>loglik</span></span>
+<span>    <span class='va'>num_batches</span> <span class='op'>&lt;-</span> <span class='va'>num_batches</span> <span class='op'>+</span> <span class='fl'>1</span></span>
+<span>    </span>
+<span>    <span class='va'>loglik_test_current</span> <span class='op'>&lt;-</span> </span>
+<span>      <span class='va'>target_dist</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>reduce_mean</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span>    <span class='kw'>if</span> <span class='op'>(</span><span class='va'>num_batches</span> <span class='op'><a href='https://rdrr.io/r/base/Arithmetic.html'>%%</a></span> <span class='fl'>20</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span>      <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span></span>
+<span>        <span class='st'>"Epoch "</span>,</span>
+<span>        <span class='va'>i</span>,</span>
+<span>        <span class='st'>": "</span>,</span>
+<span>        <span class='st'>"Batch "</span>,</span>
+<span>        <span class='va'>num_batches</span>,</span>
+<span>        <span class='st'>": "</span>,</span>
+<span>        <span class='op'>(</span><span class='op'>(</span><span class='va'>agg_loglik</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>num_batches</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>        <span class='st'>" --- test: "</span>,</span>
+<span>        <span class='va'>loglik_test_current</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>        <span class='st'>"\n"</span></span>
+<span>      <span class='op'>)</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>During training, we also monitored loglikelihoods on three different classes, <em>cat</em>, <em>bird</em> and <em>wow</em><a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>. Here are the loglikelihoods from the first 10 epochs. “Batch” refers to the current training batch (first batch in the epoch), all other values refer to complete datasets (the complete test set and the three sets selected for comparison).</p>

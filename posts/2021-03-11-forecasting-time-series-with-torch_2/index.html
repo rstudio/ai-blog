@@ -2190,69 +2190,68 @@ gtag('config', 'UA-20375833-3');
 <p>Apart from the fact that <code>.getitem()</code> now returns a vector for <code>y</code> as well as <code>x</code>, there is not much to be said about dataset creation. Here is the complete code to set up the data input pipeline:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span>
-<span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span> 
-<span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span>
-
-<span class='va'>vic_elec_get_year</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>year</span>, <span class='va'>month</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span>
-    <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='va'>year</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>month</span><span class='op'>)</span><span class='op'>)</span> <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='kw'>else</span> <span class='va'>month</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>elec_train</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2012</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>elec_valid</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2013</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>elec_test</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2014</span>, <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>train_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>)</span>
-<span class='va'>train_sd</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>)</span>
-
-<span class='va'>elec_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span>
-  name <span class='op'>=</span> <span class='st'>"elec_dataset"</span>,
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, <span class='va'>sample_frac</span> <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='va'>n_timesteps</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='va'>n_forecast</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='op'>(</span><span class='va'>x</span> <span class='op'>-</span> <span class='va'>train_mean</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd</span><span class='op'>)</span>
-    
-    <span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>+</span> <span class='fl'>1</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span>
-      n <span class='op'>=</span> <span class='va'>n</span>,
-      size <span class='op'>=</span> <span class='va'>n</span> <span class='op'>*</span> <span class='va'>sample_frac</span>
-    <span class='op'>)</span><span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  
-  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>
-    <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span>
-    <span class='va'>pred_length</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-      x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span><span class='op'>]</span>,
-      y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='va'>pred_length</span><span class='op'>)</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span>
-    <span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  
-  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>)</span> 
-  <span class='op'>}</span>
-<span class='op'>)</span>
-
-<span class='va'>train_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_train</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, sample_frac <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>
-<span class='va'>train_dl</span> <span class='op'>&lt;-</span> <span class='va'>train_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='va'>batch_size</span>, shuffle <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
-
-<span class='va'>valid_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_valid</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, sample_frac <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span>
-<span class='va'>valid_dl</span> <span class='op'>&lt;-</span> <span class='va'>valid_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='va'>batch_size</span><span class='op'>)</span>
-
-<span class='va'>test_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_test</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span><span class='op'>)</span>
-<span class='va'>test_dl</span> <span class='op'>&lt;-</span> <span class='va'>test_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span></span>
+<span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span> </span>
+<span><span class='va'>batch_size</span> <span class='op'>&lt;-</span> <span class='fl'>32</span></span>
+<span></span>
+<span><span class='va'>vic_elec_get_year</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>year</span>, <span class='va'>month</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='va'>year</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>month</span><span class='op'>)</span><span class='op'>)</span> <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='kw'>else</span> <span class='va'>month</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>elec_train</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2012</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>elec_valid</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2013</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>elec_test</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2014</span>, <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_mean</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>)</span></span>
+<span><span class='va'>train_sd</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>elec_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span></span>
+<span>  name <span class='op'>=</span> <span class='st'>"elec_dataset"</span>,</span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, <span class='va'>sample_frac</span> <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='va'>n_timesteps</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='va'>n_forecast</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='op'>(</span><span class='va'>x</span> <span class='op'>-</span> <span class='va'>train_mean</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>+</span> <span class='fl'>1</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span></span>
+<span>      n <span class='op'>=</span> <span class='va'>n</span>,</span>
+<span>      size <span class='op'>=</span> <span class='va'>n</span> <span class='op'>*</span> <span class='va'>sample_frac</span></span>
+<span>    <span class='op'>)</span><span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span></span>
+<span>    <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span></span>
+<span>    <span class='va'>pred_length</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>      x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span><span class='op'>]</span>,</span>
+<span>      y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='va'>pred_length</span><span class='op'>)</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>)</span> </span>
+<span>  <span class='op'>}</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_train</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, sample_frac <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span></span>
+<span><span class='va'>train_dl</span> <span class='op'>&lt;-</span> <span class='va'>train_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='va'>batch_size</span>, shuffle <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>valid_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_valid</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, sample_frac <span class='op'>=</span> <span class='fl'>0.5</span><span class='op'>)</span></span>
+<span><span class='va'>valid_dl</span> <span class='op'>&lt;-</span> <span class='va'>valid_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='va'>batch_size</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_ds</span> <span class='op'>&lt;-</span> <span class='fu'>elec_dataset</span><span class='op'>(</span><span class='va'>elec_test</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span><span class='op'>)</span></span>
+<span><span class='va'>test_dl</span> <span class='op'>&lt;-</span> <span class='va'>test_ds</span> <span class='op'>%&gt;%</span> <span class='fu'>dataloader</span><span class='op'>(</span>batch_size <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h1 id="model">Model</h1>
@@ -2260,126 +2259,123 @@ gtag('config', 'UA-20375833-3');
 <p>In <code>forward()</code>, we first apply the RNN, and just like in the previous post, we make use of the <code>outputs</code> only; or more specifically, the <code>output</code> corresponding to the final time step. (See that previous post for a <a href="https://blogs.rstudio.com/ai/posts/2021-03-10-forecasting-time-series-with-torch_1/#model">detailed discussion</a> of what a <code>torch</code> RNN returns.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span>
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>type</span>, <span class='va'>input_size</span>, <span class='va'>hidden_size</span>, <span class='va'>linear_size</span>, <span class='va'>output_size</span>,
-                        <span class='va'>num_layers</span> <span class='op'>=</span> <span class='fl'>1</span>, <span class='va'>dropout</span> <span class='op'>=</span> <span class='fl'>0</span>, <span class='va'>linear_dropout</span> <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>type</span> <span class='op'>&lt;-</span> <span class='va'>type</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='va'>num_layers</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>linear_dropout</span> <span class='op'>&lt;-</span> <span class='va'>linear_dropout</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>rnn</span> <span class='op'>&lt;-</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>type</span> <span class='op'>==</span> <span class='st'>"gru"</span><span class='op'>)</span> <span class='op'>{</span>
-      <span class='fu'>nn_gru</span><span class='op'>(</span>
-        input_size <span class='op'>=</span> <span class='va'>input_size</span>,
-        hidden_size <span class='op'>=</span> <span class='va'>hidden_size</span>,
-        num_layers <span class='op'>=</span> <span class='va'>num_layers</span>,
-        dropout <span class='op'>=</span> <span class='va'>dropout</span>,
-        batch_first <span class='op'>=</span> <span class='cn'>TRUE</span>
-      <span class='op'>)</span>
-    <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span>
-      <span class='fu'>nn_lstm</span><span class='op'>(</span>
-        input_size <span class='op'>=</span> <span class='va'>input_size</span>,
-        hidden_size <span class='op'>=</span> <span class='va'>hidden_size</span>,
-        num_layers <span class='op'>=</span> <span class='va'>num_layers</span>,
-        dropout <span class='op'>=</span> <span class='va'>dropout</span>,
-        batch_first <span class='op'>=</span> <span class='cn'>TRUE</span>
-      <span class='op'>)</span>
-    <span class='op'>}</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>mlp</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span>
-      <span class='fu'>nn_linear</span><span class='op'>(</span><span class='va'>hidden_size</span>, <span class='va'>linear_size</span><span class='op'>)</span>,
-      <span class='fu'>nn_relu</span><span class='op'>(</span><span class='op'>)</span>,
-      <span class='fu'>nn_dropout</span><span class='op'>(</span><span class='va'>linear_dropout</span><span class='op'>)</span>,
-      <span class='fu'>nn_linear</span><span class='op'>(</span><span class='va'>linear_size</span>, <span class='va'>output_size</span><span class='op'>)</span>
-    <span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  
-  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='fu'>rnn</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span>
-    <span class='va'>x</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span> ,<span class='op'>-</span><span class='fl'>1</span>, <span class='va'>..</span><span class='op'>]</span> <span class='op'>%&gt;%</span> 
-      <span class='va'>self</span><span class='op'>$</span><span class='fu'>mlp</span><span class='op'>(</span><span class='op'>)</span>
-    
-  <span class='op'>}</span>
-  
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>type</span>, <span class='va'>input_size</span>, <span class='va'>hidden_size</span>, <span class='va'>linear_size</span>, <span class='va'>output_size</span>,</span>
+<span>                        <span class='va'>num_layers</span> <span class='op'>=</span> <span class='fl'>1</span>, <span class='va'>dropout</span> <span class='op'>=</span> <span class='fl'>0</span>, <span class='va'>linear_dropout</span> <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>type</span> <span class='op'>&lt;-</span> <span class='va'>type</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>num_layers</span> <span class='op'>&lt;-</span> <span class='va'>num_layers</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>linear_dropout</span> <span class='op'>&lt;-</span> <span class='va'>linear_dropout</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>rnn</span> <span class='op'>&lt;-</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>type</span> <span class='op'>==</span> <span class='st'>"gru"</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>      <span class='fu'>nn_gru</span><span class='op'>(</span></span>
+<span>        input_size <span class='op'>=</span> <span class='va'>input_size</span>,</span>
+<span>        hidden_size <span class='op'>=</span> <span class='va'>hidden_size</span>,</span>
+<span>        num_layers <span class='op'>=</span> <span class='va'>num_layers</span>,</span>
+<span>        dropout <span class='op'>=</span> <span class='va'>dropout</span>,</span>
+<span>        batch_first <span class='op'>=</span> <span class='cn'>TRUE</span></span>
+<span>      <span class='op'>)</span></span>
+<span>    <span class='op'>}</span> <span class='kw'>else</span> <span class='op'>{</span></span>
+<span>      <span class='fu'>nn_lstm</span><span class='op'>(</span></span>
+<span>        input_size <span class='op'>=</span> <span class='va'>input_size</span>,</span>
+<span>        hidden_size <span class='op'>=</span> <span class='va'>hidden_size</span>,</span>
+<span>        num_layers <span class='op'>=</span> <span class='va'>num_layers</span>,</span>
+<span>        dropout <span class='op'>=</span> <span class='va'>dropout</span>,</span>
+<span>        batch_first <span class='op'>=</span> <span class='cn'>TRUE</span></span>
+<span>      <span class='op'>)</span></span>
+<span>    <span class='op'>}</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>mlp</span> <span class='op'>&lt;-</span> <span class='fu'>nn_sequential</span><span class='op'>(</span></span>
+<span>      <span class='fu'>nn_linear</span><span class='op'>(</span><span class='va'>hidden_size</span>, <span class='va'>linear_size</span><span class='op'>)</span>,</span>
+<span>      <span class='fu'>nn_relu</span><span class='op'>(</span><span class='op'>)</span>,</span>
+<span>      <span class='fu'>nn_dropout</span><span class='op'>(</span><span class='va'>linear_dropout</span><span class='op'>)</span>,</span>
+<span>      <span class='fu'>nn_linear</span><span class='op'>(</span><span class='va'>linear_size</span>, <span class='va'>output_size</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  forward <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='fu'>rnn</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span>    <span class='va'>x</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>[</span> ,<span class='op'>-</span><span class='fl'>1</span>, <span class='va'>..</span><span class='op'>]</span> <span class='op'>%&gt;%</span> </span>
+<span>      <span class='va'>self</span><span class='op'>$</span><span class='fu'>mlp</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>For model instantiation, we now have an additional configuration parameter, related to the amount of dropout between the two linear layers.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>net</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span>
-  <span class='st'>"gru"</span>, input_size <span class='op'>=</span> <span class='fl'>1</span>, hidden_size <span class='op'>=</span> <span class='fl'>32</span>, linear_size <span class='op'>=</span> <span class='fl'>512</span>, output_size <span class='op'>=</span> <span class='va'>n_forecast</span>, linear_dropout <span class='op'>=</span> <span class='fl'>0</span>
-  <span class='op'>)</span>
-
-<span class='co'># training RNNs on the GPU currently prints a warning that may clutter </span>
-<span class='co'># the console</span>
-<span class='co'># see https://github.com/mlverse/torch/issues/461</span>
-<span class='co'># alternatively, use </span>
-<span class='co'># device &lt;- "cpu"</span>
-<span class='va'>device</span> <span class='op'>&lt;-</span> <span class='fu'>torch_device</span><span class='op'>(</span><span class='kw'>if</span> <span class='op'>(</span><span class='fu'>cuda_is_available</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='st'>"cuda"</span> <span class='kw'>else</span> <span class='st'>"cpu"</span><span class='op'>)</span>
-
-<span class='va'>net</span> <span class='op'>&lt;-</span> <span class='va'>net</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>net</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span></span>
+<span>  <span class='st'>"gru"</span>, input_size <span class='op'>=</span> <span class='fl'>1</span>, hidden_size <span class='op'>=</span> <span class='fl'>32</span>, linear_size <span class='op'>=</span> <span class='fl'>512</span>, output_size <span class='op'>=</span> <span class='va'>n_forecast</span>, linear_dropout <span class='op'>=</span> <span class='fl'>0</span></span>
+<span>  <span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># training RNNs on the GPU currently prints a warning that may clutter </span></span>
+<span><span class='co'># the console</span></span>
+<span><span class='co'># see https://github.com/mlverse/torch/issues/461</span></span>
+<span><span class='co'># alternatively, use </span></span>
+<span><span class='co'># device &lt;- "cpu"</span></span>
+<span><span class='va'>device</span> <span class='op'>&lt;-</span> <span class='fu'>torch_device</span><span class='op'>(</span><span class='kw'>if</span> <span class='op'>(</span><span class='fu'>cuda_is_available</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span> <span class='st'>"cuda"</span> <span class='kw'>else</span> <span class='st'>"cpu"</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>net</span> <span class='op'>&lt;-</span> <span class='va'>net</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h1 id="training">Training</h1>
 <p>The training procedure is completely unchanged.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optim_adam</span><span class='op'>(</span><span class='va'>net</span><span class='op'>$</span><span class='va'>parameters</span>, lr <span class='op'>=</span> <span class='fl'>0.001</span><span class='op'>)</span>
-
-<span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>30</span>
-
-<span class='va'>train_batch</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>zero_grad</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>target</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span>
-  
-  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>output</span>, <span class='va'>target</span><span class='op'>)</span>
-  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>step</span><span class='op'>(</span><span class='op'>)</span>
-  
-  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>valid_batch</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>target</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span>
-  
-  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>output</span>, <span class='va'>target</span><span class='op'>)</span>
-  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span>
-  
-<span class='op'>}</span>
-
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>net</span><span class='op'>$</span><span class='fu'>train</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span>
-  
-  <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>train_dl</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>loss</span> <span class='op'>&lt;-</span><span class='fu'>train_batch</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span>
-    <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>train_loss</span>, <span class='va'>loss</span><span class='op'>)</span>
-  <span class='op'>}</span><span class='op'>)</span>
-  
-  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, training: loss: %3.5f \n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>train_loss</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-  
-  <span class='va'>net</span><span class='op'>$</span><span class='fu'>eval</span><span class='op'>(</span><span class='op'>)</span>
-  <span class='va'>valid_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span>
-  
-  <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>valid_dl</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>valid_batch</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span>
-    <span class='va'>valid_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>valid_loss</span>, <span class='va'>loss</span><span class='op'>)</span>
-  <span class='op'>}</span><span class='op'>)</span>
-  
-  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, validation: loss: %3.5f \n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>valid_loss</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='fu'>optim_adam</span><span class='op'>(</span><span class='va'>net</span><span class='op'>$</span><span class='va'>parameters</span>, lr <span class='op'>=</span> <span class='fl'>0.001</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>30</span></span>
+<span></span>
+<span><span class='va'>train_batch</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>zero_grad</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>target</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>output</span>, <span class='va'>target</span><span class='op'>)</span></span>
+<span>  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>optimizer</span><span class='op'>$</span><span class='fu'>step</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>valid_batch</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>b</span><span class='op'>$</span><span class='va'>x</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>target</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>y</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_mse_loss</span><span class='op'>(</span><span class='va'>output</span>, <span class='va'>target</span><span class='op'>)</span></span>
+<span>  <span class='va'>loss</span><span class='op'>$</span><span class='fu'>item</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>epoch</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_epochs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>net</span><span class='op'>$</span><span class='fu'>train</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>train_dl</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span><span class='fu'>train_batch</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span></span>
+<span>    <span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>train_loss</span>, <span class='va'>loss</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, training: loss: %3.5f \n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>train_loss</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>net</span><span class='op'>$</span><span class='fu'>eval</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>valid_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>valid_dl</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='fu'>valid_batch</span><span class='op'>(</span><span class='va'>b</span><span class='op'>)</span></span>
+<span>    <span class='va'>valid_loss</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>valid_loss</span>, <span class='va'>loss</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sprintf.html'>sprintf</a></span><span class='op'>(</span><span class='st'>"\nEpoch %d, validation: loss: %3.5f \n"</span>, <span class='va'>epoch</span>, <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>valid_loss</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <pre><code># Epoch 1, training: loss: 0.65737 
@@ -2507,51 +2503,50 @@ gtag('config', 'UA-20375833-3');
 <p>With no loop to be coded, evaluation now becomes pretty straightforward:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>net</span><span class='op'>$</span><span class='fu'>eval</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>test_preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>test_dl</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>i</span> <span class='op'>&lt;-</span> <span class='fl'>1</span>
-
-<span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>test_dl</span><span class='op'>)</span> <span class='op'>{</span>
-  
-  <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>x</span>
-  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>input</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span>
-  <span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>output</span><span class='op'>)</span>
-  
-  <span class='va'>test_preds</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>preds</span>
-  <span class='va'>i</span> <span class='op'>&lt;&lt;-</span> <span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span>
-  
-<span class='op'>}</span><span class='op'>)</span>
-
-<span class='va'>vic_elec_jan_2014</span> <span class='op'>&lt;-</span> <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span>
-  <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='fl'>2014</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span>
-
-<span class='va'>test_pred1</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>
-<span class='va'>test_pred1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='va'>n_timesteps</span><span class='op'>)</span>, <span class='va'>test_pred1</span>, <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>test_pred2</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>408</span><span class='op'>]</span><span class='op'>]</span>
-<span class='va'>test_pred2</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>407</span><span class='op'>)</span>, <span class='va'>test_pred2</span>, <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>407</span> <span class='op'>-</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='va'>test_pred3</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>817</span><span class='op'>]</span><span class='op'>]</span>
-<span class='va'>test_pred3</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span>, <span class='va'>test_pred3</span><span class='op'>)</span>
-
-
-<span class='va'>preds_ts</span> <span class='op'>&lt;-</span> <span class='va'>vic_elec_jan_2014</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>add_column</span><span class='op'>(</span>
-    mlp_ex_1 <span class='op'>=</span> <span class='va'>test_pred1</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span>,
-    mlp_ex_2 <span class='op'>=</span> <span class='va'>test_pred2</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span>,
-    mlp_ex_3 <span class='op'>=</span> <span class='va'>test_pred3</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>pivot_longer</span><span class='op'>(</span><span class='op'>-</span><span class='va'>Time</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>update_tsibble</span><span class='op'>(</span>key <span class='op'>=</span> <span class='va'>name</span><span class='op'>)</span>
-
-
-<span class='va'>preds_ts</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>autoplot</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span>
-  <span class='fu'>scale_colour_manual</span><span class='op'>(</span>values <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"#08c5d1"</span>, <span class='st'>"#00353f"</span>, <span class='st'>"#ffbf66"</span>, <span class='st'>"#d46f4d"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span>
-  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>net</span><span class='op'>$</span><span class='fu'>eval</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/vector.html'>vector</a></span><span class='op'>(</span>mode <span class='op'>=</span> <span class='st'>"list"</span>, length <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>test_dl</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>i</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
+<span></span>
+<span><span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>b</span> <span class='kw'>in</span> <span class='va'>test_dl</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  </span>
+<span>  <span class='va'>input</span> <span class='op'>&lt;-</span> <span class='va'>b</span><span class='op'>$</span><span class='va'>x</span></span>
+<span>  <span class='va'>output</span> <span class='op'>&lt;-</span> <span class='fu'>net</span><span class='op'>(</span><span class='va'>input</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>device <span class='op'>=</span> <span class='va'>device</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>preds</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>output</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>test_preds</span><span class='op'>[[</span><span class='va'>i</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>preds</span></span>
+<span>  <span class='va'>i</span> <span class='op'>&lt;&lt;-</span> <span class='va'>i</span> <span class='op'>+</span> <span class='fl'>1</span></span>
+<span>  </span>
+<span><span class='op'>}</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>vic_elec_jan_2014</span> <span class='op'>&lt;-</span> <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='fl'>2014</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_pred1</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span></span>
+<span><span class='va'>test_pred1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='va'>n_timesteps</span><span class='op'>)</span>, <span class='va'>test_pred1</span>, <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_pred2</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>408</span><span class='op'>]</span><span class='op'>]</span></span>
+<span><span class='va'>test_pred2</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='va'>n_timesteps</span> <span class='op'>+</span> <span class='fl'>407</span><span class='op'>)</span>, <span class='va'>test_pred2</span>, <span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='fl'>407</span> <span class='op'>-</span> <span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>test_pred3</span> <span class='op'>&lt;-</span> <span class='va'>test_preds</span><span class='op'>[[</span><span class='fl'>817</span><span class='op'>]</span><span class='op'>]</span></span>
+<span><span class='va'>test_pred3</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/rep.html'>rep</a></span><span class='op'>(</span><span class='cn'>NA</span>, <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>vic_elec_jan_2014</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>n_forecast</span><span class='op'>)</span>, <span class='va'>test_pred3</span><span class='op'>)</span></span>
+<span></span>
+<span></span>
+<span><span class='va'>preds_ts</span> <span class='op'>&lt;-</span> <span class='va'>vic_elec_jan_2014</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>add_column</span><span class='op'>(</span></span>
+<span>    mlp_ex_1 <span class='op'>=</span> <span class='va'>test_pred1</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span>,</span>
+<span>    mlp_ex_2 <span class='op'>=</span> <span class='va'>test_pred2</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span>,</span>
+<span>    mlp_ex_3 <span class='op'>=</span> <span class='va'>test_pred3</span> <span class='op'>*</span> <span class='va'>train_sd</span> <span class='op'>+</span> <span class='va'>train_mean</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>pivot_longer</span><span class='op'>(</span><span class='op'>-</span><span class='va'>Time</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>update_tsibble</span><span class='op'>(</span>key <span class='op'>=</span> <span class='va'>name</span><span class='op'>)</span></span>
+<span></span>
+<span></span>
+<span><span class='va'>preds_ts</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>autoplot</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>scale_colour_manual</span><span class='op'>(</span>values <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"#08c5d1"</span>, <span class='st'>"#00353f"</span>, <span class='st'>"#ffbf66"</span>, <span class='st'>"#d46f4d"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <div class="layout-chunk" data-layout="l-page">
@@ -2571,69 +2566,68 @@ Figure 1: One-week-ahead predictions for January, 2014.
 <h1 id="appendix">Appendix</h1>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='co'># Data input code modified to accommodate two predictors</span>
-
-<span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span>
-<span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span>
-
-<span class='va'>vic_elec_get_year</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>year</span>, <span class='va'>month</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span>
-    <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='va'>year</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>month</span><span class='op'>)</span><span class='op'>)</span> <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='kw'>else</span> <span class='va'>month</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span>, <span class='va'>Temperature</span><span class='op'>)</span>
-<span class='op'>}</span>
-
-<span class='va'>elec_train</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2012</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>elec_valid</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2013</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='va'>elec_test</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2014</span>, <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='va'>train_mean_demand</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
-<span class='va'>train_sd_demand</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>
-
-<span class='va'>train_mean_temp</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span>
-<span class='va'>train_sd_temp</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span>
-
-<span class='va'>elec_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span>
-  name <span class='op'>=</span> <span class='st'>"elec_dataset"</span>,
-  
-  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, <span class='va'>sample_frac</span> <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>demand</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>data</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>train_mean_demand</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd_demand</span>
-    <span class='va'>temp</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>data</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>train_mean_temp</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd_temp</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/cbind.html'>cbind</a></span><span class='op'>(</span><span class='va'>demand</span>, <span class='va'>temp</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='op'>)</span>
-    
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='va'>n_timesteps</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='va'>n_forecast</span>
-    
-    <span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>+</span> <span class='fl'>1</span>
-    <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span>
-      n <span class='op'>=</span> <span class='va'>n</span>,
-      size <span class='op'>=</span> <span class='va'>n</span> <span class='op'>*</span> <span class='va'>sample_frac</span>
-    <span class='op'>)</span><span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  
-  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span>
-    
-    <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>
-    <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span>
-    <span class='va'>pred_length</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span>
-    
-    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>
-      x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span>, <span class='op'>]</span>,
-      y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='va'>pred_length</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>]</span>
-    <span class='op'>)</span>
-    
-  <span class='op'>}</span>,
-  
-  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>)</span>
-  <span class='op'>}</span>
-  
-<span class='op'>)</span>
-
-<span class='co'>### rest identical to single-predictor code above</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># Data input code modified to accommodate two predictors</span></span>
+<span></span>
+<span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span></span>
+<span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='fl'>7</span> <span class='op'>*</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='fl'>2</span></span>
+<span></span>
+<span><span class='va'>vic_elec_get_year</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>year</span>, <span class='va'>month</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>vic_elec</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/stats/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'>year</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='va'>year</span>, <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='op'>==</span> <span class='kw'>if</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>month</span><span class='op'>)</span><span class='op'>)</span> <span class='fu'>month</span><span class='op'>(</span><span class='va'>Date</span><span class='op'>)</span> <span class='kw'>else</span> <span class='va'>month</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>as_tibble</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>select</span><span class='op'>(</span><span class='va'>Demand</span>, <span class='va'>Temperature</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='va'>elec_train</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2012</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>elec_valid</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2013</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>elec_test</span> <span class='op'>&lt;-</span> <span class='fu'>vic_elec_get_year</span><span class='op'>(</span><span class='fl'>2014</span>, <span class='fl'>1</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_mean_demand</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='va'>train_sd_demand</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>train_mean_temp</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='va'>train_sd_temp</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/sd.html'>sd</a></span><span class='op'>(</span><span class='va'>elec_train</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>elec_dataset</span> <span class='op'>&lt;-</span> <span class='fu'>dataset</span><span class='op'>(</span></span>
+<span>  name <span class='op'>=</span> <span class='st'>"elec_dataset"</span>,</span>
+<span>  </span>
+<span>  initialize <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>data</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_forecast</span>, <span class='va'>sample_frac</span> <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>demand</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>data</span><span class='op'>[</span> , <span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>train_mean_demand</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd_demand</span></span>
+<span>    <span class='va'>temp</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>data</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>train_mean_temp</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>train_sd_temp</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/cbind.html'>cbind</a></span><span class='op'>(</span><span class='va'>demand</span>, <span class='va'>temp</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    </span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>&lt;-</span> <span class='va'>n_timesteps</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>&lt;-</span> <span class='va'>n_forecast</span></span>
+<span>    </span>
+<span>    <span class='va'>n</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span> <span class='op'>+</span> <span class='fl'>1</span></span>
+<span>    <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sort.html'>sort</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span></span>
+<span>      n <span class='op'>=</span> <span class='va'>n</span>,</span>
+<span>      size <span class='op'>=</span> <span class='va'>n</span> <span class='op'>*</span> <span class='va'>sample_frac</span></span>
+<span>    <span class='op'>)</span><span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .getitem <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>i</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    </span>
+<span>    <span class='va'>start</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span></span>
+<span>    <span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>+</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_timesteps</span> <span class='op'>-</span> <span class='fl'>1</span></span>
+<span>    <span class='va'>pred_length</span> <span class='op'>&lt;-</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>n_forecast</span></span>
+<span>    </span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
+<span>      x <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span>, <span class='op'>]</span>,</span>
+<span>      y <span class='op'>=</span> <span class='va'>self</span><span class='op'>$</span><span class='va'>x</span><span class='op'>[</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='va'>end</span> <span class='op'>+</span> <span class='va'>pred_length</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>]</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    </span>
+<span>  <span class='op'>}</span>,</span>
+<span>  </span>
+<span>  .length <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/length.html'>length</a></span><span class='op'>(</span><span class='va'>self</span><span class='op'>$</span><span class='va'>starts</span><span class='op'>)</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  </span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'>### rest identical to single-predictor code above</span></span></code></pre>
 </div>
 </div>
 <p>Photo by <a href="https://unsplash.com/@monicabourgeau?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Monica Bourgeau</a> on <a href="/?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Unsplash</a></p>

@@ -2200,8 +2200,7 @@ gtag('config', 'UA-20375833-3');
 <p>To install <code>sparklyr</code> 1.7 from CRAN, run</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/utils/install.packages.html'>install.packages</a></span><span class='op'>(</span><span class='st'>"sparklyr"</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/utils/install.packages.html'>install.packages</a></span><span class='op'>(</span><span class='st'>"sparklyr"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>In this blog post, we wish to present the following highlights from the <code>sparklyr</code> 1.7 release:</p>
@@ -2226,84 +2225,81 @@ gtag('config', 'UA-20375833-3');
 <p>The second step, of course, is to make use of the above-mentioned <code>sparklyr</code> extension to perform some feature engineering. We will see very high-level features being extracted intelligently from each cat/dog image based on what the pre-built <code>Inception</code>-V3 convolutional neural network has already learned from classifying a much broader collection of images:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span>
-<span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>sparklyr.deeperer</span><span class='op'>)</span>
-
-<span class='co'># NOTE: the correct spark_home path to use depends on the configuration of the</span>
-<span class='co'># Spark cluster you are working with.</span>
-<span class='va'>spark_home</span> <span class='op'>&lt;-</span> <span class='st'>"/usr/lib/spark"</span>
-<span class='va'>sc</span> <span class='op'>&lt;-</span> <span class='fu'>spark_connect</span><span class='op'>(</span>master <span class='op'>=</span> <span class='st'>"yarn"</span>, spark_home <span class='op'>=</span> <span class='va'>spark_home</span><span class='op'>)</span>
-
-<span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='fu'>copy_images_to_hdfs</span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='co'># extract features from train- and test-data</span>
-<span class='va'>image_data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span>
-<span class='kw'>for</span> <span class='op'>(</span><span class='va'>x</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"train"</span>, <span class='st'>"test"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span>
-  <span class='co'># import</span>
-  <span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"dogs"</span>, <span class='st'>"cats"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span>
-      <span class='kw'>function</span><span class='op'>(</span><span class='va'>label</span><span class='op'>)</span> <span class='op'>{</span>
-        <span class='va'>numeric_label</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/ifelse.html'>ifelse</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/identical.html'>identical</a></span><span class='op'>(</span><span class='va'>label</span>, <span class='st'>"dogs"</span><span class='op'>)</span>, <span class='fl'>1L</span>, <span class='fl'>0L</span><span class='op'>)</span>
-        <span class='fu'>spark_read_image</span><span class='op'>(</span>
-          <span class='va'>sc</span>, dir <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>data_dir</span>, <span class='va'>x</span>, <span class='va'>label</span>, fsep <span class='op'>=</span> <span class='st'>"/"</span><span class='op'>)</span>
-        <span class='op'>)</span> <span class='op'>%&gt;%</span>
-          <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>label <span class='op'>=</span> <span class='va'>numeric_label</span><span class='op'>)</span>
-      <span class='op'>}</span>
-    <span class='op'>)</span> <span class='op'>%&gt;%</span>
-      <span class='fu'><a href='https://rdrr.io/r/base/do.call.html'>do.call</a></span><span class='op'>(</span><span class='va'>sdf_bind_rows</span>, <span class='va'>.</span><span class='op'>)</span>
-
-  <span class='va'>dl_featurizer</span> <span class='op'>&lt;-</span> <span class='fu'>invoke_new</span><span class='op'>(</span>
-    <span class='va'>sc</span>,
-    <span class='st'>"com.databricks.sparkdl.DeepImageFeaturizer"</span>,
-    <span class='fu'>random_string</span><span class='op'>(</span><span class='st'>"dl_featurizer"</span><span class='op'>)</span> <span class='co'># uid</span>
-  <span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setModelName"</span>, <span class='st'>"InceptionV3"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setInputCol"</span>, <span class='st'>"image"</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setOutputCol"</span>, <span class='st'>"features"</span><span class='op'>)</span>
-  <span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span>
-    <span class='va'>dl_featurizer</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"transform"</span>, <span class='fu'>spark_dataframe</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'>sdf_register</span><span class='op'>(</span><span class='op'>)</span>
-<span class='op'>}</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>sparklyr.deeperer</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># NOTE: the correct spark_home path to use depends on the configuration of the</span></span>
+<span><span class='co'># Spark cluster you are working with.</span></span>
+<span><span class='va'>spark_home</span> <span class='op'>&lt;-</span> <span class='st'>"/usr/lib/spark"</span></span>
+<span><span class='va'>sc</span> <span class='op'>&lt;-</span> <span class='fu'>spark_connect</span><span class='op'>(</span>master <span class='op'>=</span> <span class='st'>"yarn"</span>, spark_home <span class='op'>=</span> <span class='va'>spark_home</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>data_dir</span> <span class='op'>&lt;-</span> <span class='fu'>copy_images_to_hdfs</span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='co'># extract features from train- and test-data</span></span>
+<span><span class='va'>image_data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='kw'>for</span> <span class='op'>(</span><span class='va'>x</span> <span class='kw'>in</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"train"</span>, <span class='st'>"test"</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='co'># import</span></span>
+<span>  <span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='st'>"dogs"</span>, <span class='st'>"cats"</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span></span>
+<span>      <span class='kw'>function</span><span class='op'>(</span><span class='va'>label</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>        <span class='va'>numeric_label</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/ifelse.html'>ifelse</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/identical.html'>identical</a></span><span class='op'>(</span><span class='va'>label</span>, <span class='st'>"dogs"</span><span class='op'>)</span>, <span class='fl'>1L</span>, <span class='fl'>0L</span><span class='op'>)</span></span>
+<span>        <span class='fu'>spark_read_image</span><span class='op'>(</span></span>
+<span>          <span class='va'>sc</span>, dir <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>data_dir</span>, <span class='va'>x</span>, <span class='va'>label</span>, fsep <span class='op'>=</span> <span class='st'>"/"</span><span class='op'>)</span></span>
+<span>        <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>          <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>label <span class='op'>=</span> <span class='va'>numeric_label</span><span class='op'>)</span></span>
+<span>      <span class='op'>}</span></span>
+<span>    <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>      <span class='fu'><a href='https://rdrr.io/r/base/do.call.html'>do.call</a></span><span class='op'>(</span><span class='va'>sdf_bind_rows</span>, <span class='va'>.</span><span class='op'>)</span></span>
+<span></span>
+<span>  <span class='va'>dl_featurizer</span> <span class='op'>&lt;-</span> <span class='fu'>invoke_new</span><span class='op'>(</span></span>
+<span>    <span class='va'>sc</span>,</span>
+<span>    <span class='st'>"com.databricks.sparkdl.DeepImageFeaturizer"</span>,</span>
+<span>    <span class='fu'>random_string</span><span class='op'>(</span><span class='st'>"dl_featurizer"</span><span class='op'>)</span> <span class='co'># uid</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setModelName"</span>, <span class='st'>"InceptionV3"</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setInputCol"</span>, <span class='st'>"image"</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"setOutputCol"</span>, <span class='st'>"features"</span><span class='op'>)</span></span>
+<span>  <span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>&lt;-</span></span>
+<span>    <span class='va'>dl_featurizer</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>invoke</span><span class='op'>(</span><span class='st'>"transform"</span>, <span class='fu'>spark_dataframe</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>[[</span><span class='va'>x</span><span class='op'>]</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>sdf_register</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
 <p>Third step: equipped with features that summarize the content of each image well, we can build a Spark ML pipeline that recognizes cats and dogs using only logistic regression<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>label_col</span> <span class='op'>&lt;-</span> <span class='st'>"label"</span>
-<span class='va'>prediction_col</span> <span class='op'>&lt;-</span> <span class='st'>"prediction"</span>
-<span class='va'>pipeline</span> <span class='op'>&lt;-</span> <span class='fu'>ml_pipeline</span><span class='op'>(</span><span class='va'>sc</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>ml_logistic_regression</span><span class='op'>(</span>
-    features_col <span class='op'>=</span> <span class='st'>"features"</span>,
-    label_col <span class='op'>=</span> <span class='va'>label_col</span>,
-    prediction_col <span class='op'>=</span> <span class='va'>prediction_col</span>
-  <span class='op'>)</span>
-<span class='va'>model</span> <span class='op'>&lt;-</span> <span class='va'>pipeline</span> <span class='op'>%&gt;%</span> <span class='fu'>ml_fit</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>$</span><span class='va'>train</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>label_col</span> <span class='op'>&lt;-</span> <span class='st'>"label"</span></span>
+<span><span class='va'>prediction_col</span> <span class='op'>&lt;-</span> <span class='st'>"prediction"</span></span>
+<span><span class='va'>pipeline</span> <span class='op'>&lt;-</span> <span class='fu'>ml_pipeline</span><span class='op'>(</span><span class='va'>sc</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>ml_logistic_regression</span><span class='op'>(</span></span>
+<span>    features_col <span class='op'>=</span> <span class='st'>"features"</span>,</span>
+<span>    label_col <span class='op'>=</span> <span class='va'>label_col</span>,</span>
+<span>    prediction_col <span class='op'>=</span> <span class='va'>prediction_col</span></span>
+<span>  <span class='op'>)</span></span>
+<span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='va'>pipeline</span> <span class='op'>%&gt;%</span> <span class='fu'>ml_fit</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>$</span><span class='va'>train</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>Finally, we can evaluate the accuracy of this model on the test images:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>ml_transform</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>$</span><span class='va'>test</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/compute.html'>compute</a></span><span class='op'>(</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Predictions vs. labels:\n"</span><span class='op'>)</span>
-<span class='va'>predictions</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>!</span><span class='op'>!</span><span class='va'>label_col</span>, <span class='op'>!</span><span class='op'>!</span><span class='va'>prediction_col</span><span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span>n <span class='op'>=</span> <span class='fu'>sdf_nrow</span><span class='op'>(</span><span class='va'>predictions</span><span class='op'>)</span><span class='op'>)</span>
-
-<span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"\nAccuracy of predictions:\n"</span><span class='op'>)</span>
-<span class='va'>predictions</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>ml_multiclass_classification_evaluator</span><span class='op'>(</span>
-    label_col <span class='op'>=</span> <span class='va'>label_col</span>,
-    prediction_col <span class='op'>=</span> <span class='va'>prediction_col</span>,
-    metric_name <span class='op'>=</span> <span class='st'>"accuracy"</span>
-  <span class='op'>)</span> <span class='op'>%&gt;%</span>
-    <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>predictions</span> <span class='op'>&lt;-</span> <span class='va'>model</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>ml_transform</span><span class='op'>(</span><span class='va'>image_data</span><span class='op'>$</span><span class='va'>test</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/compute.html'>compute</a></span><span class='op'>(</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"Predictions vs. labels:\n"</span><span class='op'>)</span></span>
+<span><span class='va'>predictions</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='op'>!</span><span class='op'>!</span><span class='va'>label_col</span>, <span class='op'>!</span><span class='op'>!</span><span class='va'>prediction_col</span><span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span>n <span class='op'>=</span> <span class='fu'>sdf_nrow</span><span class='op'>(</span><span class='va'>predictions</span><span class='op'>)</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/cat.html'>cat</a></span><span class='op'>(</span><span class='st'>"\nAccuracy of predictions:\n"</span><span class='op'>)</span></span>
+<span><span class='va'>predictions</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>ml_multiclass_classification_evaluator</span><span class='op'>(</span></span>
+<span>    label_col <span class='op'>=</span> <span class='va'>label_col</span>,</span>
+<span>    prediction_col <span class='op'>=</span> <span class='va'>prediction_col</span>,</span>
+<span>    metric_name <span class='op'>=</span> <span class='st'>"accuracy"</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <pre><code>## Predictions vs. labels:
@@ -2338,17 +2334,15 @@ gtag('config', 'UA-20375833-3');
 <p>Many <code>sparklyr</code> users who have tried to run <a href="https://spark.rstudio.com/reference/spark_apply.html"><code>spark_apply()</code></a> or <a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"><code>doSpark</code></a> to parallelize R computations among Spark workers have probably encountered some challenges arising from the serialization of R closures. In some scenarios, the serialized size of the R closure can become too large, often due to the size of the enclosing R environment required by the closure. In other scenarios, the serialization itself may take too much time, partially offsetting the performance gain from parallelization. Recently, multiple optimizations went into <code>sparklyr</code> to address those challenges. One of the optimizations was to make good use of the <a href="https://spark.apache.org/docs/latest/rdd-programming-guide.html#broadcast-variables">broadcast variable</a> construct in Apache Spark to reduce the overhead of distributing shared and immutable task states across all Spark workers. In <code>sparklyr</code> 1.7, there is also support for custom <code>spark_apply()</code> serializers, which offers more fine-grained control over the trade-off between speed and compression level of serialization algorithms. For example, one can specify</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='st'>"qs"</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='st'>"qs"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>,</p>
 <p>which will apply the default options of <code>qs::qserialize()</code> to achieve a high compression level, or</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>qs</span><span class='fu'>::</span><span class='fu'>qserialize</span><span class='op'>(</span><span class='va'>x</span>, preset <span class='op'>=</span> <span class='st'>"fast"</span><span class='op'>)</span><span class='op'>)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.deserializer <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>qs</span><span class='fu'>::</span><span class='fu'>qdeserialize</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>qs</span><span class='fu'>::</span><span class='fu'>qserialize</span><span class='op'>(</span><span class='va'>x</span>, preset <span class='op'>=</span> <span class='st'>"fast"</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.deserializer <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>qs</span><span class='fu'>::</span><span class='fu'>qdeserialize</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>,</p>
@@ -2366,21 +2360,19 @@ gtag('config', 'UA-20375833-3');
 <p><code>sparklyr</code> extensions can now customize <code>sparklyr</code>’s <code>dbplyr</code> SQL translations through the <a href="https://spark.rstudio.com/reference/spark_dependency.html"><code>spark_dependency()</code></a> specification returned from <code>spark_dependencies()</code> callbacks. This type of flexibility becomes useful, for instance, in scenarios where a <code>sparklyr</code> extension needs to insert type casts for inputs to custom Spark UDFs. We can find a concrete example of this in <a href="https://github.com/apache/incubator-sedona/tree/master/R/sparklyr.sedona#sparklyrsedona"><code>sparklyr.sedona</code></a>, a <code>sparklyr</code> extension to facilitate geo-spatial analyses using <a href="https://sedona.apache.org/">Apache Sedona</a>. Geo-spatial UDFs supported by Apache Sedona such as <code>ST_Point()</code> and <code>ST_PolygonFromEnvelope()</code> require all inputs to be <code>DECIMAL(24, 20)</code> quantities rather than <code>DOUBLE</code>s. Without any customization to <code>sparklyr</code>’s <code>dbplyr</code> SQL variant, the only way for a <code>dplyr</code> query involving <code>ST_Point()</code> to actually work in <code>sparklyr</code> would be to explicitly implement any type cast needed by the query using <code>dplyr::sql()</code>, e.g.,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>
-    x <span class='op'>=</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/sql.html'>sql</a></span><span class='op'>(</span><span class='st'>"CAST(`x` AS DECIMAL(24, 20))"</span><span class='op'>)</span>,
-    y <span class='op'>=</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/sql.html'>sql</a></span><span class='op'>(</span><span class='st'>"CAST(`y` AS DECIMAL(24, 20))"</span><span class='op'>)</span>
-  <span class='op'>)</span> <span class='op'>%&gt;%</span>
-  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pt <span class='op'>=</span> <span class='fu'>ST_Point</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span></span>
+<span>    x <span class='op'>=</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/sql.html'>sql</a></span><span class='op'>(</span><span class='st'>"CAST(`x` AS DECIMAL(24, 20))"</span><span class='op'>)</span>,</span>
+<span>    y <span class='op'>=</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/sql.html'>sql</a></span><span class='op'>(</span><span class='st'>"CAST(`y` AS DECIMAL(24, 20))"</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>  <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pt <span class='op'>=</span> <span class='fu'>ST_Point</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>.</p>
 <p>This would, to some extent, be antithetical to <code>dplyr</code>’s goal of freeing R users from laboriously spelling out SQL queries. Whereas by customizing <code>sparklyr</code>’s <code>dplyr</code> SQL translations (as implemented in <a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L55">here</a> and <a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L135">here</a> ), <code>sparklyr.sedona</code> allows users to simply write</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pt <span class='op'>=</span> <span class='fu'>ST_Point</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pt <span class='op'>=</span> <span class='fu'>ST_Point</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>instead, and the required Spark SQL type casts are generated automatically.</p>
@@ -2389,14 +2381,13 @@ gtag('config', 'UA-20375833-3');
 <p>With previous versions of <code>sparklyr</code>, many <code>sparklyr</code> extension authors would run into trouble when attempting to invoke Java/Scala functions accepting an <code>Array[T]</code> as one of their parameters, where <code>T</code> is any type bound more specific than <code>java.lang.Object</code> / <code>AnyRef</code>. This was because any array of objects passed through <code>sparklyr</code>’s Java/Scala invocation interface will be interpreted as simply an array of <code>java.lang.Object</code>s in absence of additional type information. For this reason, a helper function <a href="https://spark.rstudio.com/reference/jarray.html"><code>jarray()</code></a> was implemented as part of <code>sparklyr</code> 1.7 as a way to overcome the aforementioned problem. For example, executing</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>sc</span> <span class='op'>&lt;-</span> <span class='fu'>spark_connect</span><span class='op'>(</span><span class='va'>...</span><span class='op'>)</span>
-
-<span class='va'>arr</span> <span class='op'>&lt;-</span> <span class='fu'>jarray</span><span class='op'>(</span>
-  <span class='va'>sc</span>,
-  <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>5</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>invoke_new</span><span class='op'>(</span><span class='va'>sc</span>, <span class='st'>"MyClass"</span>, <span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>,
-  element_type <span class='op'>=</span> <span class='st'>"MyClass"</span>
-<span class='op'>)</span>
-</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>sc</span> <span class='op'>&lt;-</span> <span class='fu'>spark_connect</span><span class='op'>(</span><span class='va'>...</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>arr</span> <span class='op'>&lt;-</span> <span class='fu'>jarray</span><span class='op'>(</span></span>
+<span>  <span class='va'>sc</span>,</span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='fl'>5</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rdrr.io/r/base/lapply.html'>lapply</a></span><span class='op'>(</span><span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>invoke_new</span><span class='op'>(</span><span class='va'>sc</span>, <span class='st'>"MyClass"</span>, <span class='va'>x</span><span class='op'>)</span><span class='op'>)</span>,</span>
+<span>  element_type <span class='op'>=</span> <span class='st'>"MyClass"</span></span>
+<span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>will assign to <code>arr</code> a <em>reference</em> to an <code>Array[MyClass]</code> of length 5, rather than an <code>Array[AnyRef]</code>. Subsequently, <code>arr</code> becomes suitable to be passed as a parameter to functions accepting only <code>Array[MyClass]</code>s as inputs. Previously, some possible workarounds of this <code>sparklyr</code> limitation included changing function signatures to accept <code>Array[AnyRef]</code>s instead of <code>Array[MyClass]</code>s, or implementing a “wrapped” version of each function accepting <code>Array[AnyRef]</code> inputs and converting them to <code>Array[MyClass]</code> before the actual invocation. None of such workarounds was an ideal solution to the problem.</p>

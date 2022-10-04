@@ -152,7 +152,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=A neural algorithm of artistic style;citation_publication_date=2015;citation_volume=abs/1508.06576;citation_author=Leon A. Gatys;citation_author=Alexander S. Ecker;citation_author=Matthias Bethge"/>
+  <meta name="citation_reference" content="citation_title=A neural algorithm of artistic style;citation_volume=abs/1508.06576;citation_author=Leon A. Gatys;citation_author=Alexander S. Ecker;citation_author=Matthias Bethge"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -838,6 +838,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1910,15 +1911,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2117,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2194,9 +2201,13 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>How would your summer holiday’s photos look had Edvard Munch painted them? (Perhaps it’s better not to know). Let’s take a more comforting example: How would a nice, summarly river landscape look if painted by Katsushika Hokusai?</p>
-<p>Style transfer on images is not new, but got a boost when Gatys, Ecker, and Bethge<span class="citation" data-cites="GatysEB15a">(<a href="#ref-GatysEB15a" role="doc-biblioref">Gatys, Ecker, and Bethge 2015</a>)</span> showed how to successfully do it with deep learning. The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
-<p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow. However, there is an important difference: This post uses TensorFlow <a href="https://www.tensorflow.org/guide/eager">Eager Execution</a>, allowing for an imperative way of coding that makes it easy to map concepts to code. Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
+<p>How would your summer holiday’s photos look had Edvard Munch painted them? (Perhaps it’s better not to know).
+Let’s take a more comforting example: How would a nice, summarly river landscape look if painted by Katsushika Hokusai?</p>
+<p>Style transfer on images is not new, but got a boost when Gatys, Ecker, and Bethge<span class="citation" data-cites="GatysEB15a">(<a href="#ref-GatysEB15a" role="doc-biblioref">Gatys, Ecker, and Bethge 2015</a>)</span> showed how to successfully do it with deep learning.
+The main idea is straightforward: Create a hybrid that is a tradeoff between the <em>content image</em> we want to manipulate, and a <em>style image</em> we want to imitate, by optimizing for maximal resemblance to both at the same time.</p>
+<p>If you’ve read the chapter on neural style transfer from <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep Learning with R</a>, you may recognize some of the code snippets that follow.
+However, there is an important difference: This post uses TensorFlow <a href="https://www.tensorflow.org/guide/eager">Eager Execution</a>, allowing for an imperative way of coding that makes it easy to map concepts to code.
+Just like previous posts on eager execution on this blog, this is a port of a <a href="https://colab.research.google.com/github/tensorflow/models/blob/master/research/nst_blogpost/4_Neural_Style_Transfer_with_Eager_Execution.ipynb">Google Colaboratory notebook</a> that performs the same task in Python.</p>
 <p>As usual, please make sure you have the required package versions installed. And no need to copy the snippets - you’ll find the complete code among the <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/eager_styletransfer.R">Keras examples</a>.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>The code in this post depends on the most recent versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
@@ -2252,7 +2263,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p><img src="images/The_Great_Wave_off_Kanagawa.jpg" style="width:60.0%" /></p>
-<p>We create a wrapper that loads and preprocesses the input images for us. As we will be working with VGG19, a network that has been trained on ImageNet, we need to transform our input images in the same way that was used training it. Later, we’ll apply the inverse transformation to our combination image before displaying it.</p>
+<p>We create a wrapper that loads and preprocesses the input images for us.
+As we will be working with VGG19, a network that has been trained on ImageNet, we need to transform our input images in the same way that was used training it. Later, we’ll apply the inverse transformation to our combination image before displaying it.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>load_and_preprocess_image</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>path</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2279,7 +2291,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <h2 id="setting-the-scene">Setting the scene</h2>
 <p>We are going to use a neural network, but we won’t be training it. Neural style transfer is a bit uncommon in that we don’t optimize the network’s weights, but back propagate the loss to the input layer (the image), in order to move it in the desired direction.</p>
-<p>We will be interested in two kinds of outputs from the network, corresponding to our two goals. Firstly, we want to keep the combination image similar to the content image, on a high level. In a convnet, upper layers map to more holistic concepts, so we are picking a layer high up in the graph to compare outputs from the source and the combination.</p>
+<p>We will be interested in two kinds of outputs from the network, corresponding to our two goals.
+Firstly, we want to keep the combination image similar to the content image, on a high level. In a convnet, upper layers map to more holistic concepts, so we are picking a layer high up in the graph to compare outputs from the source and the combination.</p>
 <p>Secondly, the generated image should “look like” the style image. Style corresponds to lower level features like texture, shapes, strokes… So to compare the combination against the style example, we choose a set of lower level conv blocks for comparison and aggregate the results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2351,7 +2364,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="get-model-outputs-for-the-content-and-style-images">Get model outputs for the content and style images</h2>
-<p>We need the model’s output for the content and style images, but here it suffices to do this just once. We concatenate both images along the batch dimension, pass that input to the model, and get back a list of outputs, where every element of the list is a 4-d tensor. For the style image, we’re interested in the style outputs at batch position 1, whereas for the content image, we need the content output at batch position 2.</p>
+<p>We need the model’s output for the content and style images, but here it suffices to do this just once.
+We concatenate both images along the batch dimension, pass that input to the model, and get back a list of outputs, where every element of the list is a 4-d tensor. For the style image, we’re interested in the style outputs at batch position 1, whereas for the content image, we need the content output at batch position 2.</p>
 <p>In the below comments, please note that the sizes of dimensions 2 and 3 will differ if you’re loading images at a different size.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2461,7 +2475,10 @@ gtag('config', 'UA-20375833-3');
 <li>an optimizer that will apply the calculated gradients to the image variable (<code>tf$train$AdamOptimizer</code>)</li>
 </ul>
 <p>Below, we get the style features (of the style image) and the content feature (of the content image) just once, then iterate over the optimization process, saving the output every 100 iterations.</p>
-<p>In contrast to the original article and the <em>Deep Learning with R</em> book, but following the Google notebook instead, we’re not using L-BFGS for optimization, but Adam, as our goal here is to provide a concise introduction to eager execution. However, you could plug in another optimization method if you wanted, replacing <code>optimizer$apply_gradients(list(tuple(grads, init_image)))</code> by an algorithm of your choice (and of course, assigning the result of the optimization to the <code>Variable</code> holding the image).</p>
+<p>In contrast to the original article and the <em>Deep Learning with R</em> book, but following the Google notebook instead, we’re not using L-BFGS for optimization, but Adam, as our goal here is to provide a concise introduction to eager execution.
+However, you could plug in another optimization method if you wanted, replacing
+<code>optimizer$apply_gradients(list(tuple(grads, init_image)))</code>
+by an algorithm of your choice (and of course, assigning the result of the optimization to the <code>Variable</code> holding the image).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>run_style_transfer</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>content_path</span>, <span class='va'>style_path</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2547,7 +2564,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>… definitely more inviting than had it been painted by Edvard Munch!</p>
 <h2 id="conclusion">Conclusion</h2>
-<p>With neural style transfer, some fiddling around may be needed until you get the result you want. But as our example shows, this doesn’t mean the code has to be complicated. Additionally to being easy to grasp, eager execution also lets you add debugging output, and step through the code line-by-line to check on tensor shapes. Until next time in our eager execution series!</p>
+<p>With neural style transfer, some fiddling around may be needed until you get the result you want. But as our example shows, this doesn’t mean the code has to be complicated. Additionally to being easy to grasp, eager execution also lets you add debugging output, and step through the code line-by-line to check on tensor shapes.
+Until next time in our eager execution series!</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
 <div id="ref-GatysEB15a" class="csl-entry" role="doc-biblioentry">

@@ -148,10 +148,10 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Deep reconstruction of strange attractors from time series;citation_publication_date=2020;citation_author=William Gilpin"/>
-  <meta name="citation_reference" content="citation_title=Nonlinear time series analysis;citation_publication_date=2004;citation_publisher=Cambridge University Press;citation_author=Holger Kantz;citation_author=Thomas Schreiber"/>
-  <meta name="citation_reference" content="citation_title=Embedology;citation_publication_date=1991;citation_volume=65;citation_doi=10.1007/BF01053745;citation_author=Tim Sauer;citation_author=James A. Yorke;citation_author=Martin Casdagli"/>
-  <meta name="citation_reference" content="citation_title=Measuring the strangeness of strange attractors;citation_publication_date=1983;citation_volume=9;citation_doi=https://doi.org/10.1016/0167-2789(83)90298-1;citation_issn=0167-2789;citation_author=Peter Grassberger;citation_author=Itamar Procaccia"/>
+  <meta name="citation_reference" content="citation_title=Deep reconstruction of strange attractors from time series;citation_author=William Gilpin"/>
+  <meta name="citation_reference" content="citation_title=Nonlinear time series analysis;citation_publisher=Cambridge University Press;citation_author=Holger Kantz;citation_author=Thomas Schreiber"/>
+  <meta name="citation_reference" content="citation_title=Embedology;citation_volume=65;citation_doi=10.1007/BF01053745;citation_author=Tim Sauer;citation_author=James A. Yorke;citation_author=Martin Casdagli"/>
+  <meta name="citation_reference" content="citation_title=Measuring the strangeness of strange attractors;citation_volume=9;citation_doi=https://doi.org/10.1016/0167-2789(83)90298-1;citation_issn=0167-2789;citation_author=Peter Grassberger;citation_author=Itamar Procaccia"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -837,6 +837,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1909,15 +1910,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2116,7 +2123,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2194,22 +2201,55 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>Today, we pick up on the plan alluded to in the conclusion of the recent <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">Deep attractors: Where deep learning meets chaos</a>: employ that same technique to generate <em>forecasts</em> for empirical time series data.</p>
-<p>“That same technique,” which for conciseness, I’ll take the liberty of referring to as FNN-LSTM, is due to William Gilpin’s 2020 paper “Deep reconstruction of strange attractors from time series” <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>.</p>
-<p>In a nutshell<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, the problem addressed is as follows: A system, known or assumed to be nonlinear and highly dependent on initial conditions, is observed, resulting in a scalar series of measurements. The measurements are not just – inevitably – noisy, but in addition, they are – at best – a projection of a multidimensional state space onto a line.</p>
-<p>Classically in nonlinear time series analysis, such scalar series of observations are augmented by supplementing, at every point in time, delayed measurements of that same series – a technique called <em>delay coordinate embedding</em> <span class="citation" data-cites="embedology">(<a href="#ref-embedology" role="doc-biblioref">Sauer, Yorke, and Casdagli 1991</a>)</span>. For example, instead of just a single vector <code>X1</code>, we could have a matrix of vectors <code>X1</code>, <code>X2</code>, and <code>X3</code>, with <code>X2</code> containing the same values as <code>X1</code>, but starting from the third observation, and <code>X3</code>, from the fifth. In this case, the <em>delay</em> would be 2, and the <em>embedding dimension</em>, 3. Various <a href="https://en.wikipedia.org/wiki/Takens&#39;s_theorem">theorems</a> state that if these parameters are chosen adequately, it is possible to reconstruct the complete state space. There is a problem though: The theorems assume that the dimensionality of the true state space is known, which in many real-world applications, won’t be the case.</p>
-<p>This is where Gilpin’s idea comes in: Train an autoencoder, whose intermediate representation encapsulates the system’s attractor. Not just any MSE-optimized autoencoder though. The latent representation is regularized by <em>false nearest neighbors</em> (FNN) loss, a technique commonly used with delay coordinate embedding to determine an adequate embedding dimension. False neighbors are those who are close in <code>n</code>-dimensional space, but significantly farther apart in <code>n+1</code>-dimensional space. In the aforementioned introductory <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">post</a>, we showed how this technique allowed to reconstruct the attractor of the (synthetic) Lorenz system. Now, we want to move on to prediction.</p>
-<p>We first describe the setup, including model definitions, training procedures, and data preparation. Then, we tell you how it went.</p>
+<p>Today, we pick up on the plan alluded to in the conclusion of the recent <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">Deep attractors: Where deep learning meets
+chaos</a>: employ that same technique to generate <em>forecasts</em> for
+empirical time series data.</p>
+<p>“That same technique,” which for conciseness, I’ll take the liberty of referring to as FNN-LSTM, is due to William Gilpin’s
+2020 paper “Deep reconstruction of strange attractors from time series” <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>.</p>
+<p>In a nutshell<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, the problem addressed is as follows: A system, known or assumed to be nonlinear and highly dependent on
+initial conditions, is observed, resulting in a scalar series of measurements. The measurements are not just – inevitably –
+noisy, but in addition, they are – at best – a projection of a multidimensional state space onto a line.</p>
+<p>Classically in nonlinear time series analysis, such scalar series of observations are augmented by supplementing, at every
+point in time, delayed measurements of that same series – a technique called <em>delay coordinate embedding</em> <span class="citation" data-cites="embedology">(<a href="#ref-embedology" role="doc-biblioref">Sauer, Yorke, and Casdagli 1991</a>)</span>. For
+example, instead of just a single vector <code>X1</code>, we could have a matrix of vectors <code>X1</code>, <code>X2</code>, and <code>X3</code>, with <code>X2</code> containing
+the same values as <code>X1</code>, but starting from the third observation, and <code>X3</code>, from the fifth. In this case, the <em>delay</em> would be
+2, and the <em>embedding dimension</em>, 3. Various <a href="https://en.wikipedia.org/wiki/Takens&#39;s_theorem">theorems</a> state that if these
+parameters are chosen adequately, it is possible to reconstruct the complete state space. There is a problem though: The
+theorems assume that the dimensionality of the true state space is known, which in many real-world applications, won’t be the
+case.</p>
+<p>This is where Gilpin’s idea comes in: Train an autoencoder, whose intermediate representation encapsulates the system’s
+attractor. Not just any MSE-optimized autoencoder though. The latent representation is regularized by <em>false nearest
+neighbors</em> (FNN) loss, a technique commonly used with delay coordinate embedding to determine an adequate embedding dimension.
+False neighbors are those who are close in <code>n</code>-dimensional space, but significantly farther apart in <code>n+1</code>-dimensional space.
+In the aforementioned introductory <a href="https://blogs.rstudio.com/ai/posts/2020-06-24-deep-attractors/">post</a>, we showed how this
+technique allowed to reconstruct the attractor of the (synthetic) Lorenz system. Now, we want to move on to prediction.</p>
+<p>We first describe the setup, including model definitions, training procedures, and data preparation. Then, we tell you how it
+went.</p>
 <h2 id="setup">Setup</h2>
 <h3 id="from-reconstruction-to-forecasting-and-branching-out-into-the-real-world">From reconstruction to forecasting, and branching out into the real world</h3>
-<p>In the previous post, we trained an LSTM autoencoder to generate a compressed code, representing the attractor of the system. As usual with autoencoders, the target when training is the same as the input, meaning that overall loss consisted of two components: The FNN loss, computed on the latent representation only, and the mean-squared-error loss between input and output. Now for prediction, the target consists of future values, as many as we wish to predict. Put differently: The architecture stays the same, but instead of reconstruction we perform prediction, in the standard RNN way. Where the usual RNN setup would just directly chain the desired number of LSTMs, we have an LSTM encoder that outputs a (timestep-less) latent code, and an LSTM decoder that starting from that code, repeated as many times as required, forecasts the required number of future values.</p>
-<p>This of course means that to evaluate forecast performance, we need to compare against an LSTM-only setup. This is exactly what we’ll do, and comparison will turn out to be interesting not just quantitatively, but <em>qualitatively</em> as well.</p>
-<p>We perform these comparisons on the four datasets Gilpin chose to demonstrate <a href="https://github.com/williamgilpin/fnn/blob/master/exploratory.ipynb">attractor reconstruction on observational data</a>. While all of these, as is evident from the images in that notebook, exhibit nice attractors, we’ll see that not all of them are equally suited to forecasting using simple RNN-based architectures – with or without FNN regularization. But even those that clearly demand a different approach allow for interesting observations as to the impact of FNN loss.</p>
+<p>In the previous post, we trained an LSTM autoencoder to generate a compressed code, representing the attractor of the system.
+As usual with autoencoders, the target when training is the same as the input, meaning that overall loss consisted of two
+components: The FNN loss, computed on the latent representation only, and the mean-squared-error loss between input and
+output. Now for prediction, the target consists of future values, as many as we wish to predict. Put differently: The
+architecture stays the same, but instead of reconstruction we perform prediction, in the standard RNN way. Where the usual RNN
+setup would just directly chain the desired number of LSTMs, we have an LSTM encoder that outputs a (timestep-less) latent
+code, and an LSTM decoder that starting from that code, repeated as many times as required, forecasts the required number of
+future values.</p>
+<p>This of course means that to evaluate forecast performance, we need to compare against an LSTM-only setup. This is exactly
+what we’ll do, and comparison will turn out to be interesting not just quantitatively, but <em>qualitatively</em> as well.</p>
+<p>We perform these comparisons on the four datasets Gilpin chose to demonstrate <a href="https://github.com/williamgilpin/fnn/blob/master/exploratory.ipynb">attractor reconstruction on observational
+data</a>. While all of these, as is evident from the images
+in that notebook, exhibit nice attractors, we’ll see that not all of them are equally suited to forecasting using simple
+RNN-based architectures – with or without FNN regularization. But even those that clearly demand a different approach allow
+for interesting observations as to the impact of FNN loss.</p>
 <h3 id="model-definitions-and-training-setup">Model definitions and training setup</h3>
-<p>In all four experiments, we use the same model definitions and training procedures, the only differing parameter being the number of timesteps used in the LSTMs (for reasons that will become evident when we introduce the individual datasets).</p>
-<p>Both architectures were chosen to be straightforward, and about comparable in number of parameters – both basically consist of two LSTMs with 32 units (<code>n_recurrent</code> will be set to 32 for all experiments).<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+<p>In all four experiments, we use the same model definitions and training procedures, the only differing parameter being the
+number of timesteps used in the LSTMs (for reasons that will become evident when we introduce the individual datasets).</p>
+<p>Both architectures were chosen to be straightforward, and about comparable in number of parameters – both basically consist
+of two LSTMs with 32 units (<code>n_recurrent</code> will be set to 32 for all experiments).<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <h4 id="fnn-lstm">FNN-LSTM</h4>
-<p>FNN-LSTM looks nearly like in the previous post, apart from the fact that we split up the encoder LSTM into two, to uncouple capacity (<code>n_recurrent</code>) from maximal latent state dimensionality (<code>n_latent</code>, kept at 10 just like before).</p>
+<p>FNN-LSTM looks nearly like in the previous post, apart from the fact that we split up the encoder LSTM into two, to uncouple
+capacity (<code>n_recurrent</code>) from maximal latent state dimensionality (<code>n_latent</code>, kept at 10 just like before).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># DL-related packages</span></span>
@@ -2413,10 +2453,15 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Training is unchanged as well, apart from the fact that now, we continually output latent variable variances in addition to the losses. This is because with FNN-LSTM, we have to choose an adequate weight for the FNN loss component. An “adequate weight” is one where the variance drops sharply after the first <code>n</code> variables, with <code>n</code> thought to correspond to attractor dimensionality. For the Lorenz system discussed in the previous post, this is how these variances looked:</p>
+<p>Training is unchanged as well, apart from the fact that now, we continually output latent variable variances in addition to
+the losses. This is because with FNN-LSTM, we have to choose an adequate weight for the FNN loss component. An “adequate
+weight” is one where the variance drops sharply after the first <code>n</code> variables, with <code>n</code> thought to correspond to attractor
+dimensionality. For the Lorenz system discussed in the previous post, this is how these variances looked:</p>
 <pre><code>     V1       V2        V3        V4        V5        V6        V7        V8        V9       V10
  0.0739   0.0582   1.12e-6   3.13e-4   1.43e-5   1.52e-8   1.35e-6   1.86e-4   1.67e-4   4.39e-5</code></pre>
-<p>If we take variance as an indicator of <em>importance</em>, the first two variables are clearly more important than the rest. This finding nicely corresponds to “official” estimates of Lorenz attractor dimensionality. For example, the correlation dimension is estimated to lie around 2.05 <span class="citation" data-cites="GRASSBERGER1983189">(<a href="#ref-GRASSBERGER1983189" role="doc-biblioref">Grassberger and Procaccia 1983</a>)</span>.</p>
+<p>If we take variance as an indicator of <em>importance</em>, the first two variables are clearly more important than the rest. This
+finding nicely corresponds to “official” estimates of Lorenz attractor dimensionality. For example, the correlation dimension
+is estimated to lie around 2.05 <span class="citation" data-cites="GRASSBERGER1983189">(<a href="#ref-GRASSBERGER1983189" role="doc-biblioref">Grassberger and Procaccia 1983</a>)</span>.</p>
 <p>Thus, here we have the training routine:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2493,7 +2538,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>On to what we’ll use as a baseline for comparison.</p>
 <h4 id="vanilla-lstm">Vanilla LSTM</h4>
-<p>Here is the vanilla LSTM, stacking two layers, each, again, of size 32. Dropout and recurrent dropout were chosen individually per dataset, as was the learning rate.</p>
+<p>Here is the vanilla LSTM, stacking two layers, each, again, of size 32. Dropout and recurrent dropout were chosen individually
+per dataset, as was the learning rate.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>lstm</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>n_latent</span>, <span class='va'>n_timesteps</span>, <span class='va'>n_features</span>, <span class='va'>n_recurrent</span>, <span class='va'>dropout</span>, <span class='va'>recurrent_dropout</span>,</span>
@@ -2529,7 +2575,9 @@ gtag('config', 'UA-20375833-3');
 </div>
 <h3 id="data-preparation">Data preparation</h3>
 <p>For all experiments, data were prepared in the same way.</p>
-<p>In every case, we used the first 10000 measurements available in the respective <code>.pkl</code> files <a href="https://github.com/williamgilpin/fnn/tree/master/datasets">provided by Gilpin in his GitHub repository</a>. To save on file size and not depend on an external data source, we extracted those first 10000 entries to <code>.csv</code> files downloadable directly from this blog’s repo:</p>
+<p>In every case, we used the first 10000 measurements available in the respective <code>.pkl</code> files <a href="https://github.com/williamgilpin/fnn/tree/master/datasets">provided by Gilpin in his GitHub
+repository</a>. To save on file size and not depend on an external
+data source, we extracted those first 10000 entries to <code>.csv</code> files downloadable directly from this blog’s repo:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>geyser</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span></span>
@@ -2549,7 +2597,8 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='st'>"data/mouse.csv"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Should you want to access the complete time series (of considerably greater lengths), just download them from Gilpin’s repo and load them using <code>reticulate</code>:</p>
+<p>Should you want to access the complete time series (of considerably greater lengths), just download them from Gilpin’s repo
+and load them using <code>reticulate</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># e.g.</span></span>
@@ -2609,11 +2658,16 @@ gtag('config', 'UA-20375833-3');
 <p>Now we’re ready to look at how forecasting goes on our four datasets.</p>
 <h2 id="experiments">Experiments</h2>
 <h3 id="geyser-dataset">Geyser dataset</h3>
-<p>People working with time series may have heard of <a href="https://en.wikipedia.org/wiki/Old_Faithful">Old Faithful</a>, a geyser in Wyoming, US that has continually been erupting every 44 minutes to two hours since the year 2004. For the subset of data Gilpin extracted<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>,</p>
+<p>People working with time series may have heard of <a href="https://en.wikipedia.org/wiki/Old_Faithful">Old Faithful</a>, a geyser in
+Wyoming, US that has continually been erupting every 44 minutes to two hours since the year 2004. For the subset of data
+Gilpin extracted<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>,</p>
 <blockquote>
-<p><code>geyser_train_test.pkl</code> corresponds to detrended temperature readings from the main runoff pool of the Old Faithful geyser in Yellowstone National Park, downloaded from the <a href="https://geysertimes.org/">GeyserTimes database</a>. Temperature measurements start on April 13, 2015 and occur in one-minute increments.</p>
+<p><code>geyser_train_test.pkl</code> corresponds to detrended temperature readings from the main runoff pool of the Old Faithful geyser
+in Yellowstone National Park, downloaded from the <a href="https://geysertimes.org/">GeyserTimes database</a>. Temperature measurements
+start on April 13, 2015 and occur in one-minute increments.</p>
 </blockquote>
-<p>Like we said above, <code>geyser.csv</code> is a subset of these measurements, comprising the first 10000 data points. To choose an adequate timestep for the LSTMs, we inspect the series at various resolutions:</p>
+<p>Like we said above, <code>geyser.csv</code> is a subset of these measurements, comprising the first 10000 data points. To choose an
+adequate timestep for the LSTMs, we inspect the series at various resolutions:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-8"></span>
 <img src="images/geyser_ts.png" alt="Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the first 200." width="600" />
@@ -2623,7 +2677,8 @@ Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the
 </div>
 </div>
 <p>It seems like the behavior is periodic with a period of about 40-50; a timestep of 60 thus seemed like a good try.</p>
-<p>Having trained both FNN-LSTM and the vanilla LSTM for 200 epochs, we first inspect the variances of the latent variables on the test set. The value of <code>fnn_multiplier</code> corresponding to this run was <code>0.7</code>.</p>
+<p>Having trained both FNN-LSTM and the vanilla LSTM for 200 epochs, we first inspect the variances of the latent variables on
+the test set. The value of <code>fnn_multiplier</code> corresponding to this run was <code>0.7</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>test_batch</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='va'>ds_test</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2636,9 +2691,12 @@ Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the
 </div>
 <pre><code>   V1     V2        V3          V4       V5       V6       V7       V8       V9      V10
 0.258 0.0262 0.0000627 0.000000600 0.000533 0.000362 0.000238 0.000121 0.000518 0.000365</code></pre>
-<p>There is a drop in importance between the first two variables and the rest; however, unlike in the Lorenz system, <code>V1</code> and <code>V2</code> variances also differ by an order of magnitude.</p>
-<p>Now, it’s interesting to compare prediction errors for both models. We are going to make an observation that will carry through to all three datasets to come.</p>
-<p>Keeping up the suspense for a while, here is the code used to compute per-timestep prediction errors from both models. The same code will be used for all other datasets.</p>
+<p>There is a drop in importance between the first two variables and the rest; however, unlike in the Lorenz system, <code>V1</code> and
+<code>V2</code> variances also differ by an order of magnitude.</p>
+<p>Now, it’s interesting to compare prediction errors for both models. We are going to make an observation that will carry
+through to all three datasets to come.</p>
+<p>Keeping up the suspense for a while, here is the code used to compute per-timestep prediction errors from both models. The
+same code will be used for all other datasets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>calc_mse</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>, <span class='va'>y_true</span>, <span class='va'>y_pred</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2684,7 +2742,8 @@ Figure 1: Geyer dataset. Top: First 1000 observations. Bottom: Zooming in on the
 <span>  <span class='fu'>theme</span><span class='op'>(</span>legend.position <span class='op'>=</span> <span class='st'>"none"</span><span class='op'>)</span> </span></code></pre>
 </div>
 </div>
-<p>And here is the actual comparison. One thing especially jumps to the eye: FNN-LSTM forecast error is significantly lower for initial timesteps, first and foremost, for the very first prediction, which from this graph we expect to be pretty good!</p>
+<p>And here is the actual comparison. One thing especially jumps to the eye: FNN-LSTM forecast error is significantly lower for
+initial timesteps, first and foremost, for the very first prediction, which from this graph we expect to be pretty good!</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-11"></span>
 <img src="images/geyser_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
@@ -2693,8 +2752,12 @@ Figure 2: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla st
 </p>
 </div>
 </div>
-<p>Interestingly, we see “jumps” in prediction error, for FNN-LSTM, between the very first forecast and the second, and then between the second and the ensuing ones, reminding of the similar jumps in variable importance for the latent code! After the first ten timesteps, vanilla LSTM has caught up with FNN-LSTM, and we won’t interpret further development of the losses based on just a single run’s output.</p>
-<p>Instead, let’s inspect actual predictions. We randomly pick sequences from the test set, and ask both FNN-LSTM and vanilla LSTM for a forecast. The same procedure will be followed for the other datasets.</p>
+<p>Interestingly, we see “jumps” in prediction error, for FNN-LSTM, between the very first forecast and the second, and then
+between the second and the ensuing ones, reminding of the similar jumps in variable importance for the latent code! After the
+first ten timesteps, vanilla LSTM has caught up with FNN-LSTM, and we won’t interpret further development of the losses based
+on just a single run’s output.</p>
+<p>Instead, let’s inspect actual predictions. We randomly pick sequences from the test set, and ask both FNN-LSTM and vanilla
+LSTM for a forecast. The same procedure will be followed for the other datasets.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>given</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/array.html'>as.array</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>concat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span></span>
@@ -2729,7 +2792,8 @@ Figure 2: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla st
 <span><span class='fu'>plot_grid</span><span class='op'>(</span>plotlist <span class='op'>=</span> <span class='va'>plots</span>, ncol <span class='op'>=</span> <span class='fl'>4</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Here are sixteen random picks of predictions on the test set. The ground truth is displayed in pink; blue forecasts are from FNN-LSTM, green ones from vanilla LSTM.</p>
+<p>Here are sixteen random picks of predictions on the test set. The ground truth is displayed in pink; blue forecasts are from
+FNN-LSTM, green ones from vanilla LSTM.</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-13"></span>
 <img src="images/geyser_preds.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
@@ -2738,12 +2802,15 @@ Figure 3: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green
 </p>
 </div>
 </div>
-<p>What we expect from the error inspection comes true: FNN-LSTM yields significantly better predictions for immediate continuations of a given sequence.</p>
+<p>What we expect from the error inspection comes true: FNN-LSTM yields significantly better predictions for immediate
+continuations of a given sequence.</p>
 <p>Let’s move on to the second dataset on our list.</p>
 <h3 id="electricity-dataset">Electricity dataset</h3>
 <p>This is a dataset on power consumption, aggregated over 321 different households and fifteen-minute-intervals.</p>
 <blockquote>
-<p><code>electricity_train_test.pkl</code> corresponds to average power consumption by 321 Portuguese households between 2012 and 2014, in units of kilowatts consumed in fifteen minute increments. This dataset is from the <a href="http://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014">UCI machine learning database</a>.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
+<p><code>electricity_train_test.pkl</code> corresponds to average power consumption by 321 Portuguese households between 2012 and 2014, in
+units of kilowatts consumed in fifteen minute increments. This dataset is from the <a href="http://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014">UCI machine learning
+database</a>.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
 </blockquote>
 <p>Here, we see a very regular pattern:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
@@ -2754,7 +2821,8 @@ Figure 4: Electricity dataset. Top: First 2000 observations. Bottom: Zooming in 
 </p>
 </div>
 </div>
-<p>With such regular behavior, we immediately tried to predict a higher number of timesteps (<code>120</code>) – and didn’t have to retract behind that aspiration.</p>
+<p>With such regular behavior, we immediately tried to predict a higher number of timesteps (<code>120</code>) – and didn’t have to retract
+behind that aspiration.</p>
 <p>For an <code>fnn_multiplier</code> of <code>0.5</code>, latent variable variances look like this:</p>
 <pre><code>V1          V2            V3       V4       V5            V6       V7         V8      V9     V10
 0.390 0.000637 0.00000000288 1.48e-10 2.10e-11 0.00000000119 6.61e-11 0.00000115 1.11e-4 1.40e-4</code></pre>
@@ -2768,7 +2836,8 @@ Figure 5: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla st
 </p>
 </div>
 </div>
-<p>Here, FNN-LSTM performs better over a long range of timesteps, but again, the difference is most visible for immediate predictions. Will an inspection of actual predictions confirm this view?</p>
+<p>Here, FNN-LSTM performs better over a long range of timesteps, but again, the difference is most visible for immediate
+predictions. Will an inspection of actual predictions confirm this view?</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-16"></span>
 <img src="images/electricity_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
@@ -2782,7 +2851,8 @@ Figure 6: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green
 <h3 id="ecg-dataset">ECG dataset</h3>
 <p>Says Gilpin,</p>
 <blockquote>
-<p><code>ecg_train.pkl</code> and <code>ecg_test.pkl</code> correspond to ECG measurements for two different patients, taken from the <a href="https://physionet.org/content/qtdb/1.0.0/">PhysioNet QT database</a>.<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a></p>
+<p><code>ecg_train.pkl</code> and <code>ecg_test.pkl</code> correspond to ECG measurements for two different patients, taken from the <a href="https://physionet.org/content/qtdb/1.0.0/">PhysioNet QT
+database</a>.<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a></p>
 </blockquote>
 <p>How do these look?</p>
 <div class="layout-chunk" data-layout="l-body-outset">
@@ -2793,12 +2863,16 @@ Figure 7: ECG dataset. Top: First 1000 observations. Bottom: Zooming in on the f
 </p>
 </div>
 </div>
-<p>To the layperson that I am, these do not look nearly as regular as expected. First experiments showed that both architectures are not capable of dealing with a high number of timesteps. In every try, FNN-LSTM performed better for the very first timestep.</p>
-<p>This is also the case for <code>n_timesteps = 12</code>, the final try (after <code>120</code>, <code>60</code> and <code>30</code>). With an <code>fnn_multiplier</code> of <code>1</code>, the latent variances obtained amounted to the following:</p>
+<p>To the layperson that I am, these do not look nearly as regular as expected. First experiments showed that both architectures
+are not capable of dealing with a high number of timesteps. In every try, FNN-LSTM performed better for the very first
+timestep.</p>
+<p>This is also the case for <code>n_timesteps = 12</code>, the final try (after <code>120</code>, <code>60</code> and <code>30</code>). With an <code>fnn_multiplier</code> of <code>1</code>, the
+latent variances obtained amounted to the following:</p>
 <pre><code>     V1        V2          V3        V4         V5       V6       V7         V8         V9       V10
   0.110  1.16e-11     3.78e-9 0.0000992    9.63e-9  4.65e-5  1.21e-4    9.91e-9    3.81e-9   2.71e-8</code></pre>
 <p>There <em>is</em> a gap between the first variable and all other ones; but not much variance is explained by <code>V1</code> either.</p>
-<p>Apart from the very first prediction, vanilla LSTM shows lower forecast errors this time; however, we have to add that this was not consistently observed when experimenting with other timestep settings.</p>
+<p>Apart from the very first prediction, vanilla LSTM shows lower forecast errors this time; however, we have to add that this
+was not consistently observed when experimenting with other timestep settings.</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-18"></span>
 <img src="images/ecg_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
@@ -2807,7 +2881,8 @@ Figure 8: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla st
 </p>
 </div>
 </div>
-<p>Looking at actual predictions, both architectures perform best when a persistence forecast is adequate – in fact, they produce one even when it is <em>not</em>.</p>
+<p>Looking at actual predictions, both architectures perform best when a persistence forecast is adequate – in fact, they
+produce one even when it is <em>not</em>.</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-19"></span>
 <img src="images/ecg_predictions.png" alt="60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green) on randomly selected sequences from the test set. Pink: the ground truth." width="600" />
@@ -2816,12 +2891,16 @@ Figure 9: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (green
 </p>
 </div>
 </div>
-<p>On this dataset, we certainly would want to explore other architectures better able to capture the presence of high <em>and</em> low frequencies in the data, such as mixture models. But – were we forced to stay with one of these, and could do a one-step-ahead, rolling forecast, we’d go with FNN-LSTM.</p>
+<p>On this dataset, we certainly would want to explore other architectures better able to capture the presence of high <em>and</em> low
+frequencies in the data, such as mixture models. But – were we forced to stay with one of these, and could do a
+one-step-ahead, rolling forecast, we’d go with FNN-LSTM.</p>
 <p>Speaking of mixed frequencies – we haven’t seen the extremes yet …</p>
 <h3 id="mouse-dataset">Mouse dataset</h3>
 <p>“Mouse,” that’s spike rates recorded from a mouse thalamus.</p>
 <blockquote>
-<p><code>mouse.pkl</code> A time series of spiking rates for a neuron in a mouse thalamus. Raw spike data was obtained from <a href="http://crcns.org/data-sets/thalamus/th-1/about-th-1">CRCNS</a> and processed with the authors' code in order to generate a spike rate time series.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
+<p><code>mouse.pkl</code> A time series of spiking rates for a neuron in a mouse thalamus. Raw spike data was obtained from
+<a href="http://crcns.org/data-sets/thalamus/th-1/about-th-1">CRCNS</a> and processed with the authors' code in order to generate a
+spike rate time series.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
 </blockquote>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-20"></span>
@@ -2838,7 +2917,8 @@ Figure 10: Mouse dataset. Top: First 2000 observations. Bottom: Zooming in on th
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a> <span class="fl">0.0796</span>  <span class="fl">0.00246</span>  <span class="fl">0.000214</span>    <span class="fl">2.26e-7</span>   .<span class="fl">71e-9</span>  <span class="fl">4.22e-8</span>  <span class="fl">6.45e-10</span> <span class="fl">1.61e-4</span> <span class="fl">2.63e-10</span>    <span class="fl">2.05e-8</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="sc">&gt;</span></span></code></pre></div>
 </div>
-<p>Again, we don’t see the first variable explaining much variance. Still, interestingly, when inspecting forecast errors we get a picture very similar to the one obtained on our first, <code>geyser</code>, dataset:</p>
+<p>Again, we don’t see the first variable explaining much variance. Still, interestingly, when inspecting forecast errors we get
+a picture very similar to the one obtained on our first, <code>geyser</code>, dataset:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-22"></span>
 <img src="images/mouse_mses.png" alt="Per-timestep prediction error as obtained by FNN-LSTM and a vanilla stacked LSTM. Green: LSTM. Blue: FNN-LSTM." width="600" />
@@ -2847,7 +2927,8 @@ Figure 11: Per-timestep prediction error as obtained by FNN-LSTM and a vanilla s
 </p>
 </div>
 </div>
-<p>So here, the latent code definitely seems to help! With every timestep “more” that we try to predict, prediction performance goes down <em>continuously</em> – or put the other way round, short-time predictions are expected to be pretty good!</p>
+<p>So here, the latent code definitely seems to help! With every timestep “more” that we try to predict, prediction performance
+goes down <em>continuously</em> – or put the other way round, short-time predictions are expected to be pretty good!</p>
 <p>Let’s see:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-23"></span>
@@ -2857,17 +2938,33 @@ Figure 12: 60-step ahead predictions from FNN-LSTM (blue) and vanilla LSTM (gree
 </p>
 </div>
 </div>
-<p>In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to happen,” vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track” as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an obvious decision with this dataset.</p>
+<p>In fact on this dataset, the difference in behavior between both architectures is striking. When nothing is “supposed to
+happen,” vanilla LSTM produces “flat” curves at about the mean of the data, while FNN-LSTM takes the effort to “stay on track”
+as long as possible before also converging to the mean. Choosing FNN-LSTM – had we to choose one of these two – would be an
+obvious decision with this dataset.</p>
 <h2 id="discussion">Discussion</h2>
-<p>When, in timeseries forecasting, would we consider FNN-LSTM? Judging by the above experiments, conducted on four very different datasets: Whenever we consider a deep learning approach. Of course, this has been a casual exploration – and it was meant to be, as – hopefully – was evident from the nonchalant and bloomy (sometimes) writing style.</p>
-<p>Throughout the text, we’ve emphasized <em>utility</em> – how could this technique be used to improve predictions? But, looking at the above results, a number of interesting questions come to mind. We already speculated (though in an indirect way) whether the number of high-variance variables in the latent code was relatable to how far we could sensibly forecast into the future. However, even more intriguing is the question of how characteristics of the <em>dataset itself</em> affect FNN efficiency.</p>
+<p>When, in timeseries forecasting, would we consider FNN-LSTM? Judging by the above experiments, conducted on four very different
+datasets: Whenever we consider a deep learning approach. Of course, this has been a casual exploration – and it was meant to
+be, as – hopefully – was evident from the nonchalant and bloomy (sometimes) writing style.</p>
+<p>Throughout the text, we’ve emphasized <em>utility</em> – how could this technique be used to improve predictions? But, looking at
+the above results, a number of interesting questions come to mind. We already speculated (though in an indirect way) whether
+the number of high-variance variables in the latent code was relatable to how far we could sensibly forecast into the future.
+However, even more intriguing is the question of how characteristics of the <em>dataset itself</em> affect FNN efficiency.</p>
 <p>Such characteristics could be:</p>
 <ul>
-<li><p>How nonlinear is the dataset? (Put differently, how incompatible, as indicated by some form of test algorithm, is it with the hypothesis that the data generation mechanism was a linear one?)</p></li>
-<li><p>To what degree does the system appear to be sensitively dependent on initial conditions? In other words, what is the value of its (estimated, from the observations) highest <a href="https://en.wikipedia.org/wiki/Lyapunov_exponent">Lyapunov exponent</a>?</p></li>
-<li><p>What is its (estimated) dimensionality, for example, in terms of <a href="https://en.wikipedia.org/wiki/Correlation_dimension">correlation dimension</a>?</p></li>
+<li><p>How nonlinear is the dataset? (Put differently, how incompatible, as indicated by some form of test algorithm, is it with
+the hypothesis that the data generation mechanism was a linear one?)</p></li>
+<li><p>To what degree does the system appear to be sensitively dependent on initial conditions? In other words, what is the value
+of its (estimated, from the observations) highest <a href="https://en.wikipedia.org/wiki/Lyapunov_exponent">Lyapunov exponent</a>?</p></li>
+<li><p>What is its (estimated) dimensionality, for example, in terms of <a href="https://en.wikipedia.org/wiki/Correlation_dimension">correlation
+dimension</a>?</p></li>
 </ul>
-<p>While it is easy to obtain those estimates, using, for instance, the <a href="https://cran.r-project.org/web/packages/nonlinearTseries/">nonlinearTseries</a> package explicitly modeled after practices described in Kantz &amp; Schreiber’s classic <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span>, we don’t want to extrapolate from our tiny sample of datasets, and leave such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its conceptual attractivity.</p>
+<p>While it is easy to obtain those estimates, using, for instance, the
+<a href="https://cran.r-project.org/web/packages/nonlinearTseries/">nonlinearTseries</a> package explicitly modeled after practices
+described in Kantz &amp; Schreiber’s classic <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span>, we don’t want to extrapolate from our tiny sample of datasets, and leave
+such explorations and analyses to further posts, and/or the interested reader’s ventures :-). In any case, we hope you enjoyed
+the demonstration of practical usability of an approach that in the preceding post, was mainly introduced in terms of its
+conceptual attractivity.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
@@ -2888,7 +2985,8 @@ Sauer, Tim, James A. Yorke, and Martin Casdagli. 1991. <span>“<span>Embedology
 <hr />
 <ol>
 <li id="fn1" role="doc-endnote"><p>Please refer to the aforementioned predecessor post for a detailed introduction.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn2" role="doc-endnote"><p>“Basically” because FNN-LSTM technically has three LSTMs – the third one, with <code>n_latent = 10</code> units, being used to store the latent code.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>“Basically” because FNN-LSTM technically has three LSTMs – the third one, with <code>n_latent = 10</code> units, being used to
+store the latent code.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn3" role="doc-endnote"><p>see dataset descriptions in the <a href="https://github.com/williamgilpin/fnn">repository's README</a><a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn4" role="doc-endnote"><p>again, citing from Gilpin’s repository’s <a href="https://github.com/williamgilpin/fnn">README</a>.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn5" role="doc-endnote"><p>again, citing from Gilpin’s repository’s <a href="https://github.com/williamgilpin/fnn">README</a>.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>

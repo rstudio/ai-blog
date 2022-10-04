@@ -148,9 +148,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_publication_date=2016;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
-  <meta name="citation_reference" content="citation_title=Differential privacy;citation_publication_date=2006;citation_publisher=Springer Verlag;citation_volume=4052;citation_author=Cynthia Dwork"/>
-  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publication_date=2006;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
+  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
+  <meta name="citation_reference" content="citation_title=Differential privacy;citation_publisher=Springer Verlag;citation_volume=4052;citation_author=Cynthia Dwork"/>
+  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -836,6 +836,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1908,15 +1909,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2115,7 +2122,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2192,19 +2199,43 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>The word <em>privacy</em>, in the context of deep learning (or machine learning, or “AI”), and especially when combined with things like <em>security</em>, sounds like it could be part of a catch phrase: <em>privacy, safety, security</em> – like <em>liberté, fraternité, égalité</em>. In fact, there should probably be a mantra like that. But that’s another topic, and like with the other catch phrase just cited, not everyone interprets these terms in the same way.</p>
-<p>So let’s think about privacy, narrowed down to its role in training or using deep learning models, in a more technical way. Since privacy – or rather, its violations – may appear in various ways, different violations will demand different countermeasures. Of course, in the end, we’d like to see them all integrated – but re privacy-related technologies, the field is really just starting out on a journey. The most important thing we can do, then, is to learn about the concepts, investigate the landscape of implementations under development, and – perhaps – decide to join the effort.</p>
+<p>The word <em>privacy</em>, in the context of deep learning (or machine learning, or “AI”), and especially when combined with things
+like <em>security</em>, sounds like it could be part of a catch phrase: <em>privacy, safety, security</em> – like <em>liberté, fraternité,
+égalité</em>. In fact, there should probably be a mantra like that. But that’s another topic, and like with the other catch phrase
+just cited, not everyone interprets these terms in the same way.</p>
+<p>So let’s think about privacy, narrowed down to its role in training or using deep learning models, in a more technical way.
+Since privacy – or rather, its violations – may appear in various ways, different violations will demand different
+countermeasures. Of course, in the end, we’d like to see them all integrated – but re privacy-related technologies, the field
+is really just starting out on a journey. The most important thing we can do, then, is to learn about the concepts,
+investigate the landscape of implementations under development, and – perhaps – decide to join the effort.</p>
 <p>This post tries to do a tiny little bit of all of those.</p>
 <h2 id="aspects-of-privacy-in-deep-learning">Aspects of privacy in deep learning</h2>
-<p>Say you work at a hospital, and would be interested in training a deep learning model to help diagnose some disease from brain scans. Where you work, you don’t have many patients with this disease; moreover, they tend to mostly be affected by the same subtypes: Your training set, were you to create one, would not reflect the overall distribution very well. It would, thus, make sense to cooperate with other hospitals; but that isn’t so easy, as the data collected is protected by privacy regulations. So, the first requirement is: The data has to stay where it is; e.g., it may not be sent to a central server.</p>
+<p>Say you work at a hospital, and would be interested in training a deep learning model to help diagnose some disease from brain
+scans. Where you work, you don’t have many patients with this disease; moreover, they tend to mostly be affected by the same
+subtypes: Your training set, were you to create one, would not reflect the overall distribution very well. It would, thus,
+make sense to cooperate with other hospitals; but that isn’t so easy, as the data collected is protected by privacy
+regulations. So, the first requirement is: The data has to stay where it is; e.g., it may not be sent to a central server.</p>
 <h4 id="federated-learning">Federated learning</h4>
-<p>This first <em>sine qua non</em> is addressed by <a href="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/">federated learning</a> <span class="citation" data-cites="McMahanMRA16">(<a href="#ref-McMahanMRA16" role="doc-biblioref">McMahan et al. 2016</a>)</span>. Federated learning is not “just” desirable for privacy reasons. On the contrary, in many use cases, it may be the only viable way (like with smartphones or sensors, which collect gigantic amounts of data). In federated learning, each participant receives a copy of the model, trains on their own data, and sends back the gradients obtained to the central server, where gradients are averaged and applied to the model.</p>
-<p>This is good insofar as the data never leaves the individual devices; however, a lot of information can still be extracted from plain-text gradients. Imagine a smartphone app that provides trainable auto-completion for text messages. Even if gradient updates from many iterations are averaged, their distributions will greatly vary between individuals. Some form of encryption is needed. But then how is the server going to make sense of the encrypted gradients?</p>
+<p>This first <em>sine qua non</em> is addressed by <a href="https://blogs.rstudio.com/tensorflow/posts/2020-04-08-tf-federated-intro/">federated
+learning</a> <span class="citation" data-cites="McMahanMRA16">(<a href="#ref-McMahanMRA16" role="doc-biblioref">McMahan et al. 2016</a>)</span>. Federated learning is
+not “just” desirable for privacy reasons. On the contrary, in many use cases, it may be the only viable way (like with
+smartphones or sensors, which collect gigantic amounts of data). In federated learning, each participant receives a copy of
+the model, trains on their own data, and sends back the gradients obtained to the central server, where gradients are averaged
+and applied to the model.</p>
+<p>This is good insofar as the data never leaves the individual devices; however, a lot of information can still be extracted
+from plain-text gradients. Imagine a smartphone app that provides trainable auto-completion for text messages. Even if
+gradient updates from many iterations are averaged, their distributions will greatly vary between individuals. Some form of
+encryption is needed. But then how is the server going to make sense of the encrypted gradients?</p>
 <p>One way to accomplish this relies on <em>secure multi-party computation</em> (SMPC).</p>
 <h4 id="secure-multi-party-computation">Secure multi-party computation</h4>
-<p>In SMPC, we need a system of several agents who collaborate to provide a result no single agent could provide alone: “normal” computations (like addition, multiplication …) on “secret” (encrypted) data. The assumption is that these agents are “honest but curious” – honest, because they won’t tamper with their share of data; curious in the sense that if they <em>were</em> (curious, that is), they wouldn’t be able to inspect the data because it’s encrypted.</p>
-<p>The principle behind this is <em>secret sharing</em>. A single piece of data – a salary, say – is “split up” into meaningless (hence, encrypted) parts which, when put together again, yield the original data. Here is an example.</p>
-<p>Say the parties involved are Julia, Greg, and me. The below function encrypts a single value, assigning to each of us their “meaningless” share:</p>
+<p>In SMPC, we need a system of several agents who collaborate to provide a result no single agent could provide alone: “normal”
+computations (like addition, multiplication …) on “secret” (encrypted) data. The assumption is that these agents are “honest
+but curious” – honest, because they won’t tamper with their share of data; curious in the sense that if they <em>were</em> (curious,
+that is), they wouldn’t be able to inspect the data because it’s encrypted.</p>
+<p>The principle behind this is <em>secret sharing</em>. A single piece of data – a salary, say – is “split up” into meaningless
+(hence, encrypted) parts which, when put together again, yield the original data. Here is an example.</p>
+<p>Say the parties involved are Julia, Greg, and me. The below function encrypts a single value, assigning to each of us their
+“meaningless” share:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># a big prime number</span></span>
@@ -2245,7 +2276,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <pre><code>77777</code></pre>
-<p>As an example of how to compute on encrypted data, here’s addition. (Other operations will be a lot less straightforward.) To add two numbers, just have everyone add their respective shares:</p>
+<p>As an example of how to compute on encrypted data, here’s addition. (Other operations will be a lot less straightforward.) To
+add two numbers, just have everyone add their respective shares:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>add</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2266,24 +2298,53 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <pre><code>133</code></pre>
-<p>Back to the setting of deep learning and the current task to be solved: Have the server apply gradient updates without ever seeing them. With secret sharing, it would work like this:</p>
-<p>Julia, Greg and me each want to train on our own private data. Together, we will be responsible for gradient averaging, that is, we’ll form a <em>cluster</em> of <em>workers</em> united in that task. Now, the model owner <em>secret shares</em> the model, and we start training, each on their own data. After some number of iterations, we use secure averaging to combine our respective gradients. Then, all the server gets to see is the mean gradient, and there is no way to determine our respective contributions.</p>
+<p>Back to the setting of deep learning and the current task to be solved: Have the server apply gradient updates without ever
+seeing them. With secret sharing, it would work like this:</p>
+<p>Julia, Greg and me each want to train on our own private data. Together, we will be responsible for gradient averaging, that
+is, we’ll form a <em>cluster</em> of <em>workers</em> united in that task. Now, the model owner <em>secret shares</em> the model, and we start
+training, each on their own data. After some number of iterations, we use secure averaging to combine our respective
+gradients. Then, all the server gets to see is the mean gradient, and there is no way to determine our respective
+contributions.</p>
 <h4 id="beyond-private-gradients">Beyond private gradients</h4>
-<p>Amazingly, it is even possible to <em>train</em> on encrypted data – amongst others, using that same technique of secret sharing. Of course, this has to negatively affect training speed. But it’s good to know that if one’s use case were to demand it, it would be feasible. (One possible use case is when training on one party’s data alone doesn’t make any sense, but data is sensitive, so others won’t let you access their data unless encrypted.)</p>
-<p>So with encryption available on an all-you-need basis, are we completely safe, privacy-wise? The answer is no. The model can still leak information. For example, in some cases it is possible to perform <em>model inversion</em> [@abs-1805-04049], that is, with just black-box access to a model, train an <em>attack model</em> that allows reconstructing some of the original training data. Needless to say, this kind of leakage has to be avoided. <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">Differential privacy</a> <span class="citation" data-cites="Dwork2006">(<a href="#ref-Dwork2006" role="doc-biblioref">Dwork et al. 2006</a>)</span>, <span class="citation" data-cites="dwork2006differential">(<a href="#ref-dwork2006differential" role="doc-biblioref">Dwork 2006</a>)</span> demands that results obtained from querying a model be independent from the presence or absence, in the dataset employed for training, of a single individual. In general, this is ensured by adding noise to the answer to every query. In training deep learning models, we add noise to the gradients, as well as clip them according to some chosen norm.</p>
+<p>Amazingly, it is even possible to <em>train</em> on encrypted data – amongst others, using that same technique of secret sharing. Of
+course, this has to negatively affect training speed. But it’s good to know that if one’s use case were to demand it, it would
+be feasible. (One possible use case is when training on one party’s data alone doesn’t make any sense, but data is sensitive,
+so others won’t let you access their data unless encrypted.)</p>
+<p>So with encryption available on an all-you-need basis, are we completely safe, privacy-wise? The answer is no. The model can
+still leak information. For example, in some cases it is possible to perform <em>model inversion</em> [@abs-1805-04049], that is,
+with just black-box access to a model, train an <em>attack model</em> that allows reconstructing some of the original training data.
+Needless to say, this kind of leakage has to be avoided. <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">Differential
+privacy</a> <span class="citation" data-cites="Dwork2006">(<a href="#ref-Dwork2006" role="doc-biblioref">Dwork et al. 2006</a>)</span>, <span class="citation" data-cites="dwork2006differential">(<a href="#ref-dwork2006differential" role="doc-biblioref">Dwork 2006</a>)</span>
+demands that results obtained from querying a model be independent from the presence or absence, in the dataset employed for
+training, of a single individual. In general, this is ensured by adding noise to the answer to every query. In training deep
+learning models, we add noise to the gradients, as well as clip them according to some chosen norm.</p>
 <p>At some point, then, we will want all of those in combination: federated learning, encryption, and differential privacy.</p>
-<p><em>Syft</em> is a very promising, very actively developed framework that aims for providing all of them. Instead of “aims for,” I should perhaps have written “provides” – it depends. We need some more context.</p>
+<p><em>Syft</em> is a very promising, very actively developed framework that aims for providing all of them. Instead of “aims for,” I
+should perhaps have written “provides” – it depends. We need some more context.</p>
 <h2 id="introducing-syft">Introducing Syft</h2>
-<p>Syft – also known as <a href="https://github.com/OpenMined/PySyft">PySyft</a>, since as of today, its most mature implementation is written in and for Python – is maintained by <a href="https://www.openmined.org/">OpenMined</a>, an open source community dedicated to enabling privacy-preserving AI. It’s worth it reproducing their mission statement here:</p>
+<p>Syft – also known as <a href="https://github.com/OpenMined/PySyft">PySyft</a>, since as of today, its most mature implementation is
+written in and for Python – is maintained by <a href="https://www.openmined.org/">OpenMined</a>, an open source community dedicated to
+enabling privacy-preserving AI. It’s worth it reproducing their mission statement here:</p>
 <blockquote>
-<p>Industry standard tools for artificial intelligence have been designed with several assumptions: data is centralized into a single compute cluster, the cluster exists in a secure cloud, and the resulting models will be owned by a central authority. We envision a world in which we are not restricted to this scenario - a world in which AI tools treat privacy, security, and multi-owner governance as first class citizens. […] The mission of the OpenMined community is to create an accessible ecosystem of tools for private, secure, multi-owner governed AI.</p>
+<p>Industry standard tools for artificial intelligence have been designed with several assumptions: data is centralized into a
+single compute cluster, the cluster exists in a secure cloud, and the resulting models will be owned by a central authority.
+We envision a world in which we are not restricted to this scenario - a world in which AI tools treat privacy, security, and
+multi-owner governance as first class citizens. […] The mission of the OpenMined community is to create an accessible
+ecosystem of tools for private, secure, multi-owner governed AI.</p>
 </blockquote>
-<p>While far from being the only one, PySyft is their most maturely developed framework. Its role is to provide secure federated learning, including encryption and differential privacy. For deep learning, it relies on existing frameworks.</p>
-<p>PyTorch integration seems the most mature, as of today; with PyTorch, encrypted and differentially private training are already available. Integration with TensorFlow is a bit more involved; it does not yet include TensorFlow Federated and TensorFlow Privacy. For encryption, it relies on <a href="https://github.com/tf-encrypted/tf-encrypted">TensorFlow Encrypted</a> (TFE), which as of this writing is not an official TensorFlow subproject.</p>
+<p>While far from being the only one, PySyft is their most maturely developed framework. Its role is to provide secure federated
+learning, including encryption and differential privacy. For deep learning, it relies on existing frameworks.</p>
+<p>PyTorch integration seems the most mature, as of today; with PyTorch, encrypted and differentially private training are
+already available. Integration with TensorFlow is a bit more involved; it does not yet include TensorFlow Federated and
+TensorFlow Privacy. For encryption, it relies on <a href="https://github.com/tf-encrypted/tf-encrypted">TensorFlow Encrypted</a> (TFE),
+which as of this writing is not an official TensorFlow subproject.</p>
 <p>However, even now it is already possible to <em>secret share</em> Keras models and administer private predictions. Let’s see how.</p>
 <h2 id="private-predictions-with-syft-tensorflow-encrypted-and-keras">Private predictions with Syft, TensorFlow Encrypted and Keras</h2>
-<p>Our introductory example will show how to use an externally-provided model to classify private data – without the model owner ever seeing that data, <em>and</em> without the user ever getting hold of (e.g., downloading) the model. (Think about the model owner wanting to keep the fruits of their labour hidden, as well.)</p>
-<p>Put differently: The model is encrypted, and the data is, too. As you might imagine, this involves a cluster of agents, together performing secure multi-party computation.</p>
+<p>Our introductory example will show how to use an externally-provided model to classify private data – without the model owner
+ever seeing that data, <em>and</em> without the user ever getting hold of (e.g., downloading) the model. (Think about the model owner
+wanting to keep the fruits of their labour hidden, as well.)</p>
+<p>Put differently: The model is encrypted, and the data is, too. As you might imagine, this involves a cluster of agents,
+together performing secure multi-party computation.</p>
 <p>This use case presupposing an already trained model, we start by quickly creating one. There is nothing special going on here.</p>
 <h4 id="prelude-train-a-simple-model-on-mnist">Prelude: Train a simple model on MNIST</h4>
 <div class="layout-chunk" data-layout="l-body">
@@ -2334,11 +2395,22 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h4 id="set-up-cluster-and-serve-model">Set up cluster and serve model</h4>
-<p>The easiest way to get all required packages is to install the ensemble OpenMined put together for their <a href="https://www.udacity.com/course/secure-and-private-ai--ud185">Udacity Course</a> that introduces federated learning and differential privacy with PySyft. This will install TensorFlow 1.15 and TensorFlow Encrypted, amongst others.</p>
-<p>The following lines of code should all be put together in a single file. I found it practical to “source” this script from an R process running in a console tab.</p>
-<p>To begin, we again define the model, two things being different now. First, for technical reasons, we need to pass in <code>batch_input_shape</code> instead of <code>input_shape</code>. Second, the final layer is “missing” the softmax activation. This is not an oversight – SMPC <code>softmax</code> has not been implemented yet. (Depending on when you read this, that statement may no longer be true.) Were we training this model in <em>secret sharing</em> mode, this would of course be a problem; for classification though, all we care about is the maximum score.</p>
-<p>After model definition, we load the actual weights from the model we trained in the previous step. Then, the action begins. We create an ensemble of TFE workers that together run a distributed TensorFlow cluster. The model is <em>secret</em> <em>shared</em> with the workers, that is, model weights are split up into shares that, each inspected alone, are unusable. Finally, the model is <em>served</em>, i.e., made available to clients requesting predictions.</p>
-<p>How can a Keras model be <em>shared</em> and <em>served</em>? These are not methods provided by Keras itself. The magic comes from Syft <em>hooking</em> into Keras, extending the <code>model</code> object: cf. <code>hook &lt;- sy$KerasHook(tf$keras)</code> right after we import Syft.</p>
+<p>The easiest way to get all required packages is to install the ensemble OpenMined put together for their <a href="https://www.udacity.com/course/secure-and-private-ai--ud185">Udacity
+Course</a> that introduces federated learning and differential
+privacy with PySyft. This will install TensorFlow 1.15 and TensorFlow Encrypted, amongst others.</p>
+<p>The following lines of code should all be put together in a single file. I found it practical to “source” this script from an
+R process running in a console tab.</p>
+<p>To begin, we again define the model, two things being different now. First, for technical reasons, we need to pass in
+<code>batch_input_shape</code> instead of <code>input_shape</code>. Second, the final layer is “missing” the softmax activation. This is not an
+oversight – SMPC <code>softmax</code> has not been implemented yet. (Depending on when you read this, that statement may no longer be
+true.) Were we training this model in <em>secret sharing</em> mode, this would of course be a problem; for classification though, all
+we care about is the maximum score.</p>
+<p>After model definition, we load the actual weights from the model we trained in the previous step. Then, the action begins. We
+create an ensemble of TFE workers that together run a distributed TensorFlow cluster. The model is <em>secret</em> <em>shared</em> with the
+workers, that is, model weights are split up into shares that, each inspected alone, are unusable. Finally, the model is
+<em>served</em>, i.e., made available to clients requesting predictions.</p>
+<p>How can a Keras model be <em>shared</em> and <em>served</em>? These are not methods provided by Keras itself. The magic comes from Syft
+<em>hooking</em> into Keras, extending the <code>model</code> object: cf. <code>hook &lt;- sy$KerasHook(tf$keras)</code> right after we import Syft.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># serve.R</span></span>
@@ -2386,7 +2458,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>model</span><span class='op'>$</span><span class='fu'>serve</span><span class='op'>(</span>num_requests <span class='op'>=</span> <span class='fl'>3L</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Once the desired number of requests have been served, we can go to this R process, stop model sharing, and shut down the cluster:</p>
+<p>Once the desired number of requests have been served, we can go to this R process, stop model sharing, and shut down the
+cluster:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># stop model sharing</span></span>
@@ -2399,7 +2472,8 @@ gtag('config', 'UA-20375833-3');
 <p>Now, on to the client(s).</p>
 <h4 id="request-predictions-on-private-data">Request predictions on private data</h4>
 <p>In our example, we have one client. The client is a TFE worker, just like the agents that make up the cluster.</p>
-<p>We define the cluster here, client-side, as well; create the client; and connect the client to the model. This will set up a queueing server that takes care of <em>secret sharing</em> all input data before submitting them for prediction.</p>
+<p>We define the cluster here, client-side, as well; create the client; and connect the client to the model. This will set up a
+queueing server that takes care of <em>secret sharing</em> all input data before submitting them for prediction.</p>
 <p>Finally, we have the client asking for classification of the first three MNIST images.</p>
 <p>With the server running in some different R process, we can conveniently run this in RStudio:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2453,8 +2527,16 @@ Actual:  1 , predicted:  1 </code></pre>
 <p>There we go. Both model and data did remain secret, yet we were able to classify our data.</p>
 <p>Let’s wrap up.</p>
 <h2 id="conclusion">Conclusion</h2>
-<p>Our example use case has not been too ambitious – we started with a trained model, thus leaving aside federated learning. Keeping the setup simple, we were able to focus on underlying principles: <em>Secret sharing</em> as a means of encryption, and setting up a Syft/TFE cluster of workers that together, provide the infrastructure for encrypting model weights as well as client data.</p>
-<p>In case you’ve read our previous post on <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">TensorFlow Federated</a> – that, too, a framework under development – you may have gotten an impression similar to the one I got: Setting up Syft was a lot more straightforward, concepts were easy to grasp, and surprisingly little code was required. As we may gather from a <a href="https://blog.openmined.org/introducing-pysyft-tensorflow/">recent blog post</a>, integration of Syft with TensorFlow Federated and TensorFlow Privacy are on the roadmap. I am looking forward <em>a lot</em> for this to happen.</p>
+<p>Our example use case has not been too ambitious – we started with a trained model, thus leaving aside federated learning.
+Keeping the setup simple, we were able to focus on underlying principles: <em>Secret sharing</em> as a means of encryption, and
+setting up a Syft/TFE cluster of workers that together, provide the infrastructure for encrypting model weights as well as
+client data.</p>
+<p>In case you’ve read our previous post on <a href="https://blogs.rstudio.com/tensorflow/posts/2019-12-20-differential-privacy/">TensorFlow
+Federated</a> – that, too, a framework under
+development – you may have gotten an impression similar to the one I got: Setting up Syft was a lot more straightforward,
+concepts were easy to grasp, and surprisingly little code was required. As we may gather from a <a href="https://blog.openmined.org/introducing-pysyft-tensorflow/">recent blog
+post</a>, integration of Syft with TensorFlow Federated and TensorFlow
+Privacy are on the roadmap. I am looking forward <em>a lot</em> for this to happen.</p>
 <p>Thanks for reading!</p>
 <h2 id="section"></h2>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>

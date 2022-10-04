@@ -152,7 +152,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Deep learning for classical japanese literature;citation_publication_date=2018;citation_author=Tarin Clanuwat;citation_author=Mikel Bober-Irizar;citation_author=Asanobu Kitamoto;citation_author=Alex Lamb;citation_author=Kazuaki Yamamoto;citation_author=David Ha"/>
+  <meta name="citation_reference" content="citation_title=Deep learning for classical japanese literature;citation_author=Tarin Clanuwat;citation_author=Mikel Bober-Irizar;citation_author=Asanobu Kitamoto;citation_author=Alex Lamb;citation_author=Kazuaki Yamamoto;citation_author=David Ha"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -838,6 +838,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1910,15 +1911,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2117,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2201,7 +2208,8 @@ gtag('config', 'UA-20375833-3');
 <li>Probabilistic inference (via MCMC or variational inference)</li>
 </ul>
 <p>Now imagine all these working seamlessly with the TensorFlow framework - core, Keras, contributed modules - and also, running distributed and on GPU. The field of possible applications is vast - and far too diverse to cover as a whole in an introductory blog post.</p>
-<p>Instead, our aim here is to provide a first introduction to <em>TFP</em>, focusing on direct applicability to and interoperability with deep learning. We’ll quickly show how to get started with one of the basic building blocks: <code>distributions</code>. Then, we’ll build a variational autoencoder similar to that in <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae/">Representation learning with MMD-VAE</a>. This time though, we’ll make use of <em>TFP</em> to sample from the prior and approximate posterior distributions.</p>
+<p>Instead, our aim here is to provide a first introduction to <em>TFP</em>, focusing on direct applicability to and interoperability with deep learning.
+We’ll quickly show how to get started with one of the basic building blocks: <code>distributions</code>. Then, we’ll build a variational autoencoder similar to that in <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae/">Representation learning with MMD-VAE</a>. This time though, we’ll make use of <em>TFP</em> to sample from the prior and approximate posterior distributions.</p>
 <p>We’ll regard this post as a “proof on concept” for using <em>TFP</em> with Keras - from R - and plan to follow up with more elaborate examples from the area of semi-supervised representation learning.</p>
 <h1 id="installing-and-using-tfp">Installing and using <em>TFP</em></h1>
 <p>To install <em>TFP</em> together with TensorFlow, simply append <code>tensorflow-probability</code> to the default list of extra packages:<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
@@ -2363,7 +2371,9 @@ dtype=float32
 <p>With this basic understanding of <em>TFP</em> distributions, we’re ready to see them used in a VAE.</p>
 <h1 id="variational-autoencoder-using-tfp">Variational autoencoder using <em>TFP</em></h1>
 <p>We’ll take the (not so) deep convolutional architecture from <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-22-mmd-vae/">Representation learning with MMD-VAE</a> and use <code>distributions</code> for sampling and computing probabilities. Optionally, our new VAE will be able to <em>learn the prior distribution</em>.</p>
-<p>Concretely, the following exposition will consist of three parts. First, we present common code applicable to both a VAE with a static prior, and one that learns the parameters of the prior distribution. Then, we have the training loop for the first (static-prior) VAE. Finally, we discuss the training loop and additional model involved in the second (prior-learning) VAE.</p>
+<p>Concretely, the following exposition will consist of three parts.
+First, we present common code applicable to both a VAE with a static prior, and one that learns the parameters of the prior distribution.
+Then, we have the training loop for the first (static-prior) VAE. Finally, we discuss the training loop and additional model involved in the second (prior-learning) VAE.</p>
 <p>Presenting both versions one after the other leads to code duplications, but avoids scattering confusing if-else branches throughout the code.</p>
 <p>The second VAE is available as <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/tfprob_vae.R">part of the Keras examples</a> so you don’t have to copy out code snippets. The code also contains additional functionality not discussed and replicated here, such as for saving model weights.</p>
 <p>So, let’s start with the common part.</p>
@@ -2486,7 +2496,10 @@ train_dataset &lt;- tensor_slices_dataset(train_images) %&gt;%
 <p>We don’t know about you, but we still enjoy the ease of inspecting values with <em>eager execution</em> - a lot.</p>
 <p>Now, on to the decoder, which too returns a distribution instead of a tensor.</p>
 <h3 id="decoder">Decoder</h3>
-<p>In the decoder, we see why transformations between batch shape and event shape are useful. The output of <code>self$deconv3</code> is four-dimensional. What we need is an on-off-probability for every pixel. Formerly, this was accomplished by feeding the tensor into a dense layer and applying a sigmoid activation. Here, we use <code>tfd$Independent</code> to effectively tranform the tensor into a probability distribution over three-dimensional images (width, height, channel(s)).</p>
+<p>In the decoder, we see why transformations between batch shape and event shape are useful.
+The output of <code>self$deconv3</code> is four-dimensional. What we need is an on-off-probability for every pixel.
+Formerly, this was accomplished by feeding the tensor into a dense layer and applying a sigmoid activation.
+Here, we use <code>tfd$Independent</code> to effectively tranform the tensor into a probability distribution over three-dimensional images (width, height, channel(s)).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>decoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2571,7 +2584,8 @@ train_dataset &lt;- tensor_slices_dataset(train_images) %&gt;%
 </div>
 <p>Now that we’ve looked at the common parts, we first discuss how to train a VAE with a static prior.</p>
 <h1 id="vae-with-static-prior">VAE with static prior</h1>
-<p>In this VAE, we use <em>TFP</em> to create the usual isotropic Gaussian prior. We then directly sample from this distribution in the training loop.</p>
+<p>In this VAE, we use <em>TFP</em> to create the usual isotropic Gaussian prior.
+We then directly sample from this distribution in the training loop.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>latent_prior</span> <span class='op'>&lt;-</span> <span class='va'>tfd</span><span class='op'>$</span><span class='fu'>MultivariateNormalDiag</span><span class='op'>(</span></span>
@@ -2658,7 +2672,8 @@ train_dataset &lt;- tensor_slices_dataset(train_images) %&gt;%
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>decoder_likelihood</span> <span class='op'>&lt;-</span> <span class='fu'>decoder</span><span class='op'>(</span><span class='va'>approx_posterior_sample</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now the loss consists of the usual ELBO components: reconstruction loss and KL divergence. The reconstruction loss we directly obtain from <em>TFP</em>, using the learned decoder distribution to assess the likelihood of the original input.</p>
+<p>Now the loss consists of the usual ELBO components: reconstruction loss and KL divergence.
+The reconstruction loss we directly obtain from <em>TFP</em>, using the learned decoder distribution to assess the likelihood of the original input.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>nll</span> <span class='op'>&lt;-</span> <span class='op'>-</span><span class='va'>decoder_likelihood</span><span class='op'>$</span><span class='fu'>log_prob</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
@@ -2683,7 +2698,8 @@ train_dataset &lt;- tensor_slices_dataset(train_images) %&gt;%
 </div>
 <p>Apart from these changes due to using <em>TFP</em>, the training process is just normal backprop, the way it looks using <em>eager execution</em>.</p>
 <h1 id="vae-with-learnable-prior-mixture-of-gaussians">VAE with learnable prior (mixture of Gaussians)</h1>
-<p>Now let’s see how instead of using the standard isotropic Gaussian, we could learn a mixture of Gaussians. The choice of number of distributions here is pretty arbitrary. Just as with <code>latent_dim</code>, you might want to experiment and find out what works best on your dataset.</p>
+<p>Now let’s see how instead of using the standard isotropic Gaussian, we could learn a mixture of Gaussians.
+The choice of number of distributions here is pretty arbitrary. Just as with <code>latent_dim</code>, you might want to experiment and find out what works best on your dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>mixture_components</span> <span class='op'>&lt;-</span> <span class='fl'>16</span></span>

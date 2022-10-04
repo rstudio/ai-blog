@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2179,8 +2186,11 @@ gtag('config', 'UA-20375833-3');
 </ul>
 </nav>
 </div>
-<p>We are happy to announce that the version 0.2.0 of <code>torch</code> just landed on CRAN.</p>
-<p>This release includes many bug fixes and some nice new features that we will present in this blog post. You can see the full changelog in the <a href="https://github.com/mlverse/torch/blob/master/NEWS.md">NEWS.md</a> file.</p>
+<p>We are happy to announce that the version 0.2.0 of <code>torch</code>
+just landed on CRAN.</p>
+<p>This release includes many bug fixes and some nice new features
+that we will present in this blog post. You can see the full changelog
+in the <a href="https://github.com/mlverse/torch/blob/master/NEWS.md">NEWS.md</a> file.</p>
 <p>The features that we will discuss in detail are:</p>
 <ul>
 <li>Initial support for JIT tracing</li>
@@ -2188,8 +2198,10 @@ gtag('config', 'UA-20375833-3');
 <li>Print methods for <code>nn_modules</code></li>
 </ul>
 <h2 id="multi-worker-dataloaders">Multi-worker dataloaders</h2>
-<p><code>dataloaders</code> now respond to the <code>num_workers</code> argument and will run the pre-processing in parallel workers.</p>
-<p>For example, say we have the following dummy dataset that does a long computation:</p>
+<p><code>dataloaders</code> now respond to the <code>num_workers</code> argument and
+will run the pre-processing in parallel workers.</p>
+<p>For example, say we have the following dummy dataset that does
+a long computation:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
@@ -2213,14 +2225,16 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>   user  system elapsed 
   0.029   0.005   1.027 </code></pre>
-<p>We will now create two dataloaders, one that executes sequentially and another executing in parallel.</p>
+<p>We will now create two dataloaders, one that executes
+sequentially and another executing in parallel.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>seq_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>ds</span>, batch_size <span class='op'>=</span> <span class='fl'>5</span><span class='op'>)</span></span>
 <span><span class='va'>par_dl</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader</span><span class='op'>(</span><span class='va'>ds</span>, batch_size <span class='op'>=</span> <span class='fl'>5</span>, num_workers <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We can now compare the time it takes to process two batches sequentially to the time it takes in parallel:</p>
+<p>We can now compare the time it takes to process two batches sequentially to
+the time it takes in parallel:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>seq_it</span> <span class='op'>&lt;-</span> <span class='fu'>dataloader_make_iter</span><span class='op'>(</span><span class='va'>seq_dl</span><span class='op'>)</span></span>
@@ -2240,10 +2254,19 @@ gtag('config', 'UA-20375833-3');
   0.098   0.032  10.086 
    user  system elapsed 
   0.065   0.008   5.134 </code></pre>
-<p>Note that it is batches that are obtained in parallel, not individual observations. Like that, we will be able to support datasets with variable batch sizes in the future.</p>
-<p>Using multiple workers is <strong>not</strong> necessarily faster than serial execution because there’s a considerable overhead when passing tensors from a worker to the main session as well as when initializing the workers.</p>
-<p>This feature is enabled by the powerful <a href="https://github.com/r-lib/callr"><code>callr</code></a> package and works in all operating systems supported by <code>torch</code>. <a href="https://github.com/r-lib/callr"><code>callr</code></a> let’s us create persistent R sessions, and thus, we only pay once the overhead of transferring potentially large dataset objects to workers.</p>
-<p>In the process of implementing this feature we have made dataloaders behave like <a href="https://github.com/r-lib/coro"><code>coro</code></a> iterators. This means that you can now use <a href="https://github.com/r-lib/coro"><code>coro</code></a>’s syntax for looping through the dataloaders:</p>
+<p>Note that it is batches that are obtained in parallel, not individual observations. Like that, we will be able to support
+datasets with variable batch sizes in the future.</p>
+<p>Using multiple workers is <strong>not</strong> necessarily faster than serial execution because there’s a considerable overhead
+when passing tensors from a worker to the main session as
+well as when initializing the workers.</p>
+<p>This feature is enabled by the powerful <a href="https://github.com/r-lib/callr"><code>callr</code></a> package
+and works in all operating systems supported by <code>torch</code>. <a href="https://github.com/r-lib/callr"><code>callr</code></a> let’s
+us create persistent R sessions, and thus, we only pay once the overhead of transferring potentially large dataset
+objects to workers.</p>
+<p>In the process of implementing this feature we have made
+dataloaders behave like <a href="https://github.com/r-lib/coro"><code>coro</code></a> iterators.
+This means that you can now use <a href="https://github.com/r-lib/coro"><code>coro</code></a>’s syntax
+for looping through the dataloaders:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>coro</span><span class='fu'>::</span><span class='fu'>loop</span><span class='op'>(</span><span class='kw'>for</span><span class='op'>(</span><span class='va'>batch</span> <span class='kw'>in</span> <span class='va'>par_dl</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2253,12 +2276,25 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>[1] 5 1
 [1] 5 1</code></pre>
-<p>This is the first <code>torch</code> release including the multi-worker dataloaders feature, and you might run into edge cases when using it. Do let us know if you find any problems.</p>
+<p>This is the first <code>torch</code> release including the multi-worker
+dataloaders feature, and you might run into edge cases when
+using it. Do let us know if you find any problems.</p>
 <h2 id="initial-jit-support">Initial JIT support</h2>
-<p>Programs that make use of the <code>torch</code> package are inevitably R programs and thus, they always need an R installation in order to execute.</p>
-<p>As of version 0.2.0, <code>torch</code> allows users to JIT <em>trace</em> <code>torch</code> R functions into TorchScript. JIT (Just in time) tracing will invoke an R function with example inputs, record all operations that occured when the function was run and return a <code>script_function</code> object containing the TorchScript representation.</p>
-<p>The nice thing about this is that TorchScript programs are easily serializable, optimizable, and they can be loaded by another program written in PyTorch or LibTorch without requiring any R dependency.</p>
-<p>Suppose you have the following R function that takes a tensor, and does a matrix multiplication with a fixed weight matrix and then adds a bias term:</p>
+<p>Programs that make use of the <code>torch</code> package are inevitably
+R programs and thus, they always need an R installation in order
+to execute.</p>
+<p>As of version 0.2.0, <code>torch</code> allows users to JIT <em>trace</em>
+<code>torch</code> R functions into TorchScript. JIT (Just in time) tracing will invoke
+an R function with example inputs, record all operations that
+occured when the function was run and return a <code>script_function</code> object
+containing the TorchScript representation.</p>
+<p>The nice thing about this is that TorchScript programs are easily
+serializable, optimizable, and they can be loaded by another
+program written in PyTorch or LibTorch without requiring any R
+dependency.</p>
+<p>Suppose you have the following R function that takes a tensor,
+and does a matrix multiplication with a fixed weight matrix and
+then adds a bias term:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>w</span> <span class='op'>&lt;-</span> <span class='fu'>torch_randn</span><span class='op'>(</span><span class='fl'>10</span>, <span class='fl'>1</span><span class='op'>)</span></span>
@@ -2281,7 +2317,8 @@ gtag('config', 'UA-20375833-3');
 -0.6880
 -0.6880
 [ CPUFloatType{2,1} ]</code></pre>
-<p>Now all <code>torch</code> operations that happened when computing the result of this function were traced and transformed into a graph:</p>
+<p>Now all <code>torch</code> operations that happened when computing the result of
+this function were traced and transformed into a graph:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>tr_fn</span><span class='op'>$</span><span class='va'>graph</span></span></code></pre>
@@ -2300,7 +2337,8 @@ gtag('config', 'UA-20375833-3');
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>jit_save</span><span class='op'>(</span><span class='va'>tr_fn</span>, <span class='st'>"linear.pt"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>It can be reloaded in R with <code>jit_load</code>, but it can also be reloaded in Python with <code>torch.jit.load</code>:</p>
+<p>It can be reloaded in R with <code>jit_load</code>, but it can also be reloaded in Python
+with <code>torch.jit.load</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>fn <span class="op">=</span> torch.jit.load(<span class="st">&quot;linear.pt&quot;</span>)</span>
@@ -2309,11 +2347,18 @@ gtag('config', 'UA-20375833-3');
 <pre><code>tensor([[-0.6880],
         [-0.6880]])</code></pre>
 <p>How cool is that?!</p>
-<p>This is just the initial support for JIT in R. We will continue developing this. Specifically, in the next version of <code>torch</code> we plan to support tracing <code>nn_modules</code> directly. Currently, you need to detach all parameters before tracing them; see an example <a href="https://github.com/mlverse/torch/blob/master/tests/testthat/test-trace.R#L27-L71">here</a>. This will allow you also to take benefit of TorchScript to make your models run faster!</p>
-<p>Also note that tracing has some limitations, especially when your code has loops or control flow statements that depend on tensor data. See <code>?jit_trace</code> to learn more.</p>
+<p>This is just the initial support for JIT in R. We will continue developing
+this. Specifically, in the next version of <code>torch</code> we plan to support tracing <code>nn_modules</code> directly. Currently, you need to detach all parameters before
+tracing them; see an example <a href="https://github.com/mlverse/torch/blob/master/tests/testthat/test-trace.R#L27-L71">here</a>. This will allow you also to take benefit of TorchScript to make your models
+run faster!</p>
+<p>Also note that tracing has some limitations, especially when your code has loops
+or control flow statements that depend on tensor data. See <code>?jit_trace</code> to
+learn more.</p>
 <h2 id="new-print-method-for-nn_modules">New print method for <code>nn_modules</code></h2>
-<p>In this release we have also improved the <code>nn_module</code> printing methods in order to make it easier to understand what’s inside.</p>
-<p>For example, if you create an instance of an <code>nn_linear</code> module you will see:</p>
+<p>In this release we have also improved the <code>nn_module</code> printing methods in order
+to make it easier to understand what’s inside.</p>
+<p>For example, if you create an instance of an <code>nn_linear</code> module you will
+see:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>nn_linear</span><span class='op'>(</span><span class='fl'>10</span>, <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
@@ -2324,7 +2369,8 @@ gtag('config', 'UA-20375833-3');
 ── Parameters ──────────────────────────────────────────────────────────────────
 ● weight: Float [1:1, 1:10]
 ● bias: Float [1:1]</code></pre>
-<p>You immediately see the total number of parameters in the module as well as their names and shapes.</p>
+<p>You immediately see the total number of parameters in the module as well as
+their names and shapes.</p>
 <p>This also works for custom modules (possibly including sub-modules). For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2348,13 +2394,17 @@ gtag('config', 'UA-20375833-3');
 
 ── Buffers ─────────────────────────────────────────────────────────────────────
 ● buff: Float [1:5]</code></pre>
-<p>We hope this makes it easier to understand <code>nn_module</code> objects. We have also improved autocomplete support for <code>nn_modules</code> and we will now show all sub-modules, parameters and buffers while you type.</p>
+<p>We hope this makes it easier to understand <code>nn_module</code> objects.
+We have also improved autocomplete support for <code>nn_modules</code> and we will now
+show all sub-modules, parameters and buffers while you type.</p>
 <h2 id="torchaudio">torchaudio</h2>
 <p><a href="https://github.com/curso-r/torchaudio"><code>torchaudio</code></a> is an extension for <code>torch</code> developed by <a href="https://github.com/athospd">Athos Damiani</a> (<a href="https://github.com/athospd"><code>@athospd</code></a>), providing audio loading, transformations, common architectures for signal processing, pre-trained weights and access to commonly used datasets. An almost literal translation from PyTorch’s Torchaudio library to R.</p>
-<p><code>torchaudio</code> is not yet on CRAN, but you can already try the development version available <a href="https://github.com/curso-r/torchaudio">here</a>.</p>
+<p><code>torchaudio</code> is not yet on CRAN, but you can already try the development version
+available <a href="https://github.com/curso-r/torchaudio">here</a>.</p>
 <p>You can also visit the <code>pkgdown</code> <a href="https://curso-r.github.io/torchaudio/">website</a> for examples and reference documentation.</p>
 <h2 id="other-features-and-bug-fixes">Other features and bug fixes</h2>
-<p>Thanks to community contributions we have found and fixed many bugs in <code>torch</code>. We have also added new features including:</p>
+<p>Thanks to community contributions we have found and fixed many bugs in <code>torch</code>.
+We have also added new features including:</p>
 <ul>
 <li><code>element_size</code> and <code>bool</code> Tensor methods by <a href="https://github.com/dirkschumacher"><code>@dirkschumacher</code></a></li>
 <li>checking the MD5 hashes of downloaded LibTorch binaries by <a href="https://github.com/dirkschumacher"><code>@dirkschumacher</code></a></li>

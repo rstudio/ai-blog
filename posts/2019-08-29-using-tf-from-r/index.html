@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2182,7 +2189,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>(nice with <code>%&gt;%</code>s and all!) – then train and evaluate it, get predictions and plot them, all that without ever leaving R?</p>
-<p>The short answer is, you have <code>keras</code>, <code>tensorflow</code> and <code>reticulate</code> installed. <code>reticulate</code> <em>embeds</em> a Python session <em>within</em> the R process. A single process means a single address space: The same objects exist, and can be operated upon, regardless of whether they’re seen by R or by Python. On that basis, <code>tensorflow</code> and <code>keras</code> then wrap the respective Python libraries <a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> and let you write R code that, in fact, looks like R.</p>
+<p>The short answer is, you have <code>keras</code>, <code>tensorflow</code> and <code>reticulate</code> installed.
+<code>reticulate</code> <em>embeds</em> a Python session <em>within</em> the R process. A single process means a single address space: The same objects exist, and can be operated upon, regardless of whether they’re seen by R or by Python. On that basis, <code>tensorflow</code> and <code>keras</code> then wrap the respective Python libraries <a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> and let you write R code that, in fact, looks like R.</p>
 <p>This post first elaborates a bit on the short answer. We then go deeper into what happens in the background.</p>
 <p>One note on terminology before we jump in: On the R side, we’re making a clear distinction between the packages <code>keras</code> and <code>tensorflow</code>. For Python we are going to use <em>TensorFlow</em> and <em>Keras</em> interchangeably. Historically, these have been different, and TensorFlow was commonly thought of as one possible backend to run Keras on, besides the pioneering, now discontinued Theano, and CNTK. Standalone Keras does still <a href="https://github.com/keras-team/keras">exist</a>, but recent work has been, and is being, done in <a href="https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python/keras">tf.keras</a>. Of course, this makes Python <code>Keras</code> a subset of Python <code>TensorFlow</code>, but all examples in this post will use that subset so we can use both to refer to the same thing.</p>
 <h2 id="so-keras-tensorflow-reticulate-what-are-they-for">So keras, tensorflow, reticulate, what are they for?</h2>
@@ -2211,7 +2219,8 @@ gtag('config', 'UA-20375833-3');
 &lt;tensorflow.python.keras.layers.core.Dense&gt;
 </code></pre>
 <p>But who would want to? If this were the only way, it’d be less cumbersome to directly write Python instead. Plus, as a user you’d have to know the complete Python-side module structure (now where do optimizers live, currently: <code>tf.keras.optimizers</code>, <code>tf.optimizers</code> …?), and keep up with all path and name changes in the Python API. <a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
-<p>This is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
+<p>This is where <code>keras</code> comes into play. <code>keras</code> is where the TensorFlow-specific usability, re-usability, and convenience features live. <a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>
+Functionality provided by <code>keras</code> spans the whole range between boilerplate-avoidance over enabling elegant, R-like idioms to providing means of advanced feature usage. As an example for the first two, consider <code>layer_dense</code> which, among others, converts its <code>units</code> argument to an integer, and takes arguments in an order that allow it to be “pipe-added” to a model: Instead of</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2241,7 +2250,9 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’ methods to it. Another example is <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>. These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
+<p>This is because <code>keras</code> defines an actual Python class, <code>RCallback</code>, and maps your R6 class’ methods to it.
+Another example is <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, introduced on this blog <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">about a year ago</a>.
+These models can be trained with custom training loops. In R, you use <code>keras_model_custom</code> to create one, for example, like this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_custom</span><span class='op'>(</span>name <span class='op'>=</span> <span class='st'>"mymodel"</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>self</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2351,8 +2362,12 @@ Thread 1 &quot;R&quot; hit Breakpoint 1, 0x00007fffe48315d0 in py_to_r(libpython
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 </div>
 <p>we finally arrive at <code>py_to_r</code> in #0.</p>
-<p>Before we look at that, let’s contemplate that C/C++ “bridge” from the other side - Python. While strictly, Python is a language specification, its reference implementation is CPython, with a core written in C and much more functionality built on top in Python. In CPython, every Python object (including integers or other numeric types) is a <code>PyObject</code>. <code>PyObject</code>s are allocated through and operated on using pointers; most C API functions return a pointer to one, <code>PyObject *</code>.</p>
-<p>So this is what we expect to work with, from R. What then is <code>PyObjectRef</code> doing in <code>py_ref_to_r</code>? <code>PyObjectRef</code> is not part of the C API, it is part of the functionality introduced by <code>reticulate</code> to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an <code>Rcpp::Environment</code>) goes out of scope. Why use an R environment to wrap the Python-level pointer? This is because R environments can have finalizers: functions that are called before objects are garbage collected. We use this R-level finalizer to ensure the Python-side object gets finalized as well:</p>
+<p>Before we look at that, let’s contemplate that C/C++ “bridge” from the other side - Python.
+While strictly, Python is a language specification, its reference implementation is CPython, with a core written in C and much more functionality built on top in Python. In CPython, every Python object (including integers or other numeric types) is a <code>PyObject</code>. <code>PyObject</code>s are allocated through and operated on using pointers; most C API functions return a pointer to one, <code>PyObject *</code>.</p>
+<p>So this is what we expect to work with, from R. What then is <code>PyObjectRef</code> doing in <code>py_ref_to_r</code>?
+<code>PyObjectRef</code> is not part of the C API, it is part of the functionality introduced by <code>reticulate</code> to manage Python objects. Its main purpose is to make sure the Python object is automatically cleaned up when the R object (an <code>Rcpp::Environment</code>) goes out of scope.
+Why use an R environment to wrap the Python-level pointer? This is because R environments can have finalizers: functions that are called before objects are garbage collected.
+We use this R-level finalizer to ensure the Python-side object gets finalized as well:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb11"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Rcpp<span class="op">::</span>RObject xptr <span class="op">=</span> R_MakeExternalPtr<span class="op">((</span><span class="dt">void</span><span class="op">*)</span> object<span class="op">,</span> R_NilValue<span class="op">,</span> R_NilValue<span class="op">);</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>R_RegisterCFinalizer<span class="op">(</span>xptr<span class="op">,</span> python_object_finalize<span class="op">);</span></span></code></pre></div>
@@ -2388,7 +2403,8 @@ Thread 1 &quot;R&quot; hit Breakpoint 1, 0x00007fffe48315d0 in py_to_r(libpython
 <span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>  Rcpp<span class="op">::</span>stop<span class="op">(</span><span class="st">&quot;Unable to access object (object is from previous session and is now invalid)&quot;</span><span class="op">);</span></span>
 <span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 </div>
-<p>So <code>py_to_r</code> works with a pointer to a Python object and returns what we want, an R object (a <code>SEXP</code>). The function checks for the type of the object, and then uses Rcpp to construct the adequate R object, in our case, an integer:</p>
+<p>So <code>py_to_r</code> works with a pointer to a Python object and returns what we want, an R object (a <code>SEXP</code>).
+The function checks for the type of the object, and then uses Rcpp to construct the adequate R object, in our case, an integer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb15"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>scalarType <span class="op">==</span> INTSXP<span class="op">)</span></span>
@@ -2431,7 +2447,8 @@ Thread 1 &quot;R&quot; hit Breakpoint 1, 0x00007fffe48315d0 in py_to_r(libpython
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>py</span><span class='op'>$</span><span class='va'>a</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span></code></pre>
 </div>
 </div>
-<p>This assigns <code>1</code> to a variable <code>a</code> in the python main module. To enable assignment, <code>reticulate</code> provides an implementation of the S3 generic <code>$&lt;-</code>, <code>$&lt;-.python.builtin.object</code>, which delegates to <code>py_set_attr</code>, which then calls <code>py_set_attr_impl</code> – yet another C++ function exported via Rcpp.</p>
+<p>This assigns <code>1</code> to a variable <code>a</code> in the python main module.
+To enable assignment, <code>reticulate</code> provides an implementation of the S3 generic <code>$&lt;-</code>, <code>$&lt;-.python.builtin.object</code>, which delegates to <code>py_set_attr</code>, which then calls <code>py_set_attr_impl</code> – yet another C++ function exported via Rcpp.</p>
 <p>Let’s focus on a different aspect here, though. A prerequisite for the assignment to happen is getting that <code>1</code> converted to Python. (We’re using the simplest possible example, obviously; but you can imagine this getting a lot more complex if the object isn’t a simple number).</p>
 <p>For our “minimal example”, we see a stacktrace like the following</p>
 <pre><code>#0 0x00007fffe4832010 in r_to_py_cpp(Rcpp::RObject_Impl&lt;Rcpp::PreserveStorage&gt;, bool)@plt () from /home/key/R/x86_64-redhat-linux-gnu-library/3.6/reticulate/libs/reticulate.so
@@ -2444,7 +2461,8 @@ Thread 1 &quot;R&quot; hit Breakpoint 1, 0x00007fffe48315d0 in py_to_r(libpython
     rho=rho@entry=0x55555d1d98a8, callrho=0x5555555af2d0, defrho=0x555557947430, ans=0x7ffffffe9928) at objects.c:486</code></pre>
 <p>Whereas <code>r_to_py</code> is a generic (like <code>py_to_r</code> above), <code>r_to_py_impl</code> is wrapped by Rcpp and <code>r_to_py_cpp</code> is a C++ function that branches on the type of the object – basically the counterpart of the C++ <code>r_to_py</code>.</p>
 <p>In addition to that general process, there is more going on when we call an R function from Python. As Python doesn’t “speak” R, we need to wrap the R function in CPython - basically, we are extending Python here! How to do this is described in the official <a href="https://docs.python.org/3/extending/index.html#extending-index">Extending Python Guide</a>.</p>
-<p>In official terms, what <code>reticulate</code> does it <em>embed</em> and <em>extend</em> Python. Embed, because it lets you use Python from inside R. Extend, because to enable Python to call back into R it needs to wrap R functions in C, so Python can understand them.</p>
+<p>In official terms, what <code>reticulate</code> does it <em>embed</em> and <em>extend</em> Python.
+Embed, because it lets you use Python from inside R. Extend, because to enable Python to call back into R it needs to wrap R functions in C, so Python can understand them.</p>
 <p>As part of the former, the desired Python is loaded (<code>Py_Initialize()</code>); as part of the latter, two functions are defined in a new module named <code>rpycall</code>, that will be loaded when Python itself is loaded.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb20"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>PyImport_AppendInittab<span class="op">(</span><span class="st">&quot;rpycall&quot;</span><span class="op">,</span> <span class="op">&amp;</span>initializeRPYCall<span class="op">);</span></span></code></pre></div>

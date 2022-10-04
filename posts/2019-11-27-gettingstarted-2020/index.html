@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2192,7 +2199,8 @@ Check out the new text vectorization layer in the <a href="https://tensorflow.rs
 <p>These tutorials are nice introductions explaining code as well as concepts. What if you’re familiar with the basic procedure and just need a quick reminder (or: something to quickly copy-paste from)? The ideal document to consult for those purposes is the <a href="https://tensorflow.rstudio.com/tutorials/beginners/">Overview</a>.</p>
 <p>Now – knowledge how to build models is fine, but as in data science overall, there is no modeling without data.</p>
 <h3 id="data-ingestion-and-preprocessing">Data ingestion and preprocessing</h3>
-<p>Two detailed, end-to-end tutorials show how to load <a href="https://tensorflow.rstudio.com/tutorials/beginners/load/load_csv/">csv data</a> and <a href="https://tensorflow.rstudio.com/tutorials/beginners/load/load_image/">images</a>, respectively.</p>
+<p>Two detailed, end-to-end tutorials show how to load <a href="https://tensorflow.rstudio.com/tutorials/beginners/load/load_csv/">csv data</a> and
+<a href="https://tensorflow.rstudio.com/tutorials/beginners/load/load_image/">images</a>, respectively.</p>
 <p>In current Keras, two mechanisms are central to data preparation. One is the use of <a href="https://tensorflow.rstudio.com/guide/tfdatasets/introduction/">tfdatasets pipelines</a>. <code>tfdatasets</code> lets you load data in a streaming fashion (batch-by-batch), optionally applying transformations as you go. The other handy device here is <a href="https://tensorflow.rstudio.com/guide/tfdatasets/feature_spec/">feature specs</a> and<a href="https://tensorflow.rstudio.com/guide/tfdatasets/feature_columns/">feature columns</a>. Together with a matching Keras layer, these allow for transforming the input data without having to think about what the new format will mean to Keras.</p>
 <p>While there are other types of data not discussed in the docs, the principles – pre-processing pipelines and feature extraction – generalize.</p>
 <h3 id="model-saving">Model saving</h3>
@@ -2200,7 +2208,8 @@ Check out the new text vectorization layer in the <a href="https://tensorflow.rs
 <aside>
 Advanced users: Additional options exist; see the <a href="https://tensorflow.rstudio.com/guide/saving/checkpoints/">tutorial on checkpoints</a>.
 </aside>
-<p>And unless one’s just tinkering around, the question will often be: How can I deploy my model? There is a complete new section on <a href="https://tensorflow.rstudio.com/deploy/">deployment</a>, featuring options like <code>plumber</code>, Shiny, TensorFlow Serving and RStudio Connect.</p>
+<p>And unless one’s just tinkering around, the question will often be: How can I deploy my model?
+There is a complete new section on <a href="https://tensorflow.rstudio.com/deploy/">deployment</a>, featuring options like <code>plumber</code>, Shiny, TensorFlow Serving and RStudio Connect.</p>
 <aside>
 Check out the new section on <a href="https://tensorflow.rstudio.com/deploy/">deployment options</a>.
 </aside>
@@ -2231,12 +2240,14 @@ Power users: Check out the custom training <a href="https://tensorflow.rstudio.c
 <p>Finally, let’s talk about TF Hub.</p>
 <h2 id="a-special-highlight-hub-layers">A special highlight: Hub layers</h2>
 <p>One of the most interesting aspects of contemporary neural network architectures is the use of transfer learning. Not everyone has the data, or computing facilities, to train big networks on big data from scratch. Through transfer learning, existing pre-trained models can be used for similar (but not identical) applications and in similar (but not identical) domains.</p>
-<p>Depending on one’s requirements, building on an existing model could be more or less cumbersome. Some time ago, TensorFlow Hub was created as a mechanism to publicly share models, or <em>modules</em>, that is, reusable building blocks that could be made use of by others. Until recently, there was no convenient way to incorporate these modules, though.</p>
+<p>Depending on one’s requirements, building on an existing model could be more or less cumbersome. Some time ago, TensorFlow Hub was created as a mechanism to publicly share models, or <em>modules</em>, that is, reusable building blocks that could be made use of by others.
+Until recently, there was no convenient way to incorporate these modules, though.</p>
 <p>Starting from TensorFlow 2.0, Hub modules can now seemlessly be integrated in Keras models, using <code>layer_hub</code>. This is demonstrated in two tutorials, for <a href="https://tensorflow.rstudio.com/tutorials/beginners/basic-ml/tutorial_basic_text_classification_with_tfhub/">text</a> and <a href="https://tensorflow.rstudio.com/tutorials/advanced/images/transfer-learning-hub/">images</a>, respectively. But really, these two documents are just starting points: Starting points into a journey of experimentation, with other modules, combination of modules, areas of applications…</p>
 <aside>
 Don’t miss out on the new TensorFlow Hub layer available in Keras… potentially, an extremely powerful way to enhance your models.
 </aside>
-<p>In sum, we hope you have fun with the “new” (TF 2.0) Keras and find the documentation useful. Thanks for reading!</p>
+<p>In sum, we hope you have fun with the “new” (TF 2.0) Keras and find the documentation useful.
+Thanks for reading!</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />

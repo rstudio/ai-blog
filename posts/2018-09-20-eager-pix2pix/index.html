@@ -152,10 +152,10 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Image-to-image translation with conditional adversarial networks;citation_publication_date=2016;citation_volume=abs/1611.07004;citation_author=Phillip Isola;citation_author=Jun-Yan Zhu;citation_author=Tinghui Zhou;citation_author=Alexei A. Efros"/>
-  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_publication_date=2015;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
-  <meta name="citation_reference" content="citation_title=Unpaired image-to-image translation using cycle-consistent adversarial networks;citation_publication_date=2017;citation_volume=abs/1703.10593;citation_author=Jun-Yan Zhu;citation_author=Taesung Park;citation_author=Phillip Isola;citation_author=Alexei A. Efros"/>
-  <meta name="citation_reference" content="citation_title=Deconvolution and checkerboard artifacts;citation_publication_date=2016;citation_doi=10.23915/distill.00003;citation_author=Augustus Odena;citation_author=Vincent Dumoulin;citation_author=Chris Olah"/>
+  <meta name="citation_reference" content="citation_title=Image-to-image translation with conditional adversarial networks;citation_volume=abs/1611.07004;citation_author=Phillip Isola;citation_author=Jun-Yan Zhu;citation_author=Tinghui Zhou;citation_author=Alexei A. Efros"/>
+  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
+  <meta name="citation_reference" content="citation_title=Unpaired image-to-image translation using cycle-consistent adversarial networks;citation_volume=abs/1703.10593;citation_author=Jun-Yan Zhu;citation_author=Taesung Park;citation_author=Phillip Isola;citation_author=Alexei A. Efros"/>
+  <meta name="citation_reference" content="citation_title=Deconvolution and checkerboard artifacts;citation_doi=10.23915/distill.00003;citation_author=Augustus Odena;citation_author=Vincent Dumoulin;citation_author=Chris Olah"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -841,6 +841,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1913,15 +1914,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2120,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2197,12 +2204,15 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>What do we need to train a neural network? A common answer is: a model, a cost function, and an optimization algorithm. (I know: I’m leaving out the most important thing here - the data.)</p>
+<p>What do we need to train a neural network? A common answer is: a model, a cost function, and an optimization algorithm.
+(I know: I’m leaving out the most important thing here - the data.)</p>
 <p>As computer programs work with numbers, the cost function has to be pretty specific: We can’t just say <em>predict next month’s demand for lawn mowers please, and do your best</em>, we have to say something like this: Minimize the squared deviation of the estimate from the target value.</p>
-<p>In some cases it may be straightforward to map a task to a measure of error, in others, it may not. Consider the task of generating non-existing objects of a certain type (like a face, a scene, or a video clip). How do we quantify success? The trick with <em>generative adversarial networks</em> (GANs) is to let the network learn the cost function.</p>
+<p>In some cases it may be straightforward to map a task to a measure of error, in others, it may not. Consider the task of generating non-existing objects of a certain type (like a face, a scene, or a video clip). How do we quantify success?
+The trick with <em>generative adversarial networks</em> (GANs) is to let the network learn the cost function.</p>
 <p>As shown in <a href="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/">Generating images with Keras and TensorFlow eager execution</a>, in a simple GAN the setup is this: One agent, the <em>generator</em>, keeps on producing fake objects. The other, the <em>discriminator</em>, is tasked to tell apart the real objects from the fake ones. For the generator, loss is augmented when its fraud gets discovered, meaning that the generator’s cost function depends on what the discriminator does. For the discriminator, loss grows when it fails to correctly tell apart generated objects from authentic ones.</p>
 <p>In a GAN of the type just described, creation starts from white noise. However in the real world, what is required may be a form of transformation, not creation. Take, for example, colorization of black-and-white images, or conversion of aerials to maps. For applications like those, we <em>condition</em> on additional input: Hence the name, <em>conditional adversarial networks</em>.</p>
-<p>Put concretely, this means the generator is passed not (or not only) white noise, but data of a certain input structure, such as edges or shapes. It then has to generate realistic-looking pictures of real objects having those shapes. The discriminator, too, may receive the shapes or edges as input, in addition to the fake and real objects it is tasked to tell apart.</p>
+<p>Put concretely, this means the generator is passed not (or not only) white noise, but data of a certain input structure, such as edges or shapes. It then has to generate realistic-looking pictures of real objects having those shapes.
+The discriminator, too, may receive the shapes or edges as input, in addition to the fake and real objects it is tasked to tell apart.</p>
 <p>Here are a few examples of conditioning, taken from the paper we’ll be implementing (see below):</p>
 <figure>
 <img src="images/pix2pix.png" class="external" style="width:100.0%" alt="Figure from Image-to-Image Translation with Conditional Adversarial Networks Isola et al. (2016)" /><figcaption aria-hidden="true">Figure from Image-to-Image Translation with Conditional Adversarial Networks <span class="citation" data-cites="IsolaZZE16"><a href="#ref-IsolaZZE16" role="doc-biblioref">Isola et al.</a> (<a href="#ref-IsolaZZE16" role="doc-biblioref">2016</a>)</span></figcaption>
@@ -2310,7 +2320,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="streaming-the-data">Streaming the data</h2>
-<p>The images will be streamed via <code>tfdatasets</code>, using a batch size of 1. Note how the <code>load_image</code> function we defined above is wrapped in <code>tf$py_func</code> to enable accessing tensor values in the usual eager way (which by default, as of this writing, is not possible with the TensorFlow datasets API).</p>
+<p>The images will be streamed via <code>tfdatasets</code>, using a batch size of 1.
+Note how the <code>load_image</code> function we defined above is wrapped in <code>tf$py_func</code> to enable accessing tensor values in the usual eager way (which by default, as of this writing, is not possible with the TensorFlow datasets API).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># change to where you unpacked the data</span></span>
@@ -2340,7 +2351,8 @@ gtag('config', 'UA-20375833-3');
 <h2 id="defining-the-actors">Defining the actors</h2>
 <h3 id="generator">Generator</h3>
 <p>First, here’s the generator. Let’s start with a birds-eye view.</p>
-<p>The generator receives as input a coarse segmentation, of size 256x256, and should produce a nice color image of a facade. It first successively downsamples the input, up to a minimal size of 1x1. Then after maximal condensation, it starts upsampling again, until it has reached the required output resolution of 256x256.</p>
+<p>The generator receives as input a coarse segmentation, of size 256x256, and should produce a nice color image of a facade.
+It first successively downsamples the input, up to a minimal size of 1x1. Then after maximal condensation, it starts upsampling again, until it has reached the required output resolution of 256x256.</p>
 <p>During downsampling, as spatial resolution decreases, the number of filters increases. During upsampling, it goes the opposite way.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2411,7 +2423,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>from the <code>call</code> method.</p>
 <p>Here, the inputs to <code>self$up</code> are <code>x14</code>, which went through all of the down- and upsampling, and <code>x1</code>, the output from the very first downsampling step. The former has resolution 64x64, the latter, 128x128. How do they get combined?</p>
-<p>That’s taken care of by <code>upsample</code>, technically a custom model of its own. As an aside, we remark how custom models let you pack your code into nice, reusable modules.</p>
+<p>That’s taken care of by <code>upsample</code>, technically a custom model of its own.
+As an aside, we remark how custom models let you pack your code into nice, reusable modules.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>upsample</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span>,</span>
@@ -2450,7 +2463,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p><code>x14</code> is upsampled to double its size, and <code>x1</code> is appended as is. The axis of concatenation here is axis 4, the feature map / channels axis. <code>x1</code> comes with 64 channels, <code>x14</code> comes out of <code>layer_conv_2d_transpose</code> with 64 channels, too (because <code>self$up7</code> has been defined that way). So we end up with an image of resolution 128x128 and 128 feature maps for the output of step <code>x15</code>.</p>
+<p><code>x14</code> is upsampled to double its size, and <code>x1</code> is appended as is.
+The axis of concatenation here is axis 4, the feature map / channels axis. <code>x1</code> comes with 64 channels, <code>x14</code> comes out of <code>layer_conv_2d_transpose</code> with 64 channels, too (because <code>self$up7</code> has been defined that way). So we end up with an image of resolution 128x128 and 128 feature maps for the output of step <code>x15</code>.</p>
 <p>Downsampling, too, is factored out to its own model. Here too, the number of filters is configurable.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2488,7 +2502,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>Now for the discriminator.</p>
 <h3 id="discriminator">Discriminator</h3>
-<p>Again, let’s start with a birds-eye view. The discriminator receives as input both the coarse segmentation and the ground truth. Both are concatenated and processed together. Just like the generator, the discriminator is thus conditioned on the segmentation.</p>
+<p>Again, let’s start with a birds-eye view.
+The discriminator receives as input both the coarse segmentation and the ground truth. Both are concatenated and processed together. Just like the generator, the discriminator is thus conditioned on the segmentation.</p>
 <p>What does the discriminator return? The output of <code>self$last</code> has one channel, but a spatial resolution of 30x30: We’re outputting a probability for each of 30x30 image <em>patches</em> (which is why the authors are calling this a <em>PatchGAN</em>).</p>
 <p>The discriminator thus working on small image patches means it only cares about local structure, and consequently, enforces correctness in the high frequencies only. Correctness in the low frequencies is taken care of by an additional L1 component in the discriminator loss that operates over the whole image (as we’ll see below).</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2570,8 +2585,12 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="losses-and-optimizer">Losses and optimizer</h3>
-<p>As we said in the introduction, the idea of a GAN is to have the network learn the cost function. More concretely, the thing it should learn is the balance between two losses, the generator loss and the discriminator loss. Each of them individually, of course, has to be provided with a loss function, so there are still decisions to be made.</p>
-<p>For the generator, two things factor into the loss: First, does the discriminator debunk my creations as fake? Second, how big is the absolute deviation of the generated image from the target? The latter factor does not have to be present in a conditional GAN, but was included by the authors to further encourage proximity to the target, and empirically found to deliver better results.</p>
+<p>As we said in the introduction, the idea of a GAN is to have the network learn the cost function.
+More concretely, the thing it should learn is the balance between two losses, the generator loss and the discriminator loss.
+Each of them individually, of course, has to be provided with a loss function, so there are still decisions to be made.</p>
+<p>For the generator, two things factor into the loss: First, does the discriminator debunk my creations as fake?
+Second, how big is the absolute deviation of the generated image from the target?
+The latter factor does not have to be present in a conditional GAN, but was included by the authors to further encourage proximity to the target, and empirically found to deliver better results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>lambda</span> <span class='op'>&lt;-</span> <span class='fl'>100</span> <span class='co'># value chosen by the authors of the paper</span></span>
@@ -2609,7 +2628,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="the-game">The game</h2>
-<p>We’re ready to have the generator and the discriminator play the game! Below, we use <a href="https://www.tensorflow.org/api_docs/python/tf/contrib/eager/defun">defun</a> to compile the respective R functions into TensorFlow graphs, to speed up computations.</p>
+<p>We’re ready to have the generator and the discriminator play the game!
+Below, we use <a href="https://www.tensorflow.org/api_docs/python/tf/contrib/eager/defun">defun</a> to compile the respective R functions into TensorFlow graphs, to speed up computations.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>generator</span> <span class='op'>&lt;-</span> <span class='fu'>generator</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2632,7 +2652,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Training is a loop over epochs with an inner loop over batches yielded by the dataset. As usual with eager execution, <code>tf$GradientTape</code> takes care of recording the forward pass and determining the gradients, while the optimizer - there are two of them in this setup - adjusts the networks’ weights.</p>
+<p>Training is a loop over epochs with an inner loop over batches yielded by the dataset.
+As usual with eager execution, <code>tf$GradientTape</code> takes care of recording the forward pass and determining the gradients, while the optimizer - there are two of them in this setup - adjusts the networks’ weights.</p>
 <p>Every tenth epoch, we save the weights, and tell the generator to have a go at the first example of the test set, so we can monitor network progress. See <code>generate_images</code> in the companion code for this functionality.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2725,8 +2746,10 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/cyclegan.png" class="external" style="width:100.0%" alt="Figure from Zhu et al. (2017)" /><figcaption aria-hidden="true">Figure from <span class="citation" data-cites="ZhuPIE17"><a href="#ref-ZhuPIE17" role="doc-biblioref">Zhu et al.</a> (<a href="#ref-ZhuPIE17" role="doc-biblioref">2017</a>)</span></figcaption>
 </figure>
-<p>Finally closing on a more technical note, you may have noticed the prominent checkerboard effects in the above fake examples. This phenomenon (and ways to address it) is superbly explained in a 2016 article on <a href="https://distill.pub/">distill.pub</a> <span class="citation" data-cites="odena2016deconvolution">(<a href="#ref-odena2016deconvolution" role="doc-biblioref">Odena, Dumoulin, and Olah 2016</a>)</span>. In our case, it will mostly be due to the use of <code>layer_conv_2d_transpose</code> for upsampling.</p>
-<p>As per the authors <span class="citation" data-cites="odena2016deconvolution">(<a href="#ref-odena2016deconvolution" role="doc-biblioref">Odena, Dumoulin, and Olah 2016</a>)</span>, a better alternative is upsizing followed by padding and (standard) convolution. If you’re interested, it should be straightforward to modify the example code to use <code>tf$image$resize_images</code> (using <code>ResizeMethod.NEAREST_NEIGHBOR</code> as recommended by the authors), <code>tf$pad</code> and <code>layer_conv2d</code>.</p>
+<p>Finally closing on a more technical note, you may have noticed the prominent checkerboard effects in the above fake examples. This phenomenon (and ways to address it) is superbly explained in a 2016 article on <a href="https://distill.pub/">distill.pub</a> <span class="citation" data-cites="odena2016deconvolution">(<a href="#ref-odena2016deconvolution" role="doc-biblioref">Odena, Dumoulin, and Olah 2016</a>)</span>.
+In our case, it will mostly be due to the use of <code>layer_conv_2d_transpose</code> for upsampling.</p>
+<p>As per the authors <span class="citation" data-cites="odena2016deconvolution">(<a href="#ref-odena2016deconvolution" role="doc-biblioref">Odena, Dumoulin, and Olah 2016</a>)</span>, a better alternative is upsizing followed by padding and (standard) convolution.
+If you’re interested, it should be straightforward to modify the example code to use <code>tf$image$resize_images</code> (using <code>ResizeMethod.NEAREST_NEIGHBOR</code> as recommended by the authors), <code>tf$pad</code> and <code>layer_conv2d</code>.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
 <div id="ref-IsolaZZE16" class="csl-entry" role="doc-biblioentry">

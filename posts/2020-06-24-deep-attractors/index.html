@@ -148,12 +148,12 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Deep reconstruction of strange attractors from time series;citation_publication_date=2020;citation_author=William Gilpin"/>
-  <meta name="citation_reference" content="citation_title=Determining embedding dimension for phase-space reconstruction using a geometrical construction;citation_publication_date=1992;citation_publisher=American Physical Society;citation_volume=45;citation_doi=10.1103/PhysRevA.45.3403;citation_author=Matthew B. Kennel;citation_author=Reggie Brown;citation_author=Henry D. I. Abarbanel"/>
-  <meta name="citation_reference" content="citation_title=Linear algebra and learning from data;citation_publication_date=2019;citation_publisher=Wellesley Cambridge Press;citation_author=Gilbert Strang"/>
-  <meta name="citation_reference" content="citation_title=Nonlinear dynamics and chaos: With applications to physics, biology, chemistry, and engineering;citation_publication_date=2015;citation_publisher=Westview Press;citation_author=Steven Strogatz"/>
-  <meta name="citation_reference" content="citation_title=Nonlinear time series analysis;citation_publication_date=2004;citation_publisher=Cambridge University Press;citation_author=Holger Kantz;citation_author=Thomas Schreiber"/>
-  <meta name="citation_reference" content="citation_title=Embedology;citation_publication_date=1991;citation_volume=65;citation_doi=10.1007/BF01053745;citation_author=Tim Sauer;citation_author=James A. Yorke;citation_author=Martin Casdagli"/>
+  <meta name="citation_reference" content="citation_title=Deep reconstruction of strange attractors from time series;citation_author=William Gilpin"/>
+  <meta name="citation_reference" content="citation_title=Determining embedding dimension for phase-space reconstruction using a geometrical construction;citation_publisher=American Physical Society;citation_volume=45;citation_doi=10.1103/PhysRevA.45.3403;citation_author=Matthew B. Kennel;citation_author=Reggie Brown;citation_author=Henry D. I. Abarbanel"/>
+  <meta name="citation_reference" content="citation_title=Linear algebra and learning from data;citation_publisher=Wellesley Cambridge Press;citation_author=Gilbert Strang"/>
+  <meta name="citation_reference" content="citation_title=Nonlinear dynamics and chaos: With applications to physics, biology, chemistry, and engineering;citation_publisher=Westview Press;citation_author=Steven Strogatz"/>
+  <meta name="citation_reference" content="citation_title=Nonlinear time series analysis;citation_publisher=Cambridge University Press;citation_author=Holger Kantz;citation_author=Thomas Schreiber"/>
+  <meta name="citation_reference" content="citation_title=Embedology;citation_volume=65;citation_doi=10.1007/BF01053745;citation_author=Tim Sauer;citation_author=James A. Yorke;citation_author=Martin Casdagli"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -839,6 +839,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1911,15 +1912,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2118,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2196,17 +2203,40 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>For us deep learning practitioners, the world is – not flat, but – linear, mostly. Or piecewise linear.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Like other linear approximations, or maybe even more so, deep learning can be incredibly successful at making predictions. But let’s admit it – sometimes we just miss the thrill of the nonlinear, of good, old, deterministic-yet-unpredictable chaos. Can we have both? It looks like we can. In this post, we’ll see an application of deep learning (DL) to nonlinear time series prediction – or rather, the essential step that predates it: reconstructing the attractor underlying its dynamics. While this post is an introduction, presenting the topic from scratch, further posts will build on this and extrapolate to observational datasets.</p>
+<p>For us deep learning practitioners, the world is – not flat, but – linear, mostly. Or piecewise linear.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Like other
+linear approximations, or maybe even more so, deep learning can be incredibly successful at making predictions. But let’s
+admit it – sometimes we just miss the thrill of the nonlinear, of good, old, deterministic-yet-unpredictable chaos. Can we
+have both? It looks like we can. In this post, we’ll see an application of deep learning (DL) to nonlinear time series
+prediction – or rather, the essential step that predates it: reconstructing the attractor underlying its dynamics. While this
+post is an introduction, presenting the topic from scratch, further posts will build on this and extrapolate to observational
+datasets.</p>
 <h3 id="what-to-expect-from-this-post">What to expect from this post</h3>
-<p>In his 2020 paper <em>Deep reconstruction of strange attractors from time series</em> <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>, William Gilpin uses an autoencoder architecture, combined with a regularizer implementing the <em>false nearest neighbors</em> statistic <span class="citation" data-cites="PhysRevA.45.3403">(<a href="#ref-PhysRevA.45.3403" role="doc-biblioref">Kennel, Brown, and Abarbanel 1992</a>)</span>, to reconstruct attractors from univariate observations of multivariate, nonlinear dynamical systems. If you feel you completely understand the sentence you just read, you may as well directly jump to the paper – come back for the code though<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>. If, on the other hand, you’re more familiar with the chaos on your desk (extrapolating … apologies) than <em>chaos theory chaos</em>, read on. Here, we’ll first go into what it’s all about<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>, and then, show an example application, featuring Edward Lorenz’s famous butterfly attractor. While this initial post is primarily supposed to be a fun introduction to a fascinating topic, we hope to follow up with applications to real-world datasets in the future.</p>
+<p>In his 2020 paper <em>Deep reconstruction of strange attractors from time series</em> <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>, William Gilpin uses an
+autoencoder architecture, combined with a regularizer implementing the <em>false nearest neighbors</em> statistic
+<span class="citation" data-cites="PhysRevA.45.3403">(<a href="#ref-PhysRevA.45.3403" role="doc-biblioref">Kennel, Brown, and Abarbanel 1992</a>)</span>, to reconstruct attractors from univariate observations of multivariate, nonlinear dynamical systems. If
+you feel you completely understand the sentence you just read, you may as well directly jump to the paper – come back for the
+code though<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>. If, on the other hand, you’re more familiar with the chaos on your desk (extrapolating … apologies) than
+<em>chaos theory chaos</em>, read on. Here, we’ll first go into what it’s all about<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>, and then, show an example application,
+featuring Edward Lorenz’s famous butterfly attractor. While this initial post is primarily supposed to be a fun introduction
+to a fascinating topic, we hope to follow up with applications to real-world datasets in the future.</p>
 <h2 id="rabbits-butterflies-and-low-dimensional-projections-our-problem-statement-in-context">Rabbits, butterflies, and low-dimensional projections: Our problem statement in context</h2>
-<p>In curious misalignment with how we use “chaos” in day-to-day language, chaos, the technical concept, is very different from stochasticity, or randomness. Chaos may emerge from purely deterministic processes - very simplistic ones, even. Let’s see how; with rabbits.</p>
+<p>In curious misalignment with how we use “chaos” in day-to-day language, chaos, the technical concept, is very different from
+stochasticity, or randomness. Chaos may emerge from purely deterministic processes - very simplistic ones, even. Let’s see
+how; with rabbits.</p>
 <h3 id="rabbits-or-sensitive-dependence-on-initial-conditions">Rabbits, or: Sensitive dependence on initial conditions</h3>
-<p>You may be familiar with the <em>logistic</em> equation, used as a toy model for population growth. Often it’s written like this – with <span class="math inline">\(x\)</span> being the size of the population, expressed as a fraction of the maximal size (a fraction of possible rabbits, thus), and <span class="math inline">\(r\)</span> being the growth rate (the rate at which rabbits reproduce):</p>
+<p>You may be familiar with the <em>logistic</em> equation, used as a toy model for population growth. Often it’s written like this –
+with <span class="math inline">\(x\)</span> being the size of the population, expressed as a fraction of the maximal size (a fraction of possible rabbits, thus),
+and <span class="math inline">\(r\)</span> being the growth rate (the rate at which rabbits reproduce):</p>
 <p><span class="math display">\[
 x_{n + 1} = r \ x_n \ (1 - x_n)
 \]</span></p>
-<p>This equation describes an <em>iterated map</em> over discrete timesteps <span class="math inline">\(n\)</span>. Its repeated application results in a <em>trajectory</em> describing how the population of rabbits evolves. Maps can have <em>fixed points</em>, states where further function application goes on producing the same result forever. Example-wise, say the growth rate amounts to <span class="math inline">\(2.1\)</span>, and we start at two (pretty different!) initial values, <span class="math inline">\(0.3\)</span> and <span class="math inline">\(0.8\)</span>. Both trajectories arrive at a fixed point – the same fixed point – in fewer than 10 iterations. Were we asked to predict the population size after a hundred iterations, we could make a very confident guess, whatever the of starting value. (If the initial value is <span class="math inline">\(0\)</span>, we stay at <span class="math inline">\(0\)</span>, but we can be pretty certain of that as well.)</p>
+<p>This equation describes an <em>iterated map</em> over discrete timesteps <span class="math inline">\(n\)</span>. Its repeated application results in a <em>trajectory</em>
+describing how the population of rabbits evolves. Maps can have <em>fixed points</em>, states where further function application goes
+on producing the same result forever. Example-wise, say the growth rate amounts to <span class="math inline">\(2.1\)</span>, and we start at two (pretty
+different!) initial values, <span class="math inline">\(0.3\)</span> and <span class="math inline">\(0.8\)</span>. Both trajectories arrive at a fixed point – the same fixed point – in fewer
+than 10 iterations. Were we asked to predict the population size after a hundred iterations, we could make a very confident
+guess, whatever the of starting value. (If the initial value is <span class="math inline">\(0\)</span>, we stay at <span class="math inline">\(0\)</span>, but we can be pretty certain of that as
+well.)</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-1"></span>
 <img src="images/single_fixedpoint.png" alt="Trajectory of the logistic map for r = 2.1 and two different initial values." width="600" />
@@ -2215,7 +2245,8 @@ Figure 1: Trajectory of the logistic map for r = 2.1 and two different initial v
 </p>
 </div>
 </div>
-<p>What if the growth rate were somewhat higher, at <span class="math inline">\(3.3\)</span>, say? Again, we immediately compare trajectories resulting from initial values <span class="math inline">\(0.3\)</span> and <span class="math inline">\(0.9\)</span>:</p>
+<p>What if the growth rate were somewhat higher, at <span class="math inline">\(3.3\)</span>, say? Again, we immediately compare trajectories resulting from initial
+values <span class="math inline">\(0.3\)</span> and <span class="math inline">\(0.9\)</span>:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-2"></span>
 <img src="images/2cycle.png" alt="Trajectory of the logistic map for r = 3.3 and two different initial values." width="500" />
@@ -2224,7 +2255,10 @@ Figure 2: Trajectory of the logistic map for r = 3.3 and two different initial v
 </p>
 </div>
 </div>
-<p>This time, don’t see a single fixed point, but a <em>two-cycle</em>: As the trajectories stabilize, population size inevitably is at one of two possible values – either too many rabbits or too few, you could say. The two trajectories are phase-shifted, but again, the attracting values – the <em>attractor</em> – is shared by both initial conditions. So still, predictability is pretty high. But we haven’t seen everything yet.</p>
+<p>This time, don’t see a single fixed point, but a <em>two-cycle</em>: As the trajectories stabilize, population size inevitably is at
+one of two possible values – either too many rabbits or too few, you could say. The two trajectories are phase-shifted, but
+again, the attracting values – the <em>attractor</em> – is shared by both initial conditions. So still, predictability is pretty
+high. But we haven’t seen everything yet.</p>
 <p>Let’s again enhance the growth rate some. Now <em>this</em> (literally) is chaos:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-3"></span>
@@ -2234,8 +2268,11 @@ Figure 3: Trajectory of the logistic map for r = 3.6 and two different initial v
 </p>
 </div>
 </div>
-<p>Even after a hundred iterations, there is no set of values the trajectories recur to. We can’t be confident about any prediction we might make.</p>
-<p>Or can we? After all, we have the governing equation, which is deterministic. So we should be able to calculate the size of the population at, say, time <span class="math inline">\(150\)</span>? In principle, yes; but this presupposes we have an accurate measurement for the starting state.</p>
+<p>Even after a hundred iterations, there is no set of values the trajectories recur to. We can’t be confident about any
+prediction we might make.</p>
+<p>Or can we? After all, we have the governing equation, which is deterministic. So we should be able to calculate the size of
+the population at, say, time <span class="math inline">\(150\)</span>? In principle, yes; but this presupposes we have an accurate measurement for the starting
+state.</p>
 <p>How accurate? Let’s compare trajectories for initial values <span class="math inline">\(0.3\)</span> and <span class="math inline">\(0.301\)</span>:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-4"></span>
@@ -2245,7 +2282,8 @@ Figure 4: Trajectory of the logistic map for r = 3.6 and two different initial v
 </p>
 </div>
 </div>
-<p>At first, trajectories seem to jump around in unison; but during the second dozen iterations already, they dissociate more and more, and increasingly, all bets are off. What if initial values are <em>really</em> close, as in, <span class="math inline">\(0.3\)</span> vs. <span class="math inline">\(0.30000001\)</span>?</p>
+<p>At first, trajectories seem to jump around in unison; but during the second dozen iterations already, they dissociate more and
+more, and increasingly, all bets are off. What if initial values are <em>really</em> close, as in, <span class="math inline">\(0.3\)</span> vs. <span class="math inline">\(0.30000001\)</span>?</p>
 <p>It just takes a bit longer for the disassociation to surface.</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-5"></span>
@@ -2255,15 +2293,22 @@ Figure 5: Trajectory of the logistic map for r = 3.6 and two different initial v
 </p>
 </div>
 </div>
-<p>What we’re seeing here is <em>sensitive dependence on initial conditions</em>, an essential precondition for a system to be chaotic. In an nutshell: Chaos arises when a <em>deterministic</em> system shows <em>sensitive dependence on initial conditions</em>. Or as Edward Lorenz <a href="https://en.wikipedia.org/wiki/Chaos_theory">is said to have put it</a>,</p>
+<p>What we’re seeing here is <em>sensitive dependence on initial conditions</em>, an essential precondition for a system to be chaotic.
+In an nutshell: Chaos arises when a <em>deterministic</em> system shows <em>sensitive dependence on initial conditions</em>. Or as Edward
+Lorenz <a href="https://en.wikipedia.org/wiki/Chaos_theory">is said to have put it</a>,</p>
 <blockquote>
 <p>When the present determines the future, but the approximate present does not approximately determine the future.</p>
 </blockquote>
-<p>Now if these unstructured, random-looking point clouds constitute chaos, what with the all-but-amorphous butterfly (to be displayed very soon)?</p>
+<p>Now if these unstructured, random-looking point clouds constitute chaos, what with the all-but-amorphous butterfly (to be
+displayed very soon)?</p>
 <h3 id="butterflies-or-attractors-and-strange-attractors">Butterflies, or: Attractors and strange attractors</h3>
 <p>Actually, in the context of chaos theory, the term butterfly may be encountered in different contexts.</p>
-<p>Firstly, as so-called “butterfly effect,” it is an instantiation of the templatic phrase “the flap of a butterfly’s wing in _________ profoundly affects the course of the weather in _________.”<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> In this usage, it is mostly a metaphor for sensitive dependence on initial conditions.</p>
-<p>Secondly, the existence of this metaphor led to a Rorschach-test-like identification with two-dimensional visualizations of attractors of the Lorenz system. The Lorenz system is a set of three first-order differential equations designed to describe <a href="https://en.wikipedia.org/wiki/Atmospheric_convection">atmospheric convection</a>:</p>
+<p>Firstly, as so-called “butterfly effect,” it is an instantiation of the templatic phrase “the flap of a butterfly’s wing in
+_________ profoundly affects the course of the weather in _________.”<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> In this usage, it is mostly a
+metaphor for sensitive dependence on initial conditions.</p>
+<p>Secondly, the existence of this metaphor led to a Rorschach-test-like identification with two-dimensional visualizations of
+attractors of the Lorenz system. The Lorenz system is a set of three first-order differential equations designed to describe
+<a href="https://en.wikipedia.org/wiki/Atmospheric_convection">atmospheric convection</a>:</p>
 <p><span class="math display">\[
 \begin{aligned}
 &amp; \frac{dx}{dt} = \sigma (y - x)\\
@@ -2271,7 +2316,10 @@ Figure 5: Trajectory of the logistic map for r = 3.6 and two different initial v
 &amp; \frac{dz}{dt} = x y - \beta z
 \end{aligned}
 \]</span></p>
-<p>This set of equations is nonlinear, as required for chaotic behavior to appear. It also has the required dimensionality, which for smooth, continuous systems, is at least 3<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>. Whether we actually see chaotic attractors – among which, the butterfly – depends on the settings of the parameters <span class="math inline">\(\sigma\)</span>, <span class="math inline">\(\rho\)</span> and <span class="math inline">\(\beta\)</span>. For the values conventionally chosen, <span class="math inline">\(\sigma=10\)</span>, <span class="math inline">\(\rho=28\)</span>, and <span class="math inline">\(\beta=8/3\)</span> , we see it when projecting the trajectory on the <span class="math inline">\(x\)</span> and <span class="math inline">\(z\)</span> axes:</p>
+<p>This set of equations is nonlinear, as required for chaotic behavior to appear. It also has the required dimensionality, which
+for smooth, continuous systems, is at least 3<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>. Whether we actually see chaotic attractors – among which, the butterfly –
+depends on the settings of the parameters <span class="math inline">\(\sigma\)</span>, <span class="math inline">\(\rho\)</span> and <span class="math inline">\(\beta\)</span>. For the values conventionally chosen, <span class="math inline">\(\sigma=10\)</span>,
+<span class="math inline">\(\rho=28\)</span>, and <span class="math inline">\(\beta=8/3\)</span> , we see it when projecting the trajectory on the <span class="math inline">\(x\)</span> and <span class="math inline">\(z\)</span> axes:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-6"></span>
 <img src="images/lorenz_attractors.png" alt="Two-dimensional projections of the Lorenz attractor for sigma = 10, rho = 28, beta = 8 / 3. On the right: the butterfly." width="500" />
@@ -2280,7 +2328,9 @@ Figure 6: Two-dimensional projections of the Lorenz attractor for sigma = 10, rh
 </p>
 </div>
 </div>
-<p>The butterfly is an <em>attractor</em> (as are the other two projections), but it is neither a point nor a cycle. It is an attractor in the sense that starting from a variety of different initial values, we end up in some sub-region of the state space, and we don’t get to escape no more. This is easier to see when watching evolution over time, as in this animation:</p>
+<p>The butterfly is an <em>attractor</em> (as are the other two projections), but it is neither a point nor a cycle. It is an attractor
+in the sense that starting from a variety of different initial values, we end up in some sub-region of the state space, and we
+don’t get to escape no more. This is easier to see when watching evolution over time, as in this animation:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-7"></span>
 <img src="images/x_z.gif" alt="How the Lorenz attractor traces out the famous &quot;butterfly&quot; shape."  />
@@ -2289,10 +2339,15 @@ Figure 7: How the Lorenz attractor traces out the famous “butterfly” shape.
 </p>
 </div>
 </div>
-<p>Now, to plot the attractor in two dimensions, we threw away the third. But in “real life,” we don’t usually have too <em>much</em> information (although it may sometimes seem like we had). We might have a lot of measurements, but these don’t usually reflect the actual state variables we’re interested in. In these cases, we may want to actually <em>add</em> information.</p>
+<p>Now, to plot the attractor in two dimensions, we threw away the third. But in “real life,” we don’t usually have too <em>much</em>
+information (although it may sometimes seem like we had). We might have a lot of measurements, but these don’t usually reflect
+the actual state variables we’re interested in. In these cases, we may want to actually <em>add</em> information.</p>
 <h3 id="embeddings-as-a-non-dl-term-or-undoing-the-projection">Embeddings (as a non-DL term), or: Undoing the projection</h3>
-<p>Assume that instead of all three variables of the Lorenz system, we had measured just one: <span class="math inline">\(x\)</span>, the rate of convection. Often in nonlinear dynamics, the technique of delay coordinate embedding <span class="citation" data-cites="embedology">(<a href="#ref-embedology" role="doc-biblioref">Sauer, Yorke, and Casdagli 1991</a>)</span> is used to enhance a series of univariate measurements.</p>
-<p>In this method – or family of methods – the univariate series is augmented by time-shifted copies of itself. There are two decisions to be made: How many copies to add, and how big the delay should be. To illustrate, if we had a scalar series,</p>
+<p>Assume that instead of all three variables of the Lorenz system, we had measured just one: <span class="math inline">\(x\)</span>, the rate of convection. Often
+in nonlinear dynamics, the technique of delay coordinate embedding <span class="citation" data-cites="embedology">(<a href="#ref-embedology" role="doc-biblioref">Sauer, Yorke, and Casdagli 1991</a>)</span> is used to enhance a series of univariate
+measurements.</p>
+<p>In this method – or family of methods – the univariate series is augmented by time-shifted copies of itself. There are two
+decisions to be made: How many copies to add, and how big the delay should be. To illustrate, if we had a scalar series,</p>
 <pre><code>1 2 3 4 5 6 7 8 9 10 11 ...</code></pre>
 <p>a three-dimensional embedding with time delay 2 would look like this:</p>
 <pre><code>1 3 5
@@ -2303,8 +2358,17 @@ Figure 7: How the Lorenz attractor traces out the famous “butterfly” shape.
 6 8 10
 7 9 11
 ...</code></pre>
-<p>Of the two decisions to be made – number of shifted series and time lag – the first is a decision on the dimensionality of the reconstruction space. Various theorems, such as <a href="https://en.wikipedia.org/wiki/Takens%27s_theorem">Taken's theorem</a>, indicate bounds on the number of dimensions required, provided the dimensionality of the true state space is known – which, in real-world applications, often is not the case.The second has been of little interest to mathematicians, but is important in practice. In fact, Kantz and Schreiber <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span> argue that in practice, it is the product of both parameters that matters, as it indicates the time span represented by an embedding vector.</p>
-<p>How are these parameters chosen? Regarding reconstruction dimensionality, the reasoning goes that even in chaotic systems, points that are close in state space at time <span class="math inline">\(t\)</span> should still be close at time <span class="math inline">\(t + \Delta t\)</span>, provided <span class="math inline">\(\Delta t\)</span> is very small. So say we have two points that are close, by some metric, when represented in two-dimensional space. But in three dimensions, that is, if we don’t “project away” the third dimension, they are a lot more distant. As illustrated in <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>:</p>
+<p>Of the two decisions to be made – number of shifted series and time lag – the first is a decision on the dimensionality of
+the reconstruction space. Various theorems, such as <a href="https://en.wikipedia.org/wiki/Takens%27s_theorem">Taken's theorem</a>,
+indicate bounds on the number of dimensions required, provided the dimensionality of the true state space is known – which,
+in real-world applications, often is not the case.The second has been of little interest to mathematicians, but is important
+in practice. In fact, Kantz and Schreiber <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span> argue that in practice, it is the product of both parameters that matters,
+as it indicates the time span represented by an embedding vector.</p>
+<p>How are these parameters chosen? Regarding reconstruction dimensionality, the reasoning goes that even in chaotic systems,
+points that are close in state space at time <span class="math inline">\(t\)</span> should still be close at time <span class="math inline">\(t + \Delta t\)</span>, provided <span class="math inline">\(\Delta t\)</span> is very
+small. So say we have two points that are close, by some metric, when represented in two-dimensional space. But in three
+dimensions, that is, if we don’t “project away” the third dimension, they are a lot more distant. As illustrated in
+<span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span>:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-8"></span>
 <img src="images/fnn.png" alt="In the two-dimensional projection on axes x and y, the red points are close neighbors. In 3d, however, they are separate. Compare with the blue points, which stay close even in higher-dimensional space. Figure from Gilpin (2020)." width="380" />
@@ -2313,14 +2377,31 @@ Figure 8: In the two-dimensional projection on axes x and y, the red points are 
 </p>
 </div>
 </div>
-<p>If this happens, then projecting down has eliminated some essential information. In 2d, the points were <em>false neighbors</em>. The <em>false nearest neighbors</em> (FNN) statistic can be used to determine an adequate embedding size, like this:</p>
-<p>For each point, take its closest neighbor in <span class="math inline">\(m\)</span> dimensions, and compute the ratio of their distances in <span class="math inline">\(m\)</span> and <span class="math inline">\(m+1\)</span> dimensions. If the ratio is larger than some threshold <span class="math inline">\(t\)</span>, the neighbor was false. Sum the number of false neighbors over all points. Do this for different <span class="math inline">\(m\)</span> and <span class="math inline">\(t\)</span>, and inspect the resulting curves.</p>
-<p>At this point, let’s look ahead at the autoencoder approach. The autoencoder will use that same FNN statistic as a regularizer, in addition to the usual autoencoder reconstruction loss. This will result in a new heuristic regarding embedding dimensionality that involves fewer decisions.</p>
-<p>Going back to the classic method for an instant, the second parameter, the time lag, is even more difficult to sort out <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span>. Usually, mutual information is plotted for different delays and then, the first delay where it falls below some threshold is chosen. We don’t further elaborate on this question as it is rendered obsolete in the neural network approach. Which we’ll see now.</p>
+<p>If this happens, then projecting down has eliminated some essential information. In 2d, the points were <em>false neighbors</em>. The
+<em>false nearest neighbors</em> (FNN) statistic can be used to determine an adequate embedding size, like this:</p>
+<p>For each point, take its closest neighbor in <span class="math inline">\(m\)</span> dimensions, and compute the ratio of their distances in <span class="math inline">\(m\)</span> and <span class="math inline">\(m+1\)</span>
+dimensions. If the ratio is larger than some threshold <span class="math inline">\(t\)</span>, the neighbor was false. Sum the number of false neighbors over all
+points. Do this for different <span class="math inline">\(m\)</span> and <span class="math inline">\(t\)</span>, and inspect the resulting curves.</p>
+<p>At this point, let’s look ahead at the autoencoder approach. The autoencoder will use that same FNN statistic as a
+regularizer, in addition to the usual autoencoder reconstruction loss. This will result in a new heuristic regarding embedding
+dimensionality that involves fewer decisions.</p>
+<p>Going back to the classic method for an instant, the second parameter, the time lag, is even more difficult to sort out
+<span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span>. Usually, mutual information is plotted for different delays and then, the first delay where it falls below some
+threshold is chosen. We don’t further elaborate on this question as it is rendered obsolete in the neural network approach.
+Which we’ll see now.</p>
 <h2 id="learning-the-lorenz-attractor">Learning the Lorenz attractor</h2>
-<p>Our code closely follows the architecture, parameter settings, and data setup used in the <a href="https://github.com/williamgilpin/fnn">reference implementation</a> William provided. The loss function, especially, has been ported one-to-one.</p>
-<p>The general idea is the following. An autoencoder – for example, an LSTM autoencoder as presented here – is used to compress the univariate time series into a latent representation of some dimensionality, which will constitute an upper bound on the dimensionality of the learned attractor. In addition to mean squared error between input and reconstructions, there will be a second loss term, applying the FNN regularizer. This results in the latent units being roughly ordered by <em>importance</em>, as measured by their variance. It is expected that somewhere in the listing of variances, a sharp drop will appear. The units before the drop are then assumed to encode the <em>attractor</em> of the system in question.</p>
-<p>In this setup, there is still a choice to be made: how to weight the FNN loss. One would run training for different weights <span class="math inline">\(\lambda\)</span> and look for the drop. Surely, this could in principle be automated, but given the newness of the method – the paper was published this year – it makes sense to focus on thorough analysis first.</p>
+<p>Our code closely follows the architecture, parameter settings, and data setup used in the <a href="https://github.com/williamgilpin/fnn">reference
+implementation</a> William provided. The loss function, especially, has been ported
+one-to-one.</p>
+<p>The general idea is the following. An autoencoder – for example, an LSTM autoencoder as presented here – is used to compress
+the univariate time series into a latent representation of some dimensionality, which will constitute an upper bound on the
+dimensionality of the learned attractor. In addition to mean squared error between input and reconstructions, there will be a
+second loss term, applying the FNN regularizer. This results in the latent units being roughly ordered by <em>importance</em>, as
+measured by their variance. It is expected that somewhere in the listing of variances, a sharp drop will appear. The units
+before the drop are then assumed to encode the <em>attractor</em> of the system in question.</p>
+<p>In this setup, there is still a choice to be made: how to weight the FNN loss. One would run training for different weights
+<span class="math inline">\(\lambda\)</span> and look for the drop. Surely, this could in principle be automated, but given the newness of the method – the
+paper was published this year – it makes sense to focus on thorough analysis first.</p>
 <h3 id="data-generation">Data generation</h3>
 <p>We use the <code>deSolve</code> package to generate data from the Lorenz equations.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2374,7 +2455,9 @@ Figure 8: In the two-dimensional projection on axes x and y, the red points are 
  8 0.0280  -10.5  -17.3  18.6
  9 0.0320  -10.7  -17.7  19.1
 10 0.0360  -11.0  -18.0  19.7</code></pre>
-<p>We’ve already seen the attractor, or rather, its three two-dimensional projections, in figure 6 above. But now our scenario is different. We only have access to <span class="math inline">\(x\)</span>, a univariate time series. As the time interval used to numerically integrate the differential equations was rather tiny, we just use every tenth observation.</p>
+<p>We’ve already seen the attractor, or rather, its three two-dimensional projections, in figure 6 above. But now our scenario is
+different. We only have access to <span class="math inline">\(x\)</span>, a univariate time series. As the time interval used to numerically integrate the
+differential equations was rather tiny, we just use every tenth observation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>obs</span> <span class='op'>&lt;-</span> <span class='va'>lorenz_ts</span> <span class='op'>%&gt;%</span></span>
@@ -2396,7 +2479,8 @@ Figure 9: Convection rates as a univariate time series.
 </div>
 </div>
 <h3 id="preprocessing">Preprocessing</h3>
-<p>The first half of the series is used for training. The data is scaled and transformed into the three-dimensional form expected by recurrent layers.</p>
+<p>The first half of the series is used for training. The data is scaled and transformed into the three-dimensional form expected
+by recurrent layers.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
@@ -2447,8 +2531,10 @@ Figure 9: Convection rates as a univariate time series.
 </div>
 </div>
 <h3 id="autoencoder">Autoencoder</h3>
-<p>With newer versions of TensorFlow (&gt;= 2.0, certainly if &gt;= 2.2), autoencoder-like models are best coded as custom models, and trained in an “autographed” loop.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
-<p>The encoder is centered around a single LSTM layer, whose size determines the maximum dimensionality of the attractor. The decoder then undoes the compression – again, mainly using a single LSTM.</p>
+<p>With newer versions of TensorFlow (&gt;= 2.0, certainly if &gt;= 2.2), autoencoder-like models are best coded as custom models,
+and trained in an “autographed” loop.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
+<p>The encoder is centered around a single LSTM layer, whose size determines the maximum dimensionality of the attractor. The
+decoder then undoes the compression – again, mainly using a single LSTM.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># size of the latent code</span></span>
@@ -2515,7 +2601,8 @@ Figure 9: Convection rates as a univariate time series.
 </div>
 </div>
 <h3 id="loss">Loss</h3>
-<p>As already explained above, the loss function we train with is twofold. On the one hand, we compare the original inputs with the decoder outputs (the reconstruction), using mean squared error:</p>
+<p>As already explained above, the loss function we train with is twofold. On the one hand, we compare the original inputs with
+the decoder outputs (the reconstruction), using mean squared error:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>mse_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>losses</span><span class='op'>$</span><span class='fu'>MeanSquaredError</span><span class='op'>(</span></span>
@@ -2625,7 +2712,8 @@ Figure 9: Convection rates as a univariate time series.
 </div>
 <p>This value was experimentally chosen as the one best conforming to our <em>look-for-the-highest-drop</em> heuristic.</p>
 <h3 id="model-training">Model training</h3>
-<p>The training loop closely follows the aforementioned <a href="https://tensorflow.rstudio.com/tutorials/advanced/">recipe</a> on how to train with custom models and <code>tfautograph</code>.</p>
+<p>The training loop closely follows the aforementioned <a href="https://tensorflow.rstudio.com/tutorials/advanced/">recipe</a> on how to
+train with custom models and <code>tfautograph</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>train_loss</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>keras</span><span class='op'>$</span><span class='va'>metrics</span><span class='op'>$</span><span class='fu'>Mean</span><span class='op'>(</span>name<span class='op'>=</span><span class='st'>'train_loss'</span><span class='op'>)</span></span>
@@ -2711,7 +2799,8 @@ Figure 9: Convection rates as a univariate time series.
  9 0.224 0.535 -0.00121    0.0162    0.00608  -0.000335  -0.00169  -0.00697   0.0106  -0.00576 
 10 0.211 0.434 -0.00129    0.0129    0.00606  -0.000306  -0.00134  -0.00927   0.00820 -0.00447 
 # … with 6,232 more rows</code></pre>
-<p>As a result of the FNN regularizer, the latent code units should be ordered roughly by decreasing variance, with a sharp drop appearing some place (if the FNN weight has been chosen adequately).</p>
+<p>As a result of the FNN regularizer, the latent code units should be ordered roughly by decreasing variance, with a sharp drop
+appearing some place (if the FNN weight has been chosen adequately).</p>
 <p>For an <code>fnn_weight</code> of 10, we do see a drop after the first two units:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2722,7 +2811,9 @@ Figure 9: Convection rates as a univariate time series.
       V1     V2      V3      V4      V5      V6      V7      V8      V9     V10
    &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
 1 0.0739 0.0582 1.12e-6 3.13e-4 1.43e-5 1.52e-8 1.35e-6 1.86e-4 1.67e-4 4.39e-5</code></pre>
-<p>So the model indicates that the Lorenz attractor can be represented in two dimensions. If we nonetheless want to plot the complete (reconstructed) state space of three dimensions, we should reorder the remaining variables by magnitude of variance<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a>. Here, this results in three projections of the set <code>V1</code>, <code>V2</code> and <code>V4</code>:</p>
+<p>So the model indicates that the Lorenz attractor can be represented in two dimensions. If we nonetheless want to plot the
+complete (reconstructed) state space of three dimensions, we should reorder the remaining variables by magnitude of
+variance<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a>. Here, this results in three projections of the set <code>V1</code>, <code>V2</code> and <code>V4</code>:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-20"></span>
 <img src="images/predicted_attractors.png" alt="Attractors as predicted from the latent code (test set). The three highest-variance variables were chosen." width="500" />
@@ -2732,8 +2823,14 @@ Figure 10: Attractors as predicted from the latent code (test set). The three hi
 </div>
 </div>
 <h2 id="wrapping-up-for-this-time">Wrapping up (for this time)</h2>
-<p>At this point, we’ve seen how to reconstruct the Lorenz attractor from data we did not train on (the test set), using an autoencoder regularized by a custom <em>false nearest neighbors</em> loss. It is important to stress that at no point was the network presented with the expected solution (attractor) – training was purely unsupervised.</p>
-<p>This is a fascinating result. Of course, thinking practically, the next step is to obtain predictions on heldout data. Given how long this text has become already, we reserve that for a follow-up post. And again <em>of course</em>, we’re thinking about other datasets, especially ones where the true state space is not known beforehand. What about measurement noise? What about datasets that are not completely deterministic<a href="#fn9" class="footnote-ref" id="fnref9" role="doc-noteref"><sup>9</sup></a>? There is a lot to explore, stay tuned – and as always, thanks for reading!</p>
+<p>At this point, we’ve seen how to reconstruct the Lorenz attractor from data we did not train on (the test set), using an
+autoencoder regularized by a custom <em>false nearest neighbors</em> loss. It is important to stress that at no point was the network
+presented with the expected solution (attractor) – training was purely unsupervised.</p>
+<p>This is a fascinating result. Of course, thinking practically, the next step is to obtain predictions on heldout data. Given
+how long this text has become already, we reserve that for a follow-up post. And again <em>of course</em>, we’re thinking about other
+datasets, especially ones where the true state space is not known beforehand. What about measurement noise? What about
+datasets that are not completely deterministic<a href="#fn9" class="footnote-ref" id="fnref9" role="doc-noteref"><sup>9</sup></a>? There is a lot to explore, stay tuned – and as always, thanks for
+reading!</p>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
 <div id="ref-gilpin2020deep" class="csl-entry" role="doc-biblioentry">
 Gilpin, William. 2020. <span>“Deep Reconstruction of Strange Attractors from Time Series.”</span> <a href="https://arxiv.org/abs/2002.05909">https://arxiv.org/abs/2002.05909</a>.
@@ -2759,13 +2856,17 @@ Strogatz, Steven. 2015. <em>Nonlinear Dynamics and Chaos: With Applications to P
 <ol>
 <li id="fn1" role="doc-endnote"><p>For many popular activation functions at least (such as ReLU). See e.g. <span class="citation" data-cites="Gilbert">(<a href="#ref-Gilbert" role="doc-biblioref">Strang 2019</a>)</span>.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2" role="doc-endnote"><p>The paper is also accompanied by a <a href="https://github.com/williamgilpin/fnn">Python implementation</a>.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn3" role="doc-endnote"><p>To people who want to learn more about this topic, the usual recommendation is <span class="citation" data-cites="Strogatz">(<a href="#ref-Strogatz" role="doc-biblioref">Strogatz 2015</a>)</span>. Personally I prefer another source, which I can’t recommend highly enough: Santa Fe Institute’s <a href="https://www.complexityexplorer.org/courses/100-nonlinear-dynamics-mathematical-and-computational-approaches">Nonlinear Dynamics: Mathematical and Computational Approaches</a>, taught by Liz Bradley.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3" role="doc-endnote"><p>To people who want to learn more about this topic, the usual recommendation is <span class="citation" data-cites="Strogatz">(<a href="#ref-Strogatz" role="doc-biblioref">Strogatz 2015</a>)</span>. Personally I prefer another
+source, which I can’t recommend highly enough: Santa Fe Institute’s <a href="https://www.complexityexplorer.org/courses/100-nonlinear-dynamics-mathematical-and-computational-approaches">Nonlinear Dynamics: Mathematical and Computational
+Approaches</a>,
+taught by Liz Bradley.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn4" role="doc-endnote"><p>See e.g. <a href="https://en.wikipedia.org/wiki/Butterfly_effect">Wikipedia</a> for some history and links to sources.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn5" role="doc-endnote"><p>In discrete systems, like the logistic map, a single dimension is enough.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn6" role="doc-endnote"><p>See the <a href="https://tensorflow.rstudio.com/tutorials/advanced/">custom training tutorial</a> for a blueprint.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn7" role="doc-endnote"><p>See the appendix of <span class="citation" data-cites="gilpin2020deep">(<a href="#ref-gilpin2020deep" role="doc-biblioref">Gilpin 2020</a>)</span> for a pseudocode-like documentation.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn8" role="doc-endnote"><p>As per author recommendation (personal communication).<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn9" role="doc-endnote"><p>See <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span> for detailed discussions on using methodology from nonlinear deterministic systems analysis for noisy and/or partly-stochastic data.</p>
+<li id="fn9" role="doc-endnote"><p>See <span class="citation" data-cites="Kantz">(<a href="#ref-Kantz" role="doc-biblioref">Kantz and Schreiber 2004</a>)</span> for detailed discussions on using methodology from nonlinear deterministic systems analysis for noisy
+and/or partly-stochastic data.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <a href="#fnref9" class="footnote-back" role="doc-backlink">↩︎</a></li>
 </ol>

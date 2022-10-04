@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2174,8 +2181,10 @@ gtag('config', 'UA-20375833-3');
 <p>So to start, let’s hear some context on MPT.</p>
 <h2 id="this-is-not-just-about-saving-memory">This is not just about saving memory</h2>
 <p>One way to describe MPT in TensorFlow could go like this: MPT lets you train models where the <em>weights</em> are of type <code>float32</code> or <code>float64</code>, as usual (for reasons of numeric stability), but the <em>data</em> – the tensors pushed between operations – have lower precision, namely, 16bit (<code>float16</code>).</p>
-<p>This sentence would probably do fine as a <em>TLDR;</em> <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> for the new-ish <a href="https://www.tensorflow.org/guide/keras/mixed_precision">MPT documentation page</a>, also available for R on the <a href="https://tensorflow.rstudio.com/guide/keras/mixed_precision/">TensorFlow for R website</a>. And based on this sentence, you might be lead to think <em>“oh sure, so this is about saving memory”</em>. Less memory usage would then imply you could run larger batch sizes without getting out-of-memory errors.</p>
-<p>This is of course correct, and you’ll see it happening in the experimentation results. But it’s only part of the story. The other part is related to GPU architecture and parallel (not just parallel on-GPU, as we’ll see) computing.</p>
+<p>This sentence would probably do fine as a <em>TLDR;</em> <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>
+for the new-ish <a href="https://www.tensorflow.org/guide/keras/mixed_precision">MPT documentation page</a>, also available for R on the <a href="https://tensorflow.rstudio.com/guide/keras/mixed_precision/">TensorFlow for R website</a>. And based on this sentence, you might be lead to think <em>“oh sure, so this is about saving memory”</em>. Less memory usage would then imply you could run larger batch sizes without getting out-of-memory errors.</p>
+<p>This is of course correct, and you’ll see it happening in the experimentation results.
+But it’s only part of the story. The other part is related to GPU architecture and parallel (not just parallel on-GPU, as we’ll see) computing.</p>
 <h3 id="avx-co.">AVX &amp; co.</h3>
 <p>GPUs are all about parallelization. But for CPUs as well, the last ten years have seen important developments in architecture and instruction sets. <a href="https://en.wikipedia.org/wiki/SIMD">SIMD (Single Instruction Multiple Data)</a> operations perform one instruction over a bunch of data at once. For example, two 128-bit operands could hold two 64-bit integers each, and these could be added pairwise. Conceptually, this reminds of vector addition in R (it’s just an analogue though!):</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2198,7 +2207,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>2</span>, <span class='fl'>3</span>, <span class='fl'>4</span>, <span class='fl'>5</span>, <span class='fl'>6</span>, <span class='fl'>7</span>, <span class='fl'>8</span><span class='op'>)</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>9</span>, <span class='fl'>10</span>, <span class='fl'>11</span>, <span class='fl'>12</span>, <span class='fl'>13</span>, <span class='fl'>14</span>, <span class='fl'>15</span>, <span class='fl'>16</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Over the last decade, the major SIMD-related X-86 assembly language extensions have been AVX (<em>Advanced Vector Extensions</em>), AVX2, AVX-512, and FMA (more on FMA soon). Do any of these ring a bell?</p>
+<p>Over the last decade, the major SIMD-related X-86 assembly language extensions have been AVX (<em>Advanced Vector Extensions</em>), AVX2, AVX-512, and FMA (more on FMA soon).
+Do any of these ring a bell?</p>
 <pre><code>Your CPU supports instructions that this TensorFlow binary was not compiled to use:
 AVX2 FMA</code></pre>
 <p>This is a line you are likely to see if you are using a pre-built TensorFlow binary, as opposed to compiling from source. (Later, when reporting experimentation results, we will also indicate on-CPU execution times, to provide some context for the GPU execution times we’re interested in – and just for fun, we’ll also do a – <em>very</em> superficial – comparison between a TensorFlow binary installed from PyPi and one that was compiled manually.)</p>
@@ -2392,7 +2402,8 @@ accuracy: 0.9410 - val_loss: 0.8473 - val_accuracy: 0.7460</code></pre>
 </tr>
 </tbody>
 </table>
-<p>Consistently, MPT was faster, indicating that the intended code path was used. But the speedup is not that big.</p>
+<p>Consistently, MPT was faster, indicating that the intended code path was used.
+But the speedup is not that big.</p>
 <p>We also watched GPU utilization during the runs. These ranged from around 72% for <code>batch_size</code> 32 over ~ 78% for <code>batch_size</code> 128 to hightly fluctuating values, repeatedly reaching 100%, for <code>batch_size</code> 512.</p>
 <p>As alluded to above, just to anchor these values we ran the same model in four other conditions, where no speedup was to be expected. Even though these execution times are not strictly part of the experiments, we report them, in case the reader is as curious about some context as we were.</p>
 <p>Firstly, here is the equivalent table for a Titan XP with 12G of memory and <em>compute capability</em> 6.1.</p>

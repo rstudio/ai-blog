@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2179,18 +2186,36 @@ gtag('config', 'UA-20375833-3');
 </ul>
 </nav>
 </div>
-<p><a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch">Initially</a>, we started learning about <code>torch</code> basics by coding a simple neural network from scratch, making use of just a single of <code>torch</code>’s features: <em>tensors</em>. <a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd">Then</a>, we immensely simplified the task, replacing manual backpropagation with <em>autograd</em>. Today, we <em>modularize</em> the network - in both the habitual and a very literal sense: Low-level matrix operations are swapped out for <code>torch</code> <code>module</code>s.</p>
+<p><a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch">Initially</a>,
+we started learning about <code>torch</code> basics by coding a simple neural
+network from scratch, making use of just a single of <code>torch</code>’s features:
+<em>tensors</em>.
+<a href="https://blogs.rstudio.com/ai/posts/2020-10-05-torch-network-with-autograd">Then</a>,
+we immensely simplified the task, replacing manual backpropagation with
+<em>autograd</em>. Today, we <em>modularize</em> the network - in both the habitual
+and a very literal sense: Low-level matrix operations are swapped out
+for <code>torch</code> <code>module</code>s.</p>
 <h2 id="modules">Modules</h2>
-<p>From other frameworks (Keras, say), you may be used to distinguishing between <em>models</em> and <em>layers</em>. In <code>torch</code>, both are instances of <code>nn_Module()</code>, and thus, have some methods in common. For those thinking in terms of “models” and “layers”, I’m artificially splitting up this section into two parts. In reality though, there is no dichotomy: New modules may be composed of existing ones up to arbitrary levels of recursion.</p>
+<p>From other frameworks (Keras, say), you may be used to distinguishing
+between <em>models</em> and <em>layers</em>. In <code>torch</code>, both are instances of
+<code>nn_Module()</code>, and thus, have some methods in common. For those thinking
+in terms of “models” and “layers”, I’m artificially splitting up this
+section into two parts. In reality though, there is no dichotomy: New
+modules may be composed of existing ones up to arbitrary levels of
+recursion.</p>
 <h3 id="base-modules-layers">Base modules (“layers”)</h3>
-<p>Instead of writing out an affine operation by hand – <code>x$mm(w1) + b1</code>, say –, as we’ve been doing so far, we can create a linear module. The following snippet instantiates a linear layer that expects three-feature inputs and returns a single output per observation:</p>
+<p>Instead of writing out an affine operation by hand – <code>x$mm(w1) + b1</code>,
+say –, as we’ve been doing so far, we can create a linear module. The
+following snippet instantiates a linear layer that expects three-feature
+inputs and returns a single output per observation:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
 <span><span class='va'>l</span> <span class='op'>&lt;-</span> <span class='fu'>nn_linear</span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The module has two parameters, “weight” and “bias”. Both now come pre-initialized:</p>
+<p>The module has two parameters, “weight” and “bias”. Both now come
+pre-initialized:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>l</span><span class='op'>$</span><span class='va'>parameters</span></span></code></pre>
@@ -2205,7 +2230,9 @@ $bias
 torch_tensor 
 -0.1950
 [ CPUFloatType{1} ]</code></pre>
-<p>Modules are callable; calling a module executes its <code>forward()</code> method, which, for a linear layer, matrix-multiplies input and weights, and adds the bias.</p>
+<p>Modules are callable; calling a module executes its <code>forward()</code> method,
+which, for a linear layer, matrix-multiplies input and weights, and adds
+the bias.</p>
 <p>Let’s try this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2231,15 +2258,21 @@ torch_tensor
  0.3849
 -0.2618
 [ CPUFloatType{10,1} ]</code></pre>
-<p>In addition though, this tensor knows what will need to be done, should ever it be asked to calculate gradients:</p>
+<p>In addition though, this tensor knows what will need to be done, should
+ever it be asked to calculate gradients:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>out</span><span class='op'>$</span><span class='va'>grad_fn</span></span></code></pre>
 </div>
 </div>
 <pre><code>AddmmBackward</code></pre>
-<p>Note the difference between tensors returned by modules and self-created ones. When creating tensors ourselves, we need to pass <code>requires_grad = TRUE</code> to trigger gradient calculation. With modules, <code>torch</code> correctly assumes that we’ll want to perform backpropagation at some point.</p>
-<p>By now though, we haven’t called <code>backward()</code> yet. Thus, no gradients have yet been computed:</p>
+<p>Note the difference between tensors returned by modules and self-created
+ones. When creating tensors ourselves, we need to pass
+<code>requires_grad = TRUE</code> to trigger gradient calculation. With modules,
+<code>torch</code> correctly assumes that we’ll want to perform backpropagation at
+some point.</p>
+<p>By now though, we haven’t called <code>backward()</code> yet. Thus, no gradients
+have yet been computed:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>l</span><span class='op'>$</span><span class='va'>weight</span><span class='op'>$</span><span class='va'>grad</span></span>
@@ -2258,14 +2291,23 @@ torch_tensor
 </div>
 <pre><code>Error in (function (self, gradient, keep_graph, create_graph)  : 
   grad can be implicitly created only for scalar outputs (_make_grads at ../torch/csrc/autograd/autograd.cpp:47)</code></pre>
-<p>Why the error? <em>Autograd</em> expects the output tensor to be a scalar, while in our example, we have a tensor of size <code>(10, 1)</code>. This error won’t often occur in practice, where we work with <em>batches</em> of inputs (sometimes, just a single batch). But still, it’s interesting to see how to resolve this.</p>
-<p>To make the example work, we introduce a – virtual – final aggregation step – taking the mean, say. Let’s call it <code>avg</code>. If such a mean were taken, its gradient with respect to <code>l$weight</code> would be obtained via the chain rule:</p>
+<p>Why the error? <em>Autograd</em> expects the output tensor to be a scalar,
+while in our example, we have a tensor of size <code>(10, 1)</code>. This error
+won’t often occur in practice, where we work with <em>batches</em> of inputs
+(sometimes, just a single batch). But still, it’s interesting to see how
+to resolve this.</p>
+<p>To make the example work, we introduce a – virtual – final aggregation
+step – taking the mean, say. Let’s call it <code>avg</code>. If such a mean were
+taken, its gradient with respect to <code>l$weight</code> would be obtained via the
+chain rule:</p>
 <p><span class="math display">\[
 \begin{equation*} 
  \frac{\partial \ avg}{\partial w} = \frac{\partial \ avg}{\partial \ out}  \ \frac{\partial \ out}{\partial w}
 \end{equation*}
 \]</span></p>
-<p>Of the quantities on the right side, we’re interested in the second. We need to provide the first one, the way it would look <em>if really we were taking the mean</em>:</p>
+<p>Of the quantities on the right side, we’re interested in the second. We
+need to provide the first one, the way it would look <em>if really we were
+taking the mean</em>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>d_avg_d_out</span> <span class='op'>&lt;-</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2285,9 +2327,14 @@ torch_tensor
 torch_tensor 
  100
 [ CPUFloatType{1} ]</code></pre>
-<p>In addition to <code>nn_linear()</code> , <code>torch</code> provides pretty much all the common layers you might hope for. But few tasks are solved by a single layer. How do you combine them? Or, in the usual lingo: How do you build <em>models</em>?</p>
+<p>In addition to <code>nn_linear()</code> , <code>torch</code> provides pretty much all the
+common layers you might hope for. But few tasks are solved by a single
+layer. How do you combine them? Or, in the usual lingo: How do you build
+<em>models</em>?</p>
 <h3 id="container-modules-models">Container modules (“models”)</h3>
-<p>Now, <em>models</em> are just modules that contain other modules. For example, if all inputs are supposed to flow through the same nodes and along the same edges, then <code>nn_sequential()</code> can be used to build a simple graph.</p>
+<p>Now, <em>models</em> are just modules that contain other modules. For example,
+if all inputs are supposed to flow through the same nodes and along the
+same edges, then <code>nn_sequential()</code> can be used to build a simple graph.</p>
 <p>For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2298,7 +2345,8 @@ torch_tensor
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We can use the same technique as above to get an overview of all model parameters (two weight matrices and two bias vectors):</p>
+<p>We can use the same technique as above to get an overview of all model
+parameters (two weight matrices and two bias vectors):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span><span class='op'>$</span><span class='va'>parameters</span></span></code></pre>
@@ -2355,7 +2403,8 @@ $`2.bias`
 torch_tensor 
  0.2470
 [ CPUFloatType{1} ]</code></pre>
-<p>To inspect an individual parameter, make use of its position in the sequential model. For example:</p>
+<p>To inspect an individual parameter, make use of its position in the
+sequential model. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='va'>bias</span></span></code></pre>
@@ -2379,13 +2428,15 @@ torch_tensor
 -0.3219
 -0.0266
 [ CPUFloatType{16} ]</code></pre>
-<p>And just like <code>nn_linear()</code> above, this module can be called directly on data:</p>
+<p>And just like <code>nn_linear()</code> above, this module can be called directly on
+data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>out</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>On a composite module like this one, calling <code>backward()</code> will backpropagate through all the layers:</p>
+<p>On a composite module like this one, calling <code>backward()</code> will
+backpropagate through all the layers:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span>gradient <span class='op'>=</span> <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>`repeat`</span><span class='op'>(</span><span class='fl'>10</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>t</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2437,7 +2488,8 @@ torch_tensor
   0.0000
  -9.7897
 [ CUDAFloatType{16} ]</code></pre>
-<p>Now let’s see how using <code>nn_sequential()</code> can simplify our example network.</p>
+<p>Now let’s see how using <code>nn_sequential()</code> can simplify our example
+network.</p>
 <h2 id="simple-network-using-modules">Simple network using modules</h2>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2505,7 +2557,12 @@ torch_tensor
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>The forward pass looks a lot better now; however, we still loop through the model’s parameters and update each one by hand. Furthermore, you may be already be suspecting that <code>torch</code> provides abstractions for common loss functions. In the next and last installment of this series, we’ll address both points, making use of <code>torch</code> losses and optimizers. See you then!</p>
+<p>The forward pass looks a lot better now; however, we still loop through
+the model’s parameters and update each one by hand. Furthermore, you may
+be already be suspecting that <code>torch</code> provides abstractions for common
+loss functions. In the next and last installment of this series, we’ll
+address both points, making use of <code>torch</code> losses and optimizers. See
+you then!</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->
 <div class="article-footer">

@@ -152,12 +152,12 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Gaussian processes for machine learning (adaptive computation and machine learning);citation_publication_date=2005;citation_publisher=The MIT Press;citation_author=Carl Edward Rasmussen;citation_author=Christopher K. I. Williams"/>
-  <meta name="citation_reference" content="citation_title=Statistical modeling: The two cultures (with comments and a rejoinder by the author);citation_publication_date=2001;citation_publisher=The Institute of Mathematical Statistics;citation_volume=16;citation_doi=10.1214/ss/1009213726;citation_author=Leo Breiman"/>
-  <meta name="citation_reference" content="citation_title=Information theory, inference &amp; learning algorithms;citation_publication_date=2002;citation_publisher=Cambridge University Press;citation_author=David J. C. MacKay"/>
-  <meta name="citation_reference" content="citation_title=Variational learning of inducing variables in sparse gaussian processes;citation_publication_date=2009;citation_publisher=PMLR;citation_volume=5;citation_author=Michalis Titsias"/>
-  <meta name="citation_reference" content="citation_title=Gaussian processes for big data;citation_publication_date=2013;citation_volume=abs/1309.6835;citation_author=James Hensman;citation_author=Nicolo Fusi;citation_author=Neil D. Lawrence"/>
-  <meta name="citation_reference" content="citation_title=Bayesian learning for neural networks;citation_publication_date=1996;citation_publisher=Springer-Verlag;citation_author=Radford M. Neal"/>
+  <meta name="citation_reference" content="citation_title=Gaussian processes for machine learning (adaptive computation and machine learning);citation_publisher=The MIT Press;citation_author=Carl Edward Rasmussen;citation_author=Christopher K. I. Williams"/>
+  <meta name="citation_reference" content="citation_title=Statistical modeling: The two cultures (with comments and a rejoinder by the author);citation_publisher=The Institute of Mathematical Statistics;citation_volume=16;citation_doi=10.1214/ss/1009213726;citation_author=Leo Breiman"/>
+  <meta name="citation_reference" content="citation_title=Information theory, inference &amp; learning algorithms;citation_publisher=Cambridge University Press;citation_author=David J. C. MacKay"/>
+  <meta name="citation_reference" content="citation_title=Variational learning of inducing variables in sparse gaussian processes;citation_publisher=PMLR;citation_volume=5;citation_author=Michalis Titsias"/>
+  <meta name="citation_reference" content="citation_title=Gaussian processes for big data;citation_volume=abs/1309.6835;citation_author=James Hensman;citation_author=Nicolo Fusi;citation_author=Neil D. Lawrence"/>
+  <meta name="citation_reference" content="citation_title=Bayesian learning for neural networks;citation_publisher=Springer-Verlag;citation_author=Radford M. Neal"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -843,6 +843,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1915,15 +1916,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2122,7 +2129,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2204,7 +2211,8 @@ gtag('config', 'UA-20375833-3');
 <blockquote>
 <p>Gaussian process models in some sense bring together work in the two communities.</p>
 </blockquote>
-<p>In this post, that “in some sense” gets very concrete. We’ll see a Keras network, defined and trained the usual way, that has a Gaussian Process layer for its main constituent. The task will be “simple” multivariate regression.</p>
+<p>In this post, that “in some sense” gets very concrete. We’ll see a Keras network, defined and trained the usual way, that has a Gaussian Process layer for its main constituent.
+The task will be “simple” multivariate regression.</p>
 <p>As an aside, this “bringing together communities” – or ways of thinking, or solution strategies – makes for a good overall characterization of TensorFlow Probability as well.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <h2 id="gaussian-processes">Gaussian Processes</h2>
 <p>A Gaussian Process is a <a href="https://math.stackexchange.com/a/2297480">distribution over functions, where the function values you sample are jointly Gaussian</a> - roughly speaking, a generalization to infinity of the multivariate Gaussian. Besides the reference book we already mentioned <span class="citation" data-cites="Rasmussen">(<a href="#ref-Rasmussen" role="doc-biblioref">Rasmussen and Williams 2005</a>)</span>, there are a number of nice introductions on the net: see e.g. <a href="https://distill.pub/2019/visual-exploration-gaussian-processes/">https://distill.pub/2019/visual-exploration-gaussian-processes/</a> or <a href="https://peterroelants.github.io/posts/gaussian-process-tutorial/">https://peterroelants.github.io/posts/gaussian-process-tutorial/</a>. And like on everything cool, there is a chapter on Gaussian Processes in the late David MacKay’s <span class="citation" data-cites="MacKay">(<a href="#ref-MacKay" role="doc-biblioref">MacKay 2002</a>)</span> <a href="http://www.inference.org.uk/itprnn/book.pdf">book</a>.</p>
@@ -2447,7 +2455,8 @@ F-statistic: 71.48 on 36 and 788 DF,  p-value: &lt; 2.2e-16</code></pre>
 <p>a layer instance equipped with an @property, which yields a <code>PositiveSemidefiniteKernel</code> instance”.</p>
 </blockquote>
 <p>In other words, the VGP layer wraps another Keras layer that, <em>itself</em>, wraps or bundles together the TensorFlow <code>Variables</code> containing the kernel parameters.</p>
-<p>We can make use of <code>reticulate</code>’s new <code>PyClass</code> constructor to fulfill the above requirements. Using <code>PyClass</code>, we can directly inherit from a Python object, adding and/or overriding methods or fields as we like - and yes, even create a Python <a href="https://docs.python.org/3/library/functions.html?#property">property</a>.</p>
+<p>We can make use of <code>reticulate</code>’s new <code>PyClass</code> constructor to fulfill the above requirements.
+Using <code>PyClass</code>, we can directly inherit from a Python object, adding and/or overriding methods or fields as we like - and yes, even create a Python <a href="https://docs.python.org/3/library/functions.html?#property">property</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>bt</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/import.html'>import</a></span><span class='op'>(</span><span class='st'>"builtins"</span><span class='op'>)</span></span>
@@ -2555,7 +2564,8 @@ F-statistic: 71.48 on 36 and 788 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
 <p>make much of a difference to the end result.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
 <h2 id="predictions">Predictions</h2>
-<p>We generate predictions on the test set and add them to the <code>data.frame</code> containing the linear models’ predictions. As with other probabilistic output layers, “the predictions” are in fact distributions; to obtain actual tensors we sample from them. Here, we average over 10 samples:</p>
+<p>We generate predictions on the test set and add them to the <code>data.frame</code> containing the linear models’ predictions.
+As with other probabilistic output layers, “the predictions” are in fact distributions; to obtain actual tensors we sample from them. Here, we average over 10 samples:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>yhats</span> <span class='op'>&lt;-</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>convert_to_tensor</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>test</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fl'>8</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2634,7 +2644,8 @@ Figure 2: Predictions from 10 consecutive samples from the VGP distribution.
 </div>
 <h2 id="discussion-feature-relevance">Discussion: Feature Relevance</h2>
 <p>As mentioned above, the inverse length scale can be used as an indicator of feature importance. When using the <code>ExponentiatedQuadratic</code> kernel alone, there will only be a single length scale; in our example, the initial <code>dense</code> layer takes of scaling (and additionally, recombining) the features.</p>
-<p>Alternatively, we could wrap the <code>ExponentiatedQuadratic</code> in a <code>FeatureScaled</code> kernel. <code>FeatureScaled</code> has an additional <code>scale_diag</code> parameter related to exactly that: feature scaling. Experiments with <code>FeatureScaled</code> (and initial <code>dense</code> layer removed, to be “fair”) showed slightly worse performance, and the learned <code>scale_diag</code> values varied quite a bit from run to run. For that reason, we chose to present the other approach; however, we include the code for a wrapping <code>FeatureScaled</code> in case readers would like to experiment with this:</p>
+<p>Alternatively, we could wrap the <code>ExponentiatedQuadratic</code> in a <code>FeatureScaled</code> kernel.
+<code>FeatureScaled</code> has an additional <code>scale_diag</code> parameter related to exactly that: feature scaling. Experiments with <code>FeatureScaled</code> (and initial <code>dense</code> layer removed, to be “fair”) showed slightly worse performance, and the learned <code>scale_diag</code> values varied quite a bit from run to run. For that reason, we chose to present the other approach; however, we include the code for a wrapping <code>FeatureScaled</code> in case readers would like to experiment with this:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>ScaledRBFKernelFn</span> <span class='op'>&lt;-</span> <span class='fu'>reticulate</span><span class='fu'>::</span><span class='fu'><a href='https://rstudio.github.io/reticulate/reference/PyClass.html'>PyClass</a></span><span class='op'>(</span></span>

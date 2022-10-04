@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2183,7 +2190,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_csv</span><span class='op'>(</span><span class='st'>"data-raw/creditcard.csv"</span>, col_types <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>Time <span class='op'>=</span> <span class='fu'>col_number</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The input variables consist of only numerical values which are the result of a PCA transformation. In order to preserve confidentiality, no more information about the original features was provided. The features V1, …, V28 were obtained with PCA. There are however 2 features (<em>Time</em> and <em>Amount</em>) that were not transformed. <em>Time</em> is the seconds elapsed between each transaction and the first transaction in the dataset. <em>Amount</em> is the transaction amount and could be used for cost-sensitive learning. The <em>Class</em> variable takes value 1 in case of fraud and 0 otherwise.</p>
+<p>The input variables consist of only numerical values which are the result of a PCA transformation. In order to preserve confidentiality, no more information about the original features was provided. The features V1, …, V28 were obtained with PCA. There are however 2 features (<em>Time</em> and <em>Amount</em>) that were not transformed.
+<em>Time</em> is the seconds elapsed between each transaction and the first transaction in the dataset. <em>Amount</em> is the transaction amount and could be used for cost-sensitive learning. The <em>Class</em> variable takes value 1 in case of fraud and 0 otherwise.</p>
 <h2 id="autoencoders">Autoencoders</h2>
 <p>Since only 0.172% of the observations are frauds, we have a highly unbalanced classification problem. With this kind of problem, traditional classification approaches usually don’t work very well because we have only a very small sample of the rarer class.</p>
 <p>An <a href="https://en.wikipedia.org/wiki/Autoencoder">autoencoder</a> is a neural network that is used to learn a representation (encoding) for a set of data, typically for the purpose of dimensionality reduction. For this problem we will train an autoencoder to encode non-fraud observations from our training set. Since frauds are supposed to have a different distribution then normal transactions, we expect that our autoencoder will have higher reconstruction errors on frauds then on normal transactions. This means that we can use the reconstruction error as a quantity that indicates if a transaction is fraudulent or not.</p>
@@ -2299,7 +2307,8 @@ ________________________________________________________________________________
 </div>
 <h2 id="training-the-model">Training the model</h2>
 <p>We can now train our model using the <code>fit()</code> function. Training the model is reasonably fast (~ 14s per epoch on my laptop). We will only feed to our model the observations of normal (non-fraudulent) transactions.</p>
-<p>We will use <code>callback_model_checkpoint()</code> in order to save our model after each epoch. By passing the argument <code>save_best_only = TRUE</code> we will keep on disk only the epoch with smallest loss value on the test set. We will also use <code>callback_early_stopping()</code> to stop training if the validation loss stops decreasing for 5 epochs.</p>
+<p>We will use <code>callback_model_checkpoint()</code> in order to save our model after each epoch. By passing the argument <code>save_best_only = TRUE</code> we will keep on disk only the epoch with smallest loss value on the test set.
+We will also use <code>callback_early_stopping()</code> to stop training if the validation loss stops decreasing for 5 epochs.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>checkpoint</span> <span class='op'>&lt;-</span> <span class='fu'>callback_model_checkpoint</span><span class='op'>(</span></span>

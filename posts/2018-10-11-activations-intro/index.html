@@ -152,8 +152,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Deep learning;citation_publication_date=2016;citation_publisher=MIT Press;citation_author=Ian Goodfellow;citation_author=Yoshua Bengio;citation_author=Aaron Courville"/>
-  <meta name="citation_reference" content="citation_title=Machine learning: A probabilistic perspective;citation_publication_date=2012;citation_publisher=MIT Press;citation_author=Kevin Murphy"/>
+  <meta name="citation_reference" content="citation_title=Deep learning;citation_publisher=MIT Press;citation_author=Ian Goodfellow;citation_author=Yoshua Bengio;citation_author=Aaron Courville"/>
+  <meta name="citation_reference" content="citation_title=Machine learning: A probabilistic perspective;citation_publisher=MIT Press;citation_author=Kevin Murphy"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -839,6 +839,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1911,15 +1912,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2118,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2195,10 +2202,12 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>You’re building a Keras model. If you haven’t been doing deep learning for so long, getting the output activations and cost function right might involve some memorization (or lookup). You might be trying to recall the general guidelines like so:</p>
-<p><em>So with my cats and dogs, I’m doing 2-class classification, so I have to use sigmoid activation in the output layer, right, and then, it’s binary crossentropy for the cost function…</em> Or: <em>I’m doing classification on ImageNet, that’s multi-class, so that was softmax for activation, and then, cost should be categorical crossentropy…</em></p>
+<p><em>So with my cats and dogs, I’m doing 2-class classification, so I have to use sigmoid activation in the output layer, right, and then, it’s binary crossentropy for the cost function…</em>
+Or: <em>I’m doing classification on ImageNet, that’s multi-class, so that was softmax for activation, and then, cost should be categorical crossentropy…</em></p>
 <p>It’s fine to memorize stuff like this, but knowing a bit about the reasons behind often makes things easier. So we ask: Why is it that these output activations and cost functions go together? And, do they always have to?</p>
 <h2 id="in-a-nutshell">In a nutshell</h2>
-<p>Put simply, we choose activations that make the network predict what we want it to predict. The cost function is then determined by the model.</p>
+<p>Put simply, we choose activations that make the network predict what we want it to predict.
+The cost function is then determined by the model.</p>
 <p>This is because neural networks are normally optimized using <em>maximum likelihood</em>, and depending on the distribution we assume for the output units, maximum likelihood yields different optimization objectives. All of these objectives then minimize the cross entropy (pragmatically: mismatch) between the true distribution and the predicted distribution.</p>
 <aside>
 For a more mathematical development of these topics, see sections 5.5 and 6.2 of Goodfellow et al., Deep Learning.<span class="citation" data-cites="Goodfellow-et-al-2016">(<a href="#ref-Goodfellow-et-al-2016" role="doc-biblioref">Goodfellow, Bengio, and Courville 2016</a>)</span>
@@ -2232,7 +2241,8 @@ In case you’d like a more comprehensive introduction to doing regression with 
 <aside>
 This formula assumes a single output unit.
 </aside>
-<p>In that case, the cost function that minimizes cross entropy (equivalently: optimizes maximum likelihood) is <em>mean squared error</em>. And that’s exactly what we’re using as a cost function above.</p>
+<p>In that case, the cost function that minimizes cross entropy (equivalently: optimizes maximum likelihood) is <em>mean squared error</em>.
+And that’s exactly what we’re using as a cost function above.</p>
 <p>Alternatively, we might wish to predict the median of that conditional distribution. In that case, we’d change the cost function to use mean absolute error:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2302,13 +2312,15 @@ For a more detailed introduction to classification with Keras, see the <a href="
 </div>
 <p>Although we normally talk about “binary classification,” the way the outcome is usually modeled is as a <em>Bernoulli random variable</em>, conditioned on the input data. So:</p>
 <p><span class="math display">\[P(y = 1|\mathbf{x}) = p, \ 0\leq p\leq1\]</span></p>
-<p>A Bernoulli random variable takes on values between <span class="math inline">\(0\)</span> and <span class="math inline">\(1\)</span>. So that’s what our network should produce. One idea might be to just clip all values of <span class="math inline">\(\mathbf{w}^t\mathbf{h} + b\)</span> outside that interval. But if we do this, the gradient in these regions will be <span class="math inline">\(0\)</span>: The network cannot learn.</p>
+<p>A Bernoulli random variable takes on values between <span class="math inline">\(0\)</span> and <span class="math inline">\(1\)</span>. So that’s what our network should produce.
+One idea might be to just clip all values of <span class="math inline">\(\mathbf{w}^t\mathbf{h} + b\)</span> outside that interval. But if we do this, the gradient in these regions will be <span class="math inline">\(0\)</span>: The network cannot learn.</p>
 <p>A better way is to squish the complete incoming interval into the range (0,1), using the logistic <em>sigmoid</em> function</p>
 <p><span class="math display">\[ \sigma(x) = \frac{1}{1 + e^{(-x)}} \]</span></p>
 <figure>
 <img src="images/sigmoid.png" style="width:100.0%" alt="The sigmoid function squishes its input into the interval (0,1)." /><figcaption aria-hidden="true">The sigmoid function squishes its input into the interval (0,1).</figcaption>
 </figure>
-<p>As you can see, the sigmoid function saturates when its input gets very large, or very small. Is this problematic? It depends. In the end, what we care about is if the cost function saturates. Were we to choose mean squared error here, as in the regression task above, that’s indeed what could happen.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<p>As you can see, the sigmoid function saturates when its input gets very large, or very small. Is this problematic?
+It depends. In the end, what we care about is if the cost function saturates. Were we to choose mean squared error here, as in the regression task above, that’s indeed what could happen.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
 <p>However, if we follow the general principle of maximum likelihood/cross entropy, the loss will be</p>
 <p><span class="math display">\[- log P (y|\mathbf{x})\]</span></p>
 <aside>
@@ -2375,7 +2387,8 @@ Here p is the predicted probability, i.e., the output activations of the network
 <p>Again, we want a valid probability distribution: Probabilities for all disjunct events should sum to 1.</p>
 <p>CIFAR-10 has one object per image; so events are disjunct. Then we have a single-draw multinomial distribution (popularly known as “Multinoulli,” mostly due to Murphy’s <em>Machine learning</em><span class="citation" data-cites="Murphy-2012">(<a href="#ref-Murphy-2012" role="doc-biblioref">Murphy 2012</a>)</span>) that can be modeled by the softmax activation:</p>
 <p><span class="math display">\[softmax(\mathbf{z})_i = \frac{e^{z_i}}{\sum_j{e^{z_j}}}\]</span></p>
-<p>Just as the sigmoid, the softmax can saturate. In this case, that will happen when <em>differences</em> between outputs become very big. Also like with the sigmoid, a <span class="math inline">\(log\)</span> in the cost function undoes the <span class="math inline">\(exp\)</span> that’s responsible for saturation:</p>
+<p>Just as the sigmoid, the softmax can saturate. In this case, that will happen when <em>differences</em> between outputs become very big.
+Also like with the sigmoid, a <span class="math inline">\(log\)</span> in the cost function undoes the <span class="math inline">\(exp\)</span> that’s responsible for saturation:</p>
 <p><span class="math display">\[log\ softmax(\mathbf{z})_i = z_i - log\sum_j{e^{z_j}}\]</span></p>
 <p>Here <span class="math inline">\(z_i\)</span> is the class we’re estimating the probability of - we see that its contribution to the loss is linear and thus, can never saturate.</p>
 <p>In Keras, the loss function that does this for us is called <code>categorical_crossentropy</code>. We use sparse_categorical_crossentropy in the code which is the same as <code>categorical_crossentropy</code> but does not need conversion of integer labels to one-hot vectors.</p>

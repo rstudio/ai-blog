@@ -152,7 +152,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Variational inference with normalizing flows;citation_publication_date=2015;citation_author=Danilo Jimenez Rezende;citation_author=Shakir Mohamed"/>
+  <meta name="citation_reference" content="citation_title=Variational inference with normalizing flows;citation_author=Danilo Jimenez Rezende;citation_author=Shakir Mohamed"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -838,6 +838,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1910,15 +1911,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2117,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2199,7 +2206,8 @@ gtag('config', 'UA-20375833-3');
 <p>On this blog so far, we have seen two major architectures for unsupervised learning: <a href="https://blogs.rstudio.com/tensorflow/#Variational_autoencoders_(VAEs)">variational autoencoders</a> and <a href="https://blogs.rstudio.com/tensorflow/#GAN">generative adversarial networks</a>. Lesser known, but appealing for conceptual as well as for performance reasons are <em>normalizing flows</em> <span class="citation" data-cites="2015arXiv150505770J">(<a href="#ref-2015arXiv150505770J" role="doc-biblioref">Jimenez Rezende and Mohamed 2015</a>)</span>. In this and the next post, we’ll introduce flows, focusing on how to implement them using <em>TensorFlow Probability</em> (TFP).</p>
 <p>In contrast to <a href="https://blogs.rstudio.com/tensorflow/#Probability_and_statistics">previous posts involving TFP</a> that accessed its functionality using low-level <code>$</code>-syntax, we now make use of <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>, an R wrapper in the style of <code>keras</code>, <code>tensorflow</code> and <code>tfdatasets</code>. A note regarding this package: It is still under heavy development and the API may change. As of this writing, wrappers do not yet exist for all TFP modules, but all TFP functionality is available using <code>$</code>-syntax if need be.</p>
 <h2 id="density-estimation-and-sampling">Density estimation and sampling</h2>
-<p>Back to unsupervised learning, and specifically thinking of variational autoencoders, what are the main things they give us? One thing that’s seldom missing from papers on generative methods are pictures of super-real-looking faces (or bed rooms, or animals …). So evidently <em>sampling</em> (or: generation) is an important part. If we can sample from a model and obtain real-seeming entities, this means the model has learned something about how things are distributed in the world: it has learned a <em>distribution</em>. In the case of variational autoencoders, there is more: The entities are supposed to be determined by a set of distinct, disentangled (hopefully!) latent factors. But this is not the assumption in the case of normalizing flows, so we are not going to elaborate on this here.</p>
+<p>Back to unsupervised learning, and specifically thinking of variational autoencoders, what are the main things they give us? One thing that’s seldom missing from papers on generative methods are pictures of super-real-looking faces (or bed rooms, or animals …). So evidently <em>sampling</em> (or: generation) is an important part. If we can sample from a model and obtain real-seeming entities, this means the model has learned something about how things are distributed in the world: it has learned a <em>distribution</em>.
+In the case of variational autoencoders, there is more: The entities are supposed to be determined by a set of distinct, disentangled (hopefully!) latent factors. But this is not the assumption in the case of normalizing flows, so we are not going to elaborate on this here.</p>
 <p>As a recap, how do we sample from a VAE? We draw from <span class="math inline">\(z\)</span>, the latent variable, and run the decoder network on it. The result should - we hope - look like it comes from the empirical data distribution. It should not, however, look <em>exactly</em> like any of the items used to train the VAE, or else we have not learned anything useful.</p>
 <p>The second thing we may get from a VAE is an assessment of the plausibility of individual data, to be used, for example, in anomaly detection. Here “plausibility” is vague on purpose: With VAE, we don’t have a means to compute an actual density under the posterior.</p>
 <p>What if we want, or need, both: generation of samples as well as density estimation? This is where <em>normalizing flows</em> come in.</p>
@@ -2232,7 +2240,8 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <p>From this example, we see why a flow should be invertible, but we don’t yet see why it should be <em>differentiable</em>. This will become clear shortly, but first let’s take a look at how flows are available in <code>tfprobability</code>.</p>
 <h2 id="bijectors">Bijectors</h2>
 <p>TFP comes with a treasure trove of transformations, called <code>bijectors</code>, ranging from simple computations like <a href="https://rstudio.github.io/tfprobability/reference/tfb_exp.html">exponentiation</a> to more complex ones like the <a href="https://rstudio.github.io/tfprobability/reference/tfb_discrete_cosine_transform.html">discrete cosine transform</a>.</p>
-<p>To get started, let’s use <code>tfprobability</code> to generate samples from the normal distribution. There is a bijector <code>tfb_normal_cdf()</code> that takes input data to the interval <span class="math inline">\([0,1]\)</span>. Its inverse transform then yields a random variable with the standard normal distribution:</p>
+<p>To get started, let’s use <code>tfprobability</code> to generate samples from the normal distribution.
+There is a bijector <code>tfb_normal_cdf()</code> that takes input data to the interval <span class="math inline">\([0,1]\)</span>. Its inverse transform then yields a random variable with the standard normal distribution:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfprobability'>tfprobability</a></span><span class='op'>)</span></span>
@@ -2276,7 +2285,8 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 </div>
 <p>Why does this work? Let’s get some background.</p>
 <h2 id="probability-mass-is-conserved">Probability mass is conserved</h2>
-<p>Flows are based on the principle that under transformation, probability mass is conserved. Say we have a flow from <span class="math inline">\(x\)</span> to <span class="math inline">\(z\)</span>: <span class="math display">\[z = f(x)\]</span></p>
+<p>Flows are based on the principle that under transformation, probability mass is conserved. Say we have a flow from <span class="math inline">\(x\)</span> to <span class="math inline">\(z\)</span>:
+<span class="math display">\[z = f(x)\]</span></p>
 <p>Suppose we sample from <span class="math inline">\(z\)</span> and then, compute the inverse transform to obtain <span class="math inline">\(x\)</span>. We know the probability of <span class="math inline">\(z\)</span>. What is the probability that <span class="math inline">\(x\)</span>, the transformed sample, lies between <span class="math inline">\(x_0\)</span> and <span class="math inline">\(x_0 + dx\)</span>?</p>
 <p>This probability is <span class="math inline">\(p(x) \ dx\)</span>, the density times the length of the interval. This has to equal the probability that <span class="math inline">\(z\)</span> lies between <span class="math inline">\(f(x)\)</span> and <span class="math inline">\(f(x + dx)\)</span>. That new interval has length <span class="math inline">\(f&#39;(x) dx\)</span>, so:</p>
 <p><span class="math display">\[p(x) dx = p(z) f&#39;(x) dx\]</span></p>
@@ -2313,7 +2323,8 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <span>  <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='op'>)</span> <span class='co'># -1.6120857 -1.7370857 -2.1120858</span></span></code></pre>
 </div>
 </div>
-<p>We see that as the values get stretched in space (we multiply by 2), the individual log densities go down. We can verify the cumulative probability stays the same using <code>tfd_transformed_distribution()</code>:</p>
+<p>We see that as the values get stretched in space (we multiply by 2), the individual log densities go down.
+We can verify the cumulative probability stays the same using <code>tfd_transformed_distribution()</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>d_t</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_transformed_distribution</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='va'>d_n</span>, bijector <span class='op'>=</span> <span class='va'>b</span><span class='op'>)</span></span>
@@ -2324,7 +2335,9 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 </div>
 <p>So far, the flows we saw were static - how does this fit into the framework of neural networks?</p>
 <h2 id="training-a-flow">Training a flow</h2>
-<p>Given that flows are bidirectional, there are two ways to think about them. Above, we have mostly stressed the inverse mapping: We want a simple distribution we can sample from, and which we can use to compute a density. In that line, flows are sometimes called “mappings from data to noise” - <em>noise</em> mostly being an isotropic Gaussian. However in practice, we don’t have that “noise” yet, we just have data. So in practice, we have to <em>learn</em> a flow that does such a mapping. We do this by using <code>bijectors</code> with trainable parameters. We’ll see a very simple example here, and leave “real world flows” to the next post.</p>
+<p>Given that flows are bidirectional, there are two ways to think about them. Above, we have mostly stressed the inverse mapping: We want a simple distribution we can sample from, and which we can use to compute a density. In that line, flows are sometimes called “mappings from data to noise” - <em>noise</em> mostly being an isotropic Gaussian. However in practice, we don’t have that “noise” yet, we just have data.
+So in practice, we have to <em>learn</em> a flow that does such a mapping. We do this by using <code>bijectors</code> with trainable parameters.
+We’ll see a very simple example here, and leave “real world flows” to the next post.</p>
 <p>The example is based on part 1 of <a href="https://blog.evjang.com/2018/01/nf1.html">Eric Jang’s introduction to normalizing flows</a>. The main difference (apart from simplification to show the basic pattern) is that we’re using eager execution.</p>
 <p>We start from a two-dimensional, isotropic Gaussian, and we want to model data that’s also normal, but with a mean of 1 and a variance of 2 (in both dimensions).</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2351,7 +2364,9 @@ F^{-1}(u) = -\frac{1}{\lambda} ln (1 - u)
 <span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='va'>batch_size</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now we’ll build a tiny neural network, consisting of an affine transformation and a nonlinearity. For the former, we can make use of <code>tfb_affine</code>, the multi-dimensional relative of <code>tfb_affine_scalar</code>. As to nonlinearities, currently TFP comes with <code>tfb_sigmoid</code> and <code>tfb_tanh</code>, but we can build our own parameterized ReLU using <code>tfb_inline</code>:</p>
+<p>Now we’ll build a tiny neural network, consisting of an affine transformation and a nonlinearity.
+For the former, we can make use of <code>tfb_affine</code>, the multi-dimensional relative of <code>tfb_affine_scalar</code>.
+As to nonlinearities, currently TFP comes with <code>tfb_sigmoid</code> and <code>tfb_tanh</code>, but we can build our own parameterized ReLU using <code>tfb_inline</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># alpha is a learnable parameter</span></span>

@@ -152,9 +152,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Going deeper with convolutions;citation_publication_date=2015;citation_author=Christian Szegedy;citation_author=Wei Liu;citation_author=Yangqing Jia;citation_author=Pierre Sermanet;citation_author=Scott Reed;citation_author=Dragomir Anguelov;citation_author=Dumitru Erhan;citation_author=Vincent Vanhoucke;citation_author=Andrew Rabinovich"/>
-  <meta name="citation_reference" content="citation_title=Deep learning pipelines for apache spark;citation_publication_date=2019;citation_author=Deep learning pipelines for apache spark"/>
-  <meta name="citation_reference" content="citation_title=Asirra: A CAPTCHA that exploits interest-aligned manual image categorization;citation_publication_date=2007;citation_publisher=Association for Computing Machinery, Inc.;citation_author=Jeremy Elson;citation_author=John (JD) Douceur;citation_author=Jon Howell;citation_author=Jared Saul"/>
+  <meta name="citation_reference" content="citation_title=Going deeper with convolutions;citation_author=Christian Szegedy;citation_author=Wei Liu;citation_author=Yangqing Jia;citation_author=Pierre Sermanet;citation_author=Scott Reed;citation_author=Dragomir Anguelov;citation_author=Dumitru Erhan;citation_author=Vincent Vanhoucke;citation_author=Andrew Rabinovich"/>
+  <meta name="citation_reference" content="citation_title=Deep learning pipelines for apache spark;citation_author=Deep learning pipelines for apache spark"/>
+  <meta name="citation_reference" content="citation_title=Asirra: A CAPTCHA that exploits interest-aligned manual image categorization;citation_publisher=Association for Computing Machinery, Inc.;citation_author=Jeremy Elson;citation_author=John (JD) Douceur;citation_author=Jon Howell;citation_author=Jared Saul"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -840,6 +840,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1912,15 +1913,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2119,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2211,18 +2218,45 @@ gtag('config', 'UA-20375833-3');
 <li><a href="#other-exciting-news">Other exciting news</a></li>
 </ul>
 <h2 id="image-and-binary-data-sources">Image and binary data sources</h2>
-<p>As a unified analytics engine for large-scale data processing, <a href="https://spark.apache.org">Apache Spark</a> is well-known for its ability to tackle challenges associated with the volume, velocity, and last but not least, the variety of big data. Therefore it is hardly surprising to see that – in response to recent advances in deep learning frameworks – Apache Spark has introduced built-in support for <a href="https://issues.apache.org/jira/browse/SPARK-22666">image data sources</a> and <a href="https://issues.apache.org/jira/browse/SPARK-25348">binary data sources</a> (in releases 2.4 and 3.0, respectively). The corresponding R interfaces for both data sources, namely, <a href="https://spark.rstudio.com/reference/spark_read_image.html"><code>spark_read_image()</code></a> and <a href="https://spark.rstudio.com/reference/spark_read_binary.html"><code>spark_read_binary()</code></a>, were shipped recently as part of <code>sparklyr</code> 1.7.</p>
-<p>The usefulness of data source functionalities such as <code>spark_read_image()</code> is perhaps best illustrated by a quick demo below, where <code>spark_read_image()</code>, through the standard Apache Spark <a href="https://spark.apache.org/docs/latest/api/java/org/apache/spark/ml/image/ImageSchema.html"><code>ImageSchema</code></a>, helps connecting raw image inputs to a sophisticated feature extractor and a classifier, forming a powerful Spark application for image classifications.</p>
+<p>As a unified analytics engine for large-scale data processing, <a href="https://spark.apache.org">Apache Spark</a>
+is well-known for its ability to tackle challenges associated with the volume, velocity, and last but
+not least, the variety of big data. Therefore it is hardly surprising to see that – in response to recent
+advances in deep learning frameworks – Apache Spark has introduced built-in support for
+<a href="https://issues.apache.org/jira/browse/SPARK-22666">image data sources</a>
+and <a href="https://issues.apache.org/jira/browse/SPARK-25348">binary data sources</a> (in releases 2.4 and 3.0, respectively).
+The corresponding R interfaces for both data sources, namely,
+<a href="https://spark.rstudio.com/reference/spark_read_image.html"><code>spark_read_image()</code></a> and
+<a href="https://spark.rstudio.com/reference/spark_read_binary.html"><code>spark_read_binary()</code></a>, were shipped
+recently as part of <code>sparklyr</code> 1.7.</p>
+<p>The usefulness of data source functionalities such as <code>spark_read_image()</code> is perhaps best illustrated
+by a quick demo below, where <code>spark_read_image()</code>, through the standard Apache Spark
+<a href="https://spark.apache.org/docs/latest/api/java/org/apache/spark/ml/image/ImageSchema.html"><code>ImageSchema</code></a>,
+helps connecting raw image inputs to a sophisticated feature extractor and a classifier, forming a powerful
+Spark application for image classifications.</p>
 <h3 id="the-demo">The demo</h3>
-<p><img src="images/photo-1571324524859-899fbd151860.jpeg" /> Photo by <a href="https://unsplash.com/@danieltuttle">Daniel Tuttle</a> on <a href="https://unsplash.com/?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Unsplash</a></p>
-<p>In this demo, we shall construct a scalable Spark ML pipeline capable of classifying images of cats and dogs accurately and efficiently, using <code>spark_read_image()</code> and a pre-trained convolutional neural network code-named <code>Inception</code> (<span class="citation" data-cites="inception"><a href="#ref-inception" role="doc-biblioref">Szegedy et al.</a> (<a href="#ref-inception" role="doc-biblioref">2015</a>)</span>).</p>
-<p>The first step to building such a demo with maximum portability and repeatability is to create a <a href="https://spark.rstudio.com/extensions/">sparklyr extension</a> that accomplishes the following:</p>
+<p><img src="images/photo-1571324524859-899fbd151860.jpeg" />
+Photo by <a href="https://unsplash.com/@danieltuttle">Daniel Tuttle</a> on
+<a href="https://unsplash.com/?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Unsplash</a></p>
+<p>In this demo, we shall construct a scalable Spark ML pipeline capable of classifying images of cats and dogs
+accurately and efficiently, using <code>spark_read_image()</code> and a pre-trained convolutional neural network
+code-named <code>Inception</code> (<span class="citation" data-cites="inception"><a href="#ref-inception" role="doc-biblioref">Szegedy et al.</a> (<a href="#ref-inception" role="doc-biblioref">2015</a>)</span>).</p>
+<p>The first step to building such a demo with maximum portability and repeatability is to create a
+<a href="https://spark.rstudio.com/extensions/">sparklyr extension</a> that accomplishes the following:</p>
 <ul>
-<li>Specifying the required MVN dependencies of this demo (namely, the <a href="https://spark-packages.org/package/databricks/spark-deep-learning">Spark Deep Learning library</a> (<span class="citation" data-cites="spark-deep-learning"><a href="#ref-spark-deep-learning" role="doc-biblioref">Databricks, Inc.</a> (<a href="#ref-spark-deep-learning" role="doc-biblioref">2019</a>)</span>), which contains an <code>Inception</code>-V3-based image feature extractor accessible through the <a href="https://spark.apache.org/docs/latest/ml-pipeline.html#transformers">Spark ML Transformer interface</a>)</li>
-<li>Bundling with itself two <a href="https://xkcd.com/221">randomly selected</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> and disjoint subsets of the dogs-vs-cats dataset (<span class="citation" data-cites="asirra"><a href="#ref-asirra" role="doc-biblioref">Elson et al.</a> (<a href="#ref-asirra" role="doc-biblioref">2007</a>)</span>) as train and test data, which are stored in the <code>extdata/{train,test}</code> sub directories of the package)</li>
+<li>Specifying the required MVN dependencies of this demo (namely, the
+<a href="https://spark-packages.org/package/databricks/spark-deep-learning">Spark Deep Learning library</a>
+(<span class="citation" data-cites="spark-deep-learning"><a href="#ref-spark-deep-learning" role="doc-biblioref">Databricks, Inc.</a> (<a href="#ref-spark-deep-learning" role="doc-biblioref">2019</a>)</span>), which contains an <code>Inception</code>-V3-based image feature extractor accessible through
+the <a href="https://spark.apache.org/docs/latest/ml-pipeline.html#transformers">Spark ML Transformer interface</a>)</li>
+<li>Bundling with itself two <a href="https://xkcd.com/221">randomly selected</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> and disjoint subsets of the
+dogs-vs-cats dataset (<span class="citation" data-cites="asirra"><a href="#ref-asirra" role="doc-biblioref">Elson et al.</a> (<a href="#ref-asirra" role="doc-biblioref">2007</a>)</span>) as train and test data, which are stored in the <code>extdata/{train,test}</code> sub
+directories of the package)</li>
 </ul>
-<p>A reference implementation of such a <code>sparklyr</code> extension can be found in <a href="https://github.com/mlverse/sparklyr-image-classification-demo">here</a>.</p>
-<p>The second step, of course, is to make use of the above-mentioned <code>sparklyr</code> extension to perform some feature engineering. We will see very high-level features being extracted intelligently from each cat/dog image based on what the pre-built <code>Inception</code>-V3 convolutional neural network has already learned from classifying a much broader collection of images:</p>
+<p>A reference implementation of such a <code>sparklyr</code> extension can be found in
+<a href="https://github.com/mlverse/sparklyr-image-classification-demo">here</a>.</p>
+<p>The second step, of course, is to make use of the above-mentioned <code>sparklyr</code> extension to perform some feature
+engineering. We will see very high-level features being extracted intelligently from each cat/dog image based
+on what the pre-built <code>Inception</code>-V3 convolutional neural network has already learned from classifying a much
+broader collection of images:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2266,7 +2300,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Third step: equipped with features that summarize the content of each image well, we can build a Spark ML pipeline that recognizes cats and dogs using only logistic regression<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+<p>Third step: equipped with features that summarize the content of each image well, we can
+build a Spark ML pipeline that recognizes cats and dogs using only logistic regression<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>label_col</span> <span class='op'>&lt;-</span> <span class='st'>"label"</span></span>
@@ -2331,14 +2366,32 @@ gtag('config', 'UA-20375833-3');
 ## [1] 1</code></pre>
 <h2 id="new-spark_apply-capabilities">New <code>spark_apply()</code> capabilities</h2>
 <h3 id="optimizations-custom-serializers">Optimizations &amp; custom serializers</h3>
-<p>Many <code>sparklyr</code> users who have tried to run <a href="https://spark.rstudio.com/reference/spark_apply.html"><code>spark_apply()</code></a> or <a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"><code>doSpark</code></a> to parallelize R computations among Spark workers have probably encountered some challenges arising from the serialization of R closures. In some scenarios, the serialized size of the R closure can become too large, often due to the size of the enclosing R environment required by the closure. In other scenarios, the serialization itself may take too much time, partially offsetting the performance gain from parallelization. Recently, multiple optimizations went into <code>sparklyr</code> to address those challenges. One of the optimizations was to make good use of the <a href="https://spark.apache.org/docs/latest/rdd-programming-guide.html#broadcast-variables">broadcast variable</a> construct in Apache Spark to reduce the overhead of distributing shared and immutable task states across all Spark workers. In <code>sparklyr</code> 1.7, there is also support for custom <code>spark_apply()</code> serializers, which offers more fine-grained control over the trade-off between speed and compression level of serialization algorithms. For example, one can specify</p>
+<p>Many <code>sparklyr</code> users who have tried to run
+<a href="https://spark.rstudio.com/reference/spark_apply.html"><code>spark_apply()</code></a> or
+<a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"><code>doSpark</code></a> to
+parallelize R computations among Spark workers have probably encountered some
+challenges arising from the serialization of R closures.
+In some scenarios, the
+serialized size of the R closure can become too large, often due to the size
+of the enclosing R environment required by the closure. In other
+scenarios, the serialization itself may take too much time, partially offsetting
+the performance gain from parallelization. Recently, multiple optimizations went
+into <code>sparklyr</code> to address those challenges. One of the optimizations was to
+make good use of the
+<a href="https://spark.apache.org/docs/latest/rdd-programming-guide.html#broadcast-variables">broadcast variable</a>
+construct in Apache Spark to reduce the overhead of distributing shared and
+immutable task states across all Spark workers. In <code>sparklyr</code> 1.7, there is
+also support for custom <code>spark_apply()</code> serializers, which offers more fine-grained
+control over the trade-off between speed and compression level of serialization
+algorithms. For example, one can specify</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='st'>"qs"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p>,</p>
-<p>which will apply the default options of <code>qs::qserialize()</code> to achieve a high compression level, or</p>
+<p>which will apply the default options of <code>qs::qserialize()</code> to achieve a high
+compression level, or</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/options.html'>options</a></span><span class='op'>(</span>sparklyr.spark_apply.serializer <span class='op'>=</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>qs</span><span class='fu'>::</span><span class='fu'>qserialize</span><span class='op'>(</span><span class='va'>x</span>, preset <span class='op'>=</span> <span class='st'>"fast"</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2348,16 +2401,42 @@ gtag('config', 'UA-20375833-3');
 <p>,</p>
 <p>which will aim for faster serialization speed with less compression.</p>
 <h3 id="inferring-dependencies-automatically">Inferring dependencies automatically</h3>
-<p>In <code>sparklyr</code> 1.7, <code>spark_apply()</code> also provides the experimental <code>auto_deps = TRUE</code> option. With <code>auto_deps</code> enabled, <code>spark_apply()</code> will examine the R closure being applied, infer the list of required R packages, and only copy the required R packages and their transitive dependencies to Spark workers. In many scenarios, the <code>auto_deps = TRUE</code> option will be a significantly better alternative compared to the default <code>packages = TRUE</code> behavior, which is to ship everything within <code>.libPaths()</code> to Spark worker nodes, or the advanced <code>packages = &lt;package config&gt;</code> option, which requires users to supply the list of required R packages or manually create a <code>spark_apply()</code> bundle.</p>
+<p>In <code>sparklyr</code> 1.7, <code>spark_apply()</code> also provides the experimental
+<code>auto_deps = TRUE</code> option. With <code>auto_deps</code> enabled, <code>spark_apply()</code> will
+examine the R closure being applied, infer the list of required R packages,
+and only copy the required R packages and their transitive dependencies
+to Spark workers. In many scenarios, the <code>auto_deps = TRUE</code> option will be a
+significantly better alternative compared to the default <code>packages = TRUE</code>
+behavior, which is to ship everything within <code>.libPaths()</code> to Spark worker
+nodes, or the advanced <code>packages = &lt;package config&gt;</code> option, which requires
+users to supply the list of required R packages or manually create a
+<code>spark_apply()</code> bundle.</p>
 <h2 id="better-integration-with-sparklyr-extensions">Better integration with sparklyr extensions</h2>
-<p>Substantial effort went into <code>sparklyr</code> 1.7 to make lives easier for <code>sparklyr</code> extension authors. Experience suggests two areas where any <code>sparklyr</code> extension can go through a frictional and non-straightforward path integrating with <code>sparklyr</code> are the following:</p>
+<p>Substantial effort went into <code>sparklyr</code> 1.7 to make lives easier for <code>sparklyr</code>
+extension authors. Experience suggests two areas where any <code>sparklyr</code> extension
+can go through a frictional and non-straightforward path integrating with
+<code>sparklyr</code> are the following:</p>
 <ul>
 <li>The <a href="https://github.com/sparklyr/sparklyr/blob/1242adb632c881f0a8dd234898af84a76614f590/R/dplyr_spark_connection.R#L184"><code>dbplyr</code> SQL translation environment</a></li>
 <li><a href="https://spark.rstudio.com/extensions/#calling-spark-from-r">Invocation of Java/Scala functions from R</a></li>
 </ul>
 <p>We will elaborate on recent progress in both areas in the sub-sections below.</p>
 <h3 id="customizing-the-dbplyr-sql-translation-environment">Customizing the <code>dbplyr</code> SQL translation environment</h3>
-<p><code>sparklyr</code> extensions can now customize <code>sparklyr</code>’s <code>dbplyr</code> SQL translations through the <a href="https://spark.rstudio.com/reference/spark_dependency.html"><code>spark_dependency()</code></a> specification returned from <code>spark_dependencies()</code> callbacks. This type of flexibility becomes useful, for instance, in scenarios where a <code>sparklyr</code> extension needs to insert type casts for inputs to custom Spark UDFs. We can find a concrete example of this in <a href="https://github.com/apache/incubator-sedona/tree/master/R/sparklyr.sedona#sparklyrsedona"><code>sparklyr.sedona</code></a>, a <code>sparklyr</code> extension to facilitate geo-spatial analyses using <a href="https://sedona.apache.org/">Apache Sedona</a>. Geo-spatial UDFs supported by Apache Sedona such as <code>ST_Point()</code> and <code>ST_PolygonFromEnvelope()</code> require all inputs to be <code>DECIMAL(24, 20)</code> quantities rather than <code>DOUBLE</code>s. Without any customization to <code>sparklyr</code>’s <code>dbplyr</code> SQL variant, the only way for a <code>dplyr</code> query involving <code>ST_Point()</code> to actually work in <code>sparklyr</code> would be to explicitly implement any type cast needed by the query using <code>dplyr::sql()</code>, e.g.,</p>
+<p><code>sparklyr</code> extensions can now customize <code>sparklyr</code>’s <code>dbplyr</code> SQL translations
+through the
+<a href="https://spark.rstudio.com/reference/spark_dependency.html"><code>spark_dependency()</code></a>
+specification returned from <code>spark_dependencies()</code> callbacks.
+This type of flexibility becomes useful, for instance, in scenarios where a
+<code>sparklyr</code> extension needs to insert type casts for inputs to custom Spark
+UDFs. We can find a concrete example of this in
+<a href="https://github.com/apache/incubator-sedona/tree/master/R/sparklyr.sedona#sparklyrsedona"><code>sparklyr.sedona</code></a>,
+a <code>sparklyr</code> extension to facilitate geo-spatial analyses using
+<a href="https://sedona.apache.org/">Apache Sedona</a>. Geo-spatial UDFs supported by Apache
+Sedona such as <code>ST_Point()</code> and <code>ST_PolygonFromEnvelope()</code> require all inputs to be
+<code>DECIMAL(24, 20)</code> quantities rather than <code>DOUBLE</code>s. Without any customization to
+<code>sparklyr</code>’s <code>dbplyr</code> SQL variant, the only way for a <code>dplyr</code>
+query involving <code>ST_Point()</code> to actually work in <code>sparklyr</code> would be to explicitly
+implement any type cast needed by the query using <code>dplyr::sql()</code>, e.g.,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span></span>
@@ -2369,7 +2448,13 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>.</p>
-<p>This would, to some extent, be antithetical to <code>dplyr</code>’s goal of freeing R users from laboriously spelling out SQL queries. Whereas by customizing <code>sparklyr</code>’s <code>dplyr</code> SQL translations (as implemented in <a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L55">here</a> and <a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L135">here</a> ), <code>sparklyr.sedona</code> allows users to simply write</p>
+<p>This would, to some extent, be antithetical to <code>dplyr</code>’s goal of freeing R users from
+laboriously spelling out SQL queries. Whereas by customizing <code>sparklyr</code>’s <code>dplyr</code> SQL
+translations (as implemented in
+<a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L55">here</a>
+and
+<a href="https://github.com/apache/incubator-sedona/blob/d8c2aae0678b7262660bda68eb0a2048b849e438/R/sparklyr.sedona/R/dependencies.R#L135">here</a>
+), <code>sparklyr.sedona</code> allows users to simply write</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>my_geospatial_sdf</span> <span class='op'>&lt;-</span> <span class='va'>my_geospatial_sdf</span> <span class='op'>%&gt;%</span> <span class='fu'>dplyr</span><span class='fu'>::</span><span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate.html'>mutate</a></span><span class='op'>(</span>pt <span class='op'>=</span> <span class='fu'>ST_Point</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
@@ -2377,8 +2462,18 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>instead, and the required Spark SQL type casts are generated automatically.</p>
 <h3 id="improved-interface-for-invoking-javascala-functions">Improved interface for invoking Java/Scala functions</h3>
-<p>In <code>sparklyr</code> 1.7, the R interface for Java/Scala invocations saw a number of improvements.</p>
-<p>With previous versions of <code>sparklyr</code>, many <code>sparklyr</code> extension authors would run into trouble when attempting to invoke Java/Scala functions accepting an <code>Array[T]</code> as one of their parameters, where <code>T</code> is any type bound more specific than <code>java.lang.Object</code> / <code>AnyRef</code>. This was because any array of objects passed through <code>sparklyr</code>’s Java/Scala invocation interface will be interpreted as simply an array of <code>java.lang.Object</code>s in absence of additional type information. For this reason, a helper function <a href="https://spark.rstudio.com/reference/jarray.html"><code>jarray()</code></a> was implemented as part of <code>sparklyr</code> 1.7 as a way to overcome the aforementioned problem. For example, executing</p>
+<p>In <code>sparklyr</code> 1.7, the R interface for Java/Scala invocations saw a number of
+improvements.</p>
+<p>With previous versions of <code>sparklyr</code>, many <code>sparklyr</code> extension authors would
+run into trouble when attempting to invoke Java/Scala functions accepting an
+<code>Array[T]</code> as one of their parameters, where <code>T</code> is any type bound more specific
+than <code>java.lang.Object</code> / <code>AnyRef</code>. This was because any array of objects passed
+through <code>sparklyr</code>’s Java/Scala invocation interface will be interpreted as simply
+an array of <code>java.lang.Object</code>s in absence of additional type information.
+For this reason, a helper function
+<a href="https://spark.rstudio.com/reference/jarray.html"><code>jarray()</code></a> was implemented as
+part of <code>sparklyr</code> 1.7 as a way to overcome the aforementioned problem.
+For example, executing</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>sc</span> <span class='op'>&lt;-</span> <span class='fu'>spark_connect</span><span class='op'>(</span><span class='va'>...</span><span class='op'>)</span></span>
@@ -2390,22 +2485,56 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>will assign to <code>arr</code> a <em>reference</em> to an <code>Array[MyClass]</code> of length 5, rather than an <code>Array[AnyRef]</code>. Subsequently, <code>arr</code> becomes suitable to be passed as a parameter to functions accepting only <code>Array[MyClass]</code>s as inputs. Previously, some possible workarounds of this <code>sparklyr</code> limitation included changing function signatures to accept <code>Array[AnyRef]</code>s instead of <code>Array[MyClass]</code>s, or implementing a “wrapped” version of each function accepting <code>Array[AnyRef]</code> inputs and converting them to <code>Array[MyClass]</code> before the actual invocation. None of such workarounds was an ideal solution to the problem.</p>
-<p>Another similar hurdle that was addressed in <code>sparklyr</code> 1.7 as well involves function parameters that must be single-precision floating point numbers or arrays of single-precision floating point numbers. For those scenarios, <a href="https://spark.rstudio.com/reference/jfloat.html"><code>jfloat()</code></a> and <a href="https://spark.rstudio.com/reference/jfloat_array.html"><code>jfloat_array()</code></a> are the helper functions that allow numeric quantities in R to be passed to <code>sparklyr</code>’s Java/Scala invocation interface as parameters with desired types.</p>
-<p>In addition, while previous verisons of <code>sparklyr</code> failed to serialize parameters with <code>NaN</code> values correctly, <code>sparklyr</code> 1.7 preserves <code>NaN</code>s as expected in its Java/Scala invocation interface.</p>
+<p>will assign to <code>arr</code> a <em>reference</em> to an <code>Array[MyClass]</code> of length 5, rather
+than an <code>Array[AnyRef]</code>. Subsequently, <code>arr</code> becomes suitable to be passed as a
+parameter to functions accepting only <code>Array[MyClass]</code>s as inputs. Previously,
+some possible workarounds of this <code>sparklyr</code> limitation included changing
+function signatures to accept <code>Array[AnyRef]</code>s instead of <code>Array[MyClass]</code>s, or
+implementing a “wrapped” version of each function accepting <code>Array[AnyRef]</code>
+inputs and converting them to <code>Array[MyClass]</code> before the actual invocation.
+None of such workarounds was an ideal solution to the problem.</p>
+<p>Another similar hurdle that was addressed in <code>sparklyr</code> 1.7 as well involves
+function parameters that must be single-precision floating point numbers or
+arrays of single-precision floating point numbers.
+For those scenarios,
+<a href="https://spark.rstudio.com/reference/jfloat.html"><code>jfloat()</code></a> and
+<a href="https://spark.rstudio.com/reference/jfloat_array.html"><code>jfloat_array()</code></a>
+are the helper functions that allow numeric quantities in R to be passed to
+<code>sparklyr</code>’s Java/Scala invocation interface as parameters with desired types.</p>
+<p>In addition, while previous verisons of <code>sparklyr</code> failed to serialize
+parameters with <code>NaN</code> values correctly, <code>sparklyr</code> 1.7 preserves <code>NaN</code>s as
+expected in its Java/Scala invocation interface.</p>
 <h2 id="other-exciting-news">Other exciting news</h2>
-<p>There are numerous other new features, enhancements, and bug fixes made to <code>sparklyr</code> 1.7, all listed in the <a href="https://github.com/sparklyr/sparklyr/blob/main/NEWS.md#sparklyr-170">NEWS.md</a> file of the <code>sparklyr</code> repo and documented in <code>sparklyr</code>’s <a href="https://spark.rstudio.com/reference/">HTML reference</a> pages. In the interest of brevity, we will not describe all of them in great detail within this blog post.</p>
+<p>There are numerous other new features, enhancements, and bug fixes made to
+<code>sparklyr</code> 1.7, all listed in the
+<a href="https://github.com/sparklyr/sparklyr/blob/main/NEWS.md#sparklyr-170">NEWS.md</a>
+file of the <code>sparklyr</code> repo and documented in <code>sparklyr</code>’s
+<a href="https://spark.rstudio.com/reference/">HTML reference</a> pages.
+In the interest of brevity, we will not describe all of them in great detail
+within this blog post.</p>
 <h2 id="acknowledgement">Acknowledgement</h2>
-<p>In chronological order, we would like to thank the following individuals who have authored or co-authored pull requests that were part of the <code>sparklyr</code> 1.7 release:</p>
+<p>In chronological order, we would like to thank the following individuals who
+have authored or co-authored pull requests that were part of the <code>sparklyr</code> 1.7
+release:</p>
 <ul>
 <li><a href="https://github.com/yitao-li">@yitao-li</a></li>
 <li><a href="https://github.com/mzorko">@mzorko</a></li>
 <li><a href="https://github.com/jozefhajnala">@jozefhajnala</a></li>
 <li><a href="https://github.com/lresende">@lresende</a></li>
 </ul>
-<p>We’re also extremely grateful to everyone who has submitted feature requests or bug reports, many of which have been tremendously helpful in shaping <code>sparklyr</code> into what it is today.</p>
-<p>Furthermore, the author of this blog post is indebted to <a href="https://github.com/skeydan">@skeydan</a> for her awesome editorial suggestions. Without her insights about good writing and story-telling, expositions like this one would have been less readable.</p>
-<p>If you wish to learn more about <code>sparklyr</code>, we recommend visiting <a href="https://sparklyr.ai">sparklyr.ai</a>, <a href="https://spark.rstudio.com">spark.rstudio.com</a>, and also reading some previous <code>sparklyr</code> release posts such as <a href="https://blogs.rstudio.com/ai/posts/2021-03-25-sparklyr-1.6.0-released/">sparklyr 1.6</a> and <a href="https://blogs.rstudio.com/ai/posts/2020-12-14-sparklyr-1.5.0-released/">sparklyr 1.5</a>.</p>
+<p>We’re also extremely grateful to everyone who has submitted
+feature requests or bug reports, many of which have been tremendously helpful in
+shaping <code>sparklyr</code> into what it is today.</p>
+<p>Furthermore, the author of this blog post is indebted to
+<a href="https://github.com/skeydan">@skeydan</a> for her awesome editorial suggestions.
+Without her insights about good writing and story-telling, expositions like this
+one would have been less readable.</p>
+<p>If you wish to learn more about <code>sparklyr</code>, we recommend visiting
+<a href="https://sparklyr.ai">sparklyr.ai</a>, <a href="https://spark.rstudio.com">spark.rstudio.com</a>,
+and also reading some previous <code>sparklyr</code> release posts such as
+<a href="https://blogs.rstudio.com/ai/posts/2021-03-25-sparklyr-1.6.0-released/">sparklyr 1.6</a>
+and
+<a href="https://blogs.rstudio.com/ai/posts/2020-12-14-sparklyr-1.5.0-released/">sparklyr 1.5</a>.</p>
 <p>That is all. Thanks for reading!</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
@@ -2422,8 +2551,15 @@ Szegedy, Christian, Wei Liu, Yangqing Jia, Pierre Sermanet, Scott Reed, Dragomir
 <section class="footnotes" role="doc-endnotes">
 <hr />
 <ol>
-<li id="fn1" role="doc-endnote"><p>Fun exercise for our readers: why not experiment with different subsets of cats-vs-dogs images for training and testing, or even better, replace train and test images with your own images of cats and dogs, and see what happens?<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn2" role="doc-endnote"><p>Another way to see why it works: in fact the pre-built <code>Inception</code>-based feature extractor simply applies all transformations <code>Inception</code> would have applied to its input, except for the last logistic-regression-esque affine transformation plus non-linearity producing the final categorical output, and <code>Inception</code> is a highly successful convolutional neural network trained to recognize 1000 categories of animals and objects, including multiple types of cats and dogs.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1" role="doc-endnote"><p>Fun exercise for our readers: why not experiment with different subsets of cats-vs-dogs images for training
+and testing, or even better, replace train and test images with your own images of cats and dogs, and see what
+happens?<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>Another way to see why it works: in fact the pre-built <code>Inception</code>-based feature
+extractor simply applies all transformations <code>Inception</code> would have applied to its input,
+except for the last logistic-regression-esque affine transformation plus non-linearity
+producing the final categorical output, and <code>Inception</code> is a highly successful
+convolutional neural network trained to recognize 1000 categories of animals and objects,
+including multiple types of cats and dogs.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

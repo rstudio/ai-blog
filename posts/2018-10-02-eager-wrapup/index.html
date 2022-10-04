@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2170,7 +2177,8 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>If you have used Keras to create neural networks you are no doubt familiar with the <a href="https://tensorflow.rstudio.com/keras/articles/sequential_model.html">Sequential API</a>, which represents models as a linear stack of layers. The <a href="https://tensorflow.rstudio.com/keras/articles/functional_api.html">Functional API</a> gives you additional options: Using separate input layers, you can combine text input with tabular data. Using multiple outputs, you can perform regression and classification at the same time. Furthermore, you can reuse layers within and between models.</p>
-<p>With TensorFlow eager execution, you gain even more flexibility. Using <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, you define the forward pass through the model completely <em>ad libitum</em>. This means that a lot of architectures get a lot easier to implement, including the applications mentioned above: generative adversarial networks, neural style transfer, various forms of sequence-to-sequence models. In addition, because you have direct access to values, not tensors, model development and debugging are greatly sped up.</p>
+<p>With TensorFlow eager execution, you gain even more flexibility. Using <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">custom models</a>, you define the forward pass through the model completely <em>ad libitum</em>. This means that a lot of architectures get a lot easier to implement, including the applications mentioned above: generative adversarial networks, neural style transfer, various forms of sequence-to-sequence models.
+In addition, because you have direct access to values, not tensors, model development and debugging are greatly sped up.</p>
 <h2 id="how-does-it-work">How does it work?</h2>
 <p>In eager execution, operations are not compiled into a graph, but directly defined in your R code. They return values, not symbolic handles to nodes in a computational graph - meaning, you don’t need access to a TensorFlow <code>session</code> to evaluate them.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2183,8 +2191,12 @@ gtag('config', 'UA-20375833-3');
 <pre><code>tf.Tensor(
 [[ 50 114]
  [ 60 140]], shape=(2, 2), dtype=int32)</code></pre>
-<p>Eager execution, recent though it is, is already supported in the current CRAN releases of <code>keras</code> and <code>tensorflow</code>. The <a href="https://tensorflow.rstudio.com/keras/articles/eager_guide.html">eager execution guide</a> describes the workflow in detail.</p>
-<p>Here’s a quick outline: You define a <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">model</a>, an optimizer, and a loss function. Data is streamed via <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a>, including any preprocessing such as image resizing. Then, model training is just a loop over epochs, giving you complete freedom over when (and whether) to execute any actions.</p>
+<p>Eager execution, recent though it is, is already supported in the current CRAN releases of <code>keras</code> and <code>tensorflow</code>.
+The <a href="https://tensorflow.rstudio.com/keras/articles/eager_guide.html">eager execution guide</a> describes the workflow in detail.</p>
+<p>Here’s a quick outline:
+You define a <a href="https://tensorflow.rstudio.com/keras/articles/custom_models.html">model</a>, an optimizer, and a loss function.
+Data is streamed via <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a>, including any preprocessing such as image resizing.
+Then, model training is just a loop over epochs, giving you complete freedom over when (and whether) to execute any actions.</p>
 <p>How does backpropagation work in this setup? The forward pass is recorded by a <code>GradientTape</code>, and during the backward pass we explicitly calculate gradients of the loss with respect to the model’s weights. These weights are then adjusted by the optimizer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2216,8 +2228,10 @@ gtag('config', 'UA-20375833-3');
 </ul>
 <p>We’ll illustrate these points using a set of eager execution case studies that have recently appeared on this blog.</p>
 <h2 id="complicated-stuff-made-easier">Complicated stuff made easier</h2>
-<p>A good example of architectures that become much easier to define with eager execution are attention models. Attention is an important ingredient of sequence-to-sequence models, e.g. (but not only) in machine translation.</p>
-<p>When using LSTMs on both the encoding and the decoding sides, the decoder, being a recurrent layer, knows about the sequence it has generated so far. It also (in all but the simplest models) has access to the complete input sequence. But where in the input sequence is the piece of information it needs to generate the next output token? It is this question that attention is meant to address.</p>
+<p>A good example of architectures that become much easier to define with eager execution are attention models.
+Attention is an important ingredient of sequence-to-sequence models, e.g. (but not only) in machine translation.</p>
+<p>When using LSTMs on both the encoding and the decoding sides, the decoder, being a recurrent layer, knows about the sequence it has generated so far. It also (in all but the simplest models) has access to the complete input sequence. But where in the input sequence is the piece of information it needs to generate the next output token?
+It is this question that attention is meant to address.</p>
 <p>Now consider implementing this in code. Each time it is called to produce a new token, the decoder needs to get current input from the attention mechanism. This means we can’t just squeeze an attention layer between the encoder and the decoder LSTM. Before the advent of eager execution, a solution would have been to implement this in low-level TensorFlow code. With eager execution and custom models, we can just <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">use Keras</a>.</p>
 <aside>
 <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/"><img src="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/images/attention.png" style="border: 1px solid rgba(0, 0, 0, 0.2);" width="150" /></a>
@@ -2227,7 +2241,8 @@ gtag('config', 'UA-20375833-3');
 <a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/"><img src="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/images/showattendandtell.png" style="border: 1px solid rgba(0, 0, 0, 0.2);" width="150" /></a>
 </aside>
 <h2 id="easy-inspection">Easy inspection</h2>
-<p>In terms of debuggability, just using custom models (without eager execution) already simplifies things. If we have a custom model like <code>simple_dot</code> from the recent <a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender">embeddings post</a> and are unsure if we’ve got the shapes correct, we can simply add logging statements, like so:</p>
+<p>In terms of debuggability, just using custom models (without eager execution) already simplifies things.
+If we have a custom model like <code>simple_dot</code> from the recent <a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender">embeddings post</a> and are unsure if we’ve got the shapes correct, we can simply add logging statements, like so:</p>
 <aside>
 <a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender"><img src="https://blogs.rstudio.com/tensorflow/posts/2018-09-26-embeddings-recommender/images/m.png" style="border: 1px solid rgba(0, 0, 0, 0.2);" width="150" /></a>
 </aside>
@@ -2251,7 +2266,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>With eager execution, things get even better: We can print the tensors’ values themselves.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
-<p>But convenience does not end there. In the training loop we showed above, we can obtain losses, model weights, and gradients just by printing them. For example, add a line after the call to <code>tape$gradient</code> to print the gradients for all layers as a list.</p>
+<p>But convenience does not end there. In the training loop we showed above, we can obtain losses, model weights, and gradients just by printing them.
+For example, add a line after the call to <code>tape$gradient</code> to print the gradients for all layers as a list.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>gradients</span> <span class='op'>&lt;-</span> <span class='va'>tape</span><span class='op'>$</span><span class='fu'>gradient</span><span class='op'>(</span><span class='va'>loss</span>, <span class='va'>model</span><span class='op'>$</span><span class='va'>variables</span><span class='op'>)</span></span>
@@ -2341,7 +2357,8 @@ gtag('config', 'UA-20375833-3');
 <p>For quick reference, these cover:</p>
 <ul>
 <li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">Neural machine translation with attention</a>. This post provides a detailed introduction to eager execution and its building blocks, as well as an in-depth explanation of the attention mechanism used. Together with the next one, it occupies a very special role in this list: It uses eager execution to solve a problem that otherwise could only be solved with hard-to-read, hard-to-write low-level code.</p></li>
-<li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/">Image captioning with attention</a>. This post builds on the first in that it does not re-explain attention in detail; however, it ports the concept to spatial attention applied over image regions.</p></li>
+<li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-17-eager-captioning/">Image captioning with attention</a>.
+This post builds on the first in that it does not re-explain attention in detail; however, it ports the concept to spatial attention applied over image regions.</p></li>
 <li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan">Generating digits with convolutional generative adversarial networks (DCGANs)</a>. This post introduces using two custom models, each with their associated loss functions and optimizers, and having them go through forward- and backpropagation in sync. It is perhaps the most impressive example of how eager execution simplifies coding by better alignment to our mental model of the situation.</p></li>
 <li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-20-eager-pix2pix">Image-to-image translation with pix2pix</a> is another application of generative adversarial networks, but uses a more complex architecture based on U-Net-like downsampling and upsampling. It nicely demonstrates how eager execution allows for modular coding, rendering the final program much more readable.</p></li>
 <li><p><a href="https://blogs.rstudio.com/tensorflow/posts/2018-09-10-eager-style-transfer/">Neural style transfer</a>. Finally, this post reformulates the style transfer problem in an eager way, again resulting in readable, concise code.</p></li>

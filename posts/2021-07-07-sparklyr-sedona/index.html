@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2178,19 +2185,42 @@ gtag('config', 'UA-20375833-3');
 </ul>
 </nav>
 </div>
-<p><a href="https://github.com/apache/incubator-sedona/tree/master/R/sparklyr.sedona"><code>sparklyr.sedona</code></a> is now available as the <code>sparklyr</code>-based R interface for <a href="https://sedona.apache.org/">Apache Sedona</a>.</p>
-<p>To install <code>sparklyr.sedona</code> from GitHub using the <a href="https://cran.r-project.org/web/packages/remotes/index.html"><code>remotes</code></a> package <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, run</p>
+<p><a href="https://github.com/apache/incubator-sedona/tree/master/R/sparklyr.sedona"><code>sparklyr.sedona</code></a> is now available
+as the <code>sparklyr</code>-based R interface for <a href="https://sedona.apache.org/">Apache Sedona</a>.</p>
+<p>To install <code>sparklyr.sedona</code> from GitHub using
+the <a href="https://cran.r-project.org/web/packages/remotes/index.html"><code>remotes</code></a> package
+<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, run</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>remotes</span><span class='fu'>::</span><span class='fu'><a href='https://remotes.r-lib.org/reference/install_github.html'>install_github</a></span><span class='op'>(</span>repo <span class='op'>=</span> <span class='st'>"apache/incubator-sedona"</span>, subdir <span class='op'>=</span> <span class='st'>"R/sparklyr.sedona"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>In this blog post, we will provide a quick introduction to <code>sparklyr.sedona</code>, outlining the motivation behind this <code>sparklyr</code> extension, and presenting some example <code>sparklyr.sedona</code> use cases involving Spark spatial RDDs, Spark dataframes, and visualizations.</p>
+<p>In this blog post, we will provide a quick introduction to <code>sparklyr.sedona</code>, outlining the motivation behind
+this <code>sparklyr</code> extension, and presenting some example <code>sparklyr.sedona</code> use cases involving Spark spatial RDDs,
+Spark dataframes, and visualizations.</p>
 <h2 id="motivation-for-sparklyr.sedona">Motivation for <code>sparklyr.sedona</code></h2>
-<p>A suggestion from the <a href="https://blogs.rstudio.com/ai/posts/2021-02-17-survey/">mlverse survey results</a> earlier this year mentioned the need for up-to-date R interfaces for Spark-based GIS frameworks. While looking into this suggestion, we learned about <a href="https://sedona.apache.org/">Apache Sedona</a>, a geospatial data system powered by Spark that is modern, efficient, and easy to use. We also realized that while our friends from the Spark open-source community had developed a <a href="https://github.com/harryprince/geospark"><code>sparklyr</code> extension</a> for GeoSpark, the predecessor of Apache Sedona, there was no similar extension making more recent Sedona functionalities easily accessible from R yet. We therefore decided to work on <code>sparklyr.sedona</code>, which aims to bridge the gap between Sedona and R.</p>
+<p>A suggestion from the
+<a href="https://blogs.rstudio.com/ai/posts/2021-02-17-survey/">mlverse survey results</a> earlier
+this year mentioned the need for up-to-date R interfaces for Spark-based GIS frameworks.
+While looking into this suggestion, we learned about
+<a href="https://sedona.apache.org/">Apache Sedona</a>, a geospatial data system powered by Spark
+that is modern, efficient, and easy to use. We also realized that while our friends from the
+Spark open-source community had developed a
+<a href="https://github.com/harryprince/geospark"><code>sparklyr</code> extension</a> for GeoSpark, the
+predecessor of Apache Sedona, there was no similar extension making more recent Sedona
+functionalities easily accessible from R yet.
+We therefore decided to work on <code>sparklyr.sedona</code>, which aims to bridge the gap between
+Sedona and R.</p>
 <h2 id="the-lay-of-the-land">The lay of the land<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></h2>
-<p>We hope you are ready for a quick tour through some of the RDD-based and Spark-dataframe-based functionalities in <code>sparklyr.sedona</code>, and also, some bedazzling visualizations derived from geospatial data in Spark.</p>
-<p>In Apache Sedona, <a href="https://sedona.apache.org/api/javadoc/core/org/apache/sedona/core/spatialRDD/SpatialRDD.html">Spatial Resilient Distributed Datasets</a>(SRDDs) are basic building blocks of distributed spatial data encapsulating “vanilla” <a href="https://spark.apache.org/docs/latest/api/java/index.html?org/apache/spark/api/java/JavaRDD.html">RDD</a>s of geometrical objects and indexes. SRDDs support low-level operations such as Coordinate Reference System (CRS) transformations, spatial partitioning, and spatial indexing. For example, with <code>sparklyr.sedona</code>, SRDD-based operations we can perform include the following:</p>
+<p>We hope you are ready for a quick tour through some of the RDD-based and
+Spark-dataframe-based functionalities in <code>sparklyr.sedona</code>, and also, some bedazzling
+visualizations derived from geospatial data in Spark.</p>
+<p>In Apache Sedona,
+<a href="https://sedona.apache.org/api/javadoc/core/org/apache/sedona/core/spatialRDD/SpatialRDD.html">Spatial Resilient Distributed Datasets</a>(SRDDs)
+are basic building blocks of distributed spatial data encapsulating
+“vanilla” <a href="https://spark.apache.org/docs/latest/api/java/index.html?org/apache/spark/api/java/JavaRDD.html">RDD</a>s of
+geometrical objects and indexes. SRDDs support low-level operations such as Coordinate Reference System (CRS)
+transformations, spatial partitioning, and spatial indexing. For example, with <code>sparklyr.sedona</code>, SRDD-based operations we can perform include the following:</p>
 <ul>
 <li>Importing some external data source into a SRDD:</li>
 </ul>
@@ -2246,8 +2276,12 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>It is worth mentioning that <code>sedona_spatial_join()</code> will perform spatial partitioning and indexing on the inputs using the <code>partitioner</code> and <code>index_type</code> only if the inputs are not partitioned or indexed as specified already.</p>
-<p>From the examples above, one can see that SRDDs are great for spatial operations requiring fine-grained control, e.g., for ensuring a spatial join query is executed as efficiently as possible with the right types of spatial partitioning and indexing.</p>
+<p>It is worth mentioning that <code>sedona_spatial_join()</code> will perform spatial partitioning
+and indexing on the inputs using the <code>partitioner</code> and <code>index_type</code> only if the inputs
+are not partitioned or indexed as specified already.</p>
+<p>From the examples above, one can see that SRDDs are great for spatial operations requiring
+fine-grained control, e.g., for ensuring a spatial join query is executed as efficiently
+as possible with the right types of spatial partitioning and indexing.</p>
 <p>Finally, we can try visualizing the join result above, using a choropleth map:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2265,7 +2299,8 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/choropleth-map.png" alt="Example choropleth map output" /><figcaption aria-hidden="true">Example choropleth map output</figcaption>
 </figure>
-<p>Wait, but something seems amiss. To make the visualization above look nicer, we can overlay it with the contour of each polygonal region:</p>
+<p>Wait, but something seems amiss. To make the visualization above look nicer, we can
+overlay it with the contour of each polygonal region:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>contours</span> <span class='op'>&lt;-</span> <span class='fu'>sedona_render_scatter_plot</span><span class='op'>(</span></span>
@@ -2293,7 +2328,16 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/choropleth-map-with-overlay.png" alt="Choropleth map with overlay" /><figcaption aria-hidden="true">Choropleth map with overlay</figcaption>
 </figure>
-<p>With some low-level spatial operations taken care of using the SRDD API and the right spatial partitioning and indexing data structures, we can then import the results from SRDDs to Spark dataframes. When working with spatial objects within Spark dataframes, we can write high-level, declarative queries on these objects using <code>dplyr</code> verbs in conjunction with Sedona <a href="https://sedona.apache.org/api/sql/Function/">spatial UDFs</a>, e.g. <a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> , the following query tells us whether each of the <code>8</code> nearest polygons to the query point contains that point, and also, the convex hull of each polygon.</p>
+<p>With some low-level spatial operations taken care of using the SRDD API and
+the right spatial partitioning and indexing data structures, we can then
+import the results from SRDDs to Spark dataframes. When working with spatial
+objects within Spark dataframes, we can write high-level, declarative queries
+on these objects using <code>dplyr</code> verbs in conjunction with Sedona
+<a href="https://sedona.apache.org/api/sql/Function/">spatial UDFs</a>, e.g.
+<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>
+, the
+following query tells us whether each of the <code>8</code> nearest polygons to the
+query point contains that point, and also, the convex hull of each polygon.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>tbl</span> <span class='op'>&lt;-</span> <span class='fu'>DBI</span><span class='fu'>::</span><span class='fu'>dbGetQuery</span><span class='op'>(</span></span>
@@ -2326,8 +2370,16 @@ gtag('config', 'UA-20375833-3');
 7 &lt;POLYGON ((-66.24221 17.988799,… FALSE       &lt;POLYGON ((-66.24221 17.988799, …
 8 &lt;POLYGON ((-66.24221 17.988799,… FALSE       &lt;POLYGON ((-66.24221 17.988799, …</code></pre>
 <h2 id="acknowledgements">Acknowledgements</h2>
-<p>The author of this blog post would like to thank <a href="https://github.com/jiayuasu">Jia Yu</a>, the creator of Apache Sedona, and <a href="https://github.com/lorenzwalthert">Lorenz Walthert</a> for their suggestion to contribute <code>sparklyr.sedona</code> to the upstream <a href="https://github.com/apache/incubator-sedona">incubator-sedona</a> repository. Jia has provided extensive code-review feedback to ensure <code>sparklyr.sedona</code> complies with coding standards and best practices of the Apache Sedona project, and has also been very helpful in the instrumentation of CI workflows verifying <code>sparklyr.sedona</code> works as expected with snapshot versions of Sedona libraries from development branches.</p>
-<p>The author is also grateful for his colleague <a href="https://github.com/skeydan">Sigrid Keydana</a> for valuable editorial suggestions on this blog post.</p>
+<p>The author of this blog post would like to thank <a href="https://github.com/jiayuasu">Jia Yu</a>,
+the creator of Apache Sedona, and <a href="https://github.com/lorenzwalthert">Lorenz Walthert</a> for
+their suggestion to contribute <code>sparklyr.sedona</code> to the upstream
+<a href="https://github.com/apache/incubator-sedona">incubator-sedona</a> repository. Jia has provided
+extensive code-review feedback to ensure <code>sparklyr.sedona</code> complies with coding standards
+and best practices of the Apache Sedona project, and has also been very helpful in the
+instrumentation of CI workflows verifying <code>sparklyr.sedona</code> works as expected with snapshot
+versions of Sedona libraries from development branches.</p>
+<p>The author is also grateful for his colleague <a href="https://github.com/skeydan">Sigrid Keydana</a>
+for valuable editorial suggestions on this blog post.</p>
 <p>That’s all. Thank you for reading!</p>
 <p>Photo by <a href="https://unsplash.com/@nasa">NASA</a> on <a href="https://unsplash.com/">Unsplash</a></p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>

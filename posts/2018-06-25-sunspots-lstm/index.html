@@ -816,6 +816,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1888,15 +1889,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2095,7 +2102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2178,12 +2185,15 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/sunspot_nasa.jpg" class="external" style="width:100.0%" alt="Figure from https://www.nasa.gov/content/goddard/largest-sunspot-of-solar-cycle" /><figcaption aria-hidden="true">Figure from <a href="https://www.nasa.gov/content/goddard/largest-sunspot-of-solar-cycle" class="uri">https://www.nasa.gov/content/goddard/largest-sunspot-of-solar-cycle</a></figcaption>
 </figure>
-<p>We’re using the monthly version of the dataset, <code>sunspots.month</code> (there is a yearly version, too). It contains 265 years worth of data (from 1749 through 2013) on the number of sunspots per month.</p>
+<p>We’re using the monthly version of the dataset, <code>sunspots.month</code> (there is a yearly version, too).
+It contains 265 years worth of data (from 1749 through 2013) on the number of sunspots per month.</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/sunspots_full.png" width="352" /></p>
 </div>
 <p>Forecasting this dataset is challenging because of high short term variability as well as long-term irregularities evident in the cycles. For example, maximum amplitudes reached by the low frequency cycle differ a lot, as does the number of high frequency cycle steps needed to reach that maximum low frequency cycle height.</p>
-<p>Our post will focus on two dominant aspects: how to apply deep learning to time series forecasting, and how to properly apply cross validation in this domain. For the latter, we will use the <a href="https://cran.r-project.org/package=rsample">rsample</a> package that allows to do resampling on time series data. As to the former, our goal is not to reach utmost performance but to show the general course of action when using recurrent neural networks to model this kind of data.</p>
+<p>Our post will focus on two dominant aspects: how to apply deep learning to time series forecasting, and how to properly apply cross validation in this domain.
+For the latter, we will use the <a href="https://cran.r-project.org/package=rsample">rsample</a> package that allows to do resampling on time series data.
+As to the former, our goal is not to reach utmost performance but to show the general course of action when using recurrent neural networks to model this kind of data.</p>
 <h2 id="recurrent-neural-networks">Recurrent neural networks</h2>
 <p>When our data has a sequential structure, it is recurrent neural networks (RNNs) we use to model it.</p>
 <p>As of today, among RNNs, the best established architectures are the GRU (Gated Recurrent Unit) and the LSTM (Long Short Term Memory). For today, let’s not zoom in on what makes them special, but on what they have in common with the most stripped-down RNN: the basic recurrence structure.</p>
@@ -2192,7 +2202,9 @@ gtag('config', 'UA-20375833-3');
 <img src="images/rnn.png" class="external" alt="Figure from: http://www.deeplearningbook.org" /><figcaption aria-hidden="true">Figure from: <a href="http://www.deeplearningbook.org" class="uri">http://www.deeplearningbook.org</a></figcaption>
 </figure>
 <p>At each time, the state is a combination of the current input and the previous hidden state. This is reminiscent of autoregressive models, but with neural networks, there has to be some point where we halt the dependence.</p>
-<p>That’s because in order to determine the weights, we keep calculating how our loss changes as the input changes. Now if the input we have to consider, at an arbitrary timestep, ranges back indefinitely - then we will not be able to calculate all those gradients. In practice, then, our hidden state will, at every iteration, be carried forward through a fixed number of steps.</p>
+<p>That’s because in order to determine the weights, we keep calculating how our loss changes as the input changes.
+Now if the input we have to consider, at an arbitrary timestep, ranges back indefinitely - then we will not be able to calculate all those gradients.
+In practice, then, our hidden state will, at every iteration, be carried forward through a fixed number of steps.</p>
 <p>We’ll come back to that as soon as we’ve loaded and pre-processed the data.</p>
 <h2 id="setup-pre-processing-and-exploration">Setup, pre-processing, and exploration</h2>
 <h3 id="libraries">Libraries</h3>
@@ -2471,7 +2483,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p><img src="images/slice6.png" /></p>
 <h3 id="data-setup">Data setup</h3>
-<p>To aid hyperparameter tuning, besides the training set we also need a validation set. For example, we will use a callback, <code>callback_early_stopping</code>, that stops training when no significant performance is seen on the validation set (what’s considered significant is up to you).</p>
+<p>To aid hyperparameter tuning, besides the training set we also need a validation set.
+For example, we will use a callback, <code>callback_early_stopping</code>, that stops training when no significant performance is seen on the validation set (what’s considered significant is up to you).</p>
 <p>We will dedicate 2 thirds of the analysis set to training, and 1 third to validation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2549,12 +2562,17 @@ gtag('config', 'UA-20375833-3');
 <pre><code>center.value  scale.value 
     6.694468     3.238935 </code></pre>
 <h3 id="reshaping-the-data">Reshaping the data</h3>
-<p>Keras LSTM expects the input as well as the target data to be in a specific shape. The input has to be a 3-d array of size <code>num_samples, num_timesteps, num_features</code>.</p>
+<p>Keras LSTM expects the input as well as the target data to be in a specific shape.
+The input has to be a 3-d array of size <code>num_samples, num_timesteps, num_features</code>.</p>
 <p>Here, <code>num_samples</code> is the number of observations in the set. This will get fed to the model in portions of <code>batch_size</code>. The second dimension, <code>num_timesteps</code>, is the length of the hidden state we were talking about above. Finally, the third dimension is the number of predictors we’re using. For univariate time series, this is 1.</p>
-<p>How long should we choose the hidden state to be? This generally depends on the dataset and our goal. If we did one-step-ahead forecasts - thus, forecasting the following month only - our main concern would be choosing a state length that allows to learn any patterns present in the data.</p>
-<p>Now say we wanted to forecast 12 months instead, as does <a href="http://sidc.be/silso/home">SILSO</a>, the <em>World Data Center for the production, preservation and dissemination of the international sunspot number</em>. The way we can do this, with Keras, is by wiring the LSTM hidden states to sets of consecutive outputs of the same length. Thus, if we want to produce predictions for 12 months, our LSTM should have a hidden state length of 12.</p>
-<p>These 12 time steps will then get wired to 12 linear predictor units using a <code>time_distributed()</code> wrapper. That wrapper’s task is to apply the same calculation (i.e., the same weight matrix) to every state input it receives.</p>
-<p>Now, what’s the target array’s format supposed to be? As we’re forecasting several timesteps here, the target data again needs to be 3-dimensional. Dimension 1 again is the batch dimension, dimension 2 again corresponds to the number of timesteps (the forecasted ones), and dimension 3 is the size of the wrapped layer. In our case, the wrapped layer is a <code>layer_dense()</code> of a single unit, as we want exactly one prediction per point in time.</p>
+<p>How long should we choose the hidden state to be? This generally depends on the dataset and our goal.
+If we did one-step-ahead forecasts - thus, forecasting the following month only - our main concern would be choosing a state length that allows to learn any patterns present in the data.</p>
+<p>Now say we wanted to forecast 12 months instead, as does <a href="http://sidc.be/silso/home">SILSO</a>, the <em>World Data Center for the production, preservation and dissemination of the international sunspot number</em>.
+The way we can do this, with Keras, is by wiring the LSTM hidden states to sets of consecutive outputs of the same length. Thus, if we want to produce predictions for 12 months, our LSTM should have a hidden state length of 12.</p>
+<p>These 12 time steps will then get wired to 12 linear predictor units using a <code>time_distributed()</code> wrapper.
+That wrapper’s task is to apply the same calculation (i.e., the same weight matrix) to every state input it receives.</p>
+<p>Now, what’s the target array’s format supposed to be? As we’re forecasting several timesteps here, the target data again needs to be 3-dimensional. Dimension 1 again is the batch dimension, dimension 2 again corresponds to the number of timesteps (the forecasted ones), and dimension 3 is the size of the wrapped layer.
+In our case, the wrapped layer is a <code>layer_dense()</code> of a single unit, as we want exactly one prediction per point in time.</p>
 <p>So, let’s reshape the data. The main action here is creating the sliding windows of 12 steps of input, followed by 12 steps of output each. This is easiest to understand with a shorter and simpler example. Say our input were the numbers from 1 to 10, and our chosen sequence length (state size) were 4. Tthis is how we would want our training input to look:</p>
 <pre><code>1,2,3,4
 2,3,4,5
@@ -2563,7 +2581,8 @@ gtag('config', 'UA-20375833-3');
 <pre><code>5,6,7,8
 6,7,8,9
 7,8,9,10</code></pre>
-<p>We’ll define a short function that does this reshaping on a given dataset. Then finally, we add the third axis that is formally needed (even though that axis is of size 1 in our case).</p>
+<p>We’ll define a short function that does this reshaping on a given dataset.
+Then finally, we add the third axis that is formally needed (even though that axis is of size 1 in our case).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># these variables are being defined just because of the order in which</span></span>
@@ -2635,7 +2654,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="building-the-lstm-model">Building the LSTM model</h3>
-<p>Now that we have our data in the required form, let’s finally build the model. As always in deep learning, an important, and often time-consuming, part of the job is tuning hyperparameters. To keep this post self-contained, and considering this is primarily a tutorial on how to use LSTM in R, let’s assume the following settings were found after extensive experimentation (in reality experimentation <em>did</em> take place, but not to a degree that performance couldn’t possibly be improved).</p>
+<p>Now that we have our data in the required form, let’s finally build the model.
+As always in deep learning, an important, and often time-consuming, part of the job is tuning hyperparameters. To keep this post self-contained, and considering this is primarily a tutorial on how to use LSTM in R, let’s assume the following settings were found after extensive experimentation (in reality experimentation <em>did</em> take place, but not to a degree that performance couldn’t possibly be improved).</p>
 <p>Instead of hard coding the hyperparameters, we’ll use <a href="https://tensorflow.rstudio.com/tools/tfruns/articles/tuning.html">tfruns</a> to set up an environment where we could easily perform grid search.</p>
 <p>We’ll quickly comment on what these parameters do but mainly leave those topics to further posts.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2700,7 +2720,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>After all these preparations, the code for constructing and training the model is rather short! Let’s first quickly view the “long version”, that would allow you to test stacking several LSTMs or use a stateful LSTM, then go through the final short version (that does neither) and comment on it.</p>
+<p>After all these preparations, the code for constructing and training the model is rather short!
+Let’s first quickly view the “long version”, that would allow you to test stacking several LSTMs or use a stateful LSTM, then go through the final short version (that does neither) and comment on it.</p>
 <p>This, just for reference, is the complete code.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2802,7 +2823,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>As we see, training was stopped after ~55 epochs as validation loss did not decrease any more. We also see that performance on the validation set is way worse than performance on the training set - normally indicating overfitting.</p>
+<p>As we see, training was stopped after ~55 epochs as validation loss did not decrease any more.
+We also see that performance on the validation set is way worse than performance on the training set - normally indicating overfitting.</p>
 <p>This topic too, we’ll leave to a separate discussion another time, but interestingly regularization using higher values of <code>dropout</code> and <code>recurrent_dropout</code> (combined with increasing model capacity) did not yield better generalization performance. This is probably related to the characteristics of this specific time series we mentioned in the introduction.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2943,7 +2965,8 @@ gtag('config', 'UA-20375833-3');
 <p>That’s not as good as on the training set, but not bad either, given this time series is quite challenging.</p>
 <p>Having defined and run our model on a manually chosen example split, let’s now revert to our overall re-sampling frame.</p>
 <h3 id="backtesting-the-model-on-all-splits">Backtesting the model on all splits</h3>
-<p>To obtain predictions on all splits, we move the above code into a function and apply it to all splits. First, here’s the function. It returns a list of two dataframes, one for the training and test sets each, that contain the model’s predictions together with the actual values.</p>
+<p>To obtain predictions on all splits, we move the above code into a function and apply it to all splits.
+First, here’s the function. It returns a list of two dataframes, one for the training and test sets each, that contain the model’s predictions together with the actual values.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>obtain_predictions</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>split</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -3249,7 +3272,9 @@ gtag('config', 'UA-20375833-3');
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/backtested_test.png" width="400" /></p>
 </div>
-<p>This has been a long post, and necessarily will have left a lot of questions open, first and foremost: How do we obtain good settings for the hyperparameters (learning rate, number of epochs, dropout)? How do we choose the length of the hidden state? Or even, can we have an intuition how well LSTM will perform on a given dataset (with its specific characteristics)? We will tackle questions like the above in upcoming posts.</p>
+<p>This has been a long post, and necessarily will have left a lot of questions open, first and foremost: How do we obtain good settings for the hyperparameters (learning rate, number of epochs, dropout)?
+How do we choose the length of the hidden state? Or even, can we have an intuition how well LSTM will perform on a given dataset (with its specific characteristics)?
+We will tackle questions like the above in upcoming posts.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->
 <div class="article-footer">

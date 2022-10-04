@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2167,7 +2174,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>We are thrilled to announce <a href="https://sparklyr.ai"><code>sparklyr</code></a> 1.5 is now available on <a href="https://cran.r-project.org/web/packages/sparklyr/index.html">CRAN</a>!</p>
+<p>We are thrilled to announce <a href="https://sparklyr.ai"><code>sparklyr</code></a> 1.5 is now
+available on <a href="https://cran.r-project.org/web/packages/sparklyr/index.html">CRAN</a>!</p>
 <p>To install <code>sparklyr</code> 1.5 from CRAN, run</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2181,10 +2189,17 @@ gtag('config', 'UA-20375833-3');
 <li>New <a href="#rds-based-serialization-routines">RDS-based serialization routines</a> along with several serialization-related improvements and bug fixes</li>
 </ul>
 <h2 id="better-dplyr-interface">Better dplyr interface</h2>
-<p>A large fraction of pull requests that went into the <code>sparklyr</code> 1.5 release were focused on making Spark dataframes work with various <code>dplyr</code> verbs in the same way that R dataframes do. The full list of <code>dplyr</code>-related bugs and feature requests that were resolved in <code>sparklyr</code> 1.5 can be found in <a href="https://github.com/sparklyr/sparklyr/issues?q=is%3Aissue+is%3Aclosed+label%3Adplyr+milestone%3A1.5.0">here</a>.</p>
+<p>A large fraction of pull requests that went into the <code>sparklyr</code> 1.5 release were focused on making
+Spark dataframes work with various <code>dplyr</code> verbs in the same way that R dataframes do.
+The full list of <code>dplyr</code>-related bugs and feature requests that were resolved in
+<code>sparklyr</code> 1.5 can be found in <a href="https://github.com/sparklyr/sparklyr/issues?q=is%3Aissue+is%3Aclosed+label%3Adplyr+milestone%3A1.5.0">here</a>.</p>
 <p>In this section, we will showcase three new dplyr functionalities that were shipped with <code>sparklyr</code> 1.5.</p>
 <h3 id="stratified-sampling">Stratified sampling</h3>
-<p>Stratified sampling on an R dataframe can be accomplished with a combination of <code>dplyr::group_by()</code> followed by <code>dplyr::sample_n()</code> or <code>dplyr::sample_frac()</code>, where the grouping variables specified in the <code>dplyr::group_by()</code> step are the ones that define each stratum. For instance, the following query will group <code>mtcars</code> by number of cylinders and return a weighted random sample of size two from each group, without replacement, and weighted by the <code>mpg</code> column:</p>
+<p>Stratified sampling on an R dataframe can be accomplished with a combination of <code>dplyr::group_by()</code> followed by
+<code>dplyr::sample_n()</code> or <code>dplyr::sample_frac()</code>, where the grouping variables specified in the <code>dplyr::group_by()</code>
+step are the ones that define each stratum. For instance, the following query will group <code>mtcars</code> by number
+of cylinders and return a weighted random sample of size two from each group, without replacement, and weighted by
+the <code>mpg</code> column:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>mtcars</span> <span class='op'>%&gt;%</span></span>
@@ -2249,7 +2264,12 @@ gtag('config', 'UA-20375833-3');
 ## 7  18.7     8 360     175  3.15  3.44  17.0     0     0     3     2
 ## 8  16.4     8 276.    180  3.07  4.07  17.4     0     0     3     3</code></pre>
 <h3 id="row-sums">Row sums</h3>
-<p>The <code>rowSums()</code> functionality offered by <code>dplyr</code> is handy when one needs to sum up a large number of columns within an R dataframe that are impractical to be enumerated individually. For example, here we have a six-column dataframe of random real numbers, where the <code>partial_sum</code> column in the result contains the sum of columns <code>b</code> through <code>d</code> within each row:</p>
+<p>The <code>rowSums()</code> functionality offered by <code>dplyr</code> is handy when one needs to sum up
+a large number of columns within an R dataframe that are impractical to be enumerated
+individually.
+For example, here we have a six-column dataframe of random real numbers, where the
+<code>partial_sum</code> column in the result contains the sum of columns <code>b</code> through <code>d</code> within
+each row:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>ncols</span> <span class='op'>&lt;-</span> <span class='fl'>6</span></span>
@@ -2291,7 +2311,11 @@ gtag('config', 'UA-20375833-3');
 ## 3 0.802   0.410 0.516 0.923  0.190 0.904         2.04
 ## 4 0.200   0.590 0.755 0.494  0.273 0.807         2.11
 ## 5 0.00149 0.711 0.286 0.297  0.107 0.425         1.40</code></pre>
-<p>As a bonus from implementing the <code>rowSums</code> feature for Spark dataframes, <code>sparklyr</code> 1.5 now also offers limited support for the column-subsetting operator on Spark dataframes. For example, all code snippets below will return some subset of columns from the dataframe named <code>sdf</code>:</p>
+<p>As a bonus from implementing the <code>rowSums</code> feature for Spark dataframes,
+<code>sparklyr</code> 1.5 now also offers limited support for the column-subsetting
+operator on Spark dataframes.
+For example, all code snippets below will return some subset of columns from
+the dataframe named <code>sdf</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># select columns `b` through `e`</span></span>
@@ -2311,7 +2335,9 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="weighted-mean-summarizer">Weighted-mean summarizer</h3>
-<p>Similar to the two <code>dplyr</code> functions mentioned above, the <code>weighted.mean()</code> summarizer is another useful function that has become part of the <code>dplyr</code> interface for Spark dataframes in <code>sparklyr</code> 1.5. One can see it in action by, for example, comparing the output from the following</p>
+<p>Similar to the two <code>dplyr</code> functions mentioned above, the <code>weighted.mean()</code> summarizer is another
+useful function that has become part of the <code>dplyr</code> interface for Spark dataframes in <code>sparklyr</code> 1.5.
+One can see it in action by, for example, comparing the output from the following</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2341,10 +2367,17 @@ gtag('config', 'UA-20375833-3');
 ## 2     6   19.6
 ## 3     8   14.8</code></pre>
 <h2 id="new-additions-to-the-sdf_-family-of-functions">New additions to the <code>sdf_*</code> family of functions</h2>
-<p><code>sparklyr</code> provides a large number of convenience functions for working with Spark dataframes, and all of them have names starting with the <code>sdf_</code> prefix.</p>
-<p>In this section we will briefly mention four new additions and show some example scenarios in which those functions are useful.</p>
+<p><code>sparklyr</code> provides a large number of convenience functions for working with Spark dataframes,
+and all of them have names starting with the <code>sdf_</code> prefix.</p>
+<p>In this section we will briefly mention four new additions
+and show some example scenarios in which those functions are useful.</p>
 <h3 id="sdf_expand_grid"><code>sdf_expand_grid()</code></h3>
-<p>As the name suggests, <code>sdf_expand_grid()</code> is simply the Spark equivalent of <code>expand.grid()</code>. Rather than running <code>expand.grid()</code> in R and importing the resulting R dataframe to Spark, one can now run <code>sdf_expand_grid()</code>, which accepts both R vectors and Spark dataframes and supports hints for broadcast hash joins. The example below shows <code>sdf_expand_grid()</code> creating a 100-by-100-by-10-by-10 grid in Spark over 1000 Spark partitions, with broadcast hash join hints on variables with small cardinalities:</p>
+<p>As the name suggests, <code>sdf_expand_grid()</code> is simply the Spark equivalent of <code>expand.grid()</code>.
+Rather than running <code>expand.grid()</code> in R and importing the resulting R dataframe to Spark, one
+can now run <code>sdf_expand_grid()</code>, which accepts both R vectors and Spark dataframes and supports
+hints for broadcast hash joins. The example below shows <code>sdf_expand_grid()</code> creating a
+100-by-100-by-10-by-10 grid in Spark over 1000 Spark partitions, with broadcast hash join hints
+on variables with small cardinalities:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2366,7 +2399,9 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>## [1] 1e+06</code></pre>
 <h3 id="sdf_partition_sizes"><code>sdf_partition_sizes()</code></h3>
-<p>As <code>sparklyr</code> user <a href="https://github.com/sbottelli">@sbottelli</a> suggested <a href="https://github.com/sparklyr/sparklyr/issues/2791">here</a>, one thing that would be great to have in <code>sparklyr</code> is an efficient way to query partition sizes of a Spark dataframe. In <code>sparklyr</code> 1.5, <code>sdf_partition_sizes()</code> does exactly that:</p>
+<p>As <code>sparklyr</code> user <a href="https://github.com/sbottelli">@sbottelli</a> suggested <a href="https://github.com/sparklyr/sparklyr/issues/2791">here</a>,
+one thing that would be great to have in <code>sparklyr</code> is an efficient way to query partition sizes of a Spark dataframe.
+In <code>sparklyr</code> 1.5, <code>sdf_partition_sizes()</code> does exactly that:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2385,7 +2420,11 @@ gtag('config', 'UA-20375833-3');
 ##                3            200
 ##                4            200</code></pre>
 <h3 id="sdf_unnest_longer-and-sdf_unnest_wider"><code>sdf_unnest_longer()</code> and <code>sdf_unnest_wider()</code></h3>
-<p><code>sdf_unnest_longer()</code> and <code>sdf_unnest_wider()</code> are the equivalents of <code>tidyr::unnest_longer()</code> and <code>tidyr::unnest_wider()</code> for Spark dataframes. <code>sdf_unnest_longer()</code> expands all elements in a struct column into multiple rows, and <code>sdf_unnest_wider()</code> expands them into multiple columns. As illustrated with an example dataframe below,</p>
+<p><code>sdf_unnest_longer()</code> and <code>sdf_unnest_wider()</code> are the equivalents of
+<code>tidyr::unnest_longer()</code> and <code>tidyr::unnest_wider()</code> for Spark dataframes.
+<code>sdf_unnest_longer()</code> expands all elements in a struct column into multiple rows, and
+<code>sdf_unnest_wider()</code> expands them into multiple columns. As illustrated with an example
+dataframe below,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2437,14 +2476,36 @@ gtag('config', 'UA-20375833-3');
 ## 2     2 B     Bob
 ## 3     3 C     Carol</code></pre>
 <h2 id="rds-based-serialization-routines">RDS-based serialization routines</h2>
-<p>Some readers must be wondering why a brand new serialization format would need to be implemented in <code>sparklyr</code> at all. Long story short, the reason is that RDS serialization is a strictly better replacement for its CSV predecessor. It possesses all desirable attributes the CSV format has, while avoiding a number of disadvantages that are common among text-based data formats.</p>
-<p>In this section, we will briefly outline why <code>sparklyr</code> should support at least one serialization format other than <code>arrow</code>, deep-dive into issues with CSV-based serialization, and then show how the new RDS-based serialization is free from those issues.</p>
+<p>Some readers must be wondering why a brand new serialization format would need to be implemented in <code>sparklyr</code> at all.
+Long story short, the reason is that RDS serialization is a strictly better replacement for its CSV predecessor.
+It possesses all desirable attributes the CSV format has,
+while avoiding a number of disadvantages that are common among text-based data formats.</p>
+<p>In this section, we will briefly outline why <code>sparklyr</code> should support at least one serialization format other than <code>arrow</code>,
+deep-dive into issues with CSV-based serialization,
+and then show how the new RDS-based serialization is free from those issues.</p>
 <h3 id="why-arrow-is-not-for-everyone">Why <code>arrow</code> is not for everyone?</h3>
-<p>To transfer data between Spark and R correctly and efficiently, <code>sparklyr</code> must rely on some data serialization format that is well-supported by both Spark and R. Unfortunately, not many serialization formats satisfy this requirement, and among the ones that do are text-based formats such as CSV and JSON, and binary formats such as Apache Arrow, Protobuf, and as of recent, a small subset of RDS version 2. Further complicating the matter is the additional consideration that <code>sparklyr</code> should support at least one serialization format whose implementation can be fully self-contained within the <code>sparklyr</code> code base, i.e., such serialization should not depend on any external R package or system library, so that it can accommodate users who want to use <code>sparklyr</code> but who do not necessarily have the required C++ compiler tool chain and other system dependencies for setting up R packages such as <a href="https://cran.r-project.org/web/packages/arrow/index.html"><code>arrow</code></a> or <a href="https://cran.r-project.org/web/packages/protolite/index.html"><code>protolite</code></a>. Prior to <code>sparklyr</code> 1.5, CSV-based serialization was the default alternative to fallback to when users do not have the <code>arrow</code> package installed or when the type of data being transported from R to Spark is unsupported by the version of <code>arrow</code> available.</p>
+<p>To transfer data between Spark and R correctly and efficiently, <code>sparklyr</code> must rely on some data serialization
+format that is well-supported by both Spark and R.
+Unfortunately, not many serialization formats satisfy this requirement,
+and among the ones that do are text-based formats such as CSV and JSON,
+and binary formats such as Apache Arrow, Protobuf, and as of recent, a small subset of RDS version 2.
+Further complicating the matter is the additional consideration that
+<code>sparklyr</code> should support at least one serialization format whose implementation can be fully self-contained within the <code>sparklyr</code> code base,
+i.e., such serialization should not depend on any external R package or system library,
+so that it can accommodate users who want to use <code>sparklyr</code> but who do not necessarily have the required C++ compiler tool chain and
+other system dependencies for setting up R packages such as <a href="https://cran.r-project.org/web/packages/arrow/index.html"><code>arrow</code></a> or
+<a href="https://cran.r-project.org/web/packages/protolite/index.html"><code>protolite</code></a>.
+Prior to <code>sparklyr</code> 1.5, CSV-based serialization was the default alternative to fallback to when users do not have the <code>arrow</code> package installed or
+when the type of data being transported from R to Spark is unsupported by the version of <code>arrow</code> available.</p>
 <h3 id="why-is-the-csv-format-not-ideal">Why is the CSV format not ideal?</h3>
 <p>There are at least three reasons to believe CSV format is not the best choice when it comes to exporting data from R to Spark.</p>
-<p>One reason is efficiency. For example, a double-precision floating point number such as <code>.Machine$double.eps</code> needs to be expressed as <code>"2.22044604925031e-16"</code> in CSV format in order to not incur any loss of precision, thus taking up 20 bytes rather than 8 bytes.</p>
-<p>But more important than efficiency are correctness concerns. In a R dataframe, one can store both <code>NA_real_</code> and <code>NaN</code> in a column of floating point numbers. <code>NA_real_</code> should ideally translate to <code>null</code> within a Spark dataframe, whereas <code>NaN</code> should continue to be <code>NaN</code> when transported from R to Spark. Unfortunately, <code>NA_real_</code> in R becomes indistinguishable from <code>NaN</code> once serialized in CSV format, as evident from a quick demo shown below:</p>
+<p>One reason is efficiency. For example, a double-precision floating point number such as <code>.Machine$double.eps</code> needs to
+be expressed as <code>"2.22044604925031e-16"</code> in CSV format in order to not incur any loss of precision, thus taking up 20 bytes
+rather than 8 bytes.</p>
+<p>But more important than efficiency are correctness concerns. In a R dataframe, one can store both <code>NA_real_</code> and
+<code>NaN</code> in a column of floating point numbers. <code>NA_real_</code> should ideally translate to <code>null</code> within a Spark dataframe, whereas
+<code>NaN</code> should continue to be <code>NaN</code> when transported from R to Spark. Unfortunately, <code>NA_real_</code> in R becomes indistinguishable
+from <code>NaN</code> once serialized in CSV format, as evident from a quick demo shown below:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>original_df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='cn'>NA_real_</span>, <span class='cn'>NaN</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2465,15 +2526,41 @@ gtag('config', 'UA-20375833-3');
 <pre><code>##    x is_nan
 ## 1 NA  FALSE
 ## 2 NA  FALSE</code></pre>
-<p>Another correctness issue very much similar to the one above was the fact that <code>"NA"</code> and <code>NA</code> within a string column of an R dataframe become indistinguishable once serialized in CSV format, as correctly pointed out in <a href="https://github.com/sparklyr/sparklyr/issues/2031">this Github issue</a> by <a href="https://github.com/caewok">@caewok</a> and others.</p>
+<p>Another correctness issue very much similar to the one above was the fact that
+<code>"NA"</code> and <code>NA</code> within a string column of an R dataframe become indistinguishable
+once serialized in CSV format, as correctly pointed out in
+<a href="https://github.com/sparklyr/sparklyr/issues/2031">this Github issue</a>
+by <a href="https://github.com/caewok">@caewok</a> and others.</p>
 <h3 id="rds-to-the-rescue">RDS to the rescue!</h3>
-<p>RDS format is one of the most widely used binary formats for serializing R objects. It is described in some detail in chapter 1, section 8 of <a href="https://cran.r-project.org/doc/manuals/r-patched/R-ints.pdf">this document</a>. Among advantages of the RDS format are efficiency and accuracy: it has a reasonably efficient implementation in base R, and supports all R data types.</p>
-<p>Also worth noticing is the fact that when an R dataframe containing only data types with sensible equivalents in Apache Spark (e.g., <code>RAWSXP</code>, <code>LGLSXP</code>, <code>CHARSXP</code>, <code>REALSXP</code>, etc) is saved using RDS version 2, (e.g., <code>serialize(mtcars, connection = NULL, version = 2L, xdr = TRUE)</code>), only a tiny subset of the RDS format will be involved in the serialization process, and implementing deserialization routines in Scala capable of decoding such a restricted subset of RDS constructs is in fact a reasonably simple and straightforward task (as shown in <a href="https://github.com/sparklyr/sparklyr/blob/5e27668f16faa4852deae2db14828cfd1614c982/java/spark-1.5.2/rutils.scala#L47">here</a> ).</p>
-<p>Last but not least, because RDS is a binary format, it allows <code>NA_character_</code>, <code>"NA"</code>, <code>NA_real_</code>, and <code>NaN</code> to all be encoded in an unambiguous manner, hence allowing <code>sparklyr</code> 1.5 to avoid all correctness issues detailed above in non-<code>arrow</code> serialization use cases.</p>
+<p>RDS format is one of the most widely used binary formats for serializing R objects.
+It is described in some detail in chapter 1, section 8 of
+<a href="https://cran.r-project.org/doc/manuals/r-patched/R-ints.pdf">this document</a>.
+Among advantages of the RDS format are efficiency and accuracy: it has a reasonably
+efficient implementation in base R, and supports all R data types.</p>
+<p>Also worth noticing is the fact that when an R dataframe containing only data types
+with sensible equivalents in Apache Spark (e.g., <code>RAWSXP</code>, <code>LGLSXP</code>, <code>CHARSXP</code>, <code>REALSXP</code>, etc)
+is saved using RDS version 2,
+(e.g., <code>serialize(mtcars, connection = NULL, version = 2L, xdr = TRUE)</code>),
+only a tiny subset of the RDS format will be involved in the serialization process,
+and implementing deserialization routines in Scala capable of decoding such a restricted
+subset of RDS constructs is in fact a reasonably simple and straightforward task
+(as shown in
+<a href="https://github.com/sparklyr/sparklyr/blob/5e27668f16faa4852deae2db14828cfd1614c982/java/spark-1.5.2/rutils.scala#L47">here</a>
+).</p>
+<p>Last but not least, because RDS is a binary format, it allows <code>NA_character_</code>, <code>"NA"</code>,
+<code>NA_real_</code>, and <code>NaN</code> to all be encoded in an unambiguous manner, hence allowing <code>sparklyr</code>
+1.5 to avoid all correctness issues detailed above in non-<code>arrow</code> serialization use cases.</p>
 <h3 id="other-benefits-of-rds-serialization">Other benefits of RDS serialization</h3>
 <p>In addition to correctness guarantees, RDS format also offers quite a few other advantages.</p>
-<p>One advantage is of course performance: for example, importing a non-trivially-sized dataset such as <code>nycflights13::flights</code> from R to Spark using the RDS format in sparklyr 1.5 is roughly 40%-50% faster compared to CSV-based serialization in sparklyr 1.4. The current RDS-based implementation is still nowhere as fast as <code>arrow</code>-based serialization though (<code>arrow</code> is about 3-4x faster), so for performance-sensitive tasks involving heavy serialization, <code>arrow</code> should still be the top choice.</p>
-<p>Another advantage is that with RDS serialization, <code>sparklyr</code> can import R dataframes containing <code>raw</code> columns directly into binary columns in Spark. Thus, use cases such as the one below will work in <code>sparklyr</code> 1.5</p>
+<p>One advantage is of course performance: for example, importing a non-trivially-sized dataset
+such as <code>nycflights13::flights</code> from R to Spark using the RDS format in sparklyr 1.5 is
+roughly 40%-50% faster compared to CSV-based serialization in sparklyr 1.4. The
+current RDS-based implementation is still nowhere as fast as <code>arrow</code>-based serialization
+though (<code>arrow</code> is about 3-4x faster), so for performance-sensitive tasks involving
+heavy serialization, <code>arrow</code> should still be the top choice.</p>
+<p>Another advantage is that with RDS serialization, <code>sparklyr</code> can import R dataframes containing
+<code>raw</code> columns directly into binary columns in Spark. Thus, use cases such as the one below
+will work in <code>sparklyr</code> 1.5</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2486,9 +2573,20 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>sdf</span> <span class='op'>&lt;-</span> <span class='fu'>copy_to</span><span class='op'>(</span><span class='va'>sc</span>, <span class='va'>tbl</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>While most <code>sparklyr</code> users probably won’t find this capability of importing binary columns to Spark immediately useful in their typical <code>sparklyr::copy_to()</code> or <code>sparklyr::collect()</code> usages, it does play a crucial role in reducing serialization overheads in the Spark-based <a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"><code>foreach</code></a> parallel backend that was first introduced in <code>sparklyr</code> 1.2. This is because Spark workers can directly fetch the serialized R closures to be computed from a binary Spark column instead of extracting those serialized bytes from intermediate representations such as base64-encoded strings. Similarly, the R results from executing worker closures will be directly available in RDS format which can be efficiently deserialized in R, rather than being delivered in other less efficient formats.</p>
+<p>While most <code>sparklyr</code> users probably won’t find this capability of importing binary columns
+to Spark immediately useful in their typical <code>sparklyr::copy_to()</code> or <code>sparklyr::collect()</code>
+usages, it does play a crucial role in reducing serialization overheads in the Spark-based
+<a href="https://blog.rstudio.com/2020/05/06/sparklyr-1-2/#foreach"><code>foreach</code></a> parallel backend that
+was first introduced in <code>sparklyr</code> 1.2.
+This is because Spark workers can directly fetch the serialized R closures to be computed
+from a binary Spark column instead of extracting those serialized bytes from intermediate
+representations such as base64-encoded strings.
+Similarly, the R results from executing worker closures will be directly available in RDS
+format which can be efficiently deserialized in R, rather than being delivered in other
+less efficient formats.</p>
 <h2 id="acknowledgement">Acknowledgement</h2>
-<p>In chronological order, we would like to thank the following contributors for making their pull requests part of <code>sparklyr</code> 1.5:</p>
+<p>In chronological order, we would like to thank the following contributors for making their pull
+requests part of <code>sparklyr</code> 1.5:</p>
 <ul>
 <li><a href="https://github.com/wkdavis">@wkdavis</a></li>
 <li><a href="https://github.com/yitao-li">@yitao-li</a></li>
@@ -2496,9 +2594,16 @@ gtag('config', 'UA-20375833-3');
 <li><a href="https://github.com/nathaneastwood">@nathaneastwood</a></li>
 <li><a href="https://github.com/pgramme">@pgramme</a></li>
 </ul>
-<p>We would also like to express our gratitude towards numerous bug reports and feature requests for <code>sparklyr</code> from a fantastic open-source community.</p>
-<p>Finally, the author of this blog post is indebted to <a href="https:://github.com/javierluraschi">@javierluraschi</a>, <a href="https://github.com/batpigandme">@batpigandme</a>, and <a href="https://github.com/skeydan">@skeydan</a> for their valuable editorial inputs.</p>
-<p>If you wish to learn more about <code>sparklyr</code>, check out <a href="https://sparklyr.ai">sparklyr.ai</a>, <a href="https://spark.rstudio.com">spark.rstudio.com</a>, and some of the previous release posts such as <a href="https://blogs.rstudio.com/ai/posts/2020-09-30-sparklyr-1.4.0-released">sparklyr 1.4</a> and <a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/">sparklyr 1.3</a>.</p>
+<p>We would also like to express our gratitude towards numerous bug reports and feature requests for
+<code>sparklyr</code> from a fantastic open-source community.</p>
+<p>Finally, the author of this blog post is indebted to
+<a href="https:://github.com/javierluraschi">@javierluraschi</a>,
+<a href="https://github.com/batpigandme">@batpigandme</a>,
+and <a href="https://github.com/skeydan">@skeydan</a> for their valuable editorial inputs.</p>
+<p>If you wish to learn more about <code>sparklyr</code>, check out <a href="https://sparklyr.ai">sparklyr.ai</a>,
+<a href="https://spark.rstudio.com">spark.rstudio.com</a>, and some of the previous release posts such as
+<a href="https://blogs.rstudio.com/ai/posts/2020-09-30-sparklyr-1.4.0-released">sparklyr 1.4</a> and
+<a href="https://blog.rstudio.com/2020/07/16/sparklyr-1-3/">sparklyr 1.3</a>.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->

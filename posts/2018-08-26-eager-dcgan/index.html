@@ -152,8 +152,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Unsupervised representation learning with deep convolutional generative adversarial networks;citation_publication_date=2015;citation_volume=abs/1511.06434;citation_author=Alec Radford;citation_author=Luke Metz;citation_author=Soumith Chintala"/>
-  <meta name="citation_reference" content="citation_title=Generative adversarial nets;citation_publication_date=2014;citation_author=Ian J. Goodfellow;citation_author=Jean Pouget-Abadie;citation_author=Mehdi Mirza;citation_author=Bing Xu;citation_author=David Warde-Farley;citation_author=Sherjil Ozair;citation_author=Aaron C. Courville;citation_author=Yoshua Bengio"/>
+  <meta name="citation_reference" content="citation_title=Unsupervised representation learning with deep convolutional generative adversarial networks;citation_volume=abs/1511.06434;citation_author=Alec Radford;citation_author=Luke Metz;citation_author=Soumith Chintala"/>
+  <meta name="citation_reference" content="citation_title=Generative adversarial nets;citation_author=Ian J. Goodfellow;citation_author=Jean Pouget-Abadie;citation_author=Mehdi Mirza;citation_author=Bing Xu;citation_author=David Warde-Farley;citation_author=Sherjil Ozair;citation_author=Aaron C. Courville;citation_author=Yoshua Bengio"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -839,6 +839,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1911,15 +1912,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2118,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2195,10 +2202,14 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>The recent announcement of TensorFlow 2.0 names <em>eager execution</em> as the number one central feature of the new major version. What does this mean for R users? As demonstrated in our recent post on neural machine translation, you can use eager execution from R now already, in combination with Keras custom models and the datasets API. It’s good to know you <em>can</em> use it - but why should you? And in which cases?</p>
-<p>In this and a few upcoming posts, we want to show how eager execution can make developing models a lot easier. The degree of simplication will depend on the task - and just <em>how much</em> easier you’ll find the new way might also depend on your experience using the functional API to model more complex relationships. Even if you think that GANs, encoder-decoder architectures, or neural style transfer didn’t pose any problems before the advent of eager execution, you might find that the alternative is a better fit to how we humans mentally picture problems.</p>
-<p>For this post, we are porting code from a recent <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/dcgan.ipynb">Google Colaboratory notebook</a> implementing the DCGAN architecture.<span class="citation" data-cites="RadfordMC15">(<a href="#ref-RadfordMC15" role="doc-biblioref">Radford, Metz, and Chintala 2015</a>)</span> No prior knowledge of GANs is required - we’ll keep this post practical (no maths) and focus on how to achieve your goal, mapping a simple and vivid concept into an astonishingly small number of lines of code.</p>
-<p>As in the post on machine translation with attention, we first have to cover some prerequisites. By the way, no need to copy out the code snippets - you’ll find the complete code in <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/eager_dcgan.R">eager_dcgan.R</a>).</p>
+<p>The recent announcement of TensorFlow 2.0 names <em>eager execution</em> as the number one central feature of the new major version. What does this mean for R users?
+As demonstrated in our recent post on neural machine translation, you can use eager execution from R now already, in combination with Keras custom models and the datasets API. It’s good to know you <em>can</em> use it - but why should you? And in which cases?</p>
+<p>In this and a few upcoming posts, we want to show how eager execution can make developing models a lot easier. The degree of simplication will depend on the task - and just <em>how much</em> easier you’ll find the new way might also depend on your experience using the functional API to model more complex relationships.
+Even if you think that GANs, encoder-decoder architectures, or neural style transfer didn’t pose any problems before the advent of eager execution, you might find that the alternative is a better fit to how we humans mentally picture problems.</p>
+<p>For this post, we are porting code from a recent <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/dcgan.ipynb">Google Colaboratory notebook</a> implementing the DCGAN architecture.<span class="citation" data-cites="RadfordMC15">(<a href="#ref-RadfordMC15" role="doc-biblioref">Radford, Metz, and Chintala 2015</a>)</span>
+No prior knowledge of GANs is required - we’ll keep this post practical (no maths) and focus on how to achieve your goal, mapping a simple and vivid concept into an astonishingly small number of lines of code.</p>
+<p>As in the post on machine translation with attention, we first have to cover some prerequisites.
+By the way, no need to copy out the code snippets - you’ll find the complete code in <a href="https://github.com/rstudio/keras/tree/master/vignettes/examples/eager_dcgan.R">eager_dcgan.R</a>).</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>The code in this post depends on the newest CRAN versions of several of the TensorFlow R packages. You can install these packages as follows:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(<span class="st">&quot;tensorflow&quot;</span>, <span class="st">&quot;keras&quot;</span>, <span class="st">&quot;tfdatasets&quot;</span>))</span></code></pre></div>
@@ -2221,9 +2232,11 @@ gtag('config', 'UA-20375833-3');
 <p>That’s it. Let’s get started.</p>
 <h2 id="so-whats-a-gan">So what’s a GAN?</h2>
 <p>GAN stands for <em>Generative Adversarial Network</em><span class="citation" data-cites="GoodfellowPMXWOCB14">(<a href="#ref-GoodfellowPMXWOCB14" role="doc-biblioref">Goodfellow et al. 2014</a>)</span>. It is a setup of two agents, the <em>generator</em> and the <em>discriminator</em>, that act against each other (thus, <em>adversarial</em>). It is <em>generative</em> because the goal is to generate output (as opposed to, say, classification or regression).</p>
-<p>In human learning, feedback - direct or indirect - plays a central role. Say we wanted to forge a banknote (as long as those still exist). Assuming we can get away with unsuccessful trials, we would get better and better at forgery over time. Optimizing our technique, we would end up rich. This concept of optimizing from feedback is embodied in the first of the two agents, the <em>generator</em>. It gets its feedback from the <em>discriminator</em>, in an upside-down way: If it can fool the discriminator, making it believe that the banknote was real, all is fine; if the discriminator notices the fake, it has to do things differently. For a neural network, that means it has to update its weights.</p>
+<p>In human learning, feedback - direct or indirect - plays a central role. Say we wanted to forge a banknote (as long as those still exist). Assuming we can get away with unsuccessful trials, we would get better and better at forgery over time. Optimizing our technique, we would end up rich.
+This concept of optimizing from feedback is embodied in the first of the two agents, the <em>generator</em>. It gets its feedback from the <em>discriminator</em>, in an upside-down way: If it can fool the discriminator, making it believe that the banknote was real, all is fine; if the discriminator notices the fake, it has to do things differently. For a neural network, that means it has to update its weights.</p>
 <p>How does the discriminator know what is real and what is fake? It too has to be trained, on real banknotes (or whatever the kind of objects involved) and the fake ones produced by the generator. So the complete setup is two agents competing, one striving to generate realistic-looking fake objects, and the other, to disavow the deception. The purpose of training is to have both evolve and get better, in turn causing the other to get better, too.</p>
-<p>In this system, there is no objective minimum to the loss function: We want both components to learn and getter better “in lockstep,” instead of one winning out over the other. This makes optimization difficult. In practice therefore, tuning a GAN can seem more like alchemy than like science, and it often makes sense to lean on practices and “tricks” reported by others.</p>
+<p>In this system, there is no objective minimum to the loss function: We want both components to learn and getter better “in lockstep,” instead of one winning out over the other. This makes optimization difficult.
+In practice therefore, tuning a GAN can seem more like alchemy than like science, and it often makes sense to lean on practices and “tricks” reported by others.</p>
 <p>In this example, just like in the Google notebook we’re porting, the goal is to generate MNIST digits. While that may not sound like the most exciting task one could imagine, it lets us focus on the mechanics, and allows us to keep computation and memory requirements (comparatively) low.</p>
 <p>Let’s load the data (training set needed only) and then, look at the first actor in our drama, the generator.</p>
 <h2 id="training-data">Training data</h2>
@@ -2254,7 +2267,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>This input will be fed to the discriminator only.</p>
 <h2 id="generator">Generator</h2>
-<p>Both generator and discriminator are <a href="https://keras.rstudio.com/articles/custom_models.html">Keras custom models</a>. In contrast to custom layers, custom models allow you to construct models as independent units, complete with custom forward pass logic, backprop and optimization. The model-generating function defines the layers the model (<code>self</code>) wants assigned, and returns the function that implements the forward pass.</p>
+<p>Both generator and discriminator are <a href="https://keras.rstudio.com/articles/custom_models.html">Keras custom models</a>.
+In contrast to custom layers, custom models allow you to construct models as independent units, complete with custom forward pass logic, backprop and optimization. The model-generating function defines the layers the model (<code>self</code>) wants assigned, and returns the function that implements the forward pass.</p>
 <p>As we will soon see, the generator gets passed vectors of random noise for input. This vector is transformed to 3d (height, width, channels) and then, successively upsampled to the required output size of (28,28,3).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2366,7 +2380,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p><a href="https://www.tensorflow.org/api_docs/python/tf/contrib/eager/defun"><em>defun</em></a> compiles an R function (once per different combination of argument shapes and non-tensor objects values)) into a TensorFlow graph, and is used to speed up computations. This comes with side effects and possibly unexpected behavior - please consult the documentation for the details. Here, we were mainly curious in how much of a speedup we might notice when using this from R - in our example, it resulted in a speedup of 130%.</p>
-<p>On to the losses. Discriminator loss consists of two parts: Does it correctly identify real images as real, and does it correctly spot fake images as fake. Here <code>real_output</code> and <code>generated_output</code> contain the logits returned from the discriminator - that is, its judgment of whether the respective images are fake or real.</p>
+<p>On to the losses. Discriminator loss consists of two parts: Does it correctly identify real images as real, and does it correctly spot fake images as fake.
+Here <code>real_output</code> and <code>generated_output</code> contain the logits returned from the discriminator - that is, its judgment of whether the respective images are fake or real.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>discriminator_loss</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>real_output</span>, <span class='va'>generated_output</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2398,13 +2413,16 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="training-loop">Training loop</h2>
-<p>There are two models, two loss functions and two optimizers, but there is just one training loop, as both models depend on each other. The training loop will be over MNIST images streamed in batches, but we still need input to the generator - a random vector of size 100, in this case.</p>
+<p>There are two models, two loss functions and two optimizers, but there is just one training loop, as both models depend on each other.
+The training loop will be over MNIST images streamed in batches, but we still need input to the generator - a random vector of size 100, in this case.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>noise_dim</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span></code></pre>
 </div>
 </div>
-<p>Let’s take the training loop step by step. There will be an outer and an inner loop, one over epochs and one over batches. At the start of each epoch, we create a fresh iterator over the dataset:</p>
+<p>Let’s take the training loop step by step.
+There will be an outer and an inner loop, one over epochs and one over batches.
+At the start of each epoch, we create a fresh iterator over the dataset:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (epoch <span class="cf">in</span> <span class="fu">seq_len</span>(num_epochs)) {</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  start <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
@@ -2548,7 +2566,8 @@ gtag('config', 'UA-20375833-3');
 <p><img src="images/images_epoch_150.png" /></p>
 <p>As they say, your results will most certainly vary!</p>
 <h2 id="conclusion">Conclusion</h2>
-<p>While certainly tuning GANs will remain a challenge, we hope we were able to show that mapping concepts to code is not difficult when using eager execution. In case you’ve played around with GANs before, you may have found you needed to pay careful attention to set up the losses the right way, freeze the discriminator’s weights when needed, etc. This need goes away with eager execution. In upcoming posts, we will show further examples where using it makes model development easier.</p>
+<p>While certainly tuning GANs will remain a challenge, we hope we were able to show that mapping concepts to code is not difficult when using eager execution. In case you’ve played around with GANs before, you may have found you needed to pay careful attention to set up the losses the right way, freeze the discriminator’s weights when needed, etc. This need goes away with eager execution.
+In upcoming posts, we will show further examples where using it makes model development easier.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
 <div id="ref-GoodfellowPMXWOCB14" class="csl-entry" role="doc-biblioentry">

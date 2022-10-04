@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2183,7 +2190,8 @@ gtag('config', 'UA-20375833-3');
 <p><span class="math display">\[v_t = \gamma v_{t-1} + \eta \nabla_{\theta} J(\theta) \\
 \theta = \theta - v_t\]</span></p>
 <p>The formula tells us that the change to the weights<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> is made up of two parts: the gradient of the loss<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a> with respect to the weights, computed at some point in time <span class="math inline">\(t\)</span> (and scaled by the learning rate<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a>), and the previous change computed at time <span class="math inline">\(t-1\)</span> and discounted by some factor <span class="math inline">\(\gamma\)</span>. What does this <em>actually</em> tell us?</p>
-<p>In his Coursera MOOC, Andrew Ng introduces momentum (and RMSProp, and Adam) after two videos that aren’t even about deep learning. He introduces exponential moving averages, which will be familiar to many R users: We calculate a running average where at each point in time, the running result is weighted by a certain factor (0.9, say), and the current observation by 1 minus that factor (0.1, in this example). Now look at how <em>momentum</em> is presented:<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a></p>
+<p>In his Coursera MOOC, Andrew Ng introduces momentum (and RMSProp, and Adam) after two videos that aren’t even about deep learning. He introduces exponential moving averages, which will be familiar to many R users: We calculate a running average where at each point in time, the running result is weighted by a certain factor (0.9, say), and the current observation by 1 minus that factor (0.1, in this example).
+Now look at how <em>momentum</em> is presented:<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a></p>
 <p><span class="math display">\[v = \beta v + (1-\beta) dW \\ 
 W = W - \alpha v\]</span></p>
 <p>We immediately see how <span class="math inline">\(v\)</span> is the exponential moving average of gradients, and it is this that gets subtracted from the weights (scaled by the learning rate).</p>
@@ -2226,13 +2234,15 @@ W = W - \alpha \frac{v}{\sqrt s + \epsilon}\]</span></p>
 <li>we need to actually combine that context vector with the current hidden state (here, done by training a fully connected layer on their concatenation):</li>
 </ol>
 <p><span class="math display">\[\mathbf{a}_t = tanh(\mathbf{W_c} [ \mathbf{c}_t ; \mathbf{h}_t])\]</span></p>
-<p>This last step may be a better example of abstraction than of chunking, but anyway those are closely related: We need to chunk adequately to name concepts, and intuition about concepts helps chunk correctly. Closely related to abstraction, too, is analyzing what entities <em>do</em>.</p>
+<p>This last step may be a better example of abstraction than of chunking, but anyway those are closely related: We need to chunk adequately to name concepts, and intuition about concepts helps chunk correctly.
+Closely related to abstraction, too, is analyzing what entities <em>do</em>.</p>
 <h2 id="action">Action</h2>
 <p>Although not deep learning related (in a narrow sense), my favorite quote comes from one of Gilbert Strang’s lectures on linear algebra:<a href="#fn12" class="footnote-ref" id="fnref12" role="doc-noteref"><sup>12</sup></a></p>
 <blockquote>
 <p>Matrices don’t just sit there, they do something.</p>
 </blockquote>
-<p>If in school calculus was about saving production materials, matrices were about matrix multiplication - the rows-by-columns way. (Or perhaps they existed for us to be trained to compute determinants, seemingly useless numbers that turn out to have a meaning, as we are going to see in a future post.) Conversely, based on the much more illuminating <em>matrix multiplication as linear combination of columns</em> (resp. rows) view, Gilbert Strang introduces types of matrices as agents, concisely named by initial.</p>
+<p>If in school calculus was about saving production materials, matrices were about matrix multiplication - the rows-by-columns way. (Or perhaps they existed for us to be trained to compute determinants, seemingly useless numbers that turn out to have a meaning, as we are going to see in a future post.)
+Conversely, based on the much more illuminating <em>matrix multiplication as linear combination of columns</em> (resp. rows) view, Gilbert Strang introduces types of matrices as agents, concisely named by initial.</p>
 <p>For example, when multiplying another matrix <span class="math inline">\(A\)</span> on the right, this permutation matrix <span class="math inline">\(P\)</span></p>
 <p><span class="math display">\[\mathbf{P} = \left[\begin{array}
 {rrr}
@@ -2283,7 +2293,8 @@ optimizer$apply_gradients(
 )</code></pre>
 <p>has the optimizer do a single thing: <em>apply</em> the gradients it gets passed from the gradient tape.<a href="#fn14" class="footnote-ref" id="fnref14" role="doc-noteref"><sup>14</sup></a> Thinking back to the characterization of different optimizers we saw above, this piece of code adds vividness to the thought that optimizers differ in what they <em>actually do</em> once they got those gradients.</p>
 <h2 id="conclusion">Conclusion</h2>
-<p>Wrapping up, the goal here was to elaborate a bit on a conceptual, abstraction-driven way to get more familiar with the math involved in deep learning (or machine learning, in general). Certainly, the three aspects highlighted interact, overlap, form a whole, and there are other aspects to it. Analogy may be one, but it was left out here because it seems even more subjective, and less general. Comments describing user experiences are very welcome.</p>
+<p>Wrapping up, the goal here was to elaborate a bit on a conceptual, abstraction-driven way to get more familiar with the math involved in deep learning (or machine learning, in general). Certainly, the three aspects highlighted interact, overlap, form a whole, and there are other aspects to it. Analogy may be one, but it was left out here because it seems even more subjective, and less general.
+Comments describing user experiences are very welcome.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />

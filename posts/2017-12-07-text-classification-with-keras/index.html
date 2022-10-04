@@ -816,6 +816,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1888,15 +1889,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2095,7 +2102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2175,7 +2182,8 @@ gtag('config', 'UA-20375833-3');
 <div class="d-article">
 <h2 id="the-imdb-dataset">The IMDB dataset</h2>
 <p>In this example, we’ll work with the IMDB dataset: a set of 50,000 highly polarized reviews from the Internet Movie Database. They’re split into 25,000 reviews for training and 25,000 reviews for testing, each set consisting of 50% negative and 50% positive reviews.</p>
-<p>Why use separate training and test sets? Because you should never test a machine-learning model on the same data that you used to train it! Just because a model performs well on its training data doesn’t mean it will perform well on data it has never seen; and what you care about is your model’s performance on new data (because you already know the labels of your training data – obviously you don’t need your model to predict those). For instance, it’s possible that your model could end up merely <em>memorizing</em> a mapping between your training samples and their targets, which would be useless for the task of predicting targets for data the model has never seen before. We’ll go over this point in much more detail in the next chapter.</p>
+<p>Why use separate training and test sets? Because you should never test a machine-learning model on the same data that you used to train it! Just because a model performs well on its training data doesn’t mean it will perform well on data it has never seen; and what you care about is your model’s performance on new data (because you already know the labels of your training data – obviously
+you don’t need your model to predict those). For instance, it’s possible that your model could end up merely <em>memorizing</em> a mapping between your training samples and their targets, which would be useless for the task of predicting targets for data the model has never seen before. We’ll go over this point in much more detail in the next chapter.</p>
 <p>Just like the MNIST dataset, the IMDB dataset comes packaged with Keras. It has already been preprocessed: the reviews (sequences of words) have been turned into sequences of integers, where each integer stands for a specific word in a dictionary.</p>
 <p>The following code will load the dataset (when you run it the first time, about 80 MB of data will be downloaded to your machine).</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2283,7 +2291,8 @@ that was shared with us all</code></pre>
 <p>The input data is vectors, and the labels are scalars (1s and 0s): this is the easiest setup you’ll ever encounter. A type of network that performs well on such a problem is a simple stack of fully connected (“dense”) layers with <code>relu</code> activations: <code>layer_dense(units = 16, activation = "relu")</code>.</p>
 <p>The argument being passed to each dense layer (16) is the number of hidden units of the layer. A <em>hidden unit</em> is a dimension in the representation space of the layer. You may remember from chapter 2 that each such dense layer with a <code>relu</code> activation implements the following chain of tensor operations:</p>
 <p><em>output = relu(dot(W, input) + b)</em></p>
-<p>Having 16 hidden units means the weight matrix <code>W</code> will have shape <code>(input_dimension, 16)</code>: the dot product with <code>W</code> will project the input data onto a 16-dimensional representation space (and then you’ll add the bias vector <code>b</code> and apply the <code>relu</code> operation). You can intuitively understand the dimensionality of your representation space as “how much freedom you’re allowing the network to have when learning internal representations.” Having more hidden units (a higher-dimensional representation space) allows your network to learn more-complex representations, but it makes the network more computationally expensive and may lead to learning unwanted patterns (patterns that will improve performance on the training data but not on the test data).</p>
+<p>Having 16 hidden units means the weight matrix <code>W</code> will have shape <code>(input_dimension, 16)</code>: the dot product with <code>W</code> will project the input data onto a 16-dimensional representation space (and then you’ll add the bias vector <code>b</code> and apply the <code>relu</code> operation). You can intuitively understand the dimensionality of your representation space as “how much freedom you’re allowing the network to have when learning internal representations.” Having more hidden units (a higher-dimensional representation space) allows your network to learn more-complex representations, but it makes the network more computationally expensive and may lead to learning unwanted patterns (patterns that
+will improve performance on the training data but not on the test data).</p>
 <p>There are two key architecture decisions to be made about such stack of dense layers:</p>
 <ul>
 <li>How many layers to use</li>
@@ -2453,7 +2462,8 @@ $acc
 <li>In a binary classification problem (two output classes), your network should end with a dense layer with one unit and a <code>sigmoid</code> activation: the output of your network should be a scalar between 0 and 1, encoding a probability.</li>
 <li>With such a scalar sigmoid output on a binary classification problem, the loss function you should use is <code>binary_crossentropy</code>.</li>
 <li>The <code>rmsprop</code> optimizer is generally a good enough choice, whatever your problem. That’s one less thing for you to worry about.</li>
-<li>As they get better on their training data, neural networks eventually start overfitting and end up obtaining increasingly worse results on data they’ve never seen before. Be sure to always monitor performance on data that is outside of the training set.</li>
+<li>As they get better on their training data, neural networks eventually start overfitting and end up obtaining increasingly worse results on data they’ve
+never seen before. Be sure to always monitor performance on data that is outside of the training set.</li>
 </ul>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->

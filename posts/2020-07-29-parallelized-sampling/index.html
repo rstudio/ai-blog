@@ -148,7 +148,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Weighted random sampling;citation_publication_date=2016;citation_publisher=Springer New York;citation_doi=10.1007/978-1-4939-2864-4_478;citation_author=Pavlos Efraimidis;citation_author=Paul (Pavlos) Spirakis"/>
+  <meta name="citation_reference" content="citation_title=Weighted random sampling;citation_publisher=Springer New York;citation_doi=10.1007/978-1-4939-2864-4_478;citation_author=Pavlos Efraimidis;citation_author=Paul (Pavlos) Spirakis"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -834,6 +834,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1906,15 +1907,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2113,7 +2120,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2344,7 +2351,8 @@ for j = 1 to n
 </div>
 <p>After all the hard work above, we can now enjoy plotting the sampling outcomes from <code>dplyr::slice_sample()</code> and those from <code>sparklyr::sdf_weighted_sample()</code> after 500, 1000, and 5000 iterations and observe how the distributions of both start converging after a large number of iterations.</p>
 <p>Sampling outcomes after 500, 1000, and 5000 iterations, shown in 3 histograms:</p>
-<p><img src="images/viz.png" /> (you will most probably need to <a href="images/viz.png">view it in a separate tab</a> to see everything clearly)</p>
+<p><img src="images/viz.png" />
+(you will most probably need to <a href="images/viz.png">view it in a separate tab</a> to see everything clearly)</p>
 <h1 id="testing">Testing</h1>
 <p>While parallelized sampling based on exponential variates looks fantastic on paper, there are still plenty of potential pitfalls when it comes to translating such idea into code, and as usual, a good testing plan is necessary to ensure implementation correctness.</p>
 <p>For instance, numerical instability issues from floating point numbers arise if <span class="math inline">\(\ln(u_j) / w_j\)</span> were replaced by <span class="math inline">\(u_j ^ {1 / w_j}\)</span> in the aforementioned computations.</p>

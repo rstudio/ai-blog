@@ -812,6 +812,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1884,15 +1885,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2091,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2170,11 +2177,23 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <h2 id="introduction">Introduction</h2>
-<p>I’m happy to report a new major release of <code>lime</code> has landed on CRAN. <code>lime</code> is an R port of the Python library of the same name by Marco Ribeiro that allows the user to pry open black box machine learning models and explain their outcomes on a per-observation basis. It works by modelling the outcome of the black box in the local neighborhood around the observation to explain and using this local model to explain why (not how) the black box did what it did. For more information about the theory of <code>lime</code> I will direct you to the article <a href="https://arxiv.org/abs/1602.04938">introducing the methodology</a>.</p>
+<p>I’m happy to report a new major release of <code>lime</code> has landed on CRAN. <code>lime</code> is
+an R port of the Python library of the same name by Marco Ribeiro that allows
+the user to pry open black box machine learning models and explain their
+outcomes on a per-observation basis. It works by modelling the outcome of the
+black box in the local neighborhood around the observation to explain and using
+this local model to explain why (not how) the black box did what it did. For
+more information about the theory of <code>lime</code> I will direct you to the article
+<a href="https://arxiv.org/abs/1602.04938">introducing the methodology</a>.</p>
 <h2 id="new-features">New features</h2>
-<p>The meat of this release centers around two new features that are somewhat linked: Native support for keras models and support for explaining image models.</p>
+<p>The meat of this release centers around two new features that are somewhat
+linked: Native support for keras models and support for explaining image models.</p>
 <h3 id="keras-and-images">keras and images</h3>
-<p>J.J. Allaire was kind enough to namedrop <code>lime</code> during his keynote introduction of the <code>tensorflow</code> and <code>keras</code> packages and I felt compelled to support them natively. As keras is by far the most popular way to interface with tensorflow it is first in line for build-in support. The addition of keras means that <code>lime</code> now directly supports models from the following packages:</p>
+<p>J.J. Allaire was kind enough to namedrop <code>lime</code> during his keynote introduction
+of the <code>tensorflow</code> and <code>keras</code> packages and I felt compelled to support them
+natively. As keras is by far the most popular way to interface with tensorflow
+it is first in line for build-in support. The addition of keras means that
+<code>lime</code> now directly supports models from the following packages:</p>
 <ul>
 <li><a href="https://github.com/topepo/caret">caret</a></li>
 <li><a href="https://github.com/mlr-org/mlr">mlr</a></li>
@@ -2182,8 +2201,13 @@ gtag('config', 'UA-20375833-3');
 <li><a href="https://github.com/h2oai/h2o-3">h2o</a></li>
 <li><a href="https://github.com/rstudio/keras">keras</a></li>
 </ul>
-<p>If you’re working on something too obscure or cutting edge to not be able to use these packages it is still possible to make your model <code>lime</code> compliant by providing <code>predict_model()</code> and <code>model_type()</code> methods for it.</p>
-<p>keras models are used just like any other model, by passing it into the <code>lime()</code> function along with the training data in order to create an explainer object. Because we’re soon going to talk about image models, we’ll be using one of the pre-trained ImageNet models that is available from keras itself:</p>
+<p>If you’re working on something too obscure or cutting edge to not be able to use
+these packages it is still possible to make your model <code>lime</code> compliant by
+providing <code>predict_model()</code> and <code>model_type()</code> methods for it.</p>
+<p>keras models are used just like any other model, by passing it into the <code>lime()</code>
+function along with the training data in order to create an explainer object.
+Because we’re soon going to talk about image models, we’ll be using one of the
+pre-trained ImageNet models that is available from keras itself:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
@@ -2252,8 +2276,14 @@ Trainable params: 138,357,544
 Non-trainable params: 0
 ______________________________________________________________________________________________
 </code></pre>
-<p>The vgg16 model is an image classification model that has been build as part of the ImageNet competition where the goal is to classify pictures into 1000 categories with the highest accuracy. As we can see it is fairly complicated.</p>
-<p>In order to create an explainer we will need to pass in the training data as well. For image data the training data is really only used to tell lime that we are dealing with an image model, so any image will suffice. The format for the training data is simply the path to the images, and because the internet runs on kitten pictures we’ll use one of these:</p>
+<p>The vgg16 model is an image classification model that has been build as part of
+the ImageNet competition where the goal is to classify pictures into 1000
+categories with the highest accuracy. As we can see it is fairly complicated.</p>
+<p>In order to create an explainer we will need to pass in the training data as
+well. For image data the training data is really only used to tell lime that we
+are dealing with an image model, so any image will suffice. The format for the
+training data is simply the path to the images, and because the internet runs on
+kitten pictures we’ll use one of these:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>img</span> <span class='op'>&lt;-</span> <span class='fu'>image_read</span><span class='op'>(</span><span class='st'>'https://www.data-imaginist.com/assets/images/kitten.jpg'</span><span class='op'>)</span></span>
@@ -2263,7 +2293,9 @@ ________________________________________________________________________________
 </div>
 </div>
 <p><img src="images/unnamed-chunk-2-1.png" /></p>
-<p>As with text models the explainer will need to know how to prepare the input data for the model. For keras models this means formatting the image data as tensors. Thankfully keras comes with a lot of tools for reshaping image data:</p>
+<p>As with text models the explainer will need to know how to prepare the input
+data for the model. For keras models this means formatting the image data as
+tensors. Thankfully keras comes with a lot of tools for reshaping image data:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>image_prep</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2278,7 +2310,9 @@ ________________________________________________________________________________
 <span><span class='va'>explainer</span> <span class='op'>&lt;-</span> <span class='fu'>lime</span><span class='op'>(</span><span class='va'>img_path</span>, <span class='va'>model</span>, <span class='va'>image_prep</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We now have an explainer model for understanding how the vgg16 neural network makes its predictions. Before we go along, lets see what the model think of our kitten:</p>
+<p>We now have an explainer model for understanding how the vgg16 neural network
+makes its predictions. Before we go along, lets see what the model think of our
+kitten:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>res</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>model</span>, <span class='fu'>image_prep</span><span class='op'>(</span><span class='va'>img_path</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2292,7 +2326,9 @@ ________________________________________________________________________________
 3  n02123159         tiger_cat 0.10270492
 4  n02127052              lynx 0.02638111
 5  n03793489             mouse 0.00852214</code></pre>
-<p>So, it is pretty sure about the whole cat thing. The reason we need to use <code>imagenet_decode_predictions()</code> is that the output of a keras model is always just a nameless tensor:</p>
+<p>So, it is pretty sure about the whole cat thing. The reason we need to use
+<code>imagenet_decode_predictions()</code> is that the output of a keras model is always
+just a nameless tensor:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>)</span></span></code></pre>
@@ -2305,7 +2341,10 @@ ________________________________________________________________________________
 </div>
 </div>
 <pre><code>NULL</code></pre>
-<p>We are used to classifiers knowing the class labels, but this is not the case for keras. Motivated by this, <code>lime</code> now have a way to define/overwrite the class labels of a model, using the <code>as_classifier()</code> function. Let’s redo our explainer:</p>
+<p>We are used to classifiers knowing the class labels, but this is not the case
+for keras. Motivated by this, <code>lime</code> now have a way to define/overwrite the
+class labels of a model, using the <code>as_classifier()</code> function. Let’s redo our
+explainer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model_labels</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/readRDS.html'>readRDS</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/system.file.html'>system.file</a></span><span class='op'>(</span><span class='st'>'extdata'</span>, <span class='st'>'imagenet_labels.rds'</span>, package <span class='op'>=</span> <span class='st'>'lime'</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2313,10 +2352,32 @@ ________________________________________________________________________________
 </div>
 </div>
 <blockquote>
-<p>There is also an <code>as_regressor()</code> function which tells <code>lime</code>, without a doubt, that the model is a regression model. Most models can be introspected to see which type of model they are, but neural networks doesn’t really care. <code>lime</code> guesses the model type from the activation used in the last layer (linear activation == regression), but if that heuristic fails then <code>as_regressor()</code>/<code>as_classifier()</code> can be used.</p>
+<p>There is also an <code>as_regressor()</code> function which tells <code>lime</code>, without a doubt,
+that the model is a regression model. Most models can be introspected to see
+which type of model they are, but neural networks doesn’t really care. <code>lime</code>
+guesses the model type from the activation used in the last layer (linear
+activation == regression), but if that heuristic fails then
+<code>as_regressor()</code>/<code>as_classifier()</code> can be used.</p>
 </blockquote>
-<p>We are now ready to poke into the model and find out what makes it think our image is of an Egyptian cat. But… first I’ll have to talk about yet another concept: superpixels (I promise I’ll get to the explanation part in a bit).</p>
-<p>In order to create meaningful permutations of our image (remember, this is the central idea in <code>lime</code>), we have to define how to do so. The permutations needs to be substantial enough to have an impact on the image, but not so much that the model completely fails to recognise the content in every case - further, they should lead to an interpretable result. The concept of superpixels lends itself well to these constraints. In short, a superpixel is a patch of an area with high homogeneity, and superpixel segmentation is a clustering of image pixels into a number of superpixels. By segmenting the image to explain into superpixels we can turn area of contextual similarity on and off during the permutations and find out if that area is important. It is still necessary to experiment a bit as the optimal number of superpixels depend on the content of the image. Remember, we need them to be large enough to have an impact but not so large that the class probability becomes effectively binary. <code>lime</code> comes with a function to assess the superpixel segmentation before beginning the explanation and it is recommended to play with it a bit — with time you’ll likely get a feel for the right values:</p>
+<p>We are now ready to poke into the model and find out what makes it think our
+image is of an Egyptian cat. But… first I’ll have to talk about yet another
+concept: superpixels (I promise I’ll get to the explanation part in a bit).</p>
+<p>In order to create meaningful permutations of our image (remember, this is the
+central idea in <code>lime</code>), we have to define how to do so. The permutations needs
+to be substantial enough to have an impact on the image, but not so much that
+the model completely fails to recognise the content in every case - further,
+they should lead to an interpretable result. The concept of superpixels lends
+itself well to these constraints. In short, a superpixel is a patch of an area
+with high homogeneity, and superpixel segmentation is a clustering of image
+pixels into a number of superpixels. By segmenting the image to explain into
+superpixels we can turn area of contextual similarity on and off during the
+permutations and find out if that area is important. It is still necessary to
+experiment a bit as the optimal number of superpixels depend on the content of
+the image. Remember, we need them to be large enough to have an impact but not
+so large that the class probability becomes effectively binary. <code>lime</code> comes
+with a function to assess the superpixel segmentation before beginning the
+explanation and it is recommended to play with it a bit — with time you’ll
+likely get a feel for the right values:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># default</span></span>
@@ -2331,44 +2392,86 @@ ________________________________________________________________________________
 </div>
 </div>
 <p><img src="images/unnamed-chunk-7-2.png" /></p>
-<p>The default is set to a pretty low number of superpixels — if the subject of interest is relatively small it may be necessary to increase the number of superpixels so that the full subject does not end up in one, or a few superpixels. The <code>weight</code> parameter will allow you to make the segments more compact by weighting spatial distance higher than colour distance. For this example we’ll stick with the defaults.</p>
-<p>Be aware that explaining image models is much heavier than tabular or text data. In effect it will create 1000 new images per explanation (default permutation size for images) and run these through the model. As image classification models are often quite heavy, this will result in computation time measured in minutes. The permutation is batched (default to 10 permutations per batch), so you should not be afraid of running out of RAM or hard-drive space.</p>
+<p>The default is set to a pretty low number of superpixels — if the subject of
+interest is relatively small it may be necessary to increase the number of
+superpixels so that the full subject does not end up in one, or a few
+superpixels. The <code>weight</code> parameter will allow you to make the segments more
+compact by weighting spatial distance higher than colour distance. For this
+example we’ll stick with the defaults.</p>
+<p>Be aware that explaining image
+models is much heavier than tabular or text data. In effect it will create 1000
+new images per explanation (default permutation size for images) and run these
+through the model. As image classification models are often quite heavy, this
+will result in computation time measured in minutes. The permutation is batched
+(default to 10 permutations per batch), so you should not be afraid of running
+out of RAM or hard-drive space.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>explanation</span> <span class='op'>&lt;-</span> <span class='fu'>explain</span><span class='op'>(</span><span class='va'>img_path</span>, <span class='va'>explainer</span>, n_labels <span class='op'>=</span> <span class='fl'>2</span>, n_features <span class='op'>=</span> <span class='fl'>20</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The output of an image explanation is a data frame of the same format as that from tabular and text data. Each feature will be a superpixel and the pixel range of the superpixel will be used as its description. Usually the explanation will only make sense in the context of the image itself, so the new version of <code>lime</code> also comes with a <code>plot_image_explanation()</code> function to do just that. Let’s see what our explanation have to tell us:</p>
+<p>The output of an image explanation is a data frame of the same format as that
+from tabular and text data. Each feature will be a superpixel and the pixel
+range of the superpixel will be used as its description. Usually the explanation
+will only make sense in the context of the image itself, so the new version of
+<code>lime</code> also comes with a <code>plot_image_explanation()</code> function to do just that.
+Let’s see what our explanation have to tell us:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p><img src="images/unnamed-chunk-8-1.png" /></p>
-<p>We can see that the model, for both the major predicted classes, focuses on the cat, which is nice since they are both different cat breeds. The plot function got a few different functions to help you tweak the visual, and it filters low scoring superpixels away by default. An alternative view that puts more focus on the relevant superpixels, but removes the context can be seen by using <code>display = 'block'</code>:</p>
+<p>We can see that the model, for both the major predicted classes, focuses on the
+cat, which is nice since they are both different cat breeds. The plot function
+got a few different functions to help you tweak the visual, and it filters low
+scoring superpixels away by default. An alternative view that puts more focus
+on the relevant superpixels, but removes the context can be seen by using
+<code>display = 'block'</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, display <span class='op'>=</span> <span class='st'>'block'</span>, threshold <span class='op'>=</span> <span class='fl'>0.01</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p><img src="images/unnamed-chunk-9-1.png" /></p>
-<p>While not as common with image explanations it is also possible to look at the areas of an image that contradicts the class:</p>
+<p>While not as common with image explanations it is also possible to look at the
+areas of an image that contradicts the class:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>plot_image_explanation</span><span class='op'>(</span><span class='va'>explanation</span>, threshold <span class='op'>=</span> <span class='fl'>0</span>, show_negative <span class='op'>=</span> <span class='cn'>TRUE</span>, fill_alpha <span class='op'>=</span> <span class='fl'>0.6</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <p><img src="images/unnamed-chunk-10-1.png" /></p>
-<p>As each explanation takes longer time to create and needs to be tweaked on a per-image basis, image explanations are not something that you’ll create in large batches as you might do with tabular and text data. Still, a few explanations might allow you to understand your model better and be used for communicating the workings of your model. Further, as the time-limiting factor in image explanations are the image classifier and not lime itself, it is bound to improve as image classifiers becomes more performant.</p>
+<p>As each explanation takes longer time to create and needs to be tweaked on a
+per-image basis, image explanations are not something that you’ll create in
+large batches as you might do with tabular and text data. Still, a few
+explanations might allow you to understand your model better and be used for
+communicating the workings of your model. Further, as the time-limiting factor
+in image explanations are the image classifier and not lime itself, it is bound
+to improve as image classifiers becomes more performant.</p>
 <h3 id="grab-back">Grab back</h3>
-<p>Apart from keras and image support, a slew of other features and improvements have been added. Here’s a quick overview:</p>
+<p>Apart from keras and image support, a slew of other features and improvements
+have been added. Here’s a quick overview:</p>
 <ul>
-<li>All explanation plots now include the fit of the ridge regression used to make the explanation. This makes it easy to assess how good the assumptions about local linearity are kept.</li>
-<li>When explaining tabular data the default distance measure is now <code>'gower'</code> from the <code>gower</code> package. <code>gower</code> makes it possible to measure distances between heterogeneous data without converting all features to numeric and experimenting with different exponential kernels.</li>
-<li>When explaining tabular data numerical features will no longer be sampled from a normal distribution during permutations, but from a kernel density defined by the training data. This should ensure that the permutations are more representative of the expected input.</li>
+<li>All explanation plots now include the fit of the ridge regression used to make
+the explanation. This makes it easy to assess how good the assumptions about
+local linearity are kept.</li>
+<li>When explaining tabular data the default distance measure is now <code>'gower'</code>
+from the <code>gower</code> package. <code>gower</code> makes it possible to measure distances
+between heterogeneous data without converting all features to numeric and
+experimenting with different exponential kernels.</li>
+<li>When explaining tabular data numerical features will no longer be sampled from
+a normal distribution during permutations, but from a kernel density defined
+by the training data. This should ensure that the permutations are more
+representative of the expected input.</li>
 </ul>
 <h2 id="wrapping-up">Wrapping up</h2>
-<p>This release represents an important milestone for <code>lime</code> in R. With the addition of image explanations the <code>lime</code> package is now on par or above its Python relative, feature-wise. Further development will focus on improving the performance of the model, e.g. by adding parallelisation or improving the local model definition, as well as exploring alternative explanation types such as <a href="https://homes.cs.washington.edu/%7Emarcotcr/aaai18.pdf">anchor</a>.</p>
+<p>This release represents an important milestone for <code>lime</code> in R. With the
+addition of image explanations the <code>lime</code> package is now on par or above its
+Python relative, feature-wise. Further development will focus on improving the
+performance of the model, e.g. by adding parallelisation or improving the local
+model definition, as well as exploring alternative explanation types such as
+<a href="https://homes.cs.washington.edu/%7Emarcotcr/aaai18.pdf">anchor</a>.</p>
 <p>Happy Explaining!</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->

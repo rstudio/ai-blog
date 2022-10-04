@@ -152,11 +152,11 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=InfoVAE: Information maximizing variational autoencoders;citation_publication_date=2017;citation_volume=abs/1706.02262;citation_author=Shengjia Zhao;citation_author=Jiaming Song;citation_author=Stefano Ermon"/>
-  <meta name="citation_reference" content="citation_title=Auto-encoding variational bayes;citation_publication_date=2013;citation_volume=abs/1312.6114;citation_author=Diederik P. Kingma;citation_author=Max Welling"/>
-  <meta name="citation_reference" content="citation_title=VAE with a VampPrior;citation_publication_date=2017;citation_volume=abs/1705.07120;citation_author=Jakub M. Tomczak;citation_author=Max Welling"/>
-  <meta name="citation_reference" content="citation_title=Tutorial on variational autoencoders;citation_publication_date=2016;citation_author=C. Doersch"/>
-  <meta name="citation_reference" content="citation_title=Understanding disentangling in beta-VAE;citation_publication_date=2018;citation_author=C. P. Burgess;citation_author=I. Higgins;citation_author=A. Pal;citation_author=L. Matthey;citation_author=N. Watters;citation_author=G. Desjardins;citation_author=A. Lerchner"/>
+  <meta name="citation_reference" content="citation_title=InfoVAE: Information maximizing variational autoencoders;citation_volume=abs/1706.02262;citation_author=Shengjia Zhao;citation_author=Jiaming Song;citation_author=Stefano Ermon"/>
+  <meta name="citation_reference" content="citation_title=Auto-encoding variational bayes;citation_volume=abs/1312.6114;citation_author=Diederik P. Kingma;citation_author=Max Welling"/>
+  <meta name="citation_reference" content="citation_title=VAE with a VampPrior;citation_volume=abs/1705.07120;citation_author=Jakub M. Tomczak;citation_author=Max Welling"/>
+  <meta name="citation_reference" content="citation_title=Tutorial on variational autoencoders;citation_author=C. Doersch"/>
+  <meta name="citation_reference" content="citation_title=Understanding disentangling in beta-VAE;citation_author=C. P. Burgess;citation_author=I. Higgins;citation_author=A. Pal;citation_author=L. Matthey;citation_author=N. Watters;citation_author=G. Desjardins;citation_author=A. Lerchner"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -842,6 +842,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1914,15 +1915,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2121,7 +2128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2198,7 +2205,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>Recently, we showed how to <a href="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/">generate images</a> using generative adversarial networks (GANs). GANs may yield amazing results, but the contract there basically is: what you see is what you get. Sometimes this may be all we want. In other cases, we may be more interested in actually modelling a domain. We don’t just want to generate realistic-looking samples - we want our samples to be located at specific coordinates in domain space.</p>
+<p>Recently, we showed how to <a href="https://blogs.rstudio.com/tensorflow/posts/2018-08-26-eager-dcgan/">generate images</a> using generative adversarial networks (GANs). GANs may yield amazing results, but the contract there basically is: what you see is what you get.
+Sometimes this may be all we want. In other cases, we may be more interested in actually modelling a domain. We don’t just want to generate realistic-looking samples - we want our samples to be located at specific coordinates in domain space.</p>
 <p>For example, imagine our domain to be the space of facial expressions. Then our latent space might be conceived as two-dimensional: In accordance with underlying emotional states, expressions vary on a positive-negative scale. At the same time, they vary in intensity. Now if we trained a VAE on a set of facial expressions adequately covering the ranges, and it did in fact “discover” our hypothesized dimensions, we could then use it to generate previously-nonexisting incarnations of points (faces, that is) in latent space.</p>
 <p>Variational autoencoders are similar to probabilistic graphical models in that they assume a latent space that is responsible for the observations, but unobservable. They are similar to plain autoencoders in that they compress, and then decompress again, the input domain. In contrast to plain autoencoders though, the crucial point here is to devise a loss function that allows to obtain informative representations in latent space.</p>
 <h2 id="in-a-nutshell">In a nutshell</h2>
@@ -2217,7 +2225,8 @@ The main author of the paper<span class="citation" data-cites="ZhaoSE17b">(<a hr
 <p>Our focus will be on inspecting the latent spaces and see if, and how, they differ as a consequence of the optimization criteria used.</p>
 <p>The domain we’re going to model will be glamorous (fashion!), but for the sake of manageability, confined to size 28 x 28: We’ll compress and reconstruct images from the <a href="https://github.com/zalandoresearch/fashion-mnist">Fashion MNIST</a> dataset that has been developed as a drop-in to MNIST.</p>
 <h2 id="a-standard-variational-autoencoder">A standard variational autoencoder</h2>
-<p>Seeing we haven’t used TensorFlow eager execution for some weeks, we’ll do the model in an eager way. If you’re new to eager execution, don’t worry: As every new technique, it needs some getting accustomed to, but you’ll quickly find that many tasks are made easier if you use it. A simple yet complete, template-like example is available as part of the <a href="https://tensorflow.rstudio.com/tutorials/advanced/">Keras documentation</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
+<p>Seeing we haven’t used TensorFlow eager execution for some weeks, we’ll do the model in an eager way.
+If you’re new to eager execution, don’t worry: As every new technique, it needs some getting accustomed to, but you’ll quickly find that many tasks are made easier if you use it. A simple yet complete, template-like example is available as part of the <a href="https://tensorflow.rstudio.com/tutorials/advanced/">Keras documentation</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>
 <aside>
 For interesting applications using eager execution in combination with Keras, ranging from machine translation to neural style transfer, see the recent posts in the <a href="https://blogs.rstudio.com/tensorflow/#Eager">Eager category</a> on this blog.
 </aside>
@@ -2314,8 +2323,10 @@ You might find it interesting to compare non-eager Keras code implementing a var
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>We choose the latent space to be of dimension 2 - just because that makes visualization easy. With more complex data, you will probably benefit from choosing a higher dimensionality here.</p>
-<p>So the encoder compresses real data into estimates of mean and variance of the latent space. We then “indirectly” sample from this distribution (the so-called <em>reparameterization trick</em>):</p>
+<p>We choose the latent space to be of dimension 2 - just because that makes visualization easy.
+With more complex data, you will probably benefit from choosing a higher dimensionality here.</p>
+<p>So the encoder compresses real data into estimates of mean and variance of the latent space.
+We then “indirectly” sample from this distribution (the so-called <em>reparameterization trick</em>):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>reparameterize</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>mean</span>, <span class='va'>logvar</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2324,7 +2335,8 @@ You might find it interesting to compare non-eager Keras code implementing a var
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>The sampled values will serve as input to the decoder, who will attempt to map them back to the original space. The decoder is basically a sequence of transposed convolutions, upsampling until we reach a resolution of 28x28.</p>
+<p>The sampled values will serve as input to the decoder, who will attempt to map them back to the original space.
+The decoder is basically a sequence of transposed convolutions, upsampling until we reach a resolution of 28x28.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>decoder_model</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2561,7 +2573,8 @@ Note that we’re calculating with the log of the variance, instead of the varia
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Between the encoder and the decoder, we don’t need the sampling step anymore, so there is no <em>reparameterization</em>. And since we won’t use <code>tf$nn$sigmoid_cross_entropy_with_logits</code> to compute the loss, we let the decoder apply the sigmoid in the last deconvolution layer:</p>
+<p>Between the encoder and the decoder, we don’t need the sampling step anymore, so there is no <em>reparameterization</em>.
+And since we won’t use <code>tf$nn$sigmoid_cross_entropy_with_logits</code> to compute the loss, we let the decoder apply the sigmoid in the last deconvolution layer:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>self</span><span class='op'>$</span><span class='va'>deconv3</span> <span class='op'>&lt;-</span> <span class='fu'>layer_conv_2d_transpose</span><span class='op'>(</span></span>
@@ -2575,11 +2588,13 @@ Note that we’re calculating with the log of the variance, instead of the varia
 </div>
 <h4 id="loss-calculations-1">Loss calculations</h4>
 <p>Now, as expected, the big novelty is in the loss function.</p>
-<p>The loss, <em>maximum mean discrepancy</em> (MMD), is based on the idea that two distributions are identical if and only if all moments are identical. Concretely, MMD is estimated using a <em>kernel</em>, such as the Gaussian kernel</p>
+<p>The loss, <em>maximum mean discrepancy</em> (MMD), is based on the idea that two distributions are identical if and only if all moments are identical.
+Concretely, MMD is estimated using a <em>kernel</em>, such as the Gaussian kernel</p>
 <p><span class="math display">\[k(z,z&#39;)=\frac{e^{||z-z&#39;||}}{2\sigma^2}\]</span></p>
 <p>to assess similarity between distributions.</p>
 <p>The idea then is that if two distributions are identical, the average similarity between samples from each distribution should be identical to the average similarity between mixed samples from both distributions:</p>
-<p><span class="math display">\[MMD(p(z)||q(z))=E_{p(z),p(z&#39;)}[k(z,z&#39;)]+E_{q(z),q(z&#39;)}[k(z,z&#39;)]−2E_{p(z),q(z&#39;)}[k(z,z&#39;)]\]</span> The following code is a direct port of the author’s <a href="https://github.com/ShengjiaZhao/MMD-Variational-Autoencoder">original TensorFlow code</a>:</p>
+<p><span class="math display">\[MMD(p(z)||q(z))=E_{p(z),p(z&#39;)}[k(z,z&#39;)]+E_{q(z),q(z&#39;)}[k(z,z&#39;)]−2E_{p(z),q(z&#39;)}[k(z,z&#39;)]\]</span>
+The following code is a direct port of the author’s <a href="https://github.com/ShengjiaZhao/MMD-Variational-Autoencoder">original TensorFlow code</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>compute_kernel</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2607,7 +2622,8 @@ Note that we’re calculating with the log of the variance, instead of the varia
 </div>
 </div>
 <h4 id="training-loop-1">Training loop</h4>
-<p>The training loop differs from the standard VAE example only in the loss calculations. Here are the respective lines:</p>
+<p>The training loop differs from the standard VAE example only in the loss calculations.
+Here are the respective lines:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span> <span class='fu'><a href='https://rdrr.io/r/base/with.html'>with</a></span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>GradientTape</span><span class='op'>(</span>persistent <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span> <span class='op'>%as%</span> <span class='va'>tape</span>, <span class='op'>{</span></span>
@@ -2626,16 +2642,19 @@ Note that we’re calculating with the log of the variance, instead of the varia
 <span>    <span class='op'>}</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>So we simply compute MMD loss as well as reconstruction loss, and add them up. No sampling is involved in this version. Of course, we are curious to see how well that worked!</p>
+<p>So we simply compute MMD loss as well as reconstruction loss, and add them up. No sampling is involved in this version.
+Of course, we are curious to see how well that worked!</p>
 <h4 id="results-1">Results</h4>
 <p>Again, let’s look at some generated clothes first. It seems like edges are much sharper here.</p>
 <p><img src="images/mmd_clothes_epoch_50.png" style="width:66.0%" /></p>
 <p>The clusters too look more nicely spread out in the two dimensions. And, they are centered at (0,0), as we would have hoped for.</p>
 <p><img src="images/mmd_latentspace_epoch_50.png" style="width:66.0%" /></p>
-<p>Finally, let’s see clothes morph into one another. Here, the smooth, continuous evolutions are impressive! Also, nearly all space is filled with meaningful objects, which hasn’t been the case above.</p>
+<p>Finally, let’s see clothes morph into one another. Here, the smooth, continuous evolutions are impressive!
+Also, nearly all space is filled with meaningful objects, which hasn’t been the case above.</p>
 <p><img src="images/mmd_grid_epoch_50.png" style="width:66.0%" /></p>
 <h2 id="mnist">MNIST</h2>
-<p>For curiosity’s sake, we generated the same kinds of plots after training on original MNIST. Here, there are hardly any differences visible in generated random digits after 50 epochs of training.</p>
+<p>For curiosity’s sake, we generated the same kinds of plots after training on original MNIST.
+Here, there are hardly any differences visible in generated random digits after 50 epochs of training.</p>
 <figure>
 <img src="images/comp_digits.png" style="width:100.0%" alt="Left: random digits as generated after training with ELBO loss. Right: MMD loss." /><figcaption aria-hidden="true">Left: random digits as generated after training with ELBO loss. Right: MMD loss.</figcaption>
 </figure>
@@ -2648,7 +2667,8 @@ Note that we’re calculating with the log of the variance, instead of the varia
 <img src="images/comp_grid.png" style="width:100.0%" alt="Left: Morphing as observed after training with ELBO loss. Right: MMD loss." /><figcaption aria-hidden="true">Left: Morphing as observed after training with ELBO loss. Right: MMD loss.</figcaption>
 </figure>
 <h2 id="conclusion">Conclusion</h2>
-<p>To us, this demonstrates impressively what big a difference the cost function can make when working with VAEs. Another component open to experimentation may be the prior used for the latent space - see <a href="https://www.ics.uci.edu/~enalisni/nalisnick_openAI_talk.pdf">this talk</a> for an overview of alternative priors and the “Variational Mixture of Posteriors” paper <span class="citation" data-cites="TomczakW17">(<a href="#ref-TomczakW17" role="doc-biblioref">Tomczak and Welling 2017</a>)</span> for a popular recent approach.</p>
+<p>To us, this demonstrates impressively what big a difference the cost function can make when working with VAEs.
+Another component open to experimentation may be the prior used for the latent space - see <a href="https://www.ics.uci.edu/~enalisni/nalisnick_openAI_talk.pdf">this talk</a> for an overview of alternative priors and the “Variational Mixture of Posteriors” paper <span class="citation" data-cites="TomczakW17">(<a href="#ref-TomczakW17" role="doc-biblioref">Tomczak and Welling 2017</a>)</span> for a popular recent approach.</p>
 <p>For both cost functions and priors, we expect effective differences to become way bigger still when we leave the controlled environment of (Fashion) MNIST and work with real-world datasets.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">

@@ -148,9 +148,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Mixup: Beyond empirical risk minimization;citation_publication_date=2017;citation_doi=10.48550/ARXIV.1710.09412;citation_author=Hongyi Zhang;citation_author=Moustapha Cisse;citation_author=Yann N. Dauphin;citation_author=David Lopez-Paz"/>
-  <meta name="citation_reference" content="citation_title=Cyclical learning rates for training neural networks;citation_publication_date=2015;citation_doi=10.48550/ARXIV.1506.01186;citation_author=Leslie N. Smith"/>
-  <meta name="citation_reference" content="citation_title=Fastai: A Layered API for Deep Learning;citation_publication_date=2020;citation_volume=11;citation_doi=10.3390/info11020108;citation_author=Jeremy Howard;citation_author=Sylvain Gugger"/>
+  <meta name="citation_reference" content="citation_title=Mixup: Beyond empirical risk minimization;citation_doi=10.48550/ARXIV.1710.09412;citation_author=Hongyi Zhang;citation_author=Moustapha Cisse;citation_author=Yann N. Dauphin;citation_author=David Lopez-Paz"/>
+  <meta name="citation_reference" content="citation_title=Cyclical learning rates for training neural networks;citation_doi=10.48550/ARXIV.1506.01186;citation_author=Leslie N. Smith"/>
+  <meta name="citation_reference" content="citation_title=Fastai: A Layered API for Deep Learning;citation_volume=11;citation_doi=10.3390/info11020108;citation_author=Jeremy Howard;citation_author=Sylvain Gugger"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -836,6 +836,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1908,15 +1909,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2115,7 +2122,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2192,11 +2199,24 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>We are happy to announce that <code>luz</code> version 0.3.0 is now on CRAN. This release brings a few improvements to the learning rate finder first contributed by <a href="https://github.com/cmcmaster1">Chris McMaster</a>. As we didn’t have a 0.2.0 release post, we will also highlight a few improvements that date back to that version.</p>
+<p>We are happy to announce that <code>luz</code> version 0.3.0 is now on CRAN. This
+release brings a few improvements to the learning rate finder
+first contributed by <a href="https://github.com/cmcmaster1">Chris
+McMaster</a>. As we didn’t have a
+0.2.0 release post, we will also highlight a few improvements that
+date back to that version.</p>
 <h2 id="whats-luz">What’s <code>luz</code>?</h2>
-<p>Since it is <a href="https://blogs.rstudio.com/ai/posts/2021-06-17-luz/">relatively new package</a>, we are starting this blog post with a quick recap of how <code>luz</code> works. If you already know what <code>luz</code> is, feel free to move on to the next section.</p>
-<p><code>luz</code> is a high-level API for <code>torch</code> that aims to encapsulate the training loop into a set of reusable pieces of code. It reduces the boilerplate required to train a model with <code>torch</code>, avoids the error-prone <code>zero_grad()</code> - <code>backward()</code> - <code>step()</code> sequence of calls, and also simplifies the process of moving data and models between CPUs and GPUs.</p>
-<p>With <code>luz</code> you can take your <code>torch</code> <code>nn_module()</code>, for example the two-layer perceptron defined below:</p>
+<p>Since it is <a href="https://blogs.rstudio.com/ai/posts/2021-06-17-luz/">relatively new
+package</a>, we are
+starting this blog post with a quick recap of how <code>luz</code> works. If you
+already know what <code>luz</code> is, feel free to move on to the next section.</p>
+<p><code>luz</code> is a high-level API for <code>torch</code> that aims to encapsulate the training
+loop into a set of reusable pieces of code. It reduces the boilerplate
+required to train a model with <code>torch</code>, avoids the error-prone
+<code>zero_grad()</code> - <code>backward()</code> - <code>step()</code> sequence of calls, and also
+simplifies the process of moving data and models between CPUs and GPUs.</p>
+<p>With <code>luz</code> you can take your <code>torch</code> <code>nn_module()</code>, for example the
+two-layer perceptron defined below:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>modnn</span> <span class='op'>&lt;-</span> <span class='fu'>nn_module</span><span class='op'>(</span></span>
@@ -2233,13 +2253,33 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p><code>luz</code> will automatically train your model on the GPU if it’s available, display a nice progress bar during training, and handle logging of metrics, all while making sure evaluation on validation data is performed in the correct way (e.g., disabling dropout).</p>
-<p><code>luz</code> can be extended in many different layers of abstraction, so you can improve your knowledge gradually, as you need more advanced features in your project. For example, you can implement <a href="https://mlverse.github.io/luz/reference/luz_metric.html">custom metrics</a>, <a href="https://mlverse.github.io/luz/reference/luz_callback.html">callbacks</a>, or even customize the <a href="https://mlverse.github.io/luz/articles/custom-loop.html">internal training loop</a>.</p>
-<p>To learn about <code>luz</code>, read the <a href="https://mlverse.github.io/luz/articles/get-started.html">getting started</a> section on the website, and browse the <a href="https://mlverse.github.io/luz/articles/examples/index.html">examples gallery</a>.</p>
+<p><code>luz</code> will automatically train your model on the GPU if it’s available,
+display a nice progress bar during training, and handle logging of metrics,
+all while making sure evaluation on validation data is performed in the correct way
+(e.g., disabling dropout).</p>
+<p><code>luz</code> can be extended in many different layers of abstraction, so you can
+improve your knowledge gradually, as you need more advanced features in your
+project. For example, you can implement <a href="https://mlverse.github.io/luz/reference/luz_metric.html">custom
+metrics</a>,
+<a href="https://mlverse.github.io/luz/reference/luz_callback.html">callbacks</a>,
+or even customize the <a href="https://mlverse.github.io/luz/articles/custom-loop.html">internal training
+loop</a>.</p>
+<p>To learn about <code>luz</code>, read the <a href="https://mlverse.github.io/luz/articles/get-started.html">getting
+started</a>
+section on the website, and browse the <a href="https://mlverse.github.io/luz/articles/examples/index.html">examples
+gallery</a>.</p>
 <h2 id="whats-new-in-luz">What’s new in <code>luz</code>?</h2>
 <h3 id="learning-rate-finder">Learning rate finder</h3>
-<p>In deep learning, finding a good learning rate is essential to be able to fit your model. If it’s too low, you will need too many iterations for your loss to converge, and that might be impractical if your model takes too long to run. If it’s too high, the loss can explode and you might never be able to arrive at a minimum.</p>
-<p>The <code>lr_finder()</code> function implements the algorithm detailed in <a href="https://arxiv.org/abs/1506.01186">Cyclical Learning Rates for Training Neural Networks</a> <span class="citation" data-cites="smith2015">(<a href="#ref-smith2015" role="doc-biblioref">Smith 2015</a>)</span> popularized in the FastAI framework <span class="citation" data-cites="howard2020">(<a href="#ref-howard2020" role="doc-biblioref">Howard and Gugger 2020</a>)</span>. It takes an <code>nn_module()</code> and some data to produce a data frame with the losses and the learning rate at each step.</p>
+<p>In deep learning, finding a good learning rate is essential to be able
+to fit your model. If it’s too low, you will need too many iterations
+for your loss to converge, and that might be impractical if your model
+takes too long to run. If it’s too high, the loss can explode and you
+might never be able to arrive at a minimum.</p>
+<p>The <code>lr_finder()</code> function implements the algorithm detailed in <a href="https://arxiv.org/abs/1506.01186">Cyclical Learning Rates for
+Training Neural Networks</a>
+<span class="citation" data-cites="smith2015">(<a href="#ref-smith2015" role="doc-biblioref">Smith 2015</a>)</span> popularized in the FastAI framework <span class="citation" data-cites="howard2020">(<a href="#ref-howard2020" role="doc-biblioref">Howard and Gugger 2020</a>)</span>. It
+takes an <code>nn_module()</code> and some data to produce a data frame with the
+losses and the learning rate at each step.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='va'>net</span> <span class='op'>%&gt;%</span> <span class='fu'>setup</span><span class='op'>(</span></span>
@@ -2262,7 +2302,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='co'>#&gt;  $ loss: num  2.31 2.3 2.29 2.3 2.31 ...</span></span></code></pre>
 </div>
 </div>
-<p>You can use the built-in plot method to display the exact results, along with an exponentially smoothed value of the loss.</p>
+<p>You can use the built-in plot method to display the exact results, along
+with an exponentially smoothed value of the loss.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>records</span><span class='op'>)</span> <span class='op'>+</span></span>
@@ -2272,26 +2313,52 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/lr-finder.png" alt="Plot displaying the results of the lr_finder()" /><figcaption aria-hidden="true">Plot displaying the results of the lr_finder()</figcaption>
 </figure>
-<p>If you want to learn how to interpret the results of this plot and learn more about the methodology read the <a href="https://mlverse.github.io/luz/articles/lr-finder.html">learning rate finder article</a> on the <code>luz</code> website.</p>
+<p>If you want to learn how to interpret the results of this plot and learn
+more about the methodology read the <a href="https://mlverse.github.io/luz/articles/lr-finder.html">learning rate finder
+article</a> on the
+<code>luz</code> website.</p>
 <h3 id="data-handling">Data handling</h3>
-<p>In the first release of <code>luz</code>, the only kind of object that was allowed to be used as input data to <code>fit</code> was a <code>torch</code> <code>dataloader()</code>. As of version 0.2.0, <code>luz</code> also support’s R matrices/arrays (or nested lists of them) as input data, as well as <code>torch</code> <code>dataset()</code>s.</p>
-<p>Supporting low level abstractions like <code>dataloader()</code> as input data is important, as with them the user has full control over how input data is loaded. For example, you can create parallel dataloaders, change how shuffling is done, and more. However, having to manually define the dataloader seems unnecessarily tedious when you don’t need to customize any of this.</p>
-<p>Another small improvement from version 0.2.0, inspired by Keras, is that you can pass a value between 0 and 1 to <code>fit</code>’s <code>valid_data</code> parameter, and <code>luz</code> will take a random sample of that proportion from the training set, to be used for validation data.</p>
-<p>Read more about this in the documentation of the <a href="https://mlverse.github.io/luz/reference/fit.luz_module_generator.html#arguments"><code>fit()</code></a> function.</p>
+<p>In the first release of <code>luz</code>, the only kind of object that was allowed to
+be used as input data to <code>fit</code> was a <code>torch</code> <code>dataloader()</code>. As of version
+0.2.0, <code>luz</code> also support’s R matrices/arrays (or nested lists of them) as
+input data, as well as <code>torch</code> <code>dataset()</code>s.</p>
+<p>Supporting low level abstractions like <code>dataloader()</code> as input data is
+important, as with them the user has full control over how input
+data is loaded. For example, you can create parallel dataloaders,
+change how shuffling is done, and more. However, having to manually
+define the dataloader seems unnecessarily tedious when you don’t need to
+customize any of this.</p>
+<p>Another small improvement from version 0.2.0, inspired by Keras, is that
+you can pass a value between 0 and 1 to <code>fit</code>’s <code>valid_data</code> parameter, and <code>luz</code> will
+take a random sample of that proportion from the training set, to be used for
+validation data.</p>
+<p>Read more about this in the documentation of the
+<a href="https://mlverse.github.io/luz/reference/fit.luz_module_generator.html#arguments"><code>fit()</code></a>
+function.</p>
 <h3 id="new-callbacks">New callbacks</h3>
 <p>In recent releases, new built-in callbacks were added to <code>luz</code>:</p>
 <ul>
-<li><code>luz_callback_gradient_clip()</code>: Helps avoiding loss divergence by clipping large gradients.</li>
-<li><code>luz_callback_keep_best_model()</code>: Each epoch, if there’s improvement in the monitored metric, we serialize the model weights to a temporary file. When training is done, we reload weights from the best model.</li>
-<li><code>luz_callback_mixup()</code>: Implementation of <a href="https://arxiv.org/abs/1710.09412">‘mixup: Beyond Empirical Risk Minimization’</a> <span class="citation" data-cites="zhang2017">(<a href="#ref-zhang2017" role="doc-biblioref">Zhang et al. 2017</a>)</span>. Mixup is a nice data augmentation technique that helps improving model consistency and overall performance.</li>
+<li><code>luz_callback_gradient_clip()</code>: Helps avoiding loss divergence by
+clipping large gradients.</li>
+<li><code>luz_callback_keep_best_model()</code>: Each epoch, if there’s improvement
+in the monitored metric, we serialize the model weights to a temporary
+file. When training is done, we reload weights from the best model.</li>
+<li><code>luz_callback_mixup()</code>: Implementation of <a href="https://arxiv.org/abs/1710.09412">‘mixup: Beyond Empirical
+Risk Minimization’</a>
+<span class="citation" data-cites="zhang2017">(<a href="#ref-zhang2017" role="doc-biblioref">Zhang et al. 2017</a>)</span>. Mixup is a nice data augmentation technique that
+helps improving model consistency and overall performance.</li>
 </ul>
 <h2 id="final-remarks">Final remarks</h2>
-<p>You can see the full changelog available <a href="https://mlverse.github.io/luz/news/index.html">here</a>.</p>
+<p>You can see the full changelog available
+<a href="https://mlverse.github.io/luz/news/index.html">here</a>.</p>
 <p>In this post we would also like to thank:</p>
 <ul>
-<li><p><a href="https://github.com/jonthegeek">@jonthegeek</a> for valuable improvements in the <code>luz</code> getting-started guides.</p></li>
-<li><p><a href="https://github.com/mattwarkentin">@mattwarkentin</a> for many good ideas, improvements and bug fixes.</p></li>
-<li><p><a href="https://github.com/cmcmaster1">@cmcmaster1</a> for the initial implementation of the learning rate finder and other bug fixes.</p></li>
+<li><p><a href="https://github.com/jonthegeek">@jonthegeek</a> for valuable
+improvements in the <code>luz</code> getting-started guides.</p></li>
+<li><p><a href="https://github.com/mattwarkentin">@mattwarkentin</a> for many good
+ideas, improvements and bug fixes.</p></li>
+<li><p><a href="https://github.com/cmcmaster1">@cmcmaster1</a> for the initial
+implementation of the learning rate finder and other bug fixes.</p></li>
 <li><p><a href="https://github.com/skeydan">@skeydan</a> for the implementation of the Mixup callback and improvements in the learning rate finder.</p></li>
 </ul>
 <p>Thank you!</p>

@@ -152,9 +152,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Purely data-driven medium-range weather forecasting achieves comparable skill to physical models at similar resolution;citation_publication_date=2020;citation_author=Stephan Rasp;citation_author=Nils Thuerey"/>
+  <meta name="citation_reference" content="citation_title=Purely data-driven medium-range weather forecasting achieves comparable skill to physical models at similar resolution;citation_author=Stephan Rasp;citation_author=Nils Thuerey"/>
   <meta name="citation_reference" content="citation_title=Improving data-driven global weather prediction using deep convolutional neural networks on a cubed sphere;citation_volume=n/a;citation_doi=10.1029/2020MS002109;citation_author=Jonathan A. Weyn;citation_author=Dale R. Durran;citation_author=Rich Caruana"/>
-  <meta name="citation_reference" content="citation_title=WeatherBench: A benchmark dataset for data-driven weather forecasting;citation_publication_date=2020;citation_author=Stephan Rasp;citation_author=Peter D. Dueben;citation_author=Sebastian Scher;citation_author=Jonathan A. Weyn;citation_author=Soukayna Mouatadid;citation_author=Nils Thuerey"/>
+  <meta name="citation_reference" content="citation_title=WeatherBench: A benchmark dataset for data-driven weather forecasting;citation_author=Stephan Rasp;citation_author=Peter D. Dueben;citation_author=Sebastian Scher;citation_author=Jonathan A. Weyn;citation_author=Soukayna Mouatadid;citation_author=Nils Thuerey"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -840,6 +840,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1912,15 +1913,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2119,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2197,29 +2204,81 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>With all that is going on in the world these days, is it frivolous to talk about weather prediction? Asked in the 21st century, this is bound to be a rhetorical question. In the 1930s, when German poet Bertolt Brecht wrote the famous lines:</p>
+<p>With all that is going on in the world these days, is it frivolous to talk about weather prediction? Asked in the 21st
+century, this is bound to be a rhetorical question. In the 1930s, when German poet Bertolt Brecht wrote the famous lines:</p>
 <blockquote>
 <p>Was sind das für Zeiten, wo<br />
 Ein Gespräch über Bäume fast ein Verbrechen ist<br />
 Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
 </blockquote>
-<p>(“What kind of times are these, where a conversation about trees is almost a crime, for it means silence about so many atrocities!”),</p>
-<p>he couldn’t have anticipated the responses he would get in the second half of that century, with trees symbolizing, as well as literally falling victim to, environmental pollution and climate change.</p>
-<p>Today, no lengthy justification is needed as to why prediction of atmospheric states is vital: Due to global warming, frequency and intensity of severe weather conditions – droughts, wildfires, hurricanes, heatwaves – have risen and will continue to rise. And while accurate forecasts don’t change those events per se, they constitute essential information in mitigating their consequences. This goes for atmospheric forecasts on all scales: from so-called “nowcasting” (operating on a range of about six hours), over medium-range (three to five days) and sub-seasonal (weekly/monthly), to climate forecasts (concerned with years and decades). Medium-range forecasts especially are extremely important in acute disaster prevention.</p>
-<p>This post will show how deep learning (DL) methods can be used to generate atmospheric forecasts, using a newly published <a href="https://github.com/pangeo-data/WeatherBench">benchmark dataset</a><span class="citation" data-cites="weatherbench">(<a href="#ref-weatherbench" role="doc-biblioref">Rasp et al. 2020</a>)</span>. Future posts may refine the model used here and/or discuss the role of DL (“AI”) in mitigating climate change – and its implications – more globally.</p>
-<p>That said, let’s put the current endeavor in context. In a way, we have here the usual <em>dejà vu</em> of using DL as a black-box-like, magic instrument on a task where <em>human knowledge</em> used to be required. Of course, this characterization is overly dichotomizing; many choices are made in creating DL models, and performance is necessarily constrained by available algorithms – which may, or may not, fit the domain to be modeled to a sufficient degree.</p>
-<p>If you’ve started learning about image recognition rather recently, you may well have been using DL methods from the outset, and not have heard much about the rich set of feature engineering methods developed in pre-DL image recognition. In the context of atmospheric prediction, then, let’s begin by asking: How in the world did they do that <em>before</em>?</p>
+<p>(“What kind of times are these, where a conversation about trees is almost a crime, for it means silence about so many
+atrocities!”),</p>
+<p>he couldn’t have anticipated the responses he would get in the second half of that century, with trees symbolizing, as well as
+literally falling victim to, environmental pollution and climate change.</p>
+<p>Today, no lengthy justification is needed as to why prediction of atmospheric states is vital: Due to global warming,
+frequency and intensity of severe weather conditions – droughts, wildfires, hurricanes, heatwaves – have risen and will
+continue to rise. And while accurate forecasts don’t change those events per se, they constitute essential information in
+mitigating their consequences. This goes for atmospheric forecasts on all scales: from so-called “nowcasting” (operating on a
+range of about six hours), over medium-range (three to five days) and sub-seasonal (weekly/monthly), to climate forecasts
+(concerned with years and decades). Medium-range forecasts especially are extremely important in acute disaster prevention.</p>
+<p>This post will show how deep learning (DL) methods can be used to generate atmospheric forecasts, using a newly published
+<a href="https://github.com/pangeo-data/WeatherBench">benchmark dataset</a><span class="citation" data-cites="weatherbench">(<a href="#ref-weatherbench" role="doc-biblioref">Rasp et al. 2020</a>)</span>. Future posts may refine the model used here
+and/or discuss the role of DL (“AI”) in mitigating climate change – and its implications – more globally.</p>
+<p>That said, let’s put the current endeavor in context. In a way, we have here the usual <em>dejà vu</em> of using DL as a
+black-box-like, magic instrument on a task where <em>human knowledge</em> used to be required. Of course, this characterization is
+overly dichotomizing; many choices are made in creating DL models, and performance is necessarily constrained by available
+algorithms – which may, or may not, fit the domain to be modeled to a sufficient degree.</p>
+<p>If you’ve started learning about image recognition rather recently, you may well have been using DL methods from the outset,
+and not have heard much about the rich set of feature engineering methods developed in pre-DL image recognition. In the
+context of atmospheric prediction, then, let’s begin by asking: How in the world did they do that <em>before</em>?</p>
 <h2 id="numerical-weather-prediction-in-a-nutshell">Numerical weather prediction in a nutshell</h2>
-<p>It is not like machine learning and/or statistics are not already used in numerical weather prediction – on the contrary. For example, every model has to start from somewhere; but raw observations are not suited to direct use as initial conditions. Instead, they have to be assimilated to the four-dimensional <em>grid</em><a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> over which model computations are performed. At the other end, namely, model output, statistical post-processing is used to refine the predictions. And very importantly, ensemble forecasts are employed to determine uncertainty.</p>
-<p>That said, the model <em>core</em>, the part that extrapolates into the future atmospheric conditions observed today, is based on a set of differential<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> equations, the so-called <a href="https://en.wikipedia.org/wiki/Primitive_equations">primitive equations</a>, that are due to the conservation laws of <a href="https://en.wikipedia.org/wiki/Conservation_of_momentum">momentum</a>, <a href="https://en.wikipedia.org/wiki/Conservation_of_energy">energy</a>, and <a href="https://en.wikipedia.org/wiki/Conservation_of_mass">mass</a>. These differential equations cannot be solved analytically; rather, they have to be solved numerically, and that on a grid of resolution as high as possible. In that light, even deep learning could appear as just “moderately resource-intensive” (dependent, though, on the model in question). So how, then, could a DL approach look?</p>
+<p>It is not like machine learning and/or statistics are not already used in numerical weather prediction – on the contrary. For
+example, every model has to start from somewhere; but raw observations are not suited to direct use as initial conditions.
+Instead, they have to be assimilated to the four-dimensional <em>grid</em><a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> over which model computations are performed. At the
+other end, namely, model output, statistical post-processing is used to refine the predictions. And very importantly, ensemble
+forecasts are employed to determine uncertainty.</p>
+<p>That said, the model <em>core</em>, the part that extrapolates into the future atmospheric conditions observed today, is based on a
+set of differential<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> equations, the so-called <a href="https://en.wikipedia.org/wiki/Primitive_equations">primitive equations</a>,
+that are due to the conservation laws of <a href="https://en.wikipedia.org/wiki/Conservation_of_momentum">momentum</a>,
+<a href="https://en.wikipedia.org/wiki/Conservation_of_energy">energy</a>, and
+<a href="https://en.wikipedia.org/wiki/Conservation_of_mass">mass</a>. These differential equations cannot be solved analytically;
+rather, they have to be solved numerically, and that on a grid of resolution as high as possible. In that light, even deep
+learning could appear as just “moderately resource-intensive” (dependent, though, on the model in question). So how, then,
+could a DL approach look?</p>
 <h2 id="deep-learning-models-for-weather-prediction">Deep learning models for weather prediction</h2>
-<p>Accompanying the benchmark dataset they created, Rasp et al.<span class="citation" data-cites="weatherbench">(<a href="#ref-weatherbench" role="doc-biblioref">Rasp et al. 2020</a>)</span> provide a set of notebooks, including one demonstrating the use of a simple convolutional neural network to predict two of the available atmospheric variables, <em>500hPa geopotential</em> and <em>850hPa temperature</em>. Here <em>850hPa temperature</em> is the (spatially varying) temperature at a fix atmospheric height of 850hPa (~ 1.5 kms)<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> ; <em>500hPa geopotential</em> is proportional to the (again, spatially varying) altitude associated with the pressure level in question (500hPa).</p>
-<p>For this task, two-dimensional convnets, as usually employed in image processing, are a natural fit: Image width and height map to longitude and latitude of the spatial grid, respectively; target variables appear as channels. In this architecture, the time series character of the data is essentially lost: Every sample stands alone, without dependency on either past or present. In this respect, as well as given its size and simplicity, the convnet presented below is only a toy model, meant to introduce the approach as well as the application overall. It may also serve as a <em>deep learning baseline</em>, along with two other types of baseline commonly used in numerical weather prediction introduced below.</p>
-<p>Directions on how to improve on that baseline are given by recent publications. Weyn et al.<span class="citation" data-cites="weyn">(<a href="#ref-weyn" role="doc-biblioref">Weyn, Durran, and Caruana, n.d.</a>)</span>, in addition to applying more geometrically-adequate spatial preprocessing, use a U-Net-based architecture instead of a plain convnet. Rasp and Thuerey <span class="citation" data-cites="rasp2020purely">(<a href="#ref-rasp2020purely" role="doc-biblioref">Rasp and Thuerey 2020</a>)</span>, building on a fully convolutional, high-capacity ResNet architecture, add a key new procedural ingredient: pre-training on climate models. With their method, they are able to not just compete with physical models, but also, show evidence of the network learning about physical structure and dependencies. Unfortunately, compute facilities of this order are not available to the average individual, which is why we’ll content ourselves with demonstrating a simple toy model. Still, having seen a simple model in action, as well as the type of data it works on, should help a lot in understanding how DL can be used for weather prediction.</p>
+<p>Accompanying the benchmark dataset they created, Rasp et al.<span class="citation" data-cites="weatherbench">(<a href="#ref-weatherbench" role="doc-biblioref">Rasp et al. 2020</a>)</span> provide a set of notebooks, including one
+demonstrating the use of a simple convolutional neural network to predict two of the available atmospheric variables, <em>500hPa
+geopotential</em> and <em>850hPa temperature</em>. Here <em>850hPa temperature</em> is the (spatially varying) temperature at a fix atmospheric
+height of 850hPa (~ 1.5 kms)<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> ; <em>500hPa geopotential</em> is proportional to the (again, spatially varying) altitude
+associated with the pressure level in question (500hPa).</p>
+<p>For this task, two-dimensional convnets, as usually employed in image processing, are a natural fit: Image width and height
+map to longitude and latitude of the spatial grid, respectively; target variables appear as channels. In this architecture,
+the time series character of the data is essentially lost: Every sample stands alone, without dependency on either past or
+present. In this respect, as well as given its size and simplicity, the convnet presented below is only a toy model, meant to
+introduce the approach as well as the application overall. It may also serve as a <em>deep learning baseline</em>, along with two
+other types of baseline commonly used in numerical weather prediction introduced below.</p>
+<p>Directions on how to improve on that baseline are given by recent publications. Weyn et al.<span class="citation" data-cites="weyn">(<a href="#ref-weyn" role="doc-biblioref">Weyn, Durran, and Caruana, n.d.</a>)</span>, in addition to applying
+more geometrically-adequate spatial preprocessing, use a U-Net-based architecture instead of a plain convnet. Rasp and Thuerey
+<span class="citation" data-cites="rasp2020purely">(<a href="#ref-rasp2020purely" role="doc-biblioref">Rasp and Thuerey 2020</a>)</span>, building on a fully convolutional, high-capacity ResNet architecture, add a key new procedural ingredient:
+pre-training on climate models. With their method, they are able to not just compete with physical models, but also, show
+evidence of the network learning about physical structure and dependencies. Unfortunately, compute facilities of this order
+are not available to the average individual, which is why we’ll content ourselves with demonstrating a simple toy model.
+Still, having seen a simple model in action, as well as the type of data it works on, should help a lot in understanding how
+DL can be used for weather prediction.</p>
 <h2 id="dataset">Dataset</h2>
-<p><a href="https://github.com/pangeo-data/WeatherBench">Weatherbench</a> was explicitly created as a benchmark dataset and thus, as is common for this species, hides a lot of preprocessing and standardization effort from the user. Atmospheric data are available on an hourly basis, ranging from 1979 to 2018, at different spatial resolutions. Depending on resolution, there are about 15 to 20 measured variables, including temperature, geopotential, wind speed, and humidity. Of these variables, some are available at several pressure levels. Thus, our example makes use of a small subset of available “channels.” To save storage, network and computational resources, it also operates at the smallest available resolution.</p>
-<p>This post is accompanied by executable code on <a href="https://colab.research.google.com/drive/1URSjWfcnhgesHWCqd7Un5GHECYblY04r?usp=sharing">Google Colaboratory</a>, which should not just render unnecessary any copy-pasting of code snippets but also, allow for uncomplicated modification and experimentation.</p>
-<p>To read in and extract the data, stored as <a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a> files, we use <a href="https://docs.ropensci.org/tidync/">tidync</a>, a high-level package built on top of <a href="https://cran.r-project.org/package=ncdf4">ncdf4</a> and <a href="https://cran.r-project.org/package=RNetCDF">RNetCDF</a>. Otherwise, availability of the usual “TensorFlow family” as well as a subset of tidyverse packages is assumed.</p>
+<p><a href="https://github.com/pangeo-data/WeatherBench">Weatherbench</a> was explicitly created as a benchmark dataset and thus, as is
+common for this species, hides a lot of preprocessing and standardization effort from the user. Atmospheric data are available
+on an hourly basis, ranging from 1979 to 2018, at different spatial resolutions. Depending on resolution, there are about 15
+to 20 measured variables, including temperature, geopotential, wind speed, and humidity. Of these variables, some are
+available at several pressure levels. Thus, our example makes use of a small subset of available “channels.” To save storage,
+network and computational resources, it also operates at the smallest available resolution.</p>
+<p>This post is accompanied by executable code on <a href="https://colab.research.google.com/drive/1URSjWfcnhgesHWCqd7Un5GHECYblY04r?usp=sharing">Google
+Colaboratory</a>, which should not just
+render unnecessary any copy-pasting of code snippets but also, allow for uncomplicated modification and experimentation.</p>
+<p>To read in and extract the data, stored as <a href="https://www.unidata.ucar.edu/software/netcdf/">NetCDF</a> files, we use
+<a href="https://docs.ropensci.org/tidync/">tidync</a>, a high-level package built on top of
+<a href="https://cran.r-project.org/package=ncdf4">ncdf4</a> and <a href="https://cran.r-project.org/package=RNetCDF">RNetCDF</a>. Otherwise,
+availability of the usual “TensorFlow family” as well as a subset of tidyverse packages is assumed.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://rstudio.github.io/reticulate/'>reticulate</a></span><span class='op'>)</span></span>
@@ -2237,7 +2296,8 @@ Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="
 <span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://docs.ropensci.org/tidync/'>tidync</a></span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>As already alluded to, our example makes use of two spatio-temporal series: 500hPa geopotential and 850hPa temperature. The following commands will download and unpack the respective sets of by-year files, for a spatial resolution of 5.625 degrees:</p>
+<p>As already alluded to, our example makes use of two spatio-temporal series: 500hPa geopotential and 850hPa temperature. The
+following commands will download and unpack the respective sets of by-year files, for a spatial resolution of 5.625 degrees:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span><span class='st'>"https://dataserv.ub.tum.de/s/m1524895/download?path=%2F5.625deg%2Ftemperature_850&amp;files=temperature_850_5.625deg.zip"</span>,</span>
@@ -2249,7 +2309,8 @@ Weil es ein Schweigen über so viele Untaten einschließt!<a href="#fn1" class="
 <span><span class='fu'><a href='https://rdrr.io/r/utils/unzip.html'>unzip</a></span><span class='op'>(</span><span class='st'>"geopotential_500_5.625deg.zip"</span>, exdir <span class='op'>=</span> <span class='st'>"geopotential_500"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Inspecting one of those files’ contents, we see that its data array is structured along three dimensions, longitude (64 different values), latitude (32) and time (8760). The data itself is <code>z</code>, the geopotential.</p>
+<p>Inspecting one of those files’ contents, we see that its data array is structured along three dimensions, longitude (64
+different values), latitude (32) and time (8760). The data itself is <code>z</code>, the geopotential.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
@@ -2269,7 +2330,9 @@ Source: /[...]/geopotential_500/geopotential_500hPa_2015_5.625deg.nc</code></pre
 </div>
 </div>
 <pre><code>[1] 64 32 8760</code></pre>
-<p>While we delegate further introduction to <code>tidync</code> to a comprehensive <a href="https://ropensci.org/blog/2019/11/05/tidync/">blog post</a> on the ROpenSci website, let’s at least look at a quick visualization, for which we pick the very first time point. (Extraction and visualization code is analogous for 850hPa temperature.)</p>
+<p>While we delegate further introduction to <code>tidync</code> to a comprehensive <a href="https://ropensci.org/blog/2019/11/05/tidync/">blog
+post</a> on the ROpenSci website, let’s at least look at a quick visualization, for
+which we pick the very first time point. (Extraction and visualization code is analogous for 850hPa temperature.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/graphics/image.html'>image</a></span><span class='op'>(</span><span class='va'>z500_2015</span><span class='op'>[</span> , , <span class='fl'>1</span><span class='op'>]</span>,</span>
@@ -2280,7 +2343,8 @@ Source: /[...]/geopotential_500/geopotential_500hPa_2015_5.625deg.nc</code></pre
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The maps show how pressure<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> and temperature strongly depend on latitude. Furthermore, it’s easy to spot the <a href="https://en.wikipedia.org/wiki/Atmospheric_wave">atmospheric waves</a>:</p>
+<p>The maps show how pressure<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> and temperature strongly depend on latitude. Furthermore, it’s easy to spot the <a href="https://en.wikipedia.org/wiki/Atmospheric_wave">atmospheric
+waves</a>:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-6"></span>
 <img src="images/viz.png" alt="Spatial distribution of 500hPa geopotential and 850 hPa temperature for 2015/01/01 0:00h." width="726" />
@@ -2305,7 +2369,8 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <span><span class='va'>t850_test</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='fu'>tidync</span><span class='op'>(</span><span class='st'>"temperature_850/temperature_850hPa_2017_5.625deg.nc"</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>hyper_array</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span></span></code></pre>
 </div>
 </div>
-<p>Since geopotential and temperature will be treated as channels, we concatenate the corresponding arrays. To transform the data into the format needed for images, a permutation is necessary:</p>
+<p>Since geopotential and temperature will be treated as channels, we concatenate the corresponding arrays. To transform the data
+into the format needed for images, a permutation is necessary:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>train_all</span> <span class='op'>&lt;-</span> <span class='fu'>abind</span><span class='fu'>::</span><span class='fu'>abind</span><span class='op'>(</span><span class='va'>z500_train</span>, <span class='va'>t850_train</span>, along <span class='op'>=</span> <span class='fl'>4</span><span class='op'>)</span></span>
@@ -2324,7 +2389,9 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 </div>
 </div>
 <pre><code>54124.91  274.8</code></pre>
-<p>In words, the mean geopotential height (see footnote 5 for more on this term), as measured at an isobaric surface of 500hPa, amounts to about 5400 metres<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>, while the mean temperature at the 850hPa level approximates 275 Kelvin (about 2 degrees Celsius).</p>
+<p>In words, the mean geopotential height (see footnote 5 for more on this term), as measured at an isobaric surface of 500hPa,
+amounts to about 5400 metres<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>, while the mean temperature at the 850hPa level approximates 275 Kelvin (about 2 degrees
+Celsius).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>train</span> <span class='op'>&lt;-</span> <span class='va'>train_all</span></span>
@@ -2394,7 +2461,8 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 </div>
 <p>Let’s proceed to defining the model.</p>
 <h2 id="basic-cnn-with-periodic-convolutions">Basic CNN with periodic convolutions</h2>
-<p>The model is a straightforward convnet, with one exception: Instead of plain convolutions, it uses slightly more sophisticated ones that “wrap around” longitudinally.</p>
+<p>The model is a straightforward convnet, with one exception: Instead of plain convolutions, it uses slightly more sophisticated
+ones that “wrap around” longitudinally.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>periodic_padding_2d</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>pad_width</span>,</span>
@@ -2444,7 +2512,8 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>For our purposes of establishing a deep-learning baseline that is fast to train, CNN architecture and parameter defaults are chosen to be simple and moderate, respectively:<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a></p>
+<p>For our purposes of establishing a deep-learning baseline that is fast to train, CNN architecture and parameter defaults are
+chosen to be simple and moderate, respectively:<a href="#fn7" class="footnote-ref" id="fnref7" role="doc-noteref"><sup>7</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>periodic_cnn</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>filters</span> <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>64</span>, <span class='fl'>2</span><span class='op'>)</span>,</span>
@@ -2544,7 +2613,8 @@ Figure 1: Spatial distribution of 500hPa geopotential and 850 hPa temperature fo
 <span><span class='op'>}</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Depicted graphically, we see that the model trains well, but extrapolation does not surpass a certain threshold (which is reached early, after training for just two epochs).</p>
+<p>Depicted graphically, we see that the model trains well, but extrapolation does not surpass a certain threshold (which is
+reached early, after training for just two epochs).</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-16"></span>
 <img src="images/history.png" alt="MSE per epoch on training and validation sets." width="363" />
@@ -2555,7 +2625,9 @@ Figure 2: MSE per epoch on training and validation sets.
 </div>
 <p>This is not too surprising though, given the model’s architectural simplicity and modest size.</p>
 <h2 id="evaluation">Evaluation</h2>
-<p>Here, we first present two other baselines, which – given a highly complex and chaotic system like the atmosphere – may sound irritatingly simple and yet, be pretty hard to beat. The metric used for comparison is <em>latitudinally weighted root-mean-square error</em>. Latitudinal weighting up-weights the lower latitudes and down-weights the upper ones.</p>
+<p>Here, we first present two other baselines, which – given a highly complex and chaotic system like the atmosphere – may
+sound irritatingly simple and yet, be pretty hard to beat. The metric used for comparison is <em>latitudinally weighted
+root-mean-square error</em>. Latitudinal weighting up-weights the lower latitudes and down-weights the upper ones.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>deg2rad</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2579,8 +2651,11 @@ Figure 2: MSE per epoch on training and validation sets.
 </div>
 </div>
 <h4 id="baseline-1-weekly-climatology">Baseline 1: Weekly climatology</h4>
-<p>In general, climatology refers to long-term averages computed over defined time ranges. Here, we first calculate weekly averages based on the training set. These averages are then used to forecast the variables in question for the time period used as test set.</p>
-<p>Step one makes use of <code>tidync</code>, <code>ncmeta</code>, <code>RNetCDF</code> and <code>lubridate</code> to compute weekly averages for 2015, following the <a href="https://en.wikipedia.org/wiki/ISO_week_date">ISO week date system</a>.</p>
+<p>In general, climatology refers to long-term averages computed over defined time ranges. Here, we first calculate weekly
+averages based on the training set. These averages are then used to forecast the variables in question for the time period
+used as test set.</p>
+<p>Step one makes use of <code>tidync</code>, <code>ncmeta</code>, <code>RNetCDF</code> and <code>lubridate</code> to compute weekly averages for 2015, following the <a href="https://en.wikipedia.org/wiki/ISO_week_date">ISO
+week date system</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>train_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2015_5.625deg.nc"</span></span>
@@ -2614,7 +2689,8 @@ Figure 2: MSE per epoch on training and validation sets.
 </div>
 </div>
 <pre><code>53 32 64 2</code></pre>
-<p>Step two then runs through the test set, mapping dates to corresponding ISO weeks and associating the weekly averages from the training set:</p>
+<p>Step two then runs through the test set, mapping dates to corresponding ISO weeks and associating the weekly averages from the
+training set:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>test_file</span> <span class='op'>&lt;-</span> <span class='st'>"geopotential_500/geopotential_500hPa_2017_5.625deg.nc"</span></span>
@@ -2656,8 +2732,10 @@ Figure 2: MSE per epoch on training and validation sets.
 </div>
 <pre><code>974.50   4.09</code></pre>
 <h4 id="baseline-2-persistence-forecast">Baseline 2: Persistence forecast</h4>
-<p>The second baseline commonly used makes a straightforward assumption: Tomorrow’s weather is today’s weather, or, in our case: In three days, things will be just like they are now.</p>
-<p>Computation for this metric is almost a one-liner. And as it turns out, for the given lead time (three days), performance is not too dissimilar from obtained by means of weekly climatology:</p>
+<p>The second baseline commonly used makes a straightforward assumption: Tomorrow’s weather is today’s weather, or, in our case:
+In three days, things will be just like they are now.</p>
+<p>Computation for this metric is almost a one-liner. And as it turns out, for the given lead time (three days), performance is
+not too dissimilar from obtained by means of weekly climatology:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>persistence_forecast</span> <span class='op'>&lt;-</span> <span class='va'>test_all</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>test_all</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>-</span> <span class='va'>lead_time</span><span class='op'>)</span>, , ,<span class='op'>]</span></span>
@@ -2708,7 +2786,8 @@ Figure 2: MSE per epoch on training and validation sets.
 </div>
 </div>
 <pre><code>3821.016</code></pre>
-<p>Thus, average loss on the test set parallels that seen on the validation set. As to latitudinally weighted RMSE, it turns out to be higher for the DL baseline than for the other two:</p>
+<p>Thus, average loss on the test set parallels that seen on the validation set. As to latitudinally weighted RMSE, it turns out
+to be higher for the DL baseline than for the other two:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/base/apply.html'>apply</a></span><span class='op'>(</span><span class='va'>test_wrmses</span>, <span class='fl'>2</span>, <span class='va'>mean</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>round</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span></span></code></pre>
@@ -2717,10 +2796,18 @@ Figure 2: MSE per epoch on training and validation sets.
 <pre><code>      z    temp 
 1521.47    7.70 </code></pre>
 <h2 id="conclusion">Conclusion</h2>
-<p>At first glance, seeing the DL baseline perform worse than the others might feel anticlimactic. But if you think about it, there is no need to be disappointed.</p>
-<p>For one, given the enormous complexity of the task, these heuristics are not as easy to outsmart. Take persistence: Depending on lead time - how far into the future we’re forecasting - the wisest guess may actually be that everything will stay the same. What would you guess the weather will look like in five minutes? — Same with weekly climatology: Looking back at how warm it was, at a given location, that same week two years ago, does not in general sound like a bad strategy.</p>
-<p>Second, the DL baseline shown is as basic as it can get, architecture- as well as parameter-wise. More sophisticated and powerful architectures have been developed that not just by far surpass the baselines, but can even compete with physical models (cf. especially Rasp and Thuerey <span class="citation" data-cites="rasp2020purely">(<a href="#ref-rasp2020purely" role="doc-biblioref">Rasp and Thuerey 2020</a>)</span> already mentioned above). Unfortunately, models like that need to be trained on <em>a lot</em> of data.</p>
-<p>However, other weather-related applications (other than medium-range forecasting, that is) may be more in reach for individuals interested in the topic. For those, we hope we have given a useful introduction. Thanks for reading!</p>
+<p>At first glance, seeing the DL baseline perform worse than the others might feel anticlimactic. But if you think about it,
+there is no need to be disappointed.</p>
+<p>For one, given the enormous complexity of the task, these heuristics are not as easy to outsmart. Take persistence: Depending
+on lead time - how far into the future we’re forecasting - the wisest guess may actually be that everything will stay the
+same. What would you guess the weather will look like in five minutes? — Same with weekly climatology: Looking back at how
+warm it was, at a given location, that same week two years ago, does not in general sound like a bad strategy.</p>
+<p>Second, the DL baseline shown is as basic as it can get, architecture- as well as parameter-wise. More sophisticated and
+powerful architectures have been developed that not just by far surpass the baselines, but can even compete with physical
+models (cf. especially Rasp and Thuerey <span class="citation" data-cites="rasp2020purely">(<a href="#ref-rasp2020purely" role="doc-biblioref">Rasp and Thuerey 2020</a>)</span> already mentioned above). Unfortunately, models like that need to be
+trained on <em>a lot</em> of data.</p>
+<p>However, other weather-related applications (other than medium-range forecasting, that is) may be more in reach for
+individuals interested in the topic. For those, we hope we have given a useful introduction. Thanks for reading!</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
 <div id="ref-weatherbench" class="csl-entry" role="doc-biblioentry">
@@ -2739,10 +2826,21 @@ Weyn, Jonathan A., Dale R. Durran, and Rich Caruana. n.d. <span>“Improving Dat
 <li id="fn1" role="doc-endnote"><p><em>An die Nachgeborenen, 1934-38.</em> The atrocities referred to are those of Nazi Germany.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2" role="doc-endnote"><p>Four, because in addition to three spatial dimensions, there is the time dimension.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn3" role="doc-endnote"><p>mostly<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn4" role="doc-endnote"><p>Pressure and altitude are related by the <a href="https://en.wikipedia.org/wiki/Barometric_formula">barometric equation</a>. On weather maps, pressure is often used to represent the vertical dimension.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn5" role="doc-endnote"><p>Whereas we normally might think of atmospheric pressure as varying at a fixed height (for example, at sea level), meteorologists like to display things the other way round, displaying variable heights at fixed constant-pressure (isobaric) surfaces. Still, intuitively these may be read in the same way: High pressure at a given location means that some predefined pressure level is attained at <em>higher altitude</em> than in some low-pressure location. To be precise, these kinds of “inverted pressure maps” normally display <em>geopotential height</em>, measured in metres, not <em>geopotential</em>, the variable we’re dealing with here. <em>Geopotential</em> (without the “height”) refers to gravitational potential energy per unit mass; it is obtained by multiplying by gravitational acceleration, and is measured in metres squared per second squared. The measures are not a hundred percent equivalent, because gravitational acceleration varies with latitude and longitude as well as elevation.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn6" role="doc-endnote"><p>As explained in the previous footnote, geopotential height is geopotential divided by standard gravitational acceleration, roughly, 9.8 metres per seconds squared.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn7" role="doc-endnote"><p>These are the same filter and kernel sizes as employed in <a href="https://github.com/pangeo-data/WeatherBench/blob/master/notebooks/3-cnn-example.ipynb">Rasp et al.'s simple CNN example on github</a>.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4" role="doc-endnote"><p>Pressure and altitude are related by the <a href="https://en.wikipedia.org/wiki/Barometric_formula">barometric equation</a>. On
+weather maps, pressure is often used to represent the vertical dimension.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5" role="doc-endnote"><p>Whereas we normally might think of atmospheric pressure as varying at a fixed height (for example, at sea level),
+meteorologists like to display things the other way round, displaying variable heights at fixed constant-pressure
+(isobaric) surfaces. Still, intuitively these may be read in the same way: High pressure at a given location means that
+some predefined pressure level is attained at <em>higher altitude</em> than in some low-pressure location. To be precise, these
+kinds of “inverted pressure maps” normally display <em>geopotential height</em>, measured in metres, not <em>geopotential</em>, the
+variable we’re dealing with here. <em>Geopotential</em> (without the “height”) refers to gravitational potential energy per unit
+mass; it is obtained by multiplying by gravitational acceleration, and is measured in metres squared per second squared.
+The measures are not a hundred percent equivalent, because gravitational acceleration varies with latitude and longitude
+as well as elevation.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6" role="doc-endnote"><p>As explained in the previous footnote, geopotential height is geopotential divided by standard gravitational
+acceleration, roughly, 9.8 metres per seconds squared.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn7" role="doc-endnote"><p>These are the same filter and kernel sizes as employed in <a href="https://github.com/pangeo-data/WeatherBench/blob/master/notebooks/3-cnn-example.ipynb">Rasp et al.'s simple CNN example on
+github</a>.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section>
 <!--radix_placeholder_article_footer-->

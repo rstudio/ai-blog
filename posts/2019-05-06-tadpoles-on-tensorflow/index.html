@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2171,7 +2178,8 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>Before we jump into the technicalities: This post is, of course, dedicated to McElreath who wrote one of most intriguing books on Bayesian (or should we just say - scientific?) modeling we’re aware of. If you haven’t read <a href="https://www.amazon.com/Statistical-Rethinking-Bayesian-Examples-Chapman/dp/1482253445">Statistical Rethinking</a>, and are interested in modeling, you might definitely want to check it out. In this post, we’re not going to try to re-tell the story: Our clear focus will, instead, be a demonstration of how to do MCMC with <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
-<p>Concretely, this post has two parts. The first is a quick overview of how to use <a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_sequential_distribution</a> to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part can be consulted for quick code look-up, or as a frugal template of the whole process. The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.</p>
+<p>Concretely, this post has two parts. The first is a quick overview of how to use <a href="https://rstudio.github.io/tfprobability/reference/tfd_joint_distribution_sequential.html">tfd_joint_sequential_distribution</a> to construct a model, and then sample from it using Hamiltonian Monte Carlo. This part can be consulted for quick code look-up, or as a frugal template of the whole process.
+The second part then walks through a multi-level model in more detail, showing how to extract, post-process and visualize sampling as well as diagnostic outputs.</p>
 <h2 id="reedfrogs">Reedfrogs</h2>
 <p>The data comes with the <code>rethinking</code> package.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2189,9 +2197,11 @@ gtag('config', 'UA-20375833-3');
  $ size    : Factor w/ 2 levels &quot;big&quot;,&quot;small&quot;: 1 1 1 1 2 2 2 2 1 1 ...
  $ surv    : int  9 10 7 10 9 9 10 9 4 9 ...
  $ propsurv: num  0.9 1 0.7 1 0.9 0.9 1 0.9 0.4 0.9 ...</code></pre>
-<p>The task is modeling survivor counts among tadpoles, where tadpoles are held in tanks of different sizes (equivalently, different numbers of inhabitants). Each row in the dataset describes one tank, with its initial count of inhabitants (<code>density</code>) and number of survivors (<code>surv</code>). In the technical overview part, we build a simple unpooled model that describes every tank in isolation. Then, in the detailed walk-through, we’ll see how to construct a <em>varying intercepts</em> model that allows for information sharing between tanks.</p>
+<p>The task is modeling survivor counts among tadpoles, where tadpoles are held in tanks of different sizes (equivalently, different numbers of inhabitants). Each row in the dataset describes one tank, with its initial count of inhabitants (<code>density</code>) and number of survivors (<code>surv</code>).
+In the technical overview part, we build a simple unpooled model that describes every tank in isolation. Then, in the detailed walk-through, we’ll see how to construct a <em>varying intercepts</em> model that allows for information sharing between tanks.</p>
 <h2 id="constructing-models-with-tfd_joint_distribution_sequential">Constructing models with <code>tfd_joint_distribution_sequential</code></h2>
-<p><code>tfd_joint_distribution_sequential</code> represents a model as a list of conditional distributions. This is easiest to see on a real example, so we’ll jump right in, creating an unpooled model of the tadpole data.</p>
+<p><code>tfd_joint_distribution_sequential</code> represents a model as a list of conditional distributions.
+This is easiest to see on a real example, so we’ll jump right in, creating an unpooled model of the tadpole data.</p>
 <p>This is the how the model specification would look in <em>Stan</em>:</p>
 <pre><code>model{
     vector[48] p;
@@ -2232,7 +2242,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The model consists of two distributions: Prior means and variances for the 48 tadpole tanks are specified by <code>tfd_multivariate_normal_diag</code>; then <code>tfd_binomial</code> generates survival counts for each tank. Note how the first distribution is unconditional, while the second depends on the first. Note too how the second has to be wrapped in <code>tfd_independent</code> to avoid wrong broadcasting. (This is an aspect of <code>tfd_joint_distribution_sequential</code> usage that deserves to be documented more systematically, which is surely going to happen.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> Just think that this functionality was added to TFP <code>master</code> only three weeks ago!)</p>
+<p>The model consists of two distributions: Prior means and variances for the 48 tadpole tanks are specified by <code>tfd_multivariate_normal_diag</code>; then <code>tfd_binomial</code> generates survival counts for each tank.
+Note how the first distribution is unconditional, while the second depends on the first. Note too how the second has to be wrapped in <code>tfd_independent</code> to avoid wrong broadcasting. (This is an aspect of <code>tfd_joint_distribution_sequential</code> usage that deserves to be documented more systematically, which is surely going to happen.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> Just think that this functionality was added to TFP <code>master</code> only three weeks ago!)</p>
 <p>As an aside, the model specification here ends up shorter than in <em>Stan</em> as <code>tfd_binomial</code> optionally takes logits as parameters.</p>
 <p>As with every TFP distribution, you can do a quick functionality check by sampling from the model:<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2348,7 +2359,8 @@ shape=(500, 4, 48), dtype=float32)</code></pre>
 </div>
 <p>After this quick outline, let’s move on to the topic promised in the title: multi-level modeling, or partial pooling. This time, we’ll also take a closer look at sampling results and diagnostic outputs.</p>
 <h2 id="multi-level-tadpoles">Multi-level tadpoles <a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></h2>
-<p>The multi-level model – or <em>varying intercepts model</em>, in this case: we’ll get to <em>varying slopes</em> in a later post – adds a <em>hyperprior</em> to the model. Instead of deciding on a mean and variance of the normal prior the logits are drawn from, we let the model learn means and variances for individual tanks. These per-tank means, while being priors for the binomial logits, are assumed to be normally distributed, and are themselves regularized by a normal prior for the mean and an exponential prior for the variance.</p>
+<p>The multi-level model – or <em>varying intercepts model</em>, in this case: we’ll get to <em>varying slopes</em> in a later post – adds a <em>hyperprior</em> to the model. Instead of deciding on a mean and variance of the normal prior the logits are drawn from, we let the model learn means and variances for individual tanks.
+These per-tank means, while being priors for the binomial logits, are assumed to be normally distributed, and are themselves regularized by a normal prior for the mean and an exponential prior for the variance.</p>
 <p>For the Stan-savvy, here is the Stan formulation of this model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>model{</span>
@@ -2615,7 +2627,8 @@ shape=(500, 4, 48), dtype=float32)</code></pre>
 <div class="layout-chunk" data-layout="l-body-outset">
 <p><img src="images/posteriors.png" width="400" /></p>
 </div>
-<p>Now let’s see the corresponding posterior means and highest posterior density intervals. (The below code includes the hyperpriors in <code>summary</code> as we’ll want to display a complete <em>precis</em>-like output soon.)</p>
+<p>Now let’s see the corresponding posterior means and highest posterior density intervals.
+(The below code includes the hyperpriors in <code>summary</code> as we’ll want to display a complete <em>precis</em>-like output soon.)</p>
 <h3 id="posterior-means-and-hpdis">Posterior means and HPDIs</h3>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2666,7 +2679,8 @@ shape=(500, 4, 48), dtype=float32)</code></pre>
 <div class="layout-chunk" data-layout="l-page">
 <p><img src="images/forest_plot.png" width="400" /></p>
 </div>
-<p>Now for an equivalent to <em>precis</em>. We already computed means, standard deviations and the HPDI interval. Let’s add <em>n_eff</em>, the effective number of samples, and <em>rhat</em>, the Gelman-Rubin statistic.</p>
+<p>Now for an equivalent to <em>precis</em>. We already computed means, standard deviations and the HPDI interval.
+Let’s add <em>n_eff</em>, the effective number of samples, and <em>rhat</em>, the Gelman-Rubin statistic.</p>
 <h3 id="comprehensive-summary-a.k.a.-precis">Comprehensive summary (a.k.a. “precis”)</h3>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2741,7 +2755,9 @@ shape=(500, 4, 48), dtype=float32)</code></pre>
 </div>
 <p>We see results similar in spirit to McElreath’s: estimates are shrunken to the mean (the cyan-colored line). Also, shrinkage seems to be more active in smaller tanks, which are the lower-numbered ones on the left of the plot.</p>
 <h2 id="outlook">Outlook</h2>
-<p>In this post, we saw how to construct a <em>varying intercepts</em> model with <code>tfprobability</code>, as well as how to extract sampling results and relevant diagnostics. In an upcoming post, we’ll move on to <em>varying slopes</em>. With non-negligible probability, our example will build on one of Mc Elreath’s again… Thanks for reading!</p>
+<p>In this post, we saw how to construct a <em>varying intercepts</em> model with <code>tfprobability</code>, as well as how to extract sampling results and relevant diagnostics. In an upcoming post, we’ll move on to <em>varying slopes</em>.
+With non-negligible probability, our example will build on one of Mc Elreath’s again…
+Thanks for reading!</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />

@@ -152,10 +152,10 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Show, attend and tell: Neural image caption generation with visual attention;citation_publication_date=2015;citation_volume=abs/1502.03044;citation_author=Kelvin Xu;citation_author=Jimmy Ba;citation_author=Ryan Kiros;citation_author=Kyunghyun Cho;citation_author=Aaron C. Courville;citation_author=Ruslan Salakhutdinov;citation_author=Richard S. Zemel;citation_author=Yoshua Bengio"/>
-  <meta name="citation_reference" content="citation_title=Bottom-up and top-down attention for image captioning and VQA;citation_publication_date=2017;citation_volume=abs/1707.07998;citation_author=Peter Anderson;citation_author=Xiaodong He;citation_author=Chris Buehler;citation_author=Damien Teney;citation_author=Mark Johnson;citation_author=Stephen Gould;citation_author=Lei Zhang"/>
-  <meta name="citation_reference" content="citation_title=A multimodal attentive translator for image captioning;citation_publication_date=2017;citation_volume=abs/1702.05658;citation_author=Chang Liu;citation_author=Fuchun Sun;citation_author=Changhu Wang;citation_author=Feng Wang;citation_author=Alan L. Yuille"/>
-  <meta name="citation_reference" content="citation_title=A topic-guided attention for image captioning;citation_publication_date=2018;citation_volume=abs/1807.03514v1;citation_author=Zhihao Zhu;citation_author=Zhan Xue;citation_author=Zejian Yuan"/>
+  <meta name="citation_reference" content="citation_title=Show, attend and tell: Neural image caption generation with visual attention;citation_volume=abs/1502.03044;citation_author=Kelvin Xu;citation_author=Jimmy Ba;citation_author=Ryan Kiros;citation_author=Kyunghyun Cho;citation_author=Aaron C. Courville;citation_author=Ruslan Salakhutdinov;citation_author=Richard S. Zemel;citation_author=Yoshua Bengio"/>
+  <meta name="citation_reference" content="citation_title=Bottom-up and top-down attention for image captioning and VQA;citation_volume=abs/1707.07998;citation_author=Peter Anderson;citation_author=Xiaodong He;citation_author=Chris Buehler;citation_author=Damien Teney;citation_author=Mark Johnson;citation_author=Stephen Gould;citation_author=Lei Zhang"/>
+  <meta name="citation_reference" content="citation_title=A multimodal attentive translator for image captioning;citation_volume=abs/1702.05658;citation_author=Chang Liu;citation_author=Fuchun Sun;citation_author=Changhu Wang;citation_author=Feng Wang;citation_author=Alan L. Yuille"/>
+  <meta name="citation_reference" content="citation_title=A topic-guided attention for image captioning;citation_volume=abs/1807.03514v1;citation_author=Zhihao Zhu;citation_author=Zhan Xue;citation_author=Zejian Yuan"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -841,6 +841,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1913,15 +1914,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2120,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2201,7 +2208,8 @@ gtag('config', 'UA-20375833-3');
 <p>In this post, we demonstrate a formulation of image captioning as an encoder-decoder problem, enhanced by spatial attention over image grid cells. The idea comes from a recent paper on <em>Neural Image Caption Generation with Visual Attention</em> <span class="citation" data-cites="XuBKCCSZB15">(<a href="#ref-XuBKCCSZB15" role="doc-biblioref">Xu et al. 2015</a>)</span>, and employs the same kind of attention algorithm as detailed in our post on <a href="https://blogs.rstudio.com/tensorflow/posts/2018-07-30-attention-layer/">machine translation</a>.</p>
 <p>We’re porting Python code from a recent <a href="https://colab.research.google.com/github/tensorflow/tensorflow/blob/master/tensorflow/contrib/eager/python/examples/generative_examples/image_captioning_with_attention.ipynb?linkId=54343050&amp;pli=1#scrollTo=io7ws3ReRPGv">Google Colaboratory notebook</a>, using Keras with TensorFlow eager execution to simplify our lives.</p>
 <h2 id="prerequisites">Prerequisites</h2>
-<p>The code shown here will work with the current CRAN versions of <code>tensorflow</code>, <code>keras</code>, and <code>tfdatasets</code>. Check that you’re using at least version 1.9 of TensorFlow. If that isn’t the case, as of this writing, this</p>
+<p>The code shown here will work with the current CRAN versions of <code>tensorflow</code>, <code>keras</code>, and <code>tfdatasets</code>.
+Check that you’re using at least version 1.9 of TensorFlow. If that isn’t the case, as of this writing, this</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tensorflow'>tensorflow</a></span><span class='op'>)</span></span>
@@ -2209,7 +2217,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>will get you version 1.10.</p>
-<p>When loading libraries, please make sure you’re executing the first 4 lines in this exact order. We need to make sure we’re using the TensorFlow implementation of Keras (<code>tf.keras</code> in Python land), and we have to enable eager execution before using TensorFlow in any way.</p>
+<p>When loading libraries, please make sure you’re executing the first 4 lines in this exact order.
+We need to make sure we’re using the TensorFlow implementation of Keras (<code>tf.keras</code> in Python land), and we have to enable eager execution before using TensorFlow in any way.</p>
 <p>No need to copy-paste any code snippets - you’ll find the complete code (in order necessary for execution) here: <a href="https://github.com/rstudio/keras/blob/master/vignettes/examples/eager-image-captioning.R">eager-image-captioning.R</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2232,7 +2241,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="the-dataset">The dataset</h2>
-<p><a href="http://cocodataset.org">MS-COCO</a> (“Common Objects in Context”) is one of, perhaps <em>the</em>, reference dataset in image captioning (object detection and segmentation, too). We’ll be using the <a href="http://images.cocodataset.org/zips/train2014.zip">training images</a> and <a href="http://images.cocodataset.org/annotations/annotations_trainval2014.zip">annotations</a> from 2014 - be warned, depending on your location, the download can take a <em>long</em> time.</p>
+<p><a href="http://cocodataset.org">MS-COCO</a> (“Common Objects in Context”) is one of, perhaps <em>the</em>, reference dataset in image captioning (object detection and segmentation, too).
+We’ll be using the <a href="http://images.cocodataset.org/zips/train2014.zip">training images</a> and <a href="http://images.cocodataset.org/annotations/annotations_trainval2014.zip">annotations</a> from 2014 - be warned, depending on your location, the download can take a <em>long</em> time.</p>
 <p>After unpacking, let’s define where the images and captions are.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2271,7 +2281,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Depending on your computing environment, you will for sure want to restrict the number of examples used. This post will use 30000 captioned images, chosen randomly, and set aside 20% for validation.</p>
+<p>Depending on your computing environment, you will for sure want to restrict the number of examples used.
+This post will use 30000 captioned images, chosen randomly, and set aside 20% for validation.</p>
 <p>Below, we take random samples, split into training and validation parts. The companion code will also store the indices on disk, so you can pick up on verification and analysis later.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2290,7 +2301,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="interlude">Interlude</h2>
-<p>Before really diving into the technical stuff, let’s take a moment to reflect on this task. In typical image-related deep learning walk-throughs, we’re used to seeing well-defined problems - even if in some cases, the solution may be hard. Take, for example, the stereotypical <em>dog vs. cat</em> problem. Some dogs may look like cats and some cats may look like dogs, but that’s about it: All in all, in the usual world we live in, it should be a more or less binary question.</p>
+<p>Before really diving into the technical stuff, let’s take a moment to reflect on this task.
+In typical image-related deep learning walk-throughs, we’re used to seeing well-defined problems - even if in some cases, the solution may be hard. Take, for example, the stereotypical <em>dog vs. cat</em> problem. Some dogs may look like cats and some cats may look like dogs, but that’s about it: All in all, in the usual world we live in, it should be a more or less binary question.</p>
 <p>If, on the other hand, we ask people to describe what they see in a scene, it’s to be expected from the outset that we’ll get different answers. Still, how much consensus there is will very much depend on the concrete dataset we’re using.</p>
 <p>Let’s take a look at some picks from the very first 20 training items sampled randomly above.</p>
 <figure>
@@ -2301,13 +2313,15 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/COCO_train2014_000000118167.jpg" class="external" style="width:50.0%" alt="Figure from MS-COCO 2014" /><figcaption aria-hidden="true">Figure from MS-COCO 2014</figcaption>
 </figure>
-<p>What would be salient information to you here? The caption provided goes “A smiling little boy has a checkered shirt.” Is the look of the shirt as important as that? You might as well focus on the scenery, - or even something on a completely different level: The age of the photo, or it being an analog one.</p>
+<p>What would be salient information to you here? The caption provided goes “A smiling little boy has a checkered shirt.”
+Is the look of the shirt as important as that? You might as well focus on the scenery, - or even something on a completely different level: The age of the photo, or it being an analog one.</p>
 <p>Let’s take a final example.</p>
 <figure>
 <img src="images/COCO_train2014_000000089158.jpg" class="external" style="width:70.0%" alt="From MS-COCO 2014" /><figcaption aria-hidden="true">From MS-COCO 2014</figcaption>
 </figure>
 <p>What would you say about this scene? The official label we sampled here is “A group of people posing in a funny way for the camera.” Well …</p>
-<p>Please don’t forget that for each image, the dataset includes five different captions (although our n = 30000 samples probably won’t). So this is not saying the dataset is biased - not at all. Instead, we want to point out the ambiguities and difficulties inherent in the task. Actually, given those difficulties, it’s all the more amazing that the task we’re tackling here - having a network automatically generate image captions - should be possible at all!</p>
+<p>Please don’t forget that for each image, the dataset includes five different captions (although our n = 30000 samples probably won’t).
+So this is not saying the dataset is biased - not at all. Instead, we want to point out the ambiguities and difficulties inherent in the task. Actually, given those difficulties, it’s all the more amazing that the task we’re tackling here - having a network automatically generate image captions - should be possible at all!</p>
 <p>Now let’s see how we can do this.</p>
 <h2 id="extract-image-features">Extract image features</h2>
 <p>For the encoding part of our encoder-decoder network, we will make use of <em>InceptionV3</em> to extract image features. In principle, which features to extract is up to experimentation, - here we just use the last layer before the fully connected top:</p>
@@ -2320,7 +2334,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>For an image size of 299x299, the output will be of size <code>(batch_size, 8, 8, 2048)</code>, that is, we are making use of 2048 feature maps.</p>
-<p><em>InceptionV3</em> being a “big model,” where every pass through the model takes time, we want to precompute features in advance and store them on disk. We’ll use <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a> to stream images to the model. This means all our preprocessing has to employ tensorflow functions: That’s why we’re not using the more familiar <code>image_load</code> from keras below.</p>
+<p><em>InceptionV3</em> being a “big model,” where every pass through the model takes time, we want to precompute features in advance and store them on disk.
+We’ll use <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/introduction.html">tfdatasets</a> to stream images to the model. This means all our preprocessing has to employ tensorflow functions: That’s why we’re not using the more familiar <code>image_load</code> from keras below.</p>
 <p>Our custom <code>load_image</code> will read in, resize and preprocess the images as required for use with <em>InceptionV3</em>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2514,7 +2529,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="attention-module">Attention module</h3>
-<p>Unlike in the machine translation post, here the attention module is separated out into its own custom model. The logic is the same though:</p>
+<p>Unlike in the machine translation post, here the attention module is separated out into its own custom model.
+The logic is the same though:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>attention_module</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>gru_units</span>, <span class='va'>name</span> <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2614,7 +2630,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <h3 id="loss-function-and-instantiating-it-all">Loss function, and instantiating it all</h3>
 <p>Now that we’ve defined our model (built of three custom models), we still need to actually instantiate it (being precise: the two classes we will access from outside, that is, the encoder and the decoder).</p>
-<p>We also need to instantiate an optimizer (Adam will do), and define our loss function (categorical crossentropy). Note that <code>tf$nn$sparse_softmax_cross_entropy_with_logits</code> expects raw logits instead of softmax activations, and that we’re using the <em>sparse</em> variant because our labels are not one-hot-encoded.</p>
+<p>We also need to instantiate an optimizer (Adam will do), and define our loss function (categorical crossentropy).
+Note that <code>tf$nn$sparse_softmax_cross_entropy_with_logits</code> expects raw logits instead of softmax activations, and that we’re using the <em>sparse</em> variant because our labels are not one-hot-encoded.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>encoder</span> <span class='op'>&lt;-</span> <span class='fu'>cnn_encoder</span><span class='op'>(</span><span class='va'>embedding_dim</span><span class='op'>)</span></span>
@@ -2633,7 +2650,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="training">Training</h2>
-<p>Training the captioning model is a time-consuming process, and you will for sure want to save the model’s weights! How does this work with eager execution?</p>
+<p>Training the captioning model is a time-consuming process, and you will for sure want to save the model’s weights!
+How does this work with eager execution?</p>
 <p>We create a <code>tf$train$Checkpoint</code> object, passing it the objects to be saved: In our case, the encoder, the decoder, and the optimizer. Later, at the end of each epoch, we will ask it to write the respective weights to disk.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2656,7 +2674,9 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>The training loop is structured just like in the machine translation case: We loop over epochs, batches, and the training targets, feeding in the correct previous word at every timestep. Again, <code>tf$GradientTape</code> takes care of recording the forward pass and calculating the gradients, and the optimizer applies the gradients to the model’s weights. As each epoch ends, we also save the weights.</p>
+<p>The training loop is structured just like in the machine translation case: We loop over epochs, batches, and the training targets, feeding in the correct previous word at every timestep.
+Again, <code>tf$GradientTape</code> takes care of recording the forward pass and calculating the gradients, and the optimizer applies the gradients to the model’s weights.
+As each epoch ends, we also save the weights.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>20</span></span>
@@ -2846,7 +2866,8 @@ gtag('config', 'UA-20375833-3');
 <p>a female tennis player is in the court</p>
 </blockquote>
 <p>I think we might agree that this still leaves room for improvement - but then, we only trained for 20 epochs and on a very small portion of the dataset.</p>
-<p>In the above code snippets, you may have noticed the decoder returning an <code>attention_matrix</code> - but we weren’t commenting on it. Now finally, just as in the translation example, have a look what we can make of that.</p>
+<p>In the above code snippets, you may have noticed the decoder returning an <code>attention_matrix</code> - but we weren’t commenting on it.
+Now finally, just as in the translation example, have a look what we can make of that.</p>
 <h2 id="where-does-the-network-look">Where does the network look?</h2>
 <p>We can visualize where the network is “looking” as it generates each word by overlaying the original image and the attention matrix. This example is taken from the 4th epoch.</p>
 <p>Here white-ish squares indicate areas receiving stronger focus. Compared to text-to-text translation though, the mapping is inherently less straightforward - where does one “look” when producing words like “and,” “the,” or “in?”</p>

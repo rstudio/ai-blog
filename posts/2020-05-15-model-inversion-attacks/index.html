@@ -152,11 +152,11 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Human-level concept learning through probabilistic program induction;citation_publication_date=2015;citation_publisher=American Association for the Advancement of Science;citation_volume=350;citation_doi=10.1126/science.aab3050;citation_issn=0036-8075;citation_author=Brenden M. Lake;citation_author=Ruslan Salakhutdinov;citation_author=Joshua B. Tenenbaum"/>
-  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_publication_date=2016;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
-  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publication_date=2006;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
-  <meta name="citation_reference" content="citation_title=A methodology for formalizing model-inversion attacks;citation_publication_date=2016;citation_volume=;citation_author=X. Wu;citation_author=M. Fredrikson;citation_author=S. Jha;citation_author=J. F. Naughton"/>
-  <meta name="citation_reference" content="citation_title=Privacy in pharmacogenetics: An end-to-end case study of personalized warfarin dosing;citation_publication_date=2014;citation_publisher=USENIX Association;citation_author=Matthew Fredrikson;citation_author=Eric Lantz;citation_author=Somesh Jha;citation_author=Simon Lin;citation_author=David Page;citation_author=Thomas Ristenpart"/>
+  <meta name="citation_reference" content="citation_title=Human-level concept learning through probabilistic program induction;citation_publisher=American Association for the Advancement of Science;citation_volume=350;citation_doi=10.1126/science.aab3050;citation_issn=0036-8075;citation_author=Brenden M. Lake;citation_author=Ruslan Salakhutdinov;citation_author=Joshua B. Tenenbaum"/>
+  <meta name="citation_reference" content="citation_title=Federated learning of deep networks using model averaging;citation_volume=abs/1602.05629;citation_author=H. Brendan McMahan;citation_author=Eider Moore;citation_author=Daniel Ramage;citation_author=Blaise Agüera Arcas"/>
+  <meta name="citation_reference" content="citation_title=Calibrating noise to sensitivity in private data analysis;citation_publisher=Springer-Verlag;citation_doi=10.1007/11681878_14;citation_author=Cynthia Dwork;citation_author=Frank McSherry;citation_author=Kobbi Nissim;citation_author=Adam Smith"/>
+  <meta name="citation_reference" content="citation_title=A methodology for formalizing model-inversion attacks;citation_volume=;citation_author=X. Wu;citation_author=M. Fredrikson;citation_author=S. Jha;citation_author=J. F. Naughton"/>
+  <meta name="citation_reference" content="citation_title=Privacy in pharmacogenetics: An end-to-end case study of personalized warfarin dosing;citation_publisher=USENIX Association;citation_author=Matthew Fredrikson;citation_author=Eric Lantz;citation_author=Somesh Jha;citation_author=Simon Lin;citation_author=David Page;citation_author=Thomas Ristenpart"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -842,6 +842,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1914,15 +1915,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2121,7 +2128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2198,16 +2205,46 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>How private are individual data in the context of machine learning models? The data used to train the model, say. There are types of models where the answer is simple. Take k-nearest-neighbors, for example. There <em>is not</em> even a model without the complete dataset. Or support vector machines. There is no model without the support vectors. But neural networks? They’re just some composition of functions, – no data included.</p>
-<p>The same is true for data fed to a deployed deep-learning model. It’s pretty unlikely one could invert the final softmax output from a big ResNet and get back the raw input data.</p>
-<p>In theory, then, “hacking” a standard neural net to spy on input data sounds illusory. In practice, however, there is always some real-world <em>context</em>. The context may be other datasets, publicly available, that can be linked to the “private” data in question. This is a popular showcase used in advocating for differential privacy<span class="citation" data-cites="Dwork2006">(<a href="#ref-Dwork2006" role="doc-biblioref">Dwork et al. 2006</a>)</span>: Take an “anonymized” dataset, dig up complementary information from public sources, and de-anonymize records ad libitum. Some context in that sense will often be used in “black-box” attacks, ones that presuppose no insider information about the model to be hacked.</p>
-<p>But context can also be structural, such as in the scenario demonstrated in this post. For example, assume a distributed model, where sets of layers run on different devices – embedded devices or mobile phones, for example. (A scenario like that is sometimes seen as “white-box”<span class="citation" data-cites="7536387">(<a href="#ref-7536387" role="doc-biblioref">Wu et al. 2016</a>)</span>, but in common understanding, white-box attacks probably presuppose some more insider knowledge, such as access to model architecture or even, weights. I’d therefore prefer calling this white-ish at most.) — Now assume that in this context, it is possible to intercept, and interact with, a system that executes the deeper layers of the model. Based on that system’s intermediate-level output, it is possible to perform <em>model inversion</em><span class="citation" data-cites="Fred">(<a href="#ref-Fred" role="doc-biblioref">Fredrikson et al. 2014</a>)</span>, that is, to reconstruct the input data fed into the system.</p>
-<p>In this post, we’ll demonstrate such a model inversion attack, basically porting the approach given in a <a href="https://github.com/OpenMined/PySyft/blob/master/examples/tutorials/advanced/privacy_attacks/Tutorial%201%20-%20Black%20box%20model%20inversion.ipynb%20Sy">notebook</a> found in the <a href="https://github.com/OpenMined/PySyft">PySyft</a> repository. We then experiment with different levels of <span class="math inline">\(\epsilon\)</span>-privacy, exploring impact on reconstruction success. This second part will make use of TensorFlow Privacy, introduced in a <a href="https://blogs.rstudio.com/ai/posts/2019-12-20-differential-privacy/">previous blog post</a>.</p>
+<p>How private are individual data in the context of machine learning models? The data used to train the model, say. There are
+types of models where the answer is simple. Take k-nearest-neighbors, for example. There <em>is not</em> even a model without the
+complete dataset. Or support vector machines. There is no model without the support vectors. But neural networks? They’re just
+some composition of functions, – no data included.</p>
+<p>The same is true for data fed to a deployed deep-learning model. It’s pretty unlikely one could invert the final softmax
+output from a big ResNet and get back the raw input data.</p>
+<p>In theory, then, “hacking” a standard neural net to spy on input data sounds illusory. In practice, however, there is always
+some real-world <em>context</em>. The context may be other datasets, publicly available, that can be linked to the “private” data in
+question. This is a popular showcase used in advocating for differential privacy<span class="citation" data-cites="Dwork2006">(<a href="#ref-Dwork2006" role="doc-biblioref">Dwork et al. 2006</a>)</span>: Take an “anonymized” dataset,
+dig up complementary information from public sources, and de-anonymize records ad libitum. Some context in that sense will
+often be used in “black-box” attacks, ones that presuppose no insider information about the model to be hacked.</p>
+<p>But context can also be structural, such as in the scenario demonstrated in this post. For example, assume a distributed
+model, where sets of layers run on different devices – embedded devices or mobile phones, for example. (A scenario like that
+is sometimes seen as “white-box”<span class="citation" data-cites="7536387">(<a href="#ref-7536387" role="doc-biblioref">Wu et al. 2016</a>)</span>, but in common understanding, white-box attacks probably presuppose some more
+insider knowledge, such as access to model architecture or even, weights. I’d therefore prefer calling this white-ish at
+most.) — Now assume that in this context, it is possible to intercept, and interact with, a system that executes the deeper
+layers of the model. Based on that system’s intermediate-level output, it is possible to perform <em>model inversion</em><span class="citation" data-cites="Fred">(<a href="#ref-Fred" role="doc-biblioref">Fredrikson et al. 2014</a>)</span>,
+that is, to reconstruct the input data fed into the system.</p>
+<p>In this post, we’ll demonstrate such a model inversion attack, basically porting the approach given in a
+<a href="https://github.com/OpenMined/PySyft/blob/master/examples/tutorials/advanced/privacy_attacks/Tutorial%201%20-%20Black%20box%20model%20inversion.ipynb%20Sy">notebook</a>
+found in the <a href="https://github.com/OpenMined/PySyft">PySyft</a> repository. We then experiment with different levels of
+<span class="math inline">\(\epsilon\)</span>-privacy, exploring impact on reconstruction success. This second part will make use of TensorFlow Privacy,
+introduced in a <a href="https://blogs.rstudio.com/ai/posts/2019-12-20-differential-privacy/">previous blog post</a>.</p>
 <h2 id="part-1-model-inversion-in-action">Part 1: Model inversion in action</h2>
 <h3 id="example-dataset-all-the-worlds-letters1">Example dataset: All the world’s letters<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></h3>
-<p>The overall process of model inversion used here is the following. With no, or scarcely any, insider knowledge about a model, – but given opportunities to repeatedly query it –, I want to learn how to reconstruct unknown inputs based on just model outputs . Independently of original model training, this, too, is a training process; however, in general it will not involve the original data, as those won’t be publicly available. Still, for best success, the attacker model is trained with data as similar as possible to the original training data assumed. Thinking of images, for example, and presupposing the popular view of successive layers representing successively coarse-grained features, we want that the surrogate data to share as many representation spaces with the real data as possible – up to the very highest layers before final classification, ideally.</p>
-<p>If we wanted to use classical MNIST as an example, one thing we could do is to only use some of the digits for training the “real” model; and the rest, for training the adversary. Let’s try something different though, something that might make the undertaking harder as well as easier at the same time. Harder, because the dataset features exemplars more complex than MNIST digits; easier because of the same reason: More could possibly be learned, by the adversary, from a complex task.</p>
-<p>Originally designed to develop a machine model of concept learning and generalization <span class="citation" data-cites="Lake1332">(<a href="#ref-Lake1332" role="doc-biblioref">Lake, Salakhutdinov, and Tenenbaum 2015</a>)</span>, the <a href="https://github.com/brendenlake/omniglot/">OmniGlot</a> dataset incorporates characters from fifty alphabets, split into two disjoint groups of thirty and twenty alphabets each. We’ll use the group of twenty to train our target model. Here is a sample:</p>
+<p>The overall process of model inversion used here is the following. With no, or scarcely any, insider knowledge about a model,
+– but given opportunities to repeatedly query it –, I want to learn how to reconstruct unknown inputs based on just model
+outputs . Independently of original model training, this, too, is a training process; however, in general it will not involve
+the original data, as those won’t be publicly available. Still, for best success, the attacker model is trained with data as
+similar as possible to the original training data assumed. Thinking of images, for example, and presupposing the popular view
+of successive layers representing successively coarse-grained features, we want that the surrogate data to share as many
+representation spaces with the real data as possible – up to the very highest layers before final classification, ideally.</p>
+<p>If we wanted to use classical MNIST as an example, one thing we could do is to only use some of the digits for training the
+“real” model; and the rest, for training the adversary. Let’s try something different though, something that might make the
+undertaking harder as well as easier at the same time. Harder, because the dataset features exemplars more complex than MNIST
+digits; easier because of the same reason: More could possibly be learned, by the adversary, from a complex task.</p>
+<p>Originally designed to develop a machine model of concept learning and generalization <span class="citation" data-cites="Lake1332">(<a href="#ref-Lake1332" role="doc-biblioref">Lake, Salakhutdinov, and Tenenbaum 2015</a>)</span>, the
+<a href="https://github.com/brendenlake/omniglot/">OmniGlot</a> dataset incorporates characters from fifty alphabets, split into two
+disjoint groups of thirty and twenty alphabets each. We’ll use the group of twenty to train our target model. Here is a
+sample:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-1"></span>
 <img src="images/training_set_images.png" alt="Sample from the twenty-alphabet set used to train the target model (originally: 'evaluation set')" width="398" />
@@ -2216,7 +2253,8 @@ Figure 1: Sample from the twenty-alphabet set used to train the target model (or
 </p>
 </div>
 </div>
-<p>The group of thirty we don’t use; instead, we’ll employ two small five-alphabet collections to train the adversary and to test reconstruction, respectively. (These small subsets of the original “big” thirty-alphabet set are again disjoint.)</p>
+<p>The group of thirty we don’t use; instead, we’ll employ two small five-alphabet collections to train the adversary and to test
+reconstruction, respectively. (These small subsets of the original “big” thirty-alphabet set are again disjoint.)</p>
 <p>Here first is a sample from the set used to train the adversary.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-2"></span>
@@ -2261,7 +2299,10 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 </div>
 <p>Now first, we train the target model.</p>
 <h3 id="train-target-model">Train target model</h3>
-<p>The dataset originally has four columns: the image, of size 105 x 105; an alphabet id and a within-dataset character id; and a label. For our use case, we’re not really interested in the task the target model was/is used for; we just want to get at the data. Basically, whatever task we choose, it is not much more than a dummy task. So, let’s just say we train the target to classify characters <em>by alphabet</em>.</p>
+<p>The dataset originally has four columns: the image, of size 105 x 105; an alphabet id and a within-dataset character id; and a
+label. For our use case, we’re not really interested in the task the target model was/is used for; we just want to get at the
+data. Basically, whatever task we choose, it is not much more than a dummy task. So, let’s just say we train the target to
+classify characters <em>by alphabet</em>.</p>
 <p>We thus throw out all unneeded features, keeping just the alphabet id and the image itself:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2291,9 +2332,16 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <span>  <span class='fu'>dataset_batch</span><span class='op'>(</span><span class='fl'>32</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The model consists of two parts. The first is imagined to run in a distributed fashion; for example, on mobile devices (stage one). These devices then send model outputs to a central server, where final results are computed (stage two). Sure, you will be thinking, this is a convenient setup for our scenario: If we intercept stage one results, we – most probably – gain access to richer information than what is contained in a model’s final output layer. — That is correct, but the scenario is less contrived than one might assume. Just like federated learning <span class="citation" data-cites="McMahanMRA16">(<a href="#ref-McMahanMRA16" role="doc-biblioref">McMahan et al. 2016</a>)</span>, it fulfills important desiderata: Actual training data never leaves the devices, thus staying (in theory!) private; at the same time, ingoing traffic to the server is significantly reduced.</p>
+<p>The model consists of two parts. The first is imagined to run in a distributed fashion; for example, on mobile devices (stage
+one). These devices then send model outputs to a central server, where final results are computed (stage two). Sure, you will
+be thinking, this is a convenient setup for our scenario: If we intercept stage one results, we – most probably – gain
+access to richer information than what is contained in a model’s final output layer. — That is correct, but the scenario is
+less contrived than one might assume. Just like federated learning <span class="citation" data-cites="McMahanMRA16">(<a href="#ref-McMahanMRA16" role="doc-biblioref">McMahan et al. 2016</a>)</span>, it fulfills important desiderata: Actual
+training data never leaves the devices, thus staying (in theory!) private; at the same time, ingoing traffic to the server is
+significantly reduced.</p>
 <p>In our example setup, the on-device model is a convnet, while the server model is a simple feedforward network.</p>
-<p>We link both together as a <em>TargetModel</em> that when called normally, will run both steps in succession. However, we’ll be able to call <code>target_model$mobile_step()</code> separately, thereby intercepting intermediate results.</p>
+<p>We link both together as a <em>TargetModel</em> that when called normally, will run both steps in succession. However, we’ll be able
+to call <code>target_model$mobile_step()</code> separately, thereby intercepting intermediate results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>on_device_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
@@ -2344,7 +2392,9 @@ Figure 3: Sample from the five-alphabet set used to test the adversary after tra
 <span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>target_model</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The overall model is a Keras custom model, so we train it <a href="https://tensorflow.rstudio.com/tutorials/advanced/">TensorFlow 2.x - style</a>. After ten epochs, training and validation accuracy are at ~0.84 and ~0.73, respectively – not bad at all for a 20-class discrimination task.</p>
+<p>The overall model is a Keras custom model, so we train it <a href="https://tensorflow.rstudio.com/tutorials/advanced/">TensorFlow 2.x -
+style</a>. After ten epochs, training and validation accuracy are at ~0.84
+and ~0.73, respectively – not bad at all for a 20-class discrimination task.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>loss</span> <span class='op'>&lt;-</span> <span class='va'>loss_sparse_categorical_crossentropy</span></span>
@@ -2415,11 +2465,17 @@ Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
 <h3 id="train-adversary">Train adversary</h3>
 <p>The adversary’s general strategy will be:</p>
 <ul>
-<li><strong>Feed its small, surrogate dataset to the on-device model.</strong> The output received can be regarded as a (highly) <em>compressed</em> version of the original images.</li>
-<li>P<strong>ass that “compressed” version as input to its own model,</strong> which tries to reconstruct the original images from the sparse code.</li>
-<li><strong>Compare original images (those from the surrogate dataset) to the reconstruction pixel-wise.</strong> The goal is to minimize the mean (squared, say) error.</li>
+<li><strong>Feed its small, surrogate dataset to the on-device model.</strong> The output received can be regarded as a (highly)
+<em>compressed</em> version of the original images.</li>
+<li>P<strong>ass that “compressed” version as input to its own model,</strong> which tries to reconstruct the original images from the
+sparse code.</li>
+<li><strong>Compare original images (those from the surrogate dataset) to the reconstruction pixel-wise.</strong> The goal is to minimize
+the mean (squared, say) error.</li>
 </ul>
-<p>Doesn’t this sound a lot like the decoding side of an autoencoder? No wonder the attacker model is a deconvolutional network. Its input – equivalently, the on-device model’s output – is of size <code>batch_size x 1 x 1 x 32</code>. That is, the information is encoded in 32 channels, but the spatial resolution is 1. Just like in an autoencoder operating on images, we need to <em>upsample</em> until we arrive at the original resolution of 105 x 105.</p>
+<p>Doesn’t this sound a lot like the decoding side of an autoencoder? No wonder the attacker model is a deconvolutional network.
+Its input – equivalently, the on-device model’s output – is of size <code>batch_size x 1 x 1 x 32</code>. That is, the information is
+encoded in 32 channels, but the spatial resolution is 1. Just like in an autoencoder operating on images, we need to
+<em>upsample</em> until we arrive at the original resolution of 105 x 105.</p>
 <p>This is exactly what’s happening in the attacker model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2459,7 +2515,8 @@ Train accuracy 0.840454519     Validation Accuracy 0.726605475</code></pre>
 <span><span class='va'>attacker</span> <span class='op'>=</span> <span class='fu'>attack_model</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To train the adversary, we use one of the small (five-alphabet) subsets. To reiterate what was said above, there is no overlap with the data used to train the target model.</p>
+<p>To train the adversary, we use one of the small (five-alphabet) subsets. To reiterate what was said above, there is no overlap
+with the data used to train the target model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>attacker_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_spy</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
@@ -2523,7 +2580,8 @@ Epoch:  100  -----------
   mse:  0.0413028933</code></pre>
 <p>The question now is, – does it work? Has the attacker really learned to infer actual data from (stage one) model output?</p>
 <h3 id="test-adversary">Test adversary</h3>
-<p>To test the adversary, we use the third dataset we downloaded, containing images from five yet-unseen alphabets. For display, we select just the first sixteen records – a completely arbitrary decision, of course.</p>
+<p>To test the adversary, we use the third dataset we downloaded, containing images from five yet-unseen alphabets. For display,
+we select just the first sixteen records – a completely arbitrary decision, of course.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>test_ds</span> <span class='op'>&lt;-</span> <span class='va'>omni_test</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
@@ -2547,7 +2605,10 @@ Epoch:  100  -----------
 <span>  <span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/imap.html'>iwalk</a></span><span class='op'>(</span><span class='op'>~</span><span class='op'>{</span><span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>.x</span><span class='op'>)</span><span class='op'>}</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Just like during the training process, the adversary queries the target model (stage one), obtains the compressed representation, and attempts to reconstruct the original image. (Of course, in the real world, the setup would be different in that the attacker would <em>not</em> be able to simply inspect the images, as is the case here. There would thus have to be some way to intercept, and make sense of, network traffic.)</p>
+<p>Just like during the training process, the adversary queries the target model (stage one), obtains the compressed
+representation, and attempts to reconstruct the original image. (Of course, in the real world, the setup would be different in
+that the attacker would <em>not</em> be able to simply inspect the images, as is the case here. There would thus have to be some way
+to intercept, and make sense of, network traffic.)</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>attack_input</span> <span class='op'>&lt;-</span> <span class='va'>model</span><span class='op'>$</span><span class='fu'>mobile_step</span><span class='op'>(</span><span class='va'>images</span><span class='op'>)</span></span>
@@ -2561,7 +2622,8 @@ Epoch:  100  -----------
 <span>  <span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/imap.html'>iwalk</a></span><span class='op'>(</span><span class='op'>~</span><span class='op'>{</span><span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>.x</span><span class='op'>)</span><span class='op'>}</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To allow for easier comparison (and increase suspense …!), here again are the actual images, which we displayed already when introducing the dataset:</p>
+<p>To allow for easier comparison (and increase suspense …!), here again are the actual images, which we displayed already when
+introducing the dataset:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-13"></span>
 <img src="images/actual_test_images.png" alt="First images from the test set, the way they really look." width="386" />
@@ -2579,14 +2641,28 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 </p>
 </div>
 </div>
-<p>Of course, it is hard to say how revealing these “guesses” are. There definitely seems to be a connection to character complexity; overall, it seems like the Greek and Roman letters, which are the least complex, are also the ones most easily reconstructed. Still, in the end, how much privacy is lost will very much depend on contextual factors.</p>
-<p>First and foremost, do the exemplars in the dataset represent <em>individuals</em> or <em>classes</em> of individuals? If – as in reality – the character <code>X</code> represents a class, it might not be so grave if we were able to reconstruct “some X” here: There are many <code>X</code>s in the dataset, all pretty similar to each other; we’re unlikely to exactly to have reconstructed one special, individual <code>X</code>. If, however, this was a dataset of individual people, with all <code>X</code>s being photographs of Alex, then in reconstructing an <code>X</code> we have effectively reconstructed Alex.</p>
-<p>Second, in less obvious scenarios, evaluating the degree of privacy breach will likely surpass computation of quantitative metrics, and involve the judgment of domain experts.</p>
-<p>Speaking of quantitative metrics though – our example seems like a perfect use case to experiment with <em>differential privacy.</em> Differential privacy is measured by <span class="math inline">\(\epsilon\)</span> (lower is better), the main idea being that answers to queries to a system should depend as little as possible on the presence or absence of a single (<em>any</em> single) datapoint.</p>
-<p>So, we will repeat the above experiment, using TensorFlow Privacy (TFP) to add noise, as well as clip gradients, during optimization of the target model. We’ll try three different conditions, resulting in three different values for <span class="math inline">\(\epsilon\)</span>s, and for each condition, inspect the images reconstructed by the adversary.</p>
+<p>Of course, it is hard to say how revealing these “guesses” are. There definitely seems to be a connection to character
+complexity; overall, it seems like the Greek and Roman letters, which are the least complex, are also the ones most easily
+reconstructed. Still, in the end, how much privacy is lost will very much depend on contextual factors.</p>
+<p>First and foremost, do the exemplars in the dataset represent <em>individuals</em> or <em>classes</em> of individuals? If – as in reality
+– the character <code>X</code> represents a class, it might not be so grave if we were able to reconstruct “some X” here: There are many
+<code>X</code>s in the dataset, all pretty similar to each other; we’re unlikely to exactly to have reconstructed one special, individual
+<code>X</code>. If, however, this was a dataset of individual people, with all <code>X</code>s being photographs of Alex, then in reconstructing an
+<code>X</code> we have effectively reconstructed Alex.</p>
+<p>Second, in less obvious scenarios, evaluating the degree of privacy breach will likely surpass computation of quantitative
+metrics, and involve the judgment of domain experts.</p>
+<p>Speaking of quantitative metrics though – our example seems like a perfect use case to experiment with <em>differential
+privacy.</em> Differential privacy is measured by <span class="math inline">\(\epsilon\)</span> (lower is better), the main idea being that answers to queries to a
+system should depend as little as possible on the presence or absence of a single (<em>any</em> single) datapoint.</p>
+<p>So, we will repeat the above experiment, using TensorFlow Privacy (TFP) to add noise, as well as clip gradients, during
+optimization of the target model. We’ll try three different conditions, resulting in three different values for <span class="math inline">\(\epsilon\)</span>s,
+and for each condition, inspect the images reconstructed by the adversary.</p>
 <h2 id="part-2-differential-privacy-to-the-rescue">Part 2: Differential privacy to the rescue</h2>
-<p>Unfortunately, the setup for this part of the experiment requires a little workaround. Making use of the flexibility afforded by TensorFlow 2.x, our target model has been a custom model, joining two distinct stages (“mobile” and “server”) that could be called independently.</p>
-<p>TFP, however, does still not work with TensorFlow 2.x, meaning we have to use old-style, non-eager model definitions and training. Luckily, the workaround will be easy.</p>
+<p>Unfortunately, the setup for this part of the experiment requires a little workaround. Making use of the flexibility afforded
+by TensorFlow 2.x, our target model has been a custom model, joining two distinct stages (“mobile” and “server”) that could be
+called independently.</p>
+<p>TFP, however, does still not work with TensorFlow 2.x, meaning we have to use old-style, non-eager model definitions and
+training. Luckily, the workaround will be easy.</p>
 <p>First, load (and possibly, install) libraries, taking care to disable TensorFlow V2 behavior.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2624,7 +2700,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 </div>
 </div>
 <h3 id="train-target-model-with-tensorflow-privacy">Train target model – with TensorFlow Privacy</h3>
-<p>To train the target, we put the layers from both stages – “mobile” and “server” – into one sequential model. Note how we remove the dropout. This is because noise will be added during optimization anyway.</p>
+<p>To train the target, we put the layers from both stages – “mobile” and “server” – into one sequential model. Note how we
+remove the dropout. This is because noise will be added during optimization anyway.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>complete_model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model_sequential</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
@@ -2652,7 +2729,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <span>  <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>50</span>, activation <span class='op'>=</span> <span class='st'>"softmax"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Using TFP mainly means using a TFP optimizer, one that clips gradients according to some defined magnitude and adds noise of defined size. <code>noise_multiplier</code> is the parameter we are going to vary to arrive at different <span class="math inline">\(\epsilon\)</span>s:</p>
+<p>Using TFP mainly means using a TFP optimizer, one that clips gradients according to some defined magnitude and adds noise of
+defined size. <code>noise_multiplier</code> is the parameter we are going to vary to arrive at different <span class="math inline">\(\epsilon\)</span>s:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>l2_norm_clip</span> <span class='op'>&lt;-</span> <span class='fl'>1</span></span>
@@ -2675,7 +2753,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>In training the model, the second important change for TFP we need to make is to have loss and gradients computed on the individual level.</p>
+<p>In training the model, the second important change for TFP we need to make is to have loss and gradients computed on the
+individual level.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># need to add noise to every individual contribution</span></span>
@@ -2694,7 +2773,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <span>  epochs <span class='op'>=</span> <span class='va'>num_epochs</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To test three different <span class="math inline">\(\epsilon\)</span>s, we run this thrice, each time with a different <code>noise_multiplier</code>. Each time we arrive at a different final accuracy.</p>
+<p>To test three different <span class="math inline">\(\epsilon\)</span>s, we run this thrice, each time with a different <code>noise_multiplier</code>. Each time we arrive at
+a different final accuracy.</p>
 <p>Here is a synopsis, where <span class="math inline">\(\epsilon\)</span> was computed like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2738,7 +2818,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 </tr>
 </tbody>
 </table>
-<p>Now, as the adversary won’t call the complete model, we need to “cut off” the second-stage layers. This leaves us with a model that executes stage-one logic only. We save its weights, so we can later call it from the adversary:</p>
+<p>Now, as the adversary won’t call the complete model, we need to “cut off” the second-stage layers. This leaves us with a model
+that executes stage-one logic only. We save its weights, so we can later call it from the adversary:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>intercepted</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span></span>
@@ -2750,7 +2831,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 </div>
 </div>
 <h3 id="train-adversary-against-differentially-private-target">Train adversary (against differentially private target)</h3>
-<p>In training the adversary, we can keep most of the original code – meaning, we’re back to TF-2 style. Even the definition of the target model is the same as before:</p>
+<p>In training the adversary, we can keep most of the original code – meaning, we’re back to TF-2 style. Even the definition of
+the target model is the same as before:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>on_device_model <span class="ot">&lt;-</span> <span class="fu">keras_model_sequential</span>() <span class="sc">%&gt;%</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  [...]</span>
@@ -2787,7 +2869,8 @@ Figure 5: First images from the test set, as reconstructed by the adversary.
 <p>And now, we’re back to the old training routine. Testing setup is the same as before, as well.</p>
 <p>So how well does the adversary perform with differential privacy added to the picture?</p>
 <h3 id="test-adversary-against-differentially-private-target">Test adversary (against differentially private target)</h3>
-<p>Here, ordered by decreasing <span class="math inline">\(\epsilon\)</span>, are the reconstructions. Again, we refrain from judging the results, for the same reasons as before: In real-world applications, whether privacy is preserved “well enough” will depend on the context.</p>
+<p>Here, ordered by decreasing <span class="math inline">\(\epsilon\)</span>, are the reconstructions. Again, we refrain from judging the results, for the same
+reasons as before: In real-world applications, whether privacy is preserved “well enough” will depend on the context.</p>
 <p>Here, first, are reconstructions from the run where the least noise was added.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-24"></span>
@@ -2816,9 +2899,14 @@ Figure 8: Reconstruction attempts from a setup where the target model was traine
 </div>
 </div>
 <h2 id="conclusion">Conclusion</h2>
-<p>Throughout this post, we’ve refrained from “over-commenting” on results, and focused on the why-and-how instead. This is because in an artificial setup, chosen to facilitate exposition of concepts and methods, there really is no objective frame of reference. What is a good reconstruction? What is a good <span class="math inline">\(\epsilon\)</span>? What constitutes a data breach? No-one knows.</p>
-<p>In the real world, there is a context to everything – there are people involved, the people whose data we’re talking about. There are organizations, regulations, laws. There are abstract principles, and there are implementations; different implementations of the same “idea” can differ.</p>
-<p>As in machine learning overall, research papers on privacy-, ethics- or otherwise society-related topics are full of LaTeX formulae. Amid the math, let’s not forget the people.</p>
+<p>Throughout this post, we’ve refrained from “over-commenting” on results, and focused on the why-and-how instead. This is
+because in an artificial setup, chosen to facilitate exposition of concepts and methods, there really is no objective frame of
+reference. What is a good reconstruction? What is a good <span class="math inline">\(\epsilon\)</span>? What constitutes a data breach? No-one knows.</p>
+<p>In the real world, there is a context to everything – there are people involved, the people whose data we’re talking about.
+There are organizations, regulations, laws. There are abstract principles, and there are implementations; different
+implementations of the same “idea” can differ.</p>
+<p>As in machine learning overall, research papers on privacy-, ethics- or otherwise society-related topics are full of LaTeX
+formulae. Amid the math, let’s not forget the people.</p>
 <p>Thanks for reading!</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">

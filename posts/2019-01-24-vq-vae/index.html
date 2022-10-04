@@ -152,8 +152,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Neural discrete representation learning;citation_publication_date=2017;citation_volume=abs/1711.00937;citation_author=Aaron Oord;citation_author=Oriol Vinyals;citation_author=Koray Kavukcuoglu"/>
-  <meta name="citation_reference" content="citation_title=Deep learning for classical japanese literature;citation_publication_date=2018;citation_author=Tarin Clanuwat;citation_author=Mikel Bober-Irizar;citation_author=Asanobu Kitamoto;citation_author=Alex Lamb;citation_author=Kazuaki Yamamoto;citation_author=David Ha"/>
+  <meta name="citation_reference" content="citation_title=Neural discrete representation learning;citation_volume=abs/1711.00937;citation_author=Aaron Oord;citation_author=Oriol Vinyals;citation_author=Koray Kavukcuoglu"/>
+  <meta name="citation_reference" content="citation_title=Deep learning for classical japanese literature;citation_author=Tarin Clanuwat;citation_author=Mikel Bober-Irizar;citation_author=Asanobu Kitamoto;citation_author=Alex Lamb;citation_author=Kazuaki Yamamoto;citation_author=David Ha"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -839,6 +839,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1911,15 +1912,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2118,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2197,11 +2204,14 @@ gtag('config', 'UA-20375833-3');
 <div class="d-article">
 <p>About two weeks ago, we <a href="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/">introduced TensorFlow Probability (TFP)</a>, showing how to create and sample from <em>distributions</em> and put them to use in a Variational Autoencoder (VAE) that learns its prior. Today, we move on to a different specimen in the VAE model zoo: the Vector Quantised Variational Autoencoder (VQ-VAE) described in <em>Neural Discrete Representation Learning</em> <span class="citation" data-cites="abs-1711-00937">(<a href="#ref-abs-1711-00937" role="doc-biblioref">Oord, Vinyals, and Kavukcuoglu 2017</a>)</span>. This model differs from most VAEs in that its approximate posterior is not continuous, but discrete - hence the “quantised” in the article’s title. We’ll quickly look at what this means, and then dive directly into the code, combining Keras layers, eager execution, and TFP.</p>
 <h1 id="discrete-codes">Discrete codes</h1>
-<p>Many phenomena are best thought of, and modeled, as discrete. This holds for phonemes and lexemes in language, higher-level structures in images (think objects instead of pixels),and tasks that necessitate reasoning and planning. The latent code used in most VAEs, however, is continuous - usually it’s a multivariate Gaussian. Continuous-space VAEs have been found very successful in reconstructing their input, but often they suffer from something called <em>posterior collapse</em>: The decoder is so powerful that it may create realistic output given just <em>any</em> input. This means there is no incentive to learn an expressive latent space.</p>
-<p>In VQ-VAE, however, each input sample gets mapped deterministically to one of a set of <em>embedding vectors</em>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Together, these embedding vectors constitute the prior for the latent space. As such, an embedding vector contains a lot more information than a mean and a variance, and thus, is much harder to ignore by the decoder.</p>
+<p>Many phenomena are best thought of, and modeled, as discrete. This holds for phonemes and lexemes in language, higher-level structures in images (think objects instead of pixels),and tasks that necessitate reasoning and planning.
+The latent code used in most VAEs, however, is continuous - usually it’s a multivariate Gaussian. Continuous-space VAEs have been found very successful in reconstructing their input, but often they suffer from something called <em>posterior collapse</em>: The decoder is so powerful that it may create realistic output given just <em>any</em> input. This means there is no incentive to learn an expressive latent space.</p>
+<p>In VQ-VAE, however, each input sample gets mapped deterministically to one of a set of <em>embedding vectors</em>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Together, these embedding vectors constitute the prior for the latent space.
+As such, an embedding vector contains a lot more information than a mean and a variance, and thus, is much harder to ignore by the decoder.</p>
 <p>The question then is: Where is that magical hat, for us to pull out meaningful embeddings?</p>
 <h1 id="learning-a-discrete-embedding-space">Learning a discrete embedding space</h1>
-<p>From the above conceptual description, we now have two questions to answer. First, by what mechanism do we assign input samples (that went through the encoder) to appropriate embedding vectors? And second: How can we learn embedding vectors that actually are useful representations - that when fed to a decoder, will result in entities perceived as belonging to the same species?</p>
+<p>From the above conceptual description, we now have two questions to answer. First, by what mechanism do we assign input samples (that went through the encoder) to appropriate embedding vectors?
+And second: How can we learn embedding vectors that actually are useful representations - that when fed to a decoder, will result in entities perceived as belonging to the same species?</p>
 <p>As regards assignment, a tensor emitted from the encoder is simply mapped to its nearest neighbor in embedding space, using Euclidean distance. The embedding vectors are then updated using exponential moving averages.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> As we’ll see soon, this means that they are actually not being learned using gradient descent - a feature worth pointing out as we don’t come across it every day in deep learning.</p>
 <p>Concretely, how then should the loss function and training process look? This will probably easiest be seen in code.</p>
 <h1 id="coding-the-vq-vae">Coding the VQ-VAE</h1>
@@ -2226,7 +2236,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/thomasp85/curry'>curry</a></span><span class='op'>)</span> </span></code></pre>
 </div>
 </div>
-<p>As in our previous post on doing VAE with TFP, we’ll use <a href="https://github.com/rois-codh/kmnist">Kuzushiji-MNIST</a><span class="citation" data-cites="clanuwat2018deep">(<a href="#ref-clanuwat2018deep" role="doc-biblioref">Clanuwat et al. 2018</a>)</span> as input. Now is the time to look at <a href="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/images/results.png">what we ended up generating that time</a> and place your bet: How will that compare against the discrete latent space of VQ-VAE?</p>
+<p>As in our previous post on doing VAE with TFP, we’ll use <a href="https://github.com/rois-codh/kmnist">Kuzushiji-MNIST</a><span class="citation" data-cites="clanuwat2018deep">(<a href="#ref-clanuwat2018deep" role="doc-biblioref">Clanuwat et al. 2018</a>)</span> as input.
+Now is the time to look at <a href="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/images/results.png">what we ended up generating that time</a> and place your bet: How will that compare against the discrete latent space of VQ-VAE?</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>np</span> <span class='op'>&lt;-</span> <span class='fu'>import</span><span class='op'>(</span><span class='st'>"numpy"</span><span class='op'>)</span></span>
@@ -2378,7 +2389,9 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>In addition to the actual embeddings, in its <code>call</code> method <code>vector_quantizer</code> holds the assignment logic. First, we compute the Euclidean distance of each encoding to the vectors in the codebook (<code>tf$norm</code>). We assign each encoding to the closest as by that distance embedding (<code>tf$argmin</code>) and one-hot-encode the assignments (<code>tf$one_hot</code>). Finally, we isolate the corresponding vector by masking out all others and summing up what’s left over (multiplication followed by <code>tf$reduce_sum</code>).</p>
+<p>In addition to the actual embeddings, in its <code>call</code> method <code>vector_quantizer</code> holds the assignment logic.
+First, we compute the Euclidean distance of each encoding to the vectors in the codebook (<code>tf$norm</code>).
+We assign each encoding to the closest as by that distance embedding (<code>tf$argmin</code>) and one-hot-encode the assignments (<code>tf$one_hot</code>). Finally, we isolate the corresponding vector by masking out all others and summing up what’s left over (multiplication followed by <code>tf$reduce_sum</code>).</p>
 <p>Regarding the <code>axis</code> argument used with many TensorFlow functions, please take into consideration that in contrast to their <code>k_*</code> siblings, raw TensorFlow (<code>tf$*</code>) functions expect axis numbering to be 0-based. We also have to add the <code>L</code>’s after the numbers to conform to TensorFlow’s datatype requirements.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2417,7 +2430,8 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Now that we’ve seen how the codes are stored, let’s add functionality for updating them. As we said above, they are not learned via gradient descent. Instead, they are exponential moving averages, continually updated by whatever new “class member” they get assigned.</p>
+<p>Now that we’ve seen how the codes are stored, let’s add functionality for updating them.
+As we said above, they are not learned via gradient descent. Instead, they are exponential moving averages, continually updated by whatever new “class member” they get assigned.</p>
 <p>So here is a function <code>update_ema</code> that will take care of this.</p>
 <p><code>update_ema</code> uses TensorFlow <a href="https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage">moving_averages</a> to</p>
 <ul>
@@ -2537,7 +2551,8 @@ gtag('config', 'UA-20375833-3');
 <span>                         output_shape <span class='op'>=</span> <span class='va'>input_shape</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now we’re ready to train. One thing we haven’t really talked about yet is the cost function: Given the differences in architecture (compared to standard VAEs), will the losses still look as expected (the usual add-up of reconstruction loss and KL divergence)? We’ll see that in a second.</p>
+<p>Now we’re ready to train. One thing we haven’t really talked about yet is the cost function: Given the differences in architecture (compared to standard VAEs), will the losses still look as expected (the usual add-up of reconstruction loss and KL divergence)?
+We’ll see that in a second.</p>
 <h2 id="training-loop">Training loop</h2>
 <p>Here’s the optimizer we’ll use. Losses will be calculated inline.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2545,8 +2560,11 @@ gtag('config', 'UA-20375833-3');
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>optimizer</span> <span class='op'>&lt;-</span> <span class='va'>tf</span><span class='op'>$</span><span class='va'>train</span><span class='op'>$</span><span class='fu'>AdamOptimizer</span><span class='op'>(</span>learning_rate <span class='op'>=</span> <span class='va'>learning_rate</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The training loop, as usual, is a loop over epochs, where each iteration is a loop over batches obtained from the dataset. For each batch, we have a forward pass, recorded by a <code>gradientTape</code>, based on which we calculate the loss. The tape will then determine the gradients of all trainable weights throughout the model, and the optimizer will use those gradients to update the weights.</p>
-<p>So far, all of this conforms to a scheme we’ve oftentimes seen before. One point to note though: In this same loop, we also call <code>update_ema</code> to recalculate the moving averages, as those are not operated on during backprop. Here is the essential functionality:<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
+<p>The training loop, as usual, is a loop over epochs, where each iteration is a loop over batches obtained from the dataset.
+For each batch, we have a forward pass, recorded by a <code>gradientTape</code>, based on which we calculate the loss.
+The tape will then determine the gradients of all trainable weights throughout the model, and the optimizer will use those gradients to update the weights.</p>
+<p>So far, all of this conforms to a scheme we’ve oftentimes seen before. One point to note though: In this same loop, we also call <code>update_ema</code> to recalculate the moving averages, as those are not operated on during backprop.
+Here is the essential functionality:<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>num_epochs</span> <span class='op'>&lt;-</span> <span class='fl'>20</span></span>
@@ -2597,7 +2615,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span>, <span class='va'>one_hot_assignments</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>vector_quantizer</span><span class='op'>(</span><span class='va'>codes</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now, for this assignment operation there is no gradient. Instead what we can do is pass the gradients from decoder input straight through to encoder output. Here <code>tf$stop_gradient</code> exempts <code>nearest_codebook_entries</code> from the chain of gradients, so encoder and decoder are linked by <code>codes</code>:</p>
+<p>Now, for this assignment operation there is no gradient. Instead what we can do is pass the gradients from decoder input straight through to encoder output.
+Here <code>tf$stop_gradient</code> exempts <code>nearest_codebook_entries</code> from the chain of gradients, so encoder and decoder are linked by <code>codes</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>codes_straight_through</span> <span class='op'>&lt;-</span> <span class='va'>codes</span> <span class='op'>+</span> <span class='va'>tf</span><span class='op'>$</span><span class='fu'>stop_gradient</span><span class='op'>(</span><span class='va'>nearest_codebook_entries</span> <span class='op'>-</span> <span class='va'>codes</span><span class='op'>)</span></span>
@@ -2672,7 +2691,8 @@ gtag('config', 'UA-20375833-3');
 </figure>
 <p>Two things jump to the eye: First, the generated letters are significantly sharper than their continuous-prior counterparts (from the previous post). And second, would you have been able to tell the random image from the reconstruction image?</p>
 <h1 id="conclusion">Conclusion</h1>
-<p>At this point, we’ve hopefully convinced you of the power and effectiveness of this discrete-latents approach. However, you might secretly have hoped we’d apply this to more complex data, such as the elements of speech we mentioned in the introduction, or higher-resolution images as found in ImageNet.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
+<p>At this point, we’ve hopefully convinced you of the power and effectiveness of this discrete-latents approach.
+However, you might secretly have hoped we’d apply this to more complex data, such as the elements of speech we mentioned in the introduction, or higher-resolution images as found in ImageNet.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
 <p>The truth is that there’s a continuous tradeoff between the number of new and exciting techniques we can show, and the time we can spend on iterations to successfully apply these techniques to complex datasets. In the end it’s you, our readers, who will put these techniques to meaningful use on relevant, real world data.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">

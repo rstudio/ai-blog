@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2187,11 +2194,13 @@ gtag('config', 'UA-20375833-3');
 <p>So if all still works fine (assuming standard usage), why so much ado about TF 2 in Python land?</p>
 <p>The difference is that on the R side, for the vast majority of users, the framework you used to do deep learning was <code>keras</code>. <code>tensorflow</code> was needed just occasionally, or not at all.</p>
 <p>Between <code>keras</code> and <code>tensorflow</code>, there was a clear separation of responsibilities: <code>keras</code> was the frontend, depending on TensorFlow as a low-level backend, just like the <a href="http://keras.io">original Python Keras</a> it was wrapping did. <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>. In some cases, this lead to people using the words <code>keras</code> and <code>tensorflow</code> almost synonymously: Maybe they said <code>tensorflow</code>, but the code they wrote was <code>keras</code>.</p>
-<p>Things were different in Python land. There was original Python Keras, but TensorFlow had its own <code>layers</code> API, and there were a number of third-party high-level APIs built on TensorFlow. Keras, in contrast, was a separate library that just happened to rely on TensorFlow.</p>
+<p>Things were different in Python land. There was original Python Keras, but TensorFlow had its own <code>layers</code> API, and there were a number of third-party high-level APIs built on TensorFlow.
+Keras, in contrast, was a separate library that just happened to rely on TensorFlow.</p>
 <p>So in Python land, now we have a big change: <em>With TF 2, Keras (as incorporated in the TensorFlow codebase) is now the official high-level API for TensorFlow</em>. To bring this across has been a major point of Google’s TF 2 information campaign since the early stages.</p>
 <p>As R users, who have been focusing on <code>keras</code> all the time, we are essentially less affected. Like we said above, syntactically most everything stays the way it was. So why differentiate between different <code>keras</code> versions?</p>
 <p>When <code>keras</code> was written, there was original Python Keras, and that was the library we were binding to. However, Google started to incorporate original Keras code into their TensorFlow codebase as a fork, to continue development independently. For a while there were two “Kerases”: Original Keras and <code>tf.keras</code>. Our R <code>keras</code> offered to switch between implementations <a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>, the default being original Keras.</p>
-<p>In <code>keras</code> release 2.2.4.1, anticipating discontinuation of original Keras and wanting to get ready for TF 2, we switched to using <code>tf.keras</code> as the default. While in the beginning, the <code>tf.keras</code> fork and original Keras developed more or less in sync, the latest developments for TF 2 brought with them bigger changes in the <code>tf.keras</code> codebase, especially as regards optimizers. This is why, if you are using a <code>keras</code> version &lt; 2.2.4.1, upgrading to TF 2 you will want to check for changes in behavior and/or performance. <a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
+<p>In <code>keras</code> release 2.2.4.1, anticipating discontinuation of original Keras and wanting to get ready for TF 2, we switched to using <code>tf.keras</code> as the default. While in the beginning, the <code>tf.keras</code> fork and original Keras developed more or less in sync, the latest developments for TF 2 brought with them bigger changes in the <code>tf.keras</code> codebase, especially as regards optimizers.
+This is why, if you are using a <code>keras</code> version &lt; 2.2.4.1, upgrading to TF 2 you will want to check for changes in behavior and/or performance. <a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
 <p>That’s it for some background. In sum, we’re happy most existing code will run just fine. But for us R users, <em>something</em> must be changing as well, right?</p>
 <h2 id="tf-2-in-a-nutshell-from-an-r-perspective">TF 2 in a nutshell, from an R perspective</h2>
 <p>In fact, the most evident-on-user-level change is something we wrote several posts about, more than a year ago <a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a>. By then, <em>eager execution</em> was a brand-new option that had to be turned on explicitly; TF 2 now makes it the default. Along with it came <em>custom models</em> (a.k.a. subclassed models, in Python land) and <em>custom training</em>, making use of <code>tf$GradientTape</code>. Let’s talk about what those termini refer to, and how they are relevant to R users.</p>
@@ -2369,7 +2378,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>Summing up, using <code>tfdatasets</code> you build a pipeline, from loading over transformations to batching, that can then be fed directly to a Keras model. From preprocessing, let’s go a step further and look at a new, extremely convenient way to do feature engineering.</p>
 <h3 id="feature-columns-and-feature-specs">Feature columns and feature specs</h3>
-<p><a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/feature_columns.html">Feature columns</a> as such are a Python-TensorFlow feature, while <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/feature_spec.html">feature specs</a> are an R-only idiom modeled after the popular <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes</a> package.</p>
+<p><a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/feature_columns.html">Feature columns</a>
+as such are a Python-TensorFlow feature, while <a href="https://tensorflow.rstudio.com/tools/tfdatasets/articles/feature_spec.html">feature specs</a> are an R-only idiom modeled after the popular <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes</a> package.</p>
 <p>It all starts off with creating a feature spec object, using formula syntax to indicate what’s predictor and what’s target:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2397,7 +2407,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>What happened here is that we told TensorFlow, please take all numeric columns (besides a few ones listed exprès) and scale them; take column <code>thal</code>, treat it as categorical and create an embedding for it; discretize <code>age</code> according to the given ranges; and finally, create a <em>crossed column</em> to capture interaction between <code>thal</code> and that discretized age-range column. <a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a></p>
-<p>This is nice, but when creating the model, we’ll still have to define all those layers, right? (Which would be pretty cumbersome, having to figure out all the right dimensions…) Luckily, we don’t have to. In sync with <code>tfdatasets</code>, <code>keras</code> now provides <a href="https://tensorflow.rstudio.com/keras/reference/layer_dense_features.html">layer_dense_features</a> to create a layer tailor-made to accommodate the specification.</p>
+<p>This is nice, but when creating the model, we’ll still have to define all those layers, right? (Which would be pretty cumbersome, having to figure out all the right dimensions…)
+Luckily, we don’t have to. In sync with <code>tfdatasets</code>, <code>keras</code> now provides <a href="https://tensorflow.rstudio.com/keras/reference/layer_dense_features.html">layer_dense_features</a> to create a layer tailor-made to accommodate the specification.</p>
 <p>And we don’t need to create separate input layers either, due to <a href="https://tensorflow.rstudio.com/tools/tfdatasets/reference/layer_input_from_dataset.html">layer_input_from_dataset</a>. Here we see both in action:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">

@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2176,17 +2183,29 @@ gtag('config', 'UA-20375833-3');
 </ul>
 </nav>
 </div>
-<p>Last week, we saw how to code <a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch">a simple network from scratch</a>, using nothing but <code>torch</code> <em>tensors</em>. Predictions, loss, gradients, weight updates – all these things we’ve been computing ourselves. Today, we make a significant change: Namely, we spare ourselves the cumbersome calculation of gradients, and have <code>torch</code> do it for us.</p>
+<p>Last week, we saw how to code <a href="https://blogs.rstudio.com/ai/posts/2020-10-01-torch-network-from-scratch">a simple network from
+scratch</a>,
+using nothing but <code>torch</code> <em>tensors</em>. Predictions, loss, gradients,
+weight updates – all these things we’ve been computing ourselves.
+Today, we make a significant change: Namely, we spare ourselves the
+cumbersome calculation of gradients, and have <code>torch</code> do it for us.</p>
 <p>Prior to that though, let’s get some background.</p>
 <h2 id="automatic-differentiation-with-autograd">Automatic differentiation with <em>autograd</em></h2>
 <p><code>torch</code> uses a module called <em>autograd</em> to</p>
 <ol type="1">
 <li><p>record operations performed on tensors, and</p></li>
-<li><p>store what will have to be done to obtain the corresponding gradients, once we’re entering the backward pass.</p></li>
+<li><p>store what will have to be done to obtain the corresponding
+gradients, once we’re entering the backward pass.</p></li>
 </ol>
-<p>These prospective actions are stored internally as functions, and when it’s time to compute the gradients, these functions are applied in order: Application starts from the output node, and calculated gradients are successively <em>propagated</em> <em>back</em> through the network. This is a form of <em>reverse mode automatic differentiation</em>.</p>
+<p>These prospective actions are stored internally as functions, and when
+it’s time to compute the gradients, these functions are applied in
+order: Application starts from the output node, and calculated gradients
+are successively <em>propagated</em> <em>back</em> through the network. This is a form
+of <em>reverse mode automatic differentiation</em>.</p>
 <h4 id="autograd-basics"><em>Autograd</em> basics</h4>
-<p>As users, we can see a bit of the implementation. As a prerequisite for this “recording” to happen, tensors have to be created with <code>requires_grad = TRUE</code>. For example:</p>
+<p>As users, we can see a bit of the implementation. As a prerequisite for
+this “recording” to happen, tensors have to be created with
+<code>requires_grad = TRUE</code>. For example:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
@@ -2194,26 +2213,32 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To be clear, <code>x</code> now is a tensor <em>with respect to which</em> gradients have to be calculated – normally, a tensor representing a weight or a bias, not the input data <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>. If we subsequently perform some operation on that tensor, assigning the result to <code>y</code>,</p>
+<p>To be clear, <code>x</code> now is a tensor <em>with respect to which</em> gradients have
+to be calculated – normally, a tensor representing a weight or a bias,
+not the input data <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>. If we subsequently perform some operation on
+that tensor, assigning the result to <code>y</code>,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>we find that <code>y</code> now has a non-empty <code>grad_fn</code> that tells <code>torch</code> how to compute the gradient of <code>y</code> with respect to <code>x</code>:</p>
+<p>we find that <code>y</code> now has a non-empty <code>grad_fn</code> that tells <code>torch</code> how to
+compute the gradient of <code>y</code> with respect to <code>x</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='va'>grad_fn</span></span></code></pre>
 </div>
 </div>
 <pre><code>MeanBackward0</code></pre>
-<p>Actual <em>computation</em> of gradients is triggered by calling <code>backward()</code> on the output tensor.</p>
+<p>Actual <em>computation</em> of gradients is triggered by calling <code>backward()</code>
+on the output tensor.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>After <code>backward()</code> has been called, <code>x</code> has a non-null field termed <code>grad</code> that stores the gradient of <code>y</code> with respect to <code>x</code>:</p>
+<p>After <code>backward()</code> has been called, <code>x</code> has a non-null field termed
+<code>grad</code> that stores the gradient of <code>y</code> with respect to <code>x</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>x</span><span class='op'>$</span><span class='va'>grad</span></span></code></pre>
@@ -2223,9 +2248,13 @@ gtag('config', 'UA-20375833-3');
  0.2500  0.2500
  0.2500  0.2500
 [ CPUFloatType{2,2} ]</code></pre>
-<p>With longer chains of computations, we can take a glance at how <code>torch</code> builds up a graph of backward operations. Here is a slightly more complex example – feel free to skip if you’re not the type who just <em>has</em> to peek into things for them to make sense.</p>
+<p>With longer chains of computations, we can take a glance at how <code>torch</code>
+builds up a graph of backward operations. Here is a slightly more
+complex example – feel free to skip if you’re not the type who just
+<em>has</em> to peek into things for them to make sense.</p>
 <h4 id="digging-deeper">Digging deeper</h4>
-<p>We build up a simple graph of tensors, with inputs <code>x1</code> and <code>x2</code> being connected to output <code>out</code> by intermediaries <code>y</code> and <code>z</code>.</p>
+<p>We build up a simple graph of tensors, with inputs <code>x1</code> and <code>x2</code> being
+connected to output <code>out</code> by intermediaries <code>y</code> and <code>z</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>x1</span> <span class='op'>&lt;-</span> <span class='fu'>torch_ones</span><span class='op'>(</span><span class='fl'>2</span>, <span class='fl'>2</span>, requires_grad <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span></span>
@@ -2238,7 +2267,9 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>out</span> <span class='op'>&lt;-</span> <span class='va'>z</span><span class='op'>$</span><span class='fu'>mean</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To save memory, intermediate gradients are normally not being stored. Calling <code>retain_grad()</code> on a tensor allows one to deviate from this default. Let’s do this here, for the sake of demonstration:</p>
+<p>To save memory, intermediate gradients are normally not being stored.
+Calling <code>retain_grad()</code> on a tensor allows one to deviate from this
+default. Let’s do this here, for the sake of demonstration:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2246,7 +2277,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>z</span><span class='op'>$</span><span class='fu'>retain_grad</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now we can go backwards through the graph and inspect <code>torch</code>’s action plan for backprop, starting from <code>out$grad_fn</code>, like so:</p>
+<p>Now we can go backwards through the graph and inspect <code>torch</code>’s action
+plan for backprop, starting from <code>out$grad_fn</code>, like so:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># how to compute the gradient for mean, the last operation executed</span></span>
@@ -2297,7 +2329,8 @@ AddBackward1</code></pre>
 </div>
 <pre><code>[[1]]
 torch::autograd::AccumulateGrad</code></pre>
-<p>If we now call <code>out$backward()</code>, all tensors in the graph will have their respective gradients calculated.</p>
+<p>If we now call <code>out$backward()</code>, all tensors in the graph will have
+their respective gradients calculated.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>out</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2323,10 +2356,15 @@ torch_tensor
  14.4150  14.4150
  14.4150  14.4150
 [ CPUFloatType{2,2} ]</code></pre>
-<p>After this nerdy excursion, let’s see how <em>autograd</em> makes our network simpler.</p>
+<p>After this nerdy excursion, let’s see how <em>autograd</em> makes our network
+simpler.</p>
 <h2 id="the-simple-network-now-using-autograd">The simple network, now using <em>autograd</em></h2>
-<p>Thanks to <em>autograd</em>, we say good-bye to the tedious, error-prone process of coding backpropagation ourselves. A single method call does it all: <code>loss$backward()</code>.</p>
-<p>With <code>torch</code> keeping track of operations as required, we don’t even have to explicitly name the intermediate tensors any more. We can code forward pass, loss calculation, and backward pass in just three lines:</p>
+<p>Thanks to <em>autograd</em>, we say good-bye to the tedious, error-prone
+process of coding backpropagation ourselves. A single method call does
+it all: <code>loss$backward()</code>.</p>
+<p>With <code>torch</code> keeping track of operations as required, we don’t even have
+to explicitly name the intermediate tensors any more. We can code
+forward pass, loss calculation, and backward pass in just three lines:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>y_pred</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b1</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>clamp</span><span class='op'>(</span>min <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>mm</span><span class='op'>(</span><span class='va'>w2</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>add</span><span class='op'>(</span><span class='va'>b2</span><span class='op'>)</span></span>
@@ -2336,7 +2374,10 @@ torch_tensor
 <span><span class='va'>loss</span><span class='op'>$</span><span class='fu'>backward</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Here is the complete code. We’re at an intermediate stage: We still manually compute the forward pass and the loss, and we still manually update the weights. Due to the latter, there is something I need to explain. But I’ll let you check out the new version first:</p>
+<p>Here is the complete code. We’re at an intermediate stage: We still
+manually compute the forward pass and the loss, and we still manually
+update the weights. Due to the latter, there is something I need to
+explain. But I’ll let you check out the new version first:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
@@ -2411,17 +2452,32 @@ torch_tensor
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>As explained above, after <code>some_tensor$backward()</code>, all tensors preceding it in the graph<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> will have their <code>grad</code> fields populated. We make use of these fields to update the weights. But now that <em>autograd</em> is “on”, whenever we execute an operation we <em>don’t</em> want recorded for backprop, we need to explicitly exempt it: This is why we wrap the weight updates in a call to <code>with_no_grad()</code>.</p>
-<p>While this is something you may file under “nice to know” – after all, once we arrive at the last post in the series, this manual updating of weights will be gone – the idiom of <em>zeroing gradients</em> is here to stay: Values stored in <code>grad</code> fields accumulate; whenever we’re done using them, we need to zero them out before reuse.</p>
+<p>As explained above, after <code>some_tensor$backward()</code>, all tensors
+preceding it in the graph<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> will have their <code>grad</code> fields populated.
+We make use of these fields to update the weights. But now that
+<em>autograd</em> is “on”, whenever we execute an operation we <em>don’t</em> want
+recorded for backprop, we need to explicitly exempt it: This is why we
+wrap the weight updates in a call to <code>with_no_grad()</code>.</p>
+<p>While this is something you may file under “nice to know” – after all,
+once we arrive at the last post in the series, this manual updating of
+weights will be gone – the idiom of <em>zeroing gradients</em> is here to
+stay: Values stored in <code>grad</code> fields accumulate; whenever we’re done
+using them, we need to zero them out before reuse.</p>
 <h2 id="outlook">Outlook</h2>
-<p>So where do we stand? We started out coding a network completely from scratch, making use of nothing but <code>torch</code> tensors. Today, we got significant help from <em>autograd</em>.</p>
-<p>But we’re still manually updating the weights, – and aren’t deep learning frameworks known to provide abstractions (“layers”, or: “modules”) on top of tensor computations …?</p>
-<p>We address both issues in the follow-up installments. Thanks for reading!</p>
+<p>So where do we stand? We started out coding a network completely from
+scratch, making use of nothing but <code>torch</code> tensors. Today, we got
+significant help from <em>autograd</em>.</p>
+<p>But we’re still manually updating the weights, – and aren’t deep
+learning frameworks known to provide abstractions (“layers”, or:
+“modules”) on top of tensor computations …?</p>
+<p>We address both issues in the follow-up installments. Thanks for
+reading!</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />
 <ol>
-<li id="fn1" role="doc-endnote"><p>Unless we <em>want</em> to change the data, as when generating adversarial examples.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1" role="doc-endnote"><p>Unless we <em>want</em> to change the data, as when generating
+adversarial examples.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2" role="doc-endnote"><p>All that have <code>requires_grad</code> set to <code>TRUE</code>, to be precise.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section>

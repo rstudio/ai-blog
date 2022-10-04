@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2171,11 +2178,26 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <h2 id="introduction">Introduction</h2>
-<p>Word embedding is a method used to map words of a vocabulary to dense vectors of real numbers where semantically similar words are mapped to nearby points. Representing words in this vector space help algorithms achieve better performance in natural language processing tasks like syntactic parsing and sentiment analysis by grouping similar words. For example, we expect that in the embedding space “cats” and “dogs” are mapped to nearby points since they are both animals, mammals, pets, etc.</p>
-<p>In this tutorial we will implement the skip-gram model created by <a href="https://arxiv.org/abs/1301.3781">Mikolov et al</a> in R using the <a href="https://keras.rstudio.com/">keras</a> package. The skip-gram model is a flavor of word2vec, a class of computationally-efficient predictive models for learning word embeddings from raw text. We won’t address theoretical details about embeddings and the skip-gram model. If you want to get more details you can read the paper linked above. The TensorFlow <a href="https://www.tensorflow.org/tutorials/word2vec">Vector Representation of Words</a> tutorial includes additional details as does the <em>Deep Learning With R</em> <a href="https://jjallaire.github.io/deep-learning-with-r-notebooks/notebooks/6.1-using-word-embeddings.nb.html">notebook about embeddings</a>.</p>
-<p>There are other ways to create vector representations of words. For example, GloVe Embeddings are implemented in the <a href="https://cran.r-project.org/web/packages/text2vec/vignettes/glove.html">text2vec</a> package by Dmitriy Selivanov. There’s also a tidy approach described in Julia Silge’s blog post <a href="https://juliasilge.com/blog/tidy-word-vectors/">Word Vectors with Tidy Data Principles</a>.</p>
+<p>Word embedding is a method used to map words of a vocabulary to
+dense vectors of real numbers where semantically similar words are mapped to
+nearby points. Representing words in this vector space help
+algorithms achieve better performance in natural language
+processing tasks like syntactic parsing and sentiment analysis by grouping
+similar words. For example, we expect that in the embedding space
+“cats” and “dogs” are mapped to nearby points since they are
+both animals, mammals, pets, etc.</p>
+<p>In this tutorial we will implement the skip-gram model created by <a href="https://arxiv.org/abs/1301.3781">Mikolov et al</a> in R using the <a href="https://keras.rstudio.com/">keras</a> package.
+The skip-gram model is a flavor of word2vec, a class of
+computationally-efficient predictive models for learning word
+embeddings from raw text. We won’t address theoretical details about embeddings and
+the skip-gram model. If you want to get more details you can read the paper
+linked above. The TensorFlow <a href="https://www.tensorflow.org/tutorials/word2vec">Vector Representation of Words</a> tutorial includes additional details as does the <em>Deep Learning With R</em> <a href="https://jjallaire.github.io/deep-learning-with-r-notebooks/notebooks/6.1-using-word-embeddings.nb.html">notebook about embeddings</a>.</p>
+<p>There are other ways to create vector representations of words. For example,
+GloVe Embeddings are implemented in the <a href="https://cran.r-project.org/web/packages/text2vec/vignettes/glove.html">text2vec</a> package by Dmitriy Selivanov.
+There’s also a tidy approach described in Julia Silge’s blog post <a href="https://juliasilge.com/blog/tidy-word-vectors/">Word Vectors with Tidy Data Principles</a>.</p>
 <h2 id="getting-the-data">Getting the Data</h2>
-<p>We will use the <a href="https://snap.stanford.edu/data/web-FineFoods.html">Amazon Fine Foods Reviews dataset</a>. This dataset consists of reviews of fine foods from Amazon. The data span a period of more than 10 years, including all ~500,000 reviews up to October 2012. Reviews include product and user information, ratings, and narrative text.</p>
+<p>We will use the <a href="https://snap.stanford.edu/data/web-FineFoods.html">Amazon Fine Foods Reviews dataset</a>.
+This dataset consists of reviews of fine foods from Amazon. The data span a period of more than 10 years, including all ~500,000 reviews up to October 2012. Reviews include product and user information, ratings, and narrative text.</p>
 <p>Data can be downloaded (~116MB) by running:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2202,7 +2224,9 @@ gtag('config', 'UA-20375833-3');
 <pre><code>[1] &quot;I have bought several of the Vitality canned dog food products ...
 [2] &quot;Product arrived labeled as Jumbo Salted Peanuts...the peanuts ... </code></pre>
 <h2 id="preprocessing">Preprocessing</h2>
-<p>We’ll begin with some text pre-processing using a keras <code>text_tokenizer()</code>. The tokenizer will be responsible for transforming each review into a sequence of integer tokens (which will subsequently be used as input into the skip-gram model).</p>
+<p>We’ll begin with some text pre-processing using a keras <code>text_tokenizer()</code>. The tokenizer will be
+responsible for transforming each review into a sequence of integer tokens (which will subsequently be used as
+input into the skip-gram model).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
@@ -2210,10 +2234,20 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>tokenizer</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit_text_tokenizer</span><span class='op'>(</span><span class='va'>reviews</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Note that the <code>tokenizer</code> object is modified in place by the call to <code>fit_text_tokenizer()</code>. An integer token will be assigned for each of the 20,000 most common words (the other words will be assigned to token 0).</p>
+<p>Note that the <code>tokenizer</code> object is modified in place by the call to <code>fit_text_tokenizer()</code>.
+An integer token will be assigned for each of the 20,000 most common words (the other words will
+be assigned to token 0).</p>
 <h2 id="skip-gram-model">Skip-Gram Model</h2>
-<p>In the skip-gram model we will use each word as input to a log-linear classifier with a projection layer, then predict words within a certain range before and after this word. It would be very computationally expensive to output a probability distribution over all the vocabulary for each target word we input into the model. Instead, we are going to use negative sampling, meaning we will sample some words that don’t appear in the context and train a binary classifier to predict if the context word we passed is truly from the context or not.</p>
-<p>In more practical terms, for the skip-gram model we will input a 1d integer vector of the target word tokens and a 1d integer vector of sampled context word tokens. We will generate a prediction of 1 if the sampled word really appeared in the context and 0 if it didn’t.</p>
+<p>In the skip-gram model we will use each word as input to a log-linear classifier
+with a projection layer, then predict words within a certain range before and after
+this word. It would be very computationally expensive to output a probability
+distribution over all the vocabulary for each target word we input into the model. Instead,
+we are going to use negative sampling, meaning we will sample some words that don’t
+appear in the context and train a binary classifier to predict if the context word we
+passed is truly from the context or not.</p>
+<p>In more practical terms, for the skip-gram model we will input a 1d integer vector of
+the target word tokens and a 1d integer vector of sampled context word tokens. We will
+generate a prediction of 1 if the sampled word really appeared in the context and 0 if it didn’t.</p>
 <p>We will now define a generator function to yield batches for model training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2235,7 +2269,11 @@ gtag('config', 'UA-20375833-3');
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>A <a href="https://keras.rstudio.com/articles/faq.html#how-can-i-use-keras-with-datasets-that-dont-fit-in-memory">generator function</a> is a function that returns a different value each time it is called (generator functions are often used to provide streaming or dynamic data for training models). Our generator function will receive a vector of texts, a tokenizer and the arguments for the skip-gram (the size of the window around each target word we examine and how many negative samples we want to sample for each target word).</p>
+<p>A <a href="https://keras.rstudio.com/articles/faq.html#how-can-i-use-keras-with-datasets-that-dont-fit-in-memory">generator function</a>
+is a function that returns a different value each time it is called (generator functions are often used to provide streaming or dynamic data for training models). Our generator function will receive a vector of texts,
+a tokenizer and the arguments for the skip-gram (the size of the window around each
+target word we examine and how many negative samples we want
+to sample for each target word).</p>
 <p>Now let’s start defining the keras model. We will use the Keras <a href="https://keras.rstudio.com/articles/functional_api.html">functional API</a>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2251,7 +2289,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>input_context</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now let’s define the embedding matrix. The embedding is a matrix with dimensions (vocabulary, embedding_size) that acts as lookup table for the word vectors.</p>
+<p>Now let’s define the embedding matrix. The embedding is a matrix with dimensions
+(vocabulary, embedding_size) that acts as lookup table for the word vectors.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>embedding</span> <span class='op'>&lt;-</span> <span class='fu'>layer_embedding</span><span class='op'>(</span></span>
@@ -2270,7 +2309,14 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='fu'>layer_flatten</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The next step is to define how the <code>target_vector</code> will be related to the <code>context_vector</code> in order to make our network output 1 when the context word really appeared in the context and 0 otherwise. We want <code>target_vector</code> to be <em>similar</em> to the <code>context_vector</code> if they appeared in the same context. A typical measure of similarity is the <a href="https://en.wikipedia.org/wiki/Cosine_similarity">cosine similarity</a>. Give two vectors <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> the cosine similarity is defined by the Euclidean Dot product of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> normalized by their magnitude. As we don’t need the similarity to be normalized inside the network, we will only calculate the dot product and then output a dense layer with sigmoid activation.</p>
+<p>The next step is to define how the <code>target_vector</code> will be related to the <code>context_vector</code>
+in order to make our network output 1 when the context word really appeared in the
+context and 0 otherwise. We want <code>target_vector</code> to be <em>similar</em> to the <code>context_vector</code>
+if they appeared in the same context. A typical measure of similarity is the <a href="https://en.wikipedia.org/wiki/Cosine_similarity">cosine
+similarity</a>. Give two vectors <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>
+the cosine similarity is defined by the Euclidean Dot product of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> normalized by their
+magnitude. As we don’t need the similarity to be normalized inside the network, we will only calculate
+the dot product and then output a dense layer with sigmoid activation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>dot_product</span> <span class='op'>&lt;-</span> <span class='fu'>layer_dot</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>target_vector</span>, <span class='va'>context_vector</span><span class='op'>)</span>, axes <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
@@ -2314,7 +2360,10 @@ Trainable params: 2,560,130
 Non-trainable params: 0
 _________________________________________________________________________________________</code></pre>
 <h2 id="model-training">Model Training</h2>
-<p>We will fit the model using the <code>fit_generator()</code> function We need to specify the number of training steps as well as number of epochs we want to train. We will train for 100,000 steps for 5 epochs. This is quite slow (~1000 seconds per epoch on a modern GPU). Note that you may also get reasonable results with just one epoch of training.</p>
+<p>We will fit the model using the <code>fit_generator()</code> function We need to specify the number of
+training steps as well as number of epochs we want to train. We will train for
+100,000 steps for 5 epochs. This is quite slow (~1000 seconds per epoch on a modern GPU). Note that you
+may also get reasonable results with just one epoch of training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
@@ -2334,7 +2383,9 @@ Epoch 4/5
 100000/100000 [==============================] - 1020s - loss: 0.3737     
 Epoch 5/5
 100000/100000 [==============================] - 1017s - loss: 0.3823 </code></pre>
-<p>We can now extract the embeddings matrix from the model by using the <code>get_weights()</code> function. We also added <code>row.names</code> to our embedding matrix so we can easily find where each word is.</p>
+<p>We can now extract the embeddings matrix from the model by using the <code>get_weights()</code>
+function. We also added <code>row.names</code> to our embedding matrix so we can easily find
+where each word is.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span></span>
@@ -2354,7 +2405,9 @@ Epoch 5/5
 </div>
 </div>
 <h2 id="understanding-the-embeddings">Understanding the Embeddings</h2>
-<p>We can now find words that are close to each other in the embedding. We will use the cosine similarity, since this is what we trained the model to minimize.</p>
+<p>We can now find words that are close to each other in the embedding. We will
+use the cosine similarity, since this is what we trained the model to
+minimize.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://text2vec.org'>text2vec</a></span><span class='op'>)</span></span>
@@ -2395,8 +2448,11 @@ Epoch 5/5
 </div>
 <pre><code>     cats      dogs      kids       cat       dog 
 1.0000000 0.9844937 0.9743756 0.9676026 0.9624494 </code></pre>
-<p>The <strong>t-SNE</strong> algorithm can be used to visualize the embeddings. Because of time constraints we will only use it with the first 500 words. To understand more about the <em>t-SNE</em> method see the article <a href="https://distill.pub/2016/misread-tsne/">How to Use t-SNE Effectively</a>.</p>
-<p>This plot may look like a mess, but if you zoom into the small groups you end up seeing some nice patterns. Try, for example, to find a group of web related words like <code>http</code>, <code>href</code>, etc. Another group that may be easy to pick out is the pronouns group: <code>she</code>, <code>he</code>, <code>her</code>, etc.</p>
+<p>The <strong>t-SNE</strong> algorithm can be used to visualize the embeddings. Because of time constraints we
+will only use it with the first 500 words. To understand more about the <em>t-SNE</em> method see the article <a href="https://distill.pub/2016/misread-tsne/">How to Use t-SNE Effectively</a>.</p>
+<p>This plot may look like a mess, but if you zoom into the small groups you end up seeing some nice patterns.
+Try, for example, to find a group of web related words like <code>http</code>, <code>href</code>, etc. Another group
+that may be easy to pick out is the pronouns group: <code>she</code>, <code>he</code>, <code>her</code>, etc.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/jkrijthe/Rtsne'>Rtsne</a></span><span class='op'>)</span></span>

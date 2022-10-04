@@ -811,6 +811,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1883,15 +1884,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2090,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2166,13 +2173,15 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>We’ve all become used to deep learning’s success in image classification. <em>Greater Swiss Mountain dog</em> or <em>Bernese mountain dog</em>? <em>Red panda</em> or <em>giant panda</em>? No problem. However, in real life it’s not enough to name the single most salient object on a picture. Like it or not, one of the most compelling examples is autonomous driving: We don’t want the algorithm to recognize just that car in front of us, but also the pedestrian about to cross the street. And, just detecting the pedestrian is not sufficient. The exact <em>location</em> of objects matters.</p>
+<p>We’ve all become used to deep learning’s success in image classification. <em>Greater Swiss Mountain dog</em> or <em>Bernese mountain dog</em>? <em>Red panda</em> or <em>giant panda</em>? No problem.
+However, in real life it’s not enough to name the single most salient object on a picture. Like it or not, one of the most compelling examples is autonomous driving: We don’t want the algorithm to recognize just that car in front of us, but also the pedestrian about to cross the street. And, just detecting the pedestrian is not sufficient. The exact <em>location</em> of objects matters.</p>
 <p>The term <em>object detection</em> is commonly used to refer to the task of naming and localizing multiple objects in an image frame. Object detection is difficult; we’ll build up to it in a loose series of posts, focusing on concepts instead of aiming for ultimate performance. Today, we’ll start with a few straightforward building blocks: Classification, both single and multiple; localization; and combining both classification and localization of a single object.</p>
 <aside>
 The structure and approaches of these posts will follow the excellent <a href="https://github.com/fastai/fastai/blob/master/courses/dl2/pascal-multi.ipynb">fast.ai notebook on object detection</a>.
 </aside>
 <h2 id="dataset">Dataset</h2>
-<p>We’ll be using images and annotations from the <em>Pascal VOC dataset</em> which can be downloaded from <a href="https://pjreddie.com/projects/pascal-voc-dataset-mirror/">this mirror</a>. Specifically, we’ll use data from the 2007 challenge and the same JSON annotation file as used in the <em>fast.ai</em> course.</p>
+<p>We’ll be using images and annotations from the <em>Pascal VOC dataset</em> which can be downloaded from <a href="https://pjreddie.com/projects/pascal-voc-dataset-mirror/">this mirror</a>.
+Specifically, we’ll use data from the 2007 challenge and the same JSON annotation file as used in the <em>fast.ai</em> course.</p>
 <p>Quick download/organization instructions, shamelessly taken from a <a href="https://forums.fast.ai/t/quick-google-colab-setup-for-part-2-week-1-along-with-pascal-voc-dataset/13650">helpful post on the fast.ai wiki</a>, are as follows:</p>
 <pre><code># mkdir data &amp;&amp; cd data
 # curl -OL http://pjreddie.com/media/files/VOCtrainval_06-Nov-2007.tar
@@ -2235,7 +2244,8 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>Then, object class ids and bounding box coordinates. There may be multiple of these per image. In Pascal VOC, there are 20 object classes, from ubiquitous vehicles (<code>car</code>, <code>aeroplane</code>) over indispensable animals (<code>cat</code>, <code>sheep</code>) to more rare (in popular datasets) types like <code>potted plant</code> or <code>tv monitor</code>.</p>
+<p>Then, object class ids and bounding box coordinates. There may be multiple of these per image.
+In Pascal VOC, there are 20 object classes, from ubiquitous vehicles (<code>car</code>, <code>aeroplane</code>) over indispensable animals (<code>cat</code>, <code>sheep</code>) to more rare (in popular datasets) types like <code>potted plant</code> or <code>tv monitor</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>classes</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span></span>
@@ -2280,7 +2290,8 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <span><span class='va'>boxinfo</span> <span class='op'>&lt;-</span> <span class='va'>boxinfo</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/mutate_all.html'>mutate_all</a></span><span class='op'>(</span><span class='va'>as.numeric</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>For the bounding boxes, the annotation file provides <code>x_left</code> and <code>y_top</code> coordinates, as well as width and height. We will mostly be working with corner coordinates, so we create the missing <code>x_right</code> and <code>y_bottom</code>.</p>
+<p>For the bounding boxes, the annotation file provides <code>x_left</code> and <code>y_top</code> coordinates, as well as width and height.
+We will mostly be working with corner coordinates, so we create the missing <code>x_right</code> and <code>y_bottom</code>.</p>
 <p>As usual in image processing, the <code>y</code> axis starts from the top.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2359,7 +2370,8 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <span>  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/filter.html'>filter</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/which.min.html'>which.max</a></span><span class='op'>(</span><span class='va'>area</span><span class='op'>)</span> <span class='op'>==</span> <span class='fu'><a href='https://dplyr.tidyverse.org/reference/ranking.html'>row_number</a></span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>After this operation, we only have 2501 images to work with - not many at all! For classification, we could simply use data augmentation as provided by Keras, but to work with localization we’d have to spin our own augmentation algorithm. We’ll leave this to a later occasion and for now, focus on the basics.</p>
+<p>After this operation, we only have 2501 images to work with - not many at all! For classification, we could simply use data augmentation as provided by Keras, but to work with localization we’d have to spin our own augmentation algorithm.
+We’ll leave this to a later occasion and for now, focus on the basics.</p>
 <p>Finally after train-test split</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2402,7 +2414,8 @@ The structure and approaches of these posts will follow the excellent <a href="h
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>How should we pass our data to Keras? We could simple use Keras’ <code>image_data_generator</code>, but given we will need custom generators soon, we’ll build a simple one ourselves. This one delivers images as well as the corresponding targets in a stream. Note how the targets are not one-hot-encoded, but integers - using <code>sparse_categorical_crossentropy</code> as a loss function enables this convenience.</p>
+<p>How should we pass our data to Keras? We could simple use Keras’ <code>image_data_generator</code>, but given we will need custom generators soon, we’ll build a simple one ourselves.
+This one delivers images as well as the corresponding targets in a stream. Note how the targets are not one-hot-encoded, but integers - using <code>sparse_categorical_crossentropy</code> as a loss function enables this convenience.</p>
 <aside>
 See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learning with R</a> book for an introduction to writing data generators like this one.
 </aside>
@@ -2565,7 +2578,8 @@ See the <a href="https://tensorflow.rstudio.com/learn/resources.html">Deep learn
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now, the most interesting change is to the model - even though it’s a change to two lines only. Were we to use <code>categorical_crossentropy</code> now (the non-sparse variant of the above), combined with a <code>softmax</code> activation, we would effectively tell the model to pick just one, namely, the most probable object.</p>
+<p>Now, the most interesting change is to the model - even though it’s a change to two lines only.
+Were we to use <code>categorical_crossentropy</code> now (the non-sparse variant of the above), combined with a <code>softmax</code> activation, we would effectively tell the model to pick just one, namely, the most probable object.</p>
 <aside>
 See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activations-intro/">introduction to loss functions and activations</a> on this blog for a demonstration.
 </aside>
@@ -2616,7 +2630,8 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <p>This time, (binary) accuracy surpasses 0.95 after one epoch already, on both the train and validation sets. Not surprisingly, accuracy is significantly higher here than when we had to single out one of 20 classes (and that, with other confounding objects present in most cases!).</p>
 <p>Now, chances are that if you’ve done any deep learning before, you’ve done image classification in some form, perhaps even in the multiple-object variant. To build up in the direction of object detection, it is time we add a new ingredient: localization.</p>
 <h2 id="single-object-localization">Single-object localization</h2>
-<p>From here on, we’re back to dealing with a single object per image. So the question now is, how do we learn bounding boxes? If you’ve never heard of this, the answer will sound unbelievably simple (naive even): We formulate this as a regression problem and aim to predict the actual coordinates. To set realistic expectations - we surely shouldn’t expect ultimate precision here. But in a way it’s amazing it does even work at all.</p>
+<p>From here on, we’re back to dealing with a single object per image. So the question now is, how do we learn bounding boxes?
+If you’ve never heard of this, the answer will sound unbelievably simple (naive even): We formulate this as a regression problem and aim to predict the actual coordinates. To set realistic expectations - we surely shouldn’t expect ultimate precision here. But in a way it’s amazing it does even work at all.</p>
 <p>What does this mean, formulate as a regression problem? Concretely, it means we’ll have a <code>dense</code> output layer with 4 units, each corresponding to a corner coordinate.</p>
 <p>So let’s start with the model this time. Again, we use Xception, but there’s an important difference here: Whereas before, we said <code>pooling = "avg"</code> to obtain an output tensor of dimensions <code>batch_size</code> * number of filters, here we don’t do any averaging or flattening out of the spatial grid. This is because it’s exactly the spatial information we’re interested in!</p>
 <p>For Xception, the output resolution will be 7x7. So a priori, we shouldn’t expect high precision on objects much smaller than about 32x32 pixels (assuming the standard input size of 224x224).</p>
@@ -2835,19 +2850,24 @@ See the <a href="https://blogs.rstudio.com/tensorflow/posts/2018-10-11-activatio
 <figure>
 <img src="images/preds_train.jpg" style="width:100.0%" alt="Sample bounding box predictions on the training set." /><figcaption aria-hidden="true">Sample bounding box predictions on the training set.</figcaption>
 </figure>
-<p>As you’d guess from looking, the cyan-colored boxes are the ground truth ones. Now looking at the predictions explains a lot about the mediocre IOU values! Let’s take the very first sample image - we wanted the model to focus on the sofa, but it picked the table, which is also a category in the dataset (although in the form of <em>dining</em> <em>table</em>). Similar with the image on the right of the first row - we wanted to it to pick just the dog but it included the person, too (by far the most frequently seen category in the dataset). So we actually made the task a lot more difficult than had we stayed with e.g., ImageNet where normally a single object is salient.</p>
+<p>As you’d guess from looking, the cyan-colored boxes are the ground truth ones. Now looking at the predictions explains a lot about the mediocre IOU values! Let’s take the very first sample image - we wanted the model to focus on the sofa, but it picked the table, which is also a category in the dataset (although in the form of <em>dining</em> <em>table</em>). Similar with the image on the right of the first row - we wanted to it to pick just the dog but it included the person, too (by far the most frequently seen category in the dataset).
+So we actually made the task a lot more difficult than had we stayed with e.g., ImageNet where normally a single object is salient.</p>
 <p>Now check predictions on the validation set.</p>
 <figure>
 <img src="images/preds_valid.jpg" style="width:100.0%" alt="Some bounding box predictions on the validation set." /><figcaption aria-hidden="true">Some bounding box predictions on the validation set.</figcaption>
 </figure>
 <p>Again, we get a similar impression: The model <em>did</em> learn something, but the task is ill defined. Look at the third image in row 2: Isn’t it pretty consequent the model picks <em>all</em> people instead of singling out some special guy?</p>
-<p>If single-object localization is that straightforward, how technically involved can it be to output a class label at the same time? As long as we stay with a single object, the answer indeed is: not much.</p>
+<p>If single-object localization is that straightforward, how technically involved can it be to output a class label at the same time?
+As long as we stay with a single object, the answer indeed is: not much.</p>
 <aside>
-As a caveat, please note we’re talking about mapping concepts to technical approaches here. Obtaining ultimate performance is a different thing.
+As a caveat, please note we’re talking about mapping concepts to technical approaches here.
+Obtaining ultimate performance is a different thing.
 </aside>
 <p>Let’s finish up today with a constrained combination of classification and localization: detection of a single object.</p>
 <h2 id="single-object-detection">Single-object detection</h2>
-<p>Combining regression and classification into one means we’ll want to have two outputs in our model. We’ll thus use the functional API this time. Otherwise, there isn’t much new here: We start with an XCeption output of spatial resolution 7x7, append some custom processing and return two outputs, one for bounding box regression and one for classification.</p>
+<p>Combining regression and classification into one means we’ll want to have two outputs in our model.
+We’ll thus use the functional API this time.
+Otherwise, there isn’t much new here: We start with an XCeption output of spatial resolution 7x7, append some custom processing and return two outputs, one for bounding box regression and one for classification.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>feature_extractor</span> <span class='op'>&lt;-</span> <span class='fu'>application_xception</span><span class='op'>(</span></span>
@@ -2897,7 +2917,8 @@ As a caveat, please note we’re talking about mapping concepts to technical app
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Just like model outputs and losses are both lists, the data generator has to return the ground truth samples in a list. Fitting the model then goes as usual.</p>
+<p>Just like model outputs and losses are both lists, the data generator has to return the ground truth samples in a list.
+Fitting the model then goes as usual.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>loc_class_generator <span class="ot">&lt;-</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(data,</span>

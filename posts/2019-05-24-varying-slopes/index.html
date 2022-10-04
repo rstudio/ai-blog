@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2173,13 +2180,16 @@ gtag('config', 'UA-20375833-3');
 <p>In a <a href="https://blogs.rstudio.com/tensorflow/posts/2019-01-08-getting-started-with-tf-probability/">previous post</a>, we showed how to use <a href="https://rstudio.github.io/tfprobability/">tfprobability</a> – the R interface to TensorFlow Probability – to build a <em>multilevel</em>, or <em>partial pooling</em> model of tadpole survival in differently sized (and thus, differing in inhabitant number) tanks.</p>
 <p>A completely <em>pooled</em> model would have resulted in a global estimate of survival count, irrespective of tank, while an <em>unpooled</em> model would have learned to predict survival count for each tank separately. The former approach does not take into account different circumstances; the latter does not make use of common information. (Also, it clearly has no predictive use unless we want to make predictions for the very same entities we used to train the model.)</p>
 <p>In contrast, a <em>partially pooled</em> model lets you make predictions for the familiar, as well as new entities: Just use the appropriate prior.</p>
-<p>Assuming we <em>are</em> in fact interested in the same entities – why would we want to apply partial pooling? For the same reasons so much effort in machine learning goes into devising regularization mechanisms. We don’t want to overfit too much to actual measurements, be they related to the same entity or a class of entities. If I want to predict my heart rate as I wake up next morning, based on a single measurement I’m taking now (let’s say it’s evening and I’m frantically typing a blog post), I better take into account some facts about heart rate behavior in general (instead of just projecting into the future the exact value measured right now).</p>
-<p>In the tadpole example, this means we expect generalization to work better for tanks with many inhabitants, compared to more solitary environments. For the latter ones, we better take a peek at survival rates from other tanks, to supplement the sparse, idiosyncratic information available. Or using the technical term, in the latter case we hope for the model to <em>shrink</em> its estimates toward the overall mean more noticeably than in the former.</p>
+<p>Assuming we <em>are</em> in fact interested in the same entities – why would we want to apply partial pooling?
+For the same reasons so much effort in machine learning goes into devising regularization mechanisms. We don’t want to overfit too much to actual measurements, be they related to the same entity or a class of entities. If I want to predict my heart rate as I wake up next morning, based on a single measurement I’m taking now (let’s say it’s evening and I’m frantically typing a blog post), I better take into account some facts about heart rate behavior in general (instead of just projecting into the future the exact value measured right now).</p>
+<p>In the tadpole example, this means we expect generalization to work better for tanks with many inhabitants, compared to more solitary environments. For the latter ones, we better take a peek at survival rates from other tanks, to supplement the sparse, idiosyncratic information available.
+Or using the technical term, in the latter case we hope for the model to <em>shrink</em> its estimates toward the overall mean more noticeably than in the former.</p>
 <p>This type of information sharing is already very useful, but it gets better. The tadpole model is a <em>varying intercepts</em> model, as McElreath calls it (or <em>random intercepts</em>, as it is sometimes – confusingly – called <a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>) – <em>intercepts</em> referring to the way we make predictions for entities (here: tanks), with no predictor variables present. So if we can pool information about intercepts, why not pool information about <em>slopes</em> as well? This will allow us to, in addition, make use of <em>relationships</em> between variables learnt on different entities in the training set.</p>
 <p>So as you might have guessed by now, <em>varying slopes</em> (or <em>random slopes</em>, if you will) is the topic of today’s post. Again, we take up an example from McElreath’s book, and show how to accomplish the same thing with <code>tfprobability</code>.</p>
 <h2 id="coffee-please">Coffee, please</h2>
 <p>Unlike the tadpole case, this time we work with simulated data. This is the data McElreath uses to introduce the <em>varying slopes</em> modeling technique; he then goes on and applies it to one of the book’s most featured datasets, the <em>pro-social</em> (or indifferent, rather!) chimpanzees. For today, we stay with the simulated data for two reasons: First, the subject matter per se is non-trivial enough; and second, we want to keep careful track of what our model does, and whether its output is sufficiently close to the results McElreath obtained from <em>Stan</em> <a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>.</p>
-<p>So, the scenario is this. <a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> Cafés vary in how popular they are. In a popular café, when you order coffee, you’re likely to <em>wait</em>. In a less popular café, you’ll likely be served much faster. That’s one thing. Second, all cafés tend to be more crowded in the mornings than in the afternoons. Thus in the morning, you’ll wait longer than in the afternoon – this goes for the popular as well as the less popular cafés.</p>
+<p>So, the scenario is this. <a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> Cafés vary in how popular they are. In a popular café, when you order coffee, you’re likely to <em>wait</em>. In a less popular café, you’ll likely be served much faster. That’s one thing.
+Second, all cafés tend to be more crowded in the mornings than in the afternoons. Thus in the morning, you’ll wait longer than in the afternoon – this goes for the popular as well as the less popular cafés.</p>
 <p>In terms of intercepts and slopes, we can picture the morning waits as intercepts, and the resultant afternoon waits as arising due to the slopes of the lines joining each morning and afternoon wait, respectively.</p>
 <p>So when we partially-pool <em>intercepts</em>, we have one “intercept prior” (itself constrained by a prior, of course), and a set of café-specific intercepts that will vary around it. When we partially-pool <em>slopes</em>, we have a “slope prior” reflecting the overall relationship between morning and afternoon waits, and a set of café-specific slopes reflecting the individual relationships. Cognitively, that means that if you have never been to the <em>Café Gerbeaud</em> in Budapest but have been to cafés before, you might have a less-than-uninformed idea about how long you are going to wait; it also means that if you normally get your coffee in your favorite corner café in the mornings, and now you pass by there in the afternoon, you have an approximate idea how long it’s going to take (namely, fewer minutes than in the mornings).</p>
 <p>So is that all? Actually, no. In our scenario, intercepts and slopes are related. If, at a less popular café, I always get my coffee before two minutes have passed, there is little room for improvement. At a highly popular café though, if it could easily take ten minutes in the mornings, then there is quite some potential for decrease in waiting time in the afternoon. So in my prediction for this afternoon’s waiting time, I should factor in this interaction effect.</p>
@@ -2329,7 +2339,8 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>The first five distributions are priors. First, we have the prior for the correlation matrix. Basically, this would be an <a href="https://rstudio.github.io/tfprobability/reference/tfd_lkj.html">LKJ distribution</a> of shape <code>2x2</code> and with <em>concentration</em> parameter equal to 2.</p>
+<p>The first five distributions are priors. First, we have the prior for the correlation matrix.
+Basically, this would be an <a href="https://rstudio.github.io/tfprobability/reference/tfd_lkj.html">LKJ distribution</a> of shape <code>2x2</code> and with <em>concentration</em> parameter equal to 2.</p>
 <p>For performance reasons, we work with a version that inputs and outputs Cholesky factors instead:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2378,7 +2389,9 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <span><span class='fu'>tfd_sample_distribution</span><span class='op'>(</span><span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='fl'>5</span>, scale <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span>, sample_shape <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>On to the heart of the model, where the partial pooling happens. We are going to construct partially-pooled intercepts and slopes for all of the cafés. Like we said above, intercepts and slopes are not independent; they interact. Thus, we need to use a multivariate normal distribution. The means are given by the prior means defined right above, while the covariance matrix is built from the above prior variances and the prior correlation matrix. The output shape here is determined by the number of cafés: We want an intercept and a slope for every café.</p>
+<p>On to the heart of the model, where the partial pooling happens. We are going to construct partially-pooled intercepts and slopes for all of the cafés. Like we said above, intercepts and slopes are not independent; they interact. Thus, we need to use a multivariate normal distribution.
+The means are given by the prior means defined right above, while the covariance matrix is built from the above prior variances and the prior correlation matrix.
+The output shape here is determined by the number of cafés: We want an intercept and a slope for every café.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># mvn, multivariate distribution of intercepts and slopes</span></span>
@@ -2391,7 +2404,8 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <span>  sample_shape <span class='op'>=</span> <span class='va'>n_cafes</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Finally, we sample the actual waiting times. This code pulls out the correct intercepts and slopes from the multivariate normal and outputs the mean waiting time, dependent on what café we’re in and whether it’s morning or afternoon.</p>
+<p>Finally, we sample the actual waiting times.
+This code pulls out the correct intercepts and slopes from the multivariate normal and outputs the mean waiting time, dependent on what café we’re in and whether it’s morning or afternoon.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span>        <span class='co'># waiting time</span></span>
@@ -2819,7 +2833,8 @@ $ wait      &lt;dbl&gt; 3.9678929, 3.8571978, 4.7278755, 2.7610133, 4.1194827, 3
 <p><img src="images/shrinkage2.png" width="600" /></p>
 </div>
 <h2 id="wrapping-up">Wrapping up</h2>
-<p>By now, we hope we have convinced you of the power inherent in Bayesian modeling, as well as conveyed some ideas on how this is achievable with TensorFlow Probability. As with every DSL though, it takes time to proceed from understanding worked examples to design your own models. And not just time – it helps to have seen a lot of different models, focusing on different tasks and applications. On this blog, we plan to loosely follow up on Bayesian modeling with TFP, picking up some of the tasks and challenges elaborated on in the later chapters of McElreath’s book. Thanks for reading!</p>
+<p>By now, we hope we have convinced you of the power inherent in Bayesian modeling, as well as conveyed some ideas on how this is achievable with TensorFlow Probability. As with every DSL though, it takes time to proceed from understanding worked examples to design your own models. And not just time – it helps to have seen a lot of different models, focusing on different tasks and applications.
+On this blog, we plan to loosely follow up on Bayesian modeling with TFP, picking up some of the tasks and challenges elaborated on in the later chapters of McElreath’s book. Thanks for reading!</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />

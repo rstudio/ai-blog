@@ -152,9 +152,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Dynamic linear models with r;citation_publication_date=2009;citation_publisher=Springer;citation_author=Giovanni Petris;citation_author= Petrone;citation_author=Patrizia Campagnoli"/>
-  <meta name="citation_reference" content="citation_title=Machine learning: A probabilistic perspective;citation_publication_date=2012;citation_publisher=MIT Press;citation_author=Kevin Murphy"/>
-  <meta name="citation_reference" content="citation_title=The practice of econometrics;citation_publication_date=1991;citation_publisher=Addison-Wesley;citation_author=R. Berndt"/>
+  <meta name="citation_reference" content="citation_title=Dynamic linear models with r;citation_publisher=Springer;citation_author=Giovanni Petris;citation_author= Petrone;citation_author=Patrizia Campagnoli"/>
+  <meta name="citation_reference" content="citation_title=Machine learning: A probabilistic perspective;citation_publisher=MIT Press;citation_author=Kevin Murphy"/>
+  <meta name="citation_reference" content="citation_title=The practice of econometrics;citation_publisher=Addison-Wesley;citation_author=R. Berndt"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -840,6 +840,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1912,15 +1913,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2119,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2199,7 +2206,8 @@ gtag('config', 'UA-20375833-3');
 <p>In practical applications, two characteristics of linear-Gaussian SSMs are especially attractive.</p>
 <p>For one, they let us estimate dynamically changing parameters. In regression, the parameters can be viewed as a hidden state; we may thus have a slope and an intercept that vary over time. When parameters can vary, we speak of <em>dynamic linear models</em> (DLMs). This is the term we’ll use throughout this post when referring to this class of models.</p>
 <p>Second, linear-Gaussian SSMs are useful in time-series forecasting because Gaussian processes can be <em>added</em>. A time series can thus be framed as, e.g. the sum of a linear trend and a process that varies seasonally.</p>
-<p>Using <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>, the R wrapper to TensorFlow Probability, we illustrate both aspects here. Our first example will be on <em>dynamic linear regression</em>. In a detailed walkthrough, we show on how to fit such a model, how to obtain filtered, as well as smoothed, estimates of the coefficients, and how to obtain forecasts. Our second example then illustrates process additivity. This example will build on the first, and may also serve as a quick recap of the overall procedure.</p>
+<p>Using <a href="https://rstudio.github.io/tfprobability/">tfprobability</a>, the R wrapper to TensorFlow Probability, we illustrate both aspects here. Our first example will be on <em>dynamic linear regression</em>. In a detailed walkthrough, we show on how to fit such a model, how to obtain filtered, as well as smoothed, estimates of the coefficients, and how to obtain forecasts.
+Our second example then illustrates process additivity. This example will build on the first, and may also serve as a quick recap of the overall procedure.</p>
 <p>Let’s jump in.</p>
 <h2 id="dynamic-linear-regression-example-capital-asset-pricing-model-capm">Dynamic linear regression example: Capital Asset Pricing Model (CAPM)</h2>
 <p>Our code builds on the recently released versions of TensorFlow and TensorFlow Probability: 1.14 and 0.7, respectively.</p>
@@ -2218,7 +2226,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <p>Note how there’s one thing we used to do lately that we’re <em>not</em> doing here: We’re not enabling eager execution. We say why in a minute.</p>
-<p>Our example is taken from Petris et al.(2009)<span class="citation" data-cites="Petris-2009">(<a href="#ref-Petris-2009" role="doc-biblioref">Petris, Petrone, and Campagnoli 2009</a>)</span>, chapter 3.2.7.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> Besides introducing the <a href="https://cran.r-project.org/web/packages/dlm/index.html">dlm</a> package, this book provides a nice introduction to the ideas behind DLMs in general.</p>
+<p>Our example is taken from Petris et al.(2009)<span class="citation" data-cites="Petris-2009">(<a href="#ref-Petris-2009" role="doc-biblioref">Petris, Petrone, and Campagnoli 2009</a>)</span>, chapter 3.2.7.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>
+Besides introducing the <a href="https://cran.r-project.org/web/packages/dlm/index.html">dlm</a> package, this book provides a nice introduction to the ideas behind DLMs in general.</p>
 <p>To illustrate dynamic linear regression, the authors feature a dataset, originally from Berndt(1991)<span class="citation" data-cites="Berndt-1991">(<a href="#ref-Berndt-1991" role="doc-biblioref">Berndt 1991</a>)</span> that has monthly returns, collected from January 1978 to December 1987, for four different stocks, the 30-day Treasury Bill – standing in for a <em>risk-free</em> asset –, and the value-weighted average returns for all stocks listed at the New York and American Stock Exchanges, representing the overall <em>market returns</em>.</p>
 <p>Let’s take a look.</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2348,7 +2357,8 @@ F-statistic: 45.74 on 1 and 118 DF,  p-value: 5.489e-10</code></pre>
 <span> <span class='op'>}</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Given we have that session, let’s make use of it and compute all the estimates we desire. Again, – the following snippets will end up in the <code>fit_with_vi</code> function, so don’t run them in isolation just yet.</p>
+<p>Given we have that session, let’s make use of it and compute all the estimates we desire.
+Again, – the following snippets will end up in the <code>fit_with_vi</code> function, so don’t run them in isolation just yet.</p>
 <h4 id="obtaining-forecasts">Obtaining forecasts</h4>
 <p>The first thing we want for the model to give us are forecasts. In order to create them, it needs <em>samples from the posterior</em>. Luckily we already have the posterior distributions, returned from <code>sts_build_factored_variational_loss</code>, so let’s sample from them and pass them to <a href="https://rstudio.github.io/tfprobability/reference/sts_forecast.html">sts_forecast</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2712,7 +2722,8 @@ Figure 4: Filtering estimates from the Kálmán filter. Green: coefficient for d
 </p>
 </div>
 </div>
-<p>So far, we’ve seen a full example of time-series fitting, forecasting, and smoothing/filtering, in an exciting setting one doesn’t encounter too often: dynamic linear regression. What we haven’t seen as yet is the additivity feature of DLMs, and how it allows us to <em>decompose</em> a time series into its (theorized) constituents. Let’s do this next, in our second example, anti-climactically making use of the <em>iris of time series</em>, <em>AirPassengers</em>. Any guesses what components the model might presuppose?</p>
+<p>So far, we’ve seen a full example of time-series fitting, forecasting, and smoothing/filtering, in an exciting setting one doesn’t encounter too often: dynamic linear regression. What we haven’t seen as yet is the additivity feature of DLMs, and how it allows us to <em>decompose</em> a time series into its (theorized) constituents.
+Let’s do this next, in our second example, anti-climactically making use of the <em>iris of time series</em>, <em>AirPassengers</em>. Any guesses what components the model might presuppose?</p>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-26"></span>
 <img src="images/airp.png" alt="AirPassengers." width="500" />

@@ -155,7 +155,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_publication_date=2015;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
+  <meta name="citation_reference" content="citation_title=U-net: Convolutional networks for biomedical image segmentation;citation_volume=abs/1505.04597;citation_author=Olaf Ronneberger;citation_author=Philipp Fischer;citation_author=Thomas Brox"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -841,6 +841,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1913,15 +1914,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2120,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2215,7 +2222,8 @@ Figure 1: Example segmentation from Ronneberger et al. 2015.
 <p>The network architecture used in this post is adequate for <em>class segmentation</em> tasks and should be applicable to a vast number of practical, scientific as well as non-scientific applications. Speaking of network architecture, how should it look?</p>
 <h2 id="introducing-u-net">Introducing U-Net</h2>
 <p>Given their success in image classification, can’t we just use a classic architecture like <em>Inception V[n]</em>, <em>ResNet</em>, <em>ResNext</em> … , whatever? The problem is, our task at hand – labeling every pixel – does not fit so well with the classic idea of a CNN. With convnets, the idea is to apply successive layers of convolution and pooling to build up feature maps of decreasing granularity, to finally arrive at an abstract level where we just say: “yep, a cat.” The counterpart being, we lose detail information: To the final classification, it does not matter whether the five pixels in the top-left area are black or white.</p>
-<p>In practice, the classic architectures use (max) pooling or convolutions with <code>stride</code> &gt; 1 to achieve those successive abstractions – necessarily resulting in decreased spatial resolution. So how can we use a convnet and still preserve detail information? In their 2015 paper <em>U-Net: Convolutional Networks for Biomedical Image Segmentation</em> <span class="citation" data-cites="RonnebergerFB15">(<a href="#ref-RonnebergerFB15" role="doc-biblioref">Ronneberger, Fischer, and Brox 2015</a>)</span>, Olaf Ronneberger et al. came up with what four years later, in 2019, is still the most popular approach. (Which is to say something, four years being a long time, in deep learning.)</p>
+<p>In practice, the classic architectures use (max) pooling or convolutions with <code>stride</code> &gt; 1 to achieve those successive abstractions – necessarily resulting in decreased spatial resolution.
+So how can we use a convnet and still preserve detail information? In their 2015 paper <em>U-Net: Convolutional Networks for Biomedical Image Segmentation</em> <span class="citation" data-cites="RonnebergerFB15">(<a href="#ref-RonnebergerFB15" role="doc-biblioref">Ronneberger, Fischer, and Brox 2015</a>)</span>, Olaf Ronneberger et al. came up with what four years later, in 2019, is still the most popular approach. (Which is to say something, four years being a long time, in deep learning.)</p>
 <p>The idea is stunningly simple. While successive encoding (convolution / max pooling) steps, as usual, reduce resolution, the subsequent decoding – we have to arrive at an output of size same as the input, as we want to label every pixel! – does not simply upsample from the most compressed layer. Instead, during upsampling, at every step we feed in information from the corresponding, in resolution, layer in the downsizing chain.</p>
 <p>For U-Net, really a picture says more than many words:</p>
 <div class="layout-chunk" data-layout="l-body-outset">
@@ -2298,7 +2306,8 @@ Figure 2: U-Net architecture from Ronneberger et al. 2015.
 <span>  <span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>While constructing a preprocessing pipeline, it’s very useful to check intermediate results. It’s easy to do using <code>reticulate::as_iterator</code> on the dataset:</p>
+<p>While constructing a preprocessing pipeline, it’s very useful to check intermediate results.
+It’s easy to do using <code>reticulate::as_iterator</code> on the dataset:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>example</span> <span class='op'>&lt;-</span> <span class='va'>training_dataset</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>as_iterator</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'>%&gt;%</span> <span class='fu'><a href='https://rstudio.github.io/reticulate/reference/iterate.html'>iter_next</a></span><span class='op'>(</span><span class='op'>)</span></span>

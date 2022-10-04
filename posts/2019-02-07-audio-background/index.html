@@ -152,7 +152,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Speech Commands: A Dataset for Limited-Vocabulary Speech Recognition;citation_publication_date=2018;citation_author=P. Warden"/>
+  <meta name="citation_reference" content="citation_title=Speech Commands: A Dataset for Limited-Vocabulary Speech Recognition;citation_author=P. Warden"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -838,6 +838,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1910,15 +1911,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2117,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2195,12 +2202,15 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <p>About half a year ago, this blog featured a post, written by Daniel Falbel, on how to use Keras to classify pieces of spoken language. The article got a lot of attention and not surprisingly, questions arose how to apply that code to different datasets. We’ll take this as a motivation to explore in more depth the preprocessing done in that post: If we know why the input to the network looks the way it looks, we will be able to modify the model specification appropriately if need be.</p>
-<p>In case you have a background in speech recognition, or even general signal processing, for you the introductory part of this post will probably not contain much news. However, you might still be interested in the code part, which shows how to do things like creating spectrograms with current versions of TensorFlow.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> If you don’t have that background, we’re inviting you on a (hopefully) fascinating journey, slightly touching on one of the greater mysteries of this universe.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
-<p>We’ll use the same dataset as Daniel did in his post, that is, <a href="https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz">version 1 of the Google speech commands dataset</a><span class="citation" data-cites="speechcommandsv2">(<a href="#ref-speechcommandsv2" role="doc-biblioref">Warden 2018</a>)</span> The dataset consists of ~ 65,000 WAV files, of length one second or less. Each file is a recording of one of thirty words, uttered by different speakers.</p>
+<p>In case you have a background in speech recognition, or even general signal processing, for you the introductory part of this post will probably not contain much news. However, you might still be interested in the code part, which shows how to do things like creating spectrograms with current versions of TensorFlow.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>
+If you don’t have that background, we’re inviting you on a (hopefully) fascinating journey, slightly touching on one of the greater mysteries of this universe.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+<p>We’ll use the same dataset as Daniel did in his post, that is, <a href="https://storage.cloud.google.com/download.tensorflow.org/data/speech_commands_v0.01.tar.gz">version 1 of the Google speech commands dataset</a><span class="citation" data-cites="speechcommandsv2">(<a href="#ref-speechcommandsv2" role="doc-biblioref">Warden 2018</a>)</span>
+The dataset consists of ~ 65,000 WAV files, of length one second or less. Each file is a recording of one of thirty words, uttered by different speakers.</p>
 <p>The goal then is to train a network to discriminate between spoken words. How should the input to the network look? The WAV files contain amplitudes of sound waves over time. Here are a few examples, corresponding to the words <em>bird</em>, <em>down</em>, <em>sheila</em>, and <em>visual</em>:<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
 <p><img src="images/waves2.png" /></p>
 <h1 id="time-domain-and-frequency-domain">Time domain and frequency domain</h1>
-<p>A sound wave is a signal extending in <em>time</em>, analogously to how what enters our visual system extends in <em>space</em>. At each point in time, the current signal is dependent on its past. The obvious architecture to use in modeling it thus seems to be a recurrent neural network.</p>
+<p>A sound wave is a signal extending in <em>time</em>, analogously to how what enters our visual system extends in <em>space</em>.
+At each point in time, the current signal is dependent on its past. The obvious architecture to use in modeling it thus seems to be a recurrent neural network.</p>
 <p>However, the information contained in the sound wave can be represented in an alternative way: namely, using the <em>frequencies</em> that make up the signal.</p>
 <p>Here we see a sound wave (top) and its frequency representation (bottom).</p>
 <p><img src="images/sin8_16_32_64_2.png" /></p>
@@ -2215,7 +2225,8 @@ gtag('config', 'UA-20375833-3');
 <p>Above, we said that both representations, <em>time domain</em> and <em>frequency domain</em>, were essentially equivalent. In our virtual real world, this is only true if the signal we’re working with has been digitized correctly, or as this is commonly phrased, if it has been “properly sampled.”</p>
 <p>Take speech as an example: As an analog signal, speech per se is continuous in time; for us to be able to work with it on a computer, it needs to be converted to happen in discrete time. This conversion of the independent variable (time in our case, space in e.g. image processing) from continuous to discrete is called <em>sampling</em>.</p>
 <p>In this process of discretization, a crucial decision to be made is the <em>sampling rate</em> to use. The sampling rate has to be at least double the highest frequency in the signal. If it’s not, loss of information will occur. The way this is most often put is the other way round: To preserve all information, the analog signal may not contain frequencies above one-half the sampling rate. This frequency - half the sampling rate - is called the <em>Nyquist rate</em>.</p>
-<p>If the sampling rate is too low, <em>aliasing</em> takes place: Higher frequencies <em>alias</em> themselves as lower frequencies. This means that not only can’t we get them, they also corrupt the magnitudes of corresponding lower frequencies they are being added to. Here’s a schematic example of how a high-frequency signal could alias itself as being lower-frequency. Imagine the high-frequency wave being sampled at integer points (grey circles) only:</p>
+<p>If the sampling rate is too low, <em>aliasing</em> takes place: Higher frequencies <em>alias</em> themselves as lower frequencies. This means that not only can’t we get them, they also corrupt the magnitudes of corresponding lower frequencies they are being added to.
+Here’s a schematic example of how a high-frequency signal could alias itself as being lower-frequency. Imagine the high-frequency wave being sampled at integer points (grey circles) only:</p>
 <p><img src="images/aliasing.png" /></p>
 <p>In the case of the speech commands dataset, all sound waves have been sampled at 16 kHz. This means that when we ask <em>Praat</em> for a spectogram, we should not ask for frequencies higher than 8kHz. Here is what happens if we ask for frequencies up to 16kHz instead - we just don’t get them:</p>
 <p><img src="images/seven_16000_2.png" /></p>
@@ -2225,7 +2236,8 @@ gtag('config', 'UA-20375833-3');
 <p>When we compute the spectrogram via the STFT, we need to tell it what size windows to use, and how big to make the overlap. The longer the windows we use, the better the resolution we get in the frequency domain. However, what we gain in resolution there, we lose in the time domain, as we’ll have fewer windows representing the signal. This is a general principle in signal processing: Resolution in the time and frequency domains are inversely related.</p>
 <p>To make this more concrete, let’s again look at a simple example. Here is the spectrogram of a synthetic sine wave, composed of two components at 1000 Hz and 1200 Hz. The window length was left at its (<em>Praat</em>) default, 5 milliseconds:</p>
 <p><img src="images/bandwidth_1_2.png" /></p>
-<p>We see that with a short window like that, the two different frequencies are mangled into one in the spectrogram. Now enlarge the window to 30 milliseconds, and they are clearly differentiated:</p>
+<p>We see that with a short window like that, the two different frequencies are mangled into one in the spectrogram.
+Now enlarge the window to 30 milliseconds, and they are clearly differentiated:</p>
 <p><img src="images/bandwidth_2_2.png" /></p>
 <p>The above spectrogram of the word “seven” was produced using Praats default of 5 milliseconds. What happens if we use 30 milliseconds instead?</p>
 <p><img src="images/seven_30_2.png" /></p>
@@ -2234,15 +2246,18 @@ gtag('config', 'UA-20375833-3');
 <p><img src="images/windows2.png" /></p>
 <p>While the spectrograms using the Hann and Gaussian windows don’t look much different, the Hamming window seems to have introduced some artifacts.</p>
 <h1 id="beyond-the-spectrogram-mel-scale-and-mel-frequency-cepstral-coefficients-mfccs">Beyond the spectrogram: Mel scale and Mel-Frequency Cepstral Coefficients (MFCCs)</h1>
-<p>Preprocessing options don’t end with the spectrogram. A popular transformation applied to the spectrogram is conversion to <em>mel scale</em>, a scale based on how humans actually perceive differences in pitch. We don’t elaborate further on this here,<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> but we do briefly comment on the respective TensorFlow code below, in case you’d like to experiment with this. In the past, coefficients transformed to Mel scale have sometimes been further processed to obtain the so-called Mel-Frequency Cepstral Coefficients (MFCCs). Again, we just show the code. For excellent reading on Mel scale conversion and MFCCs (including the reason why MFCCs are less often used nowadays) see <a href="https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html">this post</a> by Haytham Fayek.</p>
+<p>Preprocessing options don’t end with the spectrogram. A popular transformation applied to the spectrogram is conversion to <em>mel scale</em>, a scale based on how humans actually perceive differences in pitch. We don’t elaborate further on this here,<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> but we do briefly comment on the respective TensorFlow code below, in case you’d like to experiment with this.
+In the past, coefficients transformed to Mel scale have sometimes been further processed to obtain the so-called Mel-Frequency Cepstral Coefficients (MFCCs). Again, we just show the code. For excellent reading on Mel scale conversion and MFCCs (including the reason why MFCCs are less often used nowadays) see <a href="https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html">this post</a> by Haytham Fayek.</p>
 <p>Back to our original task of speech classification. Now that we’ve gained a bit of insight in what is involved, let’s see how to perform these transformations in TensorFlow.</p>
 <h1 id="preprocessing-for-audio-classification-using-tensorflow">Preprocessing for audio classification using TensorFlow</h1>
-<p>Code will be represented in snippets according to the functionality it provides, so we may directly map it to what was explained conceptually above. A complete example is available <a href="https://github.com/skeydan/audio_classification/blob/master/audio_classification_tf.R">here</a>. The complete example builds on Daniel’s <a href="https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/">original code</a> as much as possible,<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a> with two exceptions:</p>
+<p>Code will be represented in snippets according to the functionality it provides, so we may directly map it to what was explained conceptually above.
+A complete example is available <a href="https://github.com/skeydan/audio_classification/blob/master/audio_classification_tf.R">here</a>. The complete example builds on Daniel’s <a href="https://blogs.rstudio.com/tensorflow/posts/2018-06-06-simple-audio-classification-keras/">original code</a> as much as possible,<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a> with two exceptions:</p>
 <ul>
 <li><p>The code runs in eager as well as in static graph mode. If you decide you only ever need eager mode, there are a few places that can be simplified. This is partly related to the fact that in eager mode, TensorFlow operations in place of tensors return values, which we can directly pass on to TensorFlow functions expecting values, not tensors. In addition, less conversion code is needed when manipulating intermediate values in R.</p></li>
 <li><p>With TensorFlow 1.13 being released any day, and preparations for TF 2.0 running at full speed, we want the code to necessitate as few modifications as possible to run on the next major version of TF. One big difference is that there will no longer be a <code>contrib</code> module. In the original post, <code>contrib</code> was used to read in the <code>.wav</code> files as well as compute the spectrograms. Here, we will use functionality from <code>tf.audio</code> and <code>tf.signal</code> instead.</p></li>
 </ul>
-<p>All operations shown below will run inside <code>tf.dataset</code> code, which on the R side is accomplished using the <code>tfdatasets</code> package. To explain the individual operations, we look at a single file, but later we’ll also display the data generator as a whole.</p>
+<p>All operations shown below will run inside <code>tf.dataset</code> code, which on the R side is accomplished using the <code>tfdatasets</code> package.
+To explain the individual operations, we look at a single file, but later we’ll also display the data generator as a whole.</p>
 <p>For stepping through individual lines, it’s always helpful to have eager mode enabled, independently of whether ultimately we’ll execute in eager or graph mode:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2315,7 +2330,8 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 </div>
 </div>
 <p>257 is the number of frequencies we obtained magnitudes for. By default, <code>stft</code> will apply a Fast Fourier Transform of size <em>smallest power of 2 greater or equal to the number of samples in a window</em>,<a href="#fn9" class="footnote-ref" id="fnref9" role="doc-noteref"><sup>9</sup></a> and then return the <em>fft_length / 2 + 1</em> unique components of the FFT: the zero-frequency term and the positive-frequency terms.<a href="#fn10" class="footnote-ref" id="fnref10" role="doc-noteref"><sup>10</sup></a></p>
-<p>In our case, the number of samples in a window is 480. The nearest enclosing power of 2 being 512, we end up with 512/2 + 1 = 257 coefficients. This too we can compute in advance:<a href="#fn11" class="footnote-ref" id="fnref11" role="doc-noteref"><sup>11</sup></a></p>
+<p>In our case, the number of samples in a window is 480. The nearest enclosing power of 2 being 512, we end up with 512/2 + 1 = 257 coefficients.
+This too we can compute in advance:<a href="#fn11" class="footnote-ref" id="fnref11" role="doc-noteref"><sup>11</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/integer.html'>as.integer</a></span><span class='op'>(</span><span class='fl'>2</span><span class='op'>^</span><span class='fu'><a href='https://rdrr.io/r/base/Round.html'>trunc</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>samples_per_window</span>, <span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span> </span></code></pre>
@@ -2372,7 +2388,8 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>fname</span> <span class='op'>&lt;-</span> <span class='st'>"data/speech_commands_v0.01/bird/1746d7b6_nohash_0.wav"</span></span></code></pre>
 </div>
 </div>
-<p>we’d have ended up with just 63 periods in the spectrogram. As we have to define a fixed <code>input_size</code> for the first conv layer, we need to pad the corresponding dimension to the maximum possible length, which is <code>n_periods</code> computed above. The padding actually takes place as part of dataset definition. Let’s quickly see dataset definition as a whole, leaving out the possible generation of Mel spectrograms.<a href="#fn12" class="footnote-ref" id="fnref12" role="doc-noteref"><sup>12</sup></a></p>
+<p>we’d have ended up with just 63 periods in the spectrogram. As we have to define a fixed <code>input_size</code> for the first conv layer, we need to pad the corresponding dimension to the maximum possible length, which is <code>n_periods</code> computed above.
+The padding actually takes place as part of dataset definition. Let’s quickly see dataset definition as a whole, leaving out the possible generation of Mel spectrograms.<a href="#fn12" class="footnote-ref" id="fnref12" role="doc-noteref"><sup>12</sup></a></p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>data_generator</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>df</span>,</span>
@@ -2443,7 +2460,8 @@ shape=(1, 98, 257), dtype=complex64)</code></pre>
 <h4 id="time-for-experimentation">Time for experimentation</h4>
 <p>Building on the <a href="https://github.com/skeydan/audio_classification/blob/master/audio_classification_tf.R">complete example</a>, now is the time for experimentation: How do different window sizes affect classification accuracy? Does transformation to the mel scale yield improved results?<a href="#fn13" class="footnote-ref" id="fnref13" role="doc-noteref"><sup>13</sup></a> You might also want to try passing a non-default <code>window_fn</code> to <code>stft</code> (the default being the Hann window) and see how that affects the results. And of course, the straightforward definition of the network leaves a lot of room for improvement.</p>
 <h1 id="wrapping-up">Wrapping up</h1>
-<p>Speaking of the network: Now that we’ve gained more insight into what is contained in a spectrogram, we might start asking, is a convnet really an adequate solution here? Normally we use convnets on images: two-dimensional data where both dimensions represent the same kind of information. Thus with images, it is natural to have square filter kernels. In a spectrogram though, the time axis and the frequency axis represent fundamentally different types of information, and it is not clear at all that we should treat them equally. Also, whereas in images, the translation invariance of convnets is a desired feature, this is not the case for the frequency axis in a spectrogram.</p>
+<p>Speaking of the network: Now that we’ve gained more insight into what is contained in a spectrogram, we might start asking, is a convnet really an adequate solution here? Normally we use convnets on images: two-dimensional data where both dimensions represent the same kind of information. Thus with images, it is natural to have square filter kernels.
+In a spectrogram though, the time axis and the frequency axis represent fundamentally different types of information, and it is not clear at all that we should treat them equally. Also, whereas in images, the translation invariance of convnets is a desired feature, this is not the case for the frequency axis in a spectrogram.</p>
 <p>Closing the circle, we discover that due to deeper knowledge about the subject domain, we are in a better position to reason about (hopefully) successful network architectures. We leave it to the creativity of our readers to continue the search…</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">

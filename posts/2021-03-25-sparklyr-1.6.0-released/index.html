@@ -148,8 +148,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Space-efficient online computation of quantile summaries;citation_publication_date=2001;citation_publisher=Association for Computing Machinery;citation_volume=30;citation_doi=10.1145/376284.375670;citation_issn=0163-5808;citation_author=Michael Greenwald;citation_author=Sanjeev Khanna"/>
-  <meta name="citation_reference" content="citation_title=Power iteration clustering;citation_publication_date=2010;citation_author=Frank Lin;citation_author=William Cohen"/>
+  <meta name="citation_reference" content="citation_title=Space-efficient online computation of quantile summaries;citation_publisher=Association for Computing Machinery;citation_volume=30;citation_doi=10.1145/376284.375670;citation_issn=0163-5808;citation_author=Michael Greenwald;citation_author=Sanjeev Khanna"/>
+  <meta name="citation_reference" content="citation_title=Power iteration clustering;citation_author=Frank Lin;citation_author=William Cohen"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -835,6 +835,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1907,15 +1908,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2114,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2198,7 +2205,8 @@ gtag('config', 'UA-20375833-3');
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/utils/install.packages.html'>install.packages</a></span><span class='op'>(</span><span class='st'>"sparklyr"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>In this blog post, we shall highlight the following features and enhancements from <code>sparklyr</code> 1.6:</p>
+<p>In this blog post, we shall highlight the following features and enhancements
+from <code>sparklyr</code> 1.6:</p>
 <ul>
 <li><a href="#weighted-quantile-summaries">Weighted quantile summaries</a></li>
 <li><a href="#power-iteration-clustering">Power iteration clustering</a></li>
@@ -2206,13 +2214,48 @@ gtag('config', 'UA-20375833-3');
 <li><a href="#dplyr-related-improvements">Dplyr-related improvements</a></li>
 </ul>
 <h2 id="weighted-quantile-summaries">Weighted quantile summaries</h2>
-<p><a href="https://spark.apache.org">Apache Spark</a> is well-known for supporting approximate algorithms that trade off marginal amounts of accuracy for greater speed and parallelism. Such algorithms are particularly beneficial for performing preliminary data explorations at scale, as they enable users to quickly query certain estimated statistics within a predefined error margin, while avoiding the high cost of exact computations. One example is the Greenwald-Khanna algorithm for on-line computation of quantile summaries, as described in <span class="citation" data-cites="QuantileSummaries"><a href="#ref-QuantileSummaries" role="doc-biblioref">Greenwald and Khanna</a> (<a href="#ref-QuantileSummaries" role="doc-biblioref">2001</a>)</span>. This algorithm was originally designed for efficient <span class="math inline">\(\epsilon\)</span>- approximation of quantiles within a large dataset <em>without</em> the notion of data points carrying different weights, and the unweighted version of it has been implemented as <a href="https://spark.apache.org/docs/2.0.0/api/java/org/apache/spark/sql/DataFrameStatFunctions.html#approxQuantile(java.lang.String,%20double%5B%5D,%20double)"><code>approxQuantile()</code></a> since Spark 2.0. However, the same algorithm can be generalized to handle weighted inputs, and as <code>sparklyr</code> user <a href="https://github.com/Zhuk66">@Zhuk66</a> mentioned in <a href="https://github.com/sparklyr/sparklyr/issues/2915">this issue</a>, a <a href="https://github.com/sparklyr/sparklyr/blob/4b6bc6677ecf92787ab3521f364a8d80b973d92f/java/spark-1.5.2/weightedquantilesummaries.scala#L13-L332">weighted version</a> of this algorithm makes for a useful <code>sparklyr</code> feature.</p>
-<p>To properly explain what weighted-quantile means, we must clarify what the weight of each data point signifies. For example, if we have a sequence of observations <span class="math inline">\((1, 1, 1, 1, 0, 2, -1, -1)\)</span>, and would like to approximate the median of all data points, then we have the following two options:</p>
+<p><a href="https://spark.apache.org">Apache Spark</a> is well-known for supporting
+approximate algorithms that trade off marginal amounts of accuracy for greater
+speed and parallelism.
+Such algorithms are particularly beneficial for performing preliminary data
+explorations at scale, as they enable users to quickly query certain estimated
+statistics within a predefined error margin, while avoiding the high cost of
+exact computations.
+One example is the Greenwald-Khanna algorithm for on-line computation of quantile
+summaries, as described in <span class="citation" data-cites="QuantileSummaries"><a href="#ref-QuantileSummaries" role="doc-biblioref">Greenwald and Khanna</a> (<a href="#ref-QuantileSummaries" role="doc-biblioref">2001</a>)</span>.
+This algorithm was originally designed for efficient <span class="math inline">\(\epsilon\)</span>-
+approximation of quantiles within a large dataset <em>without</em> the notion of data
+points carrying different weights, and the unweighted version of it has been
+implemented as
+<a href="https://spark.apache.org/docs/2.0.0/api/java/org/apache/spark/sql/DataFrameStatFunctions.html#approxQuantile(java.lang.String,%20double%5B%5D,%20double)"><code>approxQuantile()</code></a>
+since Spark 2.0.
+However, the same algorithm can be generalized to handle weighted
+inputs, and as <code>sparklyr</code> user <a href="https://github.com/Zhuk66">@Zhuk66</a> mentioned
+in <a href="https://github.com/sparklyr/sparklyr/issues/2915">this issue</a>, a
+<a href="https://github.com/sparklyr/sparklyr/blob/4b6bc6677ecf92787ab3521f364a8d80b973d92f/java/spark-1.5.2/weightedquantilesummaries.scala#L13-L332">weighted version</a>
+of this algorithm makes for a useful <code>sparklyr</code> feature.</p>
+<p>To properly explain what weighted-quantile means, we must clarify what the
+weight of each data point signifies. For example, if we have a sequence of
+observations <span class="math inline">\((1, 1, 1, 1, 0, 2, -1, -1)\)</span>, and would like to approximate the
+median of all data points, then we have the following two options:</p>
 <ul>
-<li><p>Either run the unweighted version of <code>approxQuantile()</code> in Spark to scan through all 8 data points</p></li>
-<li><p>Or alternatively, “compress” the data into 4 tuples of (value, weight): <span class="math inline">\((1, 0.5), (0, 0.125), (2, 0.125), (-1, 0.25)\)</span>, where the second component of each tuple represents how often a value occurs relative to the rest of the observed values, and then find the median by scanning through the 4 tuples using the weighted version of the Greenwald-Khanna algorithm</p></li>
+<li><p>Either run the unweighted version of <code>approxQuantile()</code> in Spark to scan
+through all 8 data points</p></li>
+<li><p>Or alternatively, “compress” the data into 4 tuples of (value, weight):
+<span class="math inline">\((1, 0.5), (0, 0.125), (2, 0.125), (-1, 0.25)\)</span>, where the second component of
+each tuple represents how often a value occurs relative to the rest of the
+observed values, and then find the median by scanning through the 4 tuples
+using the weighted version of the Greenwald-Khanna algorithm</p></li>
 </ul>
-<p>We can also run through a contrived example involving the standard normal distribution to illustrate the power of weighted quantile estimation in <code>sparklyr</code> 1.6. Suppose we cannot simply run <code>qnorm()</code> in R to evaluate the <a href="https://en.wikipedia.org/wiki/Normal_distribution#Quantile_function">quantile function</a> of the standard normal distribution at <span class="math inline">\(p = 0.25\)</span> and <span class="math inline">\(p = 0.75\)</span>, how can we get some vague idea about the 1st and 3rd quantiles of this distribution? One way is to sample a large number of data points from this distribution, and then apply the Greenwald-Khanna algorithm to our unweighted samples, as shown below:</p>
+<p>We can also run through a contrived example involving the standard normal
+distribution to illustrate the power of weighted quantile estimation in
+<code>sparklyr</code> 1.6. Suppose we cannot simply run <code>qnorm()</code> in R to evaluate the
+<a href="https://en.wikipedia.org/wiki/Normal_distribution#Quantile_function">quantile function</a>
+of the standard normal distribution at <span class="math inline">\(p = 0.25\)</span> and <span class="math inline">\(p = 0.75\)</span>, how can
+we get some vague idea about the 1st and 3rd quantiles of this distribution?
+One way is to sample a large number of data points from this distribution, and
+then apply the Greenwald-Khanna algorithm to our unweighted samples, as shown
+below:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2235,14 +2278,24 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>##        25%        75%
 ## -0.6629242  0.6874939</code></pre>
-<p>Notice that because we are working with an approximate algorithm, and have specified <code>relative.error = 0.01</code>, the estimated value of <span class="math inline">\(-0.6629242\)</span> from above could be anywhere between the 24th and the 26th percentile of all samples. In fact, it falls in the <span class="math inline">\(25.36896\)</span>-th percentile:</p>
+<p>Notice that because we are working with an approximate algorithm, and have specified
+<code>relative.error = 0.01</code>, the estimated value of <span class="math inline">\(-0.6629242\)</span> from above
+could be anywhere between the 24th and the 26th percentile of all samples.
+In fact, it falls in the <span class="math inline">\(25.36896\)</span>-th percentile:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>pnorm</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>0.6629242</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <pre><code>## [1] 0.2536896</code></pre>
-<p>Now how can we make use of weighted quantile estimation from <code>sparklyr</code> 1.6 to obtain similar results? Simple! We can sample a large number of <span class="math inline">\(x\)</span> values uniformly randomly from <span class="math inline">\((-\infty, \infty)\)</span> (or alternatively, just select a large number of values evenly spaced between <span class="math inline">\((-M, M)\)</span> where <span class="math inline">\(M\)</span> is approximately <span class="math inline">\(\infty\)</span>), and assign each <span class="math inline">\(x\)</span> value a weight of <span class="math inline">\(\displaystyle \frac{1}{\sqrt{2 \pi}}e^{-\frac{x^2}{2}}\)</span>, the standard normal distribution’s probability density at <span class="math inline">\(x\)</span>. Finally, we run the weighted version of <code>sdf_quantile()</code> from <code>sparklyr</code> 1.6, as shown below:</p>
+<p>Now how can we make use of weighted quantile estimation from <code>sparklyr</code> 1.6 to
+obtain similar results? Simple! We can sample a large number of <span class="math inline">\(x\)</span> values
+uniformly randomly from <span class="math inline">\((-\infty, \infty)\)</span> (or alternatively, just select a
+large number of values evenly spaced between <span class="math inline">\((-M, M)\)</span> where <span class="math inline">\(M\)</span> is
+approximately <span class="math inline">\(\infty\)</span>), and assign each <span class="math inline">\(x\)</span> value a weight of
+<span class="math inline">\(\displaystyle \frac{1}{\sqrt{2 \pi}}e^{-\frac{x^2}{2}}\)</span>, the standard normal
+distribution’s probability density at <span class="math inline">\(x\)</span>. Finally, we run the weighted version
+of <code>sdf_quantile()</code> from <code>sparklyr</code> 1.6, as shown below:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2270,7 +2323,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>##    25%    75%
 ## -0.696  0.662</code></pre>
-<p>Voilà! The estimates are not too far off from the 25th and 75th percentiles (in relation to our abovementioned maximum permissible error of <span class="math inline">\(0.01\)</span>):</p>
+<p>Voilà! The estimates are not too far off from the 25th and 75th percentiles (in
+relation to our abovementioned maximum permissible error of <span class="math inline">\(0.01\)</span>):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>pnorm</a></span><span class='op'>(</span><span class='op'>-</span><span class='fl'>0.696</span><span class='op'>)</span></span></code></pre>
@@ -2284,12 +2338,31 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>## [1] 0.7460144</code></pre>
 <h2 id="power-iteration-clustering">Power iteration clustering</h2>
-<p>Power iteration clustering (PIC), a simple and scalable graph clustering method presented in <span class="citation" data-cites="PIC"><a href="#ref-PIC" role="doc-biblioref">Lin and Cohen</a> (<a href="#ref-PIC" role="doc-biblioref">2010</a>)</span>, first finds a low-dimensional embedding of a dataset, using truncated power iteration on a normalized pairwise-similarity matrix of all data points, and then uses this embedding as the “cluster indicator,” an intermediate representation of the dataset that leads to fast convergence when used as input to k-means clustering. This process is very well illustrated in figure 1 of <span class="citation" data-cites="PIC"><a href="#ref-PIC" role="doc-biblioref">Lin and Cohen</a> (<a href="#ref-PIC" role="doc-biblioref">2010</a>)</span> (reproduced below)</p>
+<p>Power iteration clustering (PIC), a simple and scalable graph clustering method
+presented in <span class="citation" data-cites="PIC"><a href="#ref-PIC" role="doc-biblioref">Lin and Cohen</a> (<a href="#ref-PIC" role="doc-biblioref">2010</a>)</span>, first finds a low-dimensional embedding of a dataset, using
+truncated power iteration on a normalized pairwise-similarity matrix of all data
+points, and then uses this embedding as the “cluster indicator,” an intermediate
+representation of the dataset that leads to fast convergence when used as input
+to k-means clustering. This process is very well illustrated in figure 1
+of <span class="citation" data-cites="PIC"><a href="#ref-PIC" role="doc-biblioref">Lin and Cohen</a> (<a href="#ref-PIC" role="doc-biblioref">2010</a>)</span> (reproduced below)</p>
 <div class="layout-chunk" data-layout="l-body">
 <p><img src="images/PIC.png" width="612" /></p>
 </div>
-<p>in which the leftmost image is the visualization of a dataset consisting of 3 circles, with points colored in red, green, and blue indicating clustering results, and the subsequent images show the power iteration process gradually transforming the original set of points into what appears to be three disjoint line segments, an intermediate representation that can be rapidly separated into 3 clusters using k-means clustering with <span class="math inline">\(k = 3\)</span>.</p>
-<p>In <code>sparklyr</code> 1.6, <code>ml_power_iteration()</code> was implemented to make the <a href="http://spark.apache.org/docs/latest/api/java/org/apache/spark/ml/clustering/PowerIterationClustering.html">PIC functionality</a> in Spark accessible from R. It expects as input a 3-column Spark dataframe that represents a pairwise-similarity matrix of all data points. Two of the columns in this dataframe should contain 0-based row and column indices, and the third column should hold the corresponding similarity measure. In the example below, we will see a dataset consisting of two circles being easily separated into two clusters by <code>ml_power_iteration()</code>, with the Gaussian kernel being used as the similarity measure between any 2 points:</p>
+<p>in which the leftmost image is the visualization of a dataset consisting of 3
+circles, with points colored in red, green, and blue indicating clustering
+results, and the subsequent images show the power iteration process gradually
+transforming the original set of points into what appears to be three disjoint line
+segments, an intermediate representation that can be rapidly separated into 3
+clusters using k-means clustering with <span class="math inline">\(k = 3\)</span>.</p>
+<p>In <code>sparklyr</code> 1.6, <code>ml_power_iteration()</code> was implemented to make the
+<a href="http://spark.apache.org/docs/latest/api/java/org/apache/spark/ml/clustering/PowerIterationClustering.html">PIC functionality</a>
+in Spark accessible from R. It expects as input a 3-column Spark dataframe that
+represents a pairwise-similarity matrix of all data points. Two of
+the columns in this dataframe should contain 0-based row and column indices, and
+the third column should hold the corresponding similarity measure.
+In the example below, we will see a dataset consisting of two circles being
+easily separated into two clusters by <code>ml_power_iteration()</code>, with the Gaussian
+kernel being used as the similarity measure between any 2 points:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>gen_similarity_matrix</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2350,10 +2423,27 @@ gtag('config', 'UA-20375833-3');
 ##   158   157       0
 ##   159   158       0
 ##   160   159       0</code></pre>
-<p>The output shows points from the two circles being assigned to separate clusters, as expected, after only a small number of PIC iterations.</p>
+<p>The output shows points from the two circles being assigned to separate clusters,
+as expected, after only a small number of PIC iterations.</p>
 <h2 id="spark_write_rds-collect_from_rds"><code>spark_write_rds()</code> + <code>collect_from_rds()</code></h2>
-<p><code>spark_write_rds()</code> and <code>collect_from_rds()</code> are implemented as a less memory- consuming alternative to <code>collect()</code>. Unlike <code>collect()</code>, which retrieves all elements of a Spark dataframe through the Spark driver node, hence potentially causing slowness or out-of-memory failures when collecting large amounts of data, <code>spark_write_rds()</code>, when used in conjunction with <code>collect_from_rds()</code>, can retrieve all partitions of a Spark dataframe directly from Spark workers, rather than through the Spark driver node. First, <code>spark_write_rds()</code> will distribute the tasks of serializing Spark dataframe partitions in RDS version 2 format among Spark workers. Spark workers can then process multiple partitions in parallel, each handling one partition at a time and persisting the RDS output directly to disk, rather than sending dataframe partitions to the Spark driver node. Finally, the RDS outputs can be re-assembled to R dataframes using <code>collect_from_rds()</code>.</p>
-<p>Shown below is an example of <code>spark_write_rds()</code> + <code>collect_from_rds()</code> usage, where RDS outputs are first saved to HDFS, then downloaded to the local filesystem with <code>hadoop fs -get</code>, and finally, post-processed with <code>collect_from_rds()</code>:</p>
+<p><code>spark_write_rds()</code> and <code>collect_from_rds()</code> are implemented as a less memory-
+consuming alternative to <code>collect()</code>. Unlike <code>collect()</code>, which retrieves all
+elements of a Spark dataframe through the Spark driver node, hence potentially
+causing slowness or out-of-memory failures when collecting large amounts of data,
+<code>spark_write_rds()</code>, when used in conjunction with <code>collect_from_rds()</code>, can
+retrieve all partitions of a Spark dataframe directly from Spark workers,
+rather than through the Spark driver node.
+First, <code>spark_write_rds()</code> will
+distribute the tasks of serializing Spark dataframe partitions in RDS version
+2 format among Spark workers. Spark workers can then process multiple partitions
+in parallel, each handling one partition at a time and persisting the RDS output
+directly to disk, rather than sending dataframe partitions to the Spark driver
+node. Finally, the RDS outputs can be re-assembled to R dataframes using
+<code>collect_from_rds()</code>.</p>
+<p>Shown below is an example of <code>spark_write_rds()</code> + <code>collect_from_rds()</code> usage,
+where RDS outputs are first saved to HDFS, then downloaded to the local
+filesystem with <code>hadoop fs -get</code>, and finally, post-processed with
+<code>collect_from_rds()</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://spark.rstudio.com/'>sparklyr</a></span><span class='op'>)</span></span>
@@ -2386,14 +2476,18 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h2 id="dplyr-related-improvements">Dplyr-related improvements</h2>
-<p>Similar to other recent <code>sparklyr</code> releases, <code>sparklyr</code> 1.6 comes with a number of dplyr-related improvements, such as</p>
+<p>Similar to other recent <code>sparklyr</code> releases, <code>sparklyr</code> 1.6 comes with a
+number of dplyr-related improvements, such as</p>
 <ul>
-<li>Support for <code>where()</code> predicate within <code>select()</code> and <code>summarize(across(...))</code> operations on Spark dataframes</li>
+<li>Support for <code>where()</code> predicate within <code>select()</code> and <code>summarize(across(...))</code>
+operations on Spark dataframes</li>
 <li>Addition of <code>if_all()</code> and <code>if_any()</code> functions</li>
 <li>Full compatibility with <code>dbplyr</code> 2.0 backend API</li>
 </ul>
 <h3 id="selectwhere...-and-summarizeacrosswhere..."><code>select(where(...))</code> and <code>summarize(across(where(...)))</code></h3>
-<p>The dplyr <code>where(...)</code> construct is useful for applying a selection or aggregation function to multiple columns that satisfy some boolean predicate. For example,</p>
+<p>The dplyr <code>where(...)</code> construct is useful for applying a selection or
+aggregation function to multiple columns that satisfy some boolean predicate.
+For example,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span></span>
@@ -2425,8 +2519,13 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="if_all-and-if_any"><code>if_all()</code> and <code>if_any()</code></h3>
-<p><code>if_all()</code> and <code>if_any()</code> are two convenience functions from <code>dplyr</code> 1.0.4 (see <a href="https://www.tidyverse.org/blog/2021/02/dplyr-1-0-4-if-any">here</a> for more details) that effectively<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> combine the results of applying a boolean predicate to a tidy selection of columns using the logical <code>and</code>/<code>or</code> operators.</p>
-<p>Starting from sparklyr 1.6, <code>if_all()</code> and <code>if_any()</code> can also be applied to Spark dataframes, .e.g.,</p>
+<p><code>if_all()</code> and <code>if_any()</code> are two convenience functions from <code>dplyr</code> 1.0.4 (see
+<a href="https://www.tidyverse.org/blog/2021/02/dplyr-1-0-4-if-any">here</a> for more details)
+that effectively<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>
+combine the results of applying a boolean predicate to a tidy selection of columns
+using the logical <code>and</code>/<code>or</code> operators.</p>
+<p>Starting from sparklyr 1.6, <code>if_all()</code> and <code>if_any()</code> can also be applied to
+Spark dataframes, .e.g.,</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dplyr.tidyverse.org'>dplyr</a></span><span class='op'>)</span></span>
@@ -2443,8 +2542,14 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="compatibility-with-dbplyr-2.0-backend-api">Compatibility with <code>dbplyr</code> 2.0 backend API</h3>
-<p><code>Sparklyr</code> 1.6 is fully compatible with the newer <code>dbplyr</code> 2.0 backend API (by implementing all interface changes recommended in <a href="https://dbplyr.tidyverse.org/articles/backend-2.html">here</a>), while still maintaining backward compatibility with the previous edition of <code>dbplyr</code> API, so that <code>sparklyr</code> users will not be forced to switch to any particular version of <code>dbplyr</code>.</p>
-<p>This should be a mostly non-user-visible change as of now. In fact, the only discernible behavior change will be the following code</p>
+<p><code>Sparklyr</code> 1.6 is fully compatible with the newer <code>dbplyr</code> 2.0 backend API (by
+implementing all interface changes recommended in
+<a href="https://dbplyr.tidyverse.org/articles/backend-2.html">here</a>), while still
+maintaining backward compatibility with the previous edition of <code>dbplyr</code> API, so
+that <code>sparklyr</code> users will not be forced to switch to any particular version of
+<code>dbplyr</code>.</p>
+<p>This should be a mostly non-user-visible change as of now. In fact, the only
+discernible behavior change will be the following code</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://dbplyr.tidyverse.org/'>dbplyr</a></span><span class='op'>)</span></span>
@@ -2461,7 +2566,8 @@ gtag('config', 'UA-20375833-3');
 <pre><code>[1] 1</code></pre>
 <p>if otherwise.</p>
 <h2 id="acknowledgements">Acknowledgements</h2>
-<p>In chronological order, we would like to thank the following contributors for making <code>sparklyr</code> 1.6 awesome:</p>
+<p>In chronological order, we would like to thank the following contributors for
+making <code>sparklyr</code> 1.6 awesome:</p>
 <ul>
 <li><a href="https://github.com/yitao-li">@yitao-li</a></li>
 <li><a href="https://github.com/pgramme">@pgramme</a></li>
@@ -2471,9 +2577,16 @@ gtag('config', 'UA-20375833-3');
 <li><a href="https://github.com/nathaneastwood">@nathaneastwood</a></li>
 <li><a href="https://github.com/mzorko">@mzorko</a></li>
 </ul>
-<p>We would also like to give a big shout-out to the wonderful open-source community behind <code>sparklyr</code>, without whom we would not have benefitted from numerous <code>sparklyr</code>-related bug reports and feature suggestions.</p>
-<p>Finally, the author of this blog post also very much appreciates the highly valuable editorial suggestions from <a href="https://github.com/skeydan">@skeydan</a>.</p>
-<p>If you wish to learn more about <code>sparklyr</code>, we recommend checking out <a href="https://sparklyr.ai">sparklyr.ai</a>, <a href="https://spark.rstudio.com">spark.rstudio.com</a>, and also some previous <code>sparklyr</code> release posts such as <a href="https://blogs.rstudio.com/ai/posts/2020-12-14-sparklyr-1.5.0-released/">sparklyr 1.5</a> and <a href="https://blogs.rstudio.com/ai/posts/2020-09-30-sparklyr-1.4.0-released/">sparklyr 1.4</a>.</p>
+<p>We would also like to give a big shout-out to the wonderful open-source community
+behind <code>sparklyr</code>, without whom we would not have benefitted from numerous
+<code>sparklyr</code>-related bug reports and feature suggestions.</p>
+<p>Finally, the author of this blog post also very much appreciates the highly
+valuable editorial suggestions from <a href="https://github.com/skeydan">@skeydan</a>.</p>
+<p>If you wish to learn more about <code>sparklyr</code>, we recommend checking out
+<a href="https://sparklyr.ai">sparklyr.ai</a>, <a href="https://spark.rstudio.com">spark.rstudio.com</a>,
+and also some previous <code>sparklyr</code> release posts such as
+<a href="https://blogs.rstudio.com/ai/posts/2020-12-14-sparklyr-1.5.0-released/">sparklyr 1.5</a>
+and <a href="https://blogs.rstudio.com/ai/posts/2020-09-30-sparklyr-1.4.0-released/">sparklyr 1.4</a>.</p>
 <p>That is all. Thanks for reading!</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">

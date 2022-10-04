@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2171,11 +2178,18 @@ gtag('config', 'UA-20375833-3');
 
 <div class="d-article">
 <h2 id="introduction">Introduction</h2>
-<p>In this post we will use Keras to classify duplicated questions from Quora. The dataset first appeared in the Kaggle competition <a href="https://www.kaggle.com/c/quora-question-pairs">Quora Question Pairs</a> and consists of approximately 400,000 pairs of questions along with a column indicating if the question pair is considered a duplicate.</p>
-<p>Our implementation is inspired by the <a href="https://dl.acm.org/citation.cfm?id=3016291">Siamese Recurrent Architecture</a>, with modifications to the similarity measure and the embedding layers (the original paper uses pre-trained word vectors). Using this kind of architecture dates back to 2005 with <a href="https://dl.acm.org/citation.cfm?id=1068961">Le Cun et al</a> and is useful for verification tasks. The idea is to learn a function that maps input patterns into a target space such that a similarity measure in the target space approximates the “semantic” distance in the input space.</p>
+<p>In this post we will use Keras to classify duplicated questions from Quora.
+The dataset first appeared in the Kaggle competition <a href="https://www.kaggle.com/c/quora-question-pairs">Quora Question Pairs</a> and consists of approximately 400,000 pairs of questions along with a column indicating if the question pair is considered a duplicate.</p>
+<p>Our implementation is inspired by the <a href="https://dl.acm.org/citation.cfm?id=3016291">Siamese Recurrent Architecture</a>, with modifications to the similarity
+measure and the embedding layers (the original paper uses pre-trained word vectors). Using this kind
+of architecture dates back to 2005 with <a href="https://dl.acm.org/citation.cfm?id=1068961">Le Cun et al</a> and is useful for
+verification tasks. The idea is to learn a function that maps input patterns into a
+target space such that a similarity measure in the target space approximates
+the “semantic” distance in the input space.</p>
 <p>After the competition, Quora also described their approach to this problem in this <a href="https://engineering.quora.com/Semantic-Question-Matching-with-Deep-Learning">blog post</a>.</p>
 <h2 id="dowloading-data">Dowloading data</h2>
-<p>Data can be downloaded from the Kaggle <a href="https://www.kaggle.com/quora/question-pairs-dataset">dataset webpage</a> or from Quora’s <a href="https://data.quora.com/First-Quora-Dataset-Release-Question-Pairs">release of the dataset</a>:</p>
+<p>Data can be downloaded from the Kaggle <a href="https://www.kaggle.com/quora/question-pairs-dataset">dataset webpage</a>
+or from Quora’s <a href="https://data.quora.com/First-Quora-Dataset-Release-Question-Pairs">release of the dataset</a>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
@@ -2187,14 +2201,19 @@ gtag('config', 'UA-20375833-3');
 </div>
 <p>We are using the Keras <code>get_file()</code> function so that the file download is cached.</p>
 <h2 id="reading-and-preprocessing">Reading and preprocessing</h2>
-<p>We will first load data into R and do some preprocessing to make it easier to include in the model. After downloading the data, you can read it using the readr <code>read_tsv()</code> function.</p>
+<p>We will first load data into R and do some preprocessing to make it easier to
+include in the model. After downloading the data, you can read it
+using the readr <code>read_tsv()</code> function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://readr.tidyverse.org'>readr</a></span><span class='op'>)</span></span>
 <span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'>read_tsv</span><span class='op'>(</span><span class='va'>quora_data</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We will create a Keras <code>tokenizer</code> to transform each word into an integer token. We will also specify a hyperparameter of our model: the vocabulary size. For now let’s use the 50,000 most common words (we’ll tune this parameter later). The tokenizer will be fit using all unique questions from the dataset.</p>
+<p>We will create a Keras <code>tokenizer</code> to transform each word into an integer
+token. We will also specify a hyperparameter of our model: the vocabulary size.
+For now let’s use the 50,000 most common words (we’ll tune this parameter later).
+The tokenizer will be fit using all unique questions from the dataset.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>text_tokenizer</span><span class='op'>(</span>num_words <span class='op'>=</span> <span class='fl'>50000</span><span class='op'>)</span></span>
@@ -2207,14 +2226,16 @@ gtag('config', 'UA-20375833-3');
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>save_text_tokenizer</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='st'>"tokenizer-question-pairs"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We will now use the text tokenizer to transform each question into a list of integers.</p>
+<p>We will now use the text tokenizer to transform each question into a list
+of integers.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>question1</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question1</span><span class='op'>)</span></span>
 <span><span class='va'>question2</span> <span class='op'>&lt;-</span> <span class='fu'>texts_to_sequences</span><span class='op'>(</span><span class='va'>tokenizer</span>, <span class='va'>df</span><span class='op'>$</span><span class='va'>question2</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Let’s take a look at the number of words in each question. This will helps us to decide the padding length, another hyperparameter of our model. Padding the sequences normalizes them to the same size so that we can feed them to the Keras model.</p>
+<p>Let’s take a look at the number of words in each question. This will helps us to
+decide the padding length, another hyperparameter of our model. Padding the sequences normalizes them to the same size so that we can feed them to the Keras model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='http://purrr.tidyverse.org'>purrr</a></span><span class='op'>)</span></span>
@@ -2228,16 +2249,23 @@ gtag('config', 'UA-20375833-3');
 </div>
 <pre><code>80% 90% 95% 99% 
  14  18  23  31 </code></pre>
-<p>We can see that 99% of questions have at most length 31 so we’ll choose a padding length between 15 and 30. Let’s start with 20 (we’ll also tune this parameter later). The default padding value is 0, but we are already using this value for words that don’t appear within the 50,000 most frequent, so we’ll use 50,001 instead.</p>
+<p>We can see that 99% of questions have at most length 31 so we’ll choose a padding
+length between 15 and 30. Let’s start with 20 (we’ll also tune this parameter later).
+The default padding value is 0, but we are already using this value for words that
+don’t appear within the 50,000 most frequent, so we’ll use 50,001 instead.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>question1_padded</span> <span class='op'>&lt;-</span> <span class='fu'>pad_sequences</span><span class='op'>(</span><span class='va'>question1</span>, maxlen <span class='op'>=</span> <span class='fl'>20</span>, value <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span></span>
 <span><span class='va'>question2_padded</span> <span class='op'>&lt;-</span> <span class='fu'>pad_sequences</span><span class='op'>(</span><span class='va'>question2</span>, maxlen <span class='op'>=</span> <span class='fl'>20</span>, value <span class='op'>=</span> <span class='fl'>50000</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We have now finished the preprocessing steps. We will now run a simple benchmark model before moving on to the Keras model.</p>
+<p>We have now finished the preprocessing steps. We will now run a simple benchmark
+model before moving on to the Keras model.</p>
 <h2 id="simple-benchmark">Simple benchmark</h2>
-<p>Before creating a complicated model let’s take a simple approach. Let’s create two predictors: percentage of words from question1 that appear in the question2 and vice-versa. Then we will use a logistic regression to predict if the questions are duplicate.</p>
+<p>Before creating a complicated model let’s take a simple approach.
+Let’s create two predictors: percentage of words from question1 that
+appear in the question2 and vice-versa. Then we will use a logistic
+regression to predict if the questions are duplicate.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>perc_words_question1</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://purrr.tidyverse.org/reference/map2.html'>map2_dbl</a></span><span class='op'>(</span><span class='va'>question1</span>, <span class='va'>question2</span>, <span class='op'>~</span><span class='fu'><a href='https://rdrr.io/r/base/mean.html'>mean</a></span><span class='op'>(</span><span class='va'>.x</span> <span class='op'><a href='https://rdrr.io/r/base/match.html'>%in%</a></span> <span class='va'>.y</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2251,7 +2279,8 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='fu'><a href='https://rdrr.io/r/stats/na.fail.html'>na.omit</a></span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now that we have our predictors, let’s create the logistic model. We will take a small sample for validation.</p>
+<p>Now that we have our predictors, let’s create the logistic model.
+We will take a small sample for validation.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>val_sample</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample.int</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span>, <span class='fl'>0.1</span><span class='op'>*</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>df_model</span><span class='op'>)</span><span class='op'>)</span></span>
@@ -2300,9 +2329,13 @@ Number of Fisher Scoring iterations: 3</code></pre>
 </div>
 </div>
 <pre><code>[1] 0.6573577</code></pre>
-<p>We got an accuracy of 65.7%. Not all that much better than random guessing. Now let’s create our model in Keras.</p>
+<p>We got an accuracy of 65.7%. Not all that much better than random guessing.
+Now let’s create our model in Keras.</p>
 <h2 id="model-definition">Model definition</h2>
-<p>We will use a Siamese network to predict whether the pairs are duplicated or not. The idea is to create a model that can embed the questions (sequence of words) into a vector. Then we can compare the vectors for each question using a similarity measure and tell if the questions are duplicated or not.</p>
+<p>We will use a Siamese network to predict whether the pairs are duplicated or not.
+The idea is to create a model that can embed the questions (sequence of words)
+into a vector. Then we can compare the vectors for each question using a similarity
+measure and tell if the questions are duplicated or not.</p>
 <p>First let’s define the inputs for the model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2310,7 +2343,8 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <span><span class='va'>input2</span> <span class='op'>&lt;-</span> <span class='fu'>layer_input</span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>20</span><span class='op'>)</span>, name <span class='op'>=</span> <span class='st'>"input_question2"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Then let’s the define the part of the model that will embed the questions in a vector.</p>
+<p>Then let’s the define the part of the model that will embed the questions in a
+vector.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>word_embedder</span> <span class='op'>&lt;-</span> <span class='fu'>layer_embedding</span><span class='op'>(</span> </span>
@@ -2326,27 +2360,38 @@ Number of Fisher Scoring iterations: 3</code></pre>
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now we will define the relationship between the input vectors and the embeddings layers. Note that we use the same layers and weights on both inputs. That’s why this is called a Siamese network. It makes sense, because we don’t want to have different outputs if question1 is switched with question2.</p>
+<p>Now we will define the relationship between the input vectors and the embeddings
+layers. Note that we use the same layers and weights on both inputs. That’s why
+this is called a Siamese network. It makes sense, because we don’t want to have different
+outputs if question1 is switched with question2.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>vector1</span> <span class='op'>&lt;-</span> <span class='va'>input1</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>word_embedder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>seq_embedder</span><span class='op'>(</span><span class='op'>)</span></span>
 <span><span class='va'>vector2</span> <span class='op'>&lt;-</span> <span class='va'>input2</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>word_embedder</span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>seq_embedder</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We then define the similarity measure we want to optimize. We want duplicated questions to have higher values of similarity. In this example we’ll use the cosine similarity, but any similarity measure could be used. Remember that the cosine similarity is the normalized dot product of the vectors, but for training it’s not necessary to normalize the results.</p>
+<p>We then define the similarity measure we want to optimize. We want duplicated questions
+to have higher values of similarity. In this example we’ll use the cosine similarity,
+but any similarity measure could be used. Remember that the cosine similarity is the
+normalized dot product of the vectors, but for training it’s not necessary to
+normalize the results.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>cosine_similarity</span> <span class='op'>&lt;-</span> <span class='fu'>layer_dot</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>vector1</span>, <span class='va'>vector2</span><span class='op'>)</span>, axes <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Next, we define a final sigmoid layer to output the probability of both questions being duplicated.</p>
+<p>Next, we define a final sigmoid layer to output the probability of both questions
+being duplicated.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>output</span> <span class='op'>&lt;-</span> <span class='va'>cosine_similarity</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> </span>
 <span>  <span class='fu'>layer_dense</span><span class='op'>(</span>units <span class='op'>=</span> <span class='fl'>1</span>, activation <span class='op'>=</span> <span class='st'>"sigmoid"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Now that let’s define the Keras model in terms of it’s inputs and outputs and compile it. In the compilation phase we define our loss function and optimizer. Like in the Kaggle challenge, we will minimize the logloss (equivalent to minimizing the binary crossentropy). We will use the Adam optimizer.</p>
+<p>Now that let’s define the Keras model in terms of it’s inputs and outputs and
+compile it. In the compilation phase we define our loss function and optimizer.
+Like in the Kaggle challenge, we will minimize the logloss (equivalent
+to minimizing the binary crossentropy). We will use the Adam optimizer.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>input1</span>, <span class='va'>input2</span><span class='op'>)</span>, <span class='va'>output</span><span class='op'>)</span></span>
@@ -2437,14 +2482,16 @@ Epoch 9/10
 363861/363861 [==============================] - 88s 242us/step - loss: 0.5138 - acc: 0.7762 - val_loss: 0.5292 - val_acc: 0.7667
 Epoch 10/10
 363861/363861 [==============================] - 88s 242us/step - loss: 0.5092 - acc: 0.7794 - val_loss: 0.5313 - val_acc: 0.7654</code></pre>
-<p>After training completes, we can save our model for inference with the <code>save_model_hdf5()</code> function.</p>
+<p>After training completes, we can save our model for inference with the <code>save_model_hdf5()</code>
+function.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='fu'>save_model_hdf5</span><span class='op'>(</span><span class='va'>model</span>, <span class='st'>"model-question-pairs.hdf5"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
 <h2 id="model-tuning">Model tuning</h2>
-<p>Now that we have a reasonable model, let’s tune the hyperparameters using the <a href="https://tensorflow.rstudio.com/tools/tfruns">tfruns</a> package. We’ll begin by adding <code>FLAGS</code> declarations to our script for all hyperparameters we want to tune (<code>FLAGS</code> allow us to vary hyperparmaeters without changing our source code):</p>
+<p>Now that we have a reasonable model, let’s tune the hyperparameters using the
+<a href="https://tensorflow.rstudio.com/tools/tfruns">tfruns</a> package. We’ll begin by adding <code>FLAGS</code> declarations to our script for all hyperparameters we want to tune (<code>FLAGS</code> allow us to vary hyperparmaeters without changing our source code):</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span></span>
@@ -2471,7 +2518,8 @@ Epoch 10/10
 </div>
 </div>
 <p>The full source code of the script with <code>FLAGS</code> can be found <a href="https://gist.github.com/dfalbel/a5d63d6bffe683072cc4781d7c8420ff">here</a>.</p>
-<p>We additionally added an early stopping callback in the training step in order to stop training if validation loss doesn’t decrease for 5 epochs in a row. This will hopefully reduce training time for bad models. We also added a learning rate reducer to reduce the learning rate by a factor of 10 when the loss doesn’t decrease for 3 epochs (this technique typically increases model accuracy).</p>
+<p>We additionally added an early stopping callback in the training step in order to stop training
+if validation loss doesn’t decrease for 5 epochs in a row. This will hopefully reduce training time for bad models. We also added a learning rate reducer to reduce the learning rate by a factor of 10 when the loss doesn’t decrease for 3 epochs (this technique typically increases model accuracy).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit</span><span class='op'>(</span></span>
@@ -2483,7 +2531,9 @@ Epoch 10/10
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>We can now execute a tuning run to probe for the optimal combination of hyperparameters. We call the <code>tuning_run()</code> function, passing a list with the possible values for each flag. The <code>tuning_run()</code> function will be responsible for executing the script for all combinations of hyperparameters. We also specify the <code>sample</code> parameter to train the model for only a random sample from all combinations (reducing training time significantly).</p>
+<p>We can now execute a tuning run to probe for the optimal combination of hyperparameters. We call the <code>tuning_run()</code> function, passing a list with
+the possible values for each flag. The <code>tuning_run()</code> function will be responsible for executing the script for all combinations of hyperparameters. We also specify
+the <code>sample</code> parameter to train the model for only a random sample from all combinations (reducing training time significantly).</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/rstudio/tfruns'>tfruns</a></span><span class='op'>)</span></span>
@@ -2502,7 +2552,8 @@ Epoch 10/10
 <span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The tuning run will return a <code>data.frame</code> with results for all runs. We found that the best run attained 84.9% accuracy using the combination of hyperparameters shown below, so we modify our training script to use these values as the defaults:</p>
+<p>The tuning run will return a <code>data.frame</code> with results for all runs.
+We found that the best run attained 84.9% accuracy using the combination of hyperparameters shown below, so we modify our training script to use these values as the defaults:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>FLAGS</span> <span class='op'>&lt;-</span> <span class='fu'>flags</span><span class='op'>(</span></span>
@@ -2515,7 +2566,9 @@ Epoch 10/10
 </div>
 </div>
 <h2 id="making-predictions">Making predictions</h2>
-<p>Now that we have trained and tuned our model we can start making predictions. At prediction time we will load both the text tokenizer and the model we saved to disk earlier.</p>
+<p>Now that we have trained and tuned our model we can start making predictions.
+At prediction time we will load both the text tokenizer and the model we saved
+to disk earlier.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://keras.rstudio.com'>keras</a></span><span class='op'>)</span></span>
@@ -2552,7 +2605,8 @@ Epoch 10/10
 <pre><code>[1] 0.9784008</code></pre>
 <p>Prediction is quite fast (~40 milliseconds).</p>
 <h2 id="deploying-the-model">Deploying the model</h2>
-<p>To demonstrate deployment of the trained model, we created a simple <a href="https://shiny.rstudio.com">Shiny</a> application, where you can paste 2 questions from Quora and find the probability of them being duplicated. Try changing the questions below or entering two entirely different questions.</p>
+<p>To demonstrate deployment of the trained model, we created a simple <a href="https://shiny.rstudio.com">Shiny</a> application, where
+you can paste 2 questions from Quora and find the probability of them being duplicated. Try changing the questions below or entering two entirely different questions.</p>
 <iframe src="https://jjallaire.shinyapps.io/shiny-quora/" height="405">
 </iframe>
 <p>The shiny application can be found at <a href="https://jjallaire.shinyapps.io/shiny-quora/" class="uri">https://jjallaire.shinyapps.io/shiny-quora/</a> and it’s source code at <a href="https://github.com/dfalbel/shiny-quora-question-pairs" class="uri">https://github.com/dfalbel/shiny-quora-question-pairs</a>.</p>

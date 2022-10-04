@@ -152,8 +152,8 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Distributed representations of words and phrases and their compositionality;citation_publication_date=2013;citation_volume=abs/1310.4546;citation_author=Tomas Mikolov;citation_author=Ilya Sutskever;citation_author=Kai Chen;citation_author=Greg Corrado;citation_author=Jeffrey Dean"/>
-  <meta name="citation_reference" content="citation_title=Entity embeddings of categorical variables;citation_publication_date=2016;citation_volume=abs/1604.06737;citation_author=Cheng Guo;citation_author=Felix Berkhahn"/>
+  <meta name="citation_reference" content="citation_title=Distributed representations of words and phrases and their compositionality;citation_volume=abs/1310.4546;citation_author=Tomas Mikolov;citation_author=Ilya Sutskever;citation_author=Kai Chen;citation_author=Greg Corrado;citation_author=Jeffrey Dean"/>
+  <meta name="citation_reference" content="citation_title=Entity embeddings of categorical variables;citation_volume=abs/1604.06737;citation_author=Cheng Guo;citation_author=Felix Berkhahn"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -839,6 +839,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1911,15 +1912,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2118,7 +2125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2246,7 +2253,8 @@ gtag('config', 'UA-20375833-3');
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>data</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/na.fail.html'>na.omit</a></span><span class='op'>(</span><span class='va'>data</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>That leaves us with ~48,000 completed (as far as we’re concerned) questionnaires. Looking at the variables’ contents, we see we’ll have to do something with them before we can start training.</p>
+<p>That leaves us with ~48,000 completed (as far as we’re concerned) questionnaires.
+Looking at the variables’ contents, we see we’ll have to do something with them before we can start training.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>data</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'><a href='https://pillar.r-lib.org/reference/glimpse.html'>glimpse</a></span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
@@ -2372,7 +2380,8 @@ $ JobSatisfaction    &lt;fct&gt; Extremely satisfied, Moderately dissatisf...
 2 MacOS           14216
 3 Linux-based     10837
 4 BSD/Unix           87</code></pre>
-<p><code>LanguageWorkedWith</code>, on the other hand, contains sequences of programming languages, concatenated by semicolon. One way to unpack these is using Keras’ <code>text_tokenizer</code>.</p>
+<p><code>LanguageWorkedWith</code>, on the other hand, contains sequences of programming languages, concatenated by semicolon.
+One way to unpack these is using Keras’ <code>text_tokenizer</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>language_tokenizer</span> <span class='op'>&lt;-</span> <span class='fu'>text_tokenizer</span><span class='op'>(</span>split <span class='op'>=</span> <span class='st'>";"</span>, filters <span class='op'>=</span> <span class='st'>""</span><span class='op'>)</span></span>
@@ -2832,7 +2841,8 @@ $ company_financial_status &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0,
 <p>But this also warrants a more general comment. With all current enthusiasm about using embeddings on tabular data, we are not aware of any systematic comparisons with one-hot-encoded data as regards the actual effect on performance, nor do we know of systematic analyses under what circumstances embeddings will probably be of help. Our working hypothesis is that in the setup we chose, the dimensionality of the original data is so low that the information can simply be encoded “as is” by the network - as long as we create it with sufficient capacity. Our second use case will therefore use data where - hopefully - this won’t be the case.</p>
 <p>But before, let’s get to the main purpose of this use case: How can we extract those latent relationships from the network?</p>
 <h4 id="extracting-relationships-from-the-learned-embeddings">Extracting relationships from the learned embeddings</h4>
-<p>We’ll show the code here for the <em>job values</em> embeddings, - it is directly transferable to the other ones. <em>The embeddings</em>, that’s just the weight matrix of the respective layer, of dimension <code>number of different values</code> times <code>embedding size</code>.</p>
+<p>We’ll show the code here for the <em>job values</em> embeddings, - it is directly transferable to the other ones.
+<em>The embeddings</em>, that’s just the weight matrix of the respective layer, of dimension <code>number of different values</code> times <code>embedding size</code>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>emb_vals</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>model</span><span class='op'>$</span><span class='fu'>get_layer</span><span class='op'>(</span><span class='st'>"vals"</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>get_weights</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span></span>
@@ -2860,7 +2870,8 @@ $ company_financial_status &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0,
 <figure>
 <img src="images/out.png" style="width:100.0%" alt="Two first principal components of the embeddings for undergrad major (top left), operating system (top right), programming language used (bottom left), and primary values with respect to jobs (bottom right)" /><figcaption aria-hidden="true">Two first principal components of the embeddings for undergrad major (top left), operating system (top right), programming language used (bottom left), and primary values with respect to jobs (bottom right)</figcaption>
 </figure>
-<p>Now we’ll definitely refrain from taking this too seriously, given the modest accuracy on the prediction task that lead to these embedding matrices.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> Certainly when assessing the obtained factorization, performance on the main task has to be taken into account.</p>
+<p>Now we’ll definitely refrain from taking this too seriously, given the modest accuracy on the prediction task that lead to these embedding matrices.<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a>
+Certainly when assessing the obtained factorization, performance on the main task has to be taken into account.</p>
 <p>But we’d like to point out something else too: In contrast to unsupervised and semi-supervised techniques like PCA or autoencoders, we made use of an extraneous variable (the ethical behavior to be predicted). So any learned relationships are never “absolute,” but always to be seen in relation to the way they were learned. This is why we chose an additional target variable, <code>JobSatisfaction</code>, so we could compare the embeddings learned on two different tasks. We won’t refer the concrete results here as accuracy turned out to be even lower than with <code>EthicsChoice</code>. We do, however, want to stress this inherent difference to representations learned by, e.g., autoencoders.</p>
 <p>Now let’s address the second use case.</p>
 <h2 id="embedding-for-profit-improving-accuracy">Embedding for profit (improving accuracy)</h2>
@@ -2992,7 +3003,8 @@ $ company_financial_status &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0,
 <p>This model achieved optimal validation accuracy at a dropout rate of 0.2. At that rate, training accuracy was <code>0.9761</code>, and validation accuracy was <code>0.9507</code>. At all dropout rates lower than 0.7, validation accuracy did indeed surpass the majority vote baseline.</p>
 <p>Can we further improve performance by embedding the product id?</p>
 <h3 id="embeddings-model-1">Embeddings model</h3>
-<p>For better comparability, we again discard salesperson information and cap the number of different products at 500. Otherwise, data preparation goes as expected for this model:</p>
+<p>For better comparability, we again discard salesperson information and cap the number of different products at 500.
+Otherwise, data preparation goes as expected for this model:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>sales_embed</span> <span class='op'>&lt;-</span> <span class='va'>sales</span></span>

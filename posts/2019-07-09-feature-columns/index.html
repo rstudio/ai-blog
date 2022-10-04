@@ -155,7 +155,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Optimizing classifier performance via an approximation to the wilcoxon-mann-whitney statistic;citation_publication_date=2003;citation_author=Lian Yan;citation_author=Robert H Dodier;citation_author=Michael Mozer;citation_author=Richard H Wolniewicz"/>
+  <meta name="citation_reference" content="citation_title=Optimizing classifier performance via an approximation to the wilcoxon-mann-whitney statistic;citation_author=Lian Yan;citation_author=Robert H Dodier;citation_author=Michael Mozer;citation_author=Richard H Wolniewicz"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -841,6 +841,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1913,15 +1914,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2120,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2201,9 +2208,11 @@ gtag('config', 'UA-20375833-3');
 <p>It’s 2019; no one doubts the effectiveness of deep learning in computer vision. Or natural language processing. With “normal,” Excel-style, a.k.a. <em>tabular</em> data however, the situation is different.</p>
 <p>Basically there are two cases: One, you have numeric data only. Then, creating the network is straightforward, and all will be about optimization and hyperparameter search. Two, you have a mix of numeric and categorical data, where categorical could be anything from ordered-numeric to symbolic (e.g., text). In this latter case, with categorical data entering the picture, there is an extremely nice idea you can make use of: <em>embed</em> what are equidistant symbols into a high-dimensional, numeric representation. In that new representation, we can define a distance metric that allows us to make statements like “cycling is closer to running than to baseball,” or “😃 is closer to 😂 than to 😠.” When not dealing with language data, this technique is referred to as <em>entity embeddings</em>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
 <p>Nice as this sounds, why don’t we see entity embeddings used all the time? Well, creating a Keras network that processes a mix of numeric and categorical data used to require a bit of an effort. With TensorFlow’s new <em>feature columns</em>, usable from R through a combination of <code>tfdatasets</code> and <code>keras</code>, there is a much easier way to achieve this. What’s more, <code>tfdatasets</code> follows the popular <a href="https://cran.r-project.org/web/packages/recipes/index.html">recipes</a> idiom to initialize, refine, and apply a feature specification <code>%&gt;%</code>-style. And finally, there are ready-made steps for bucketizing a numeric column, or hashing it, or creating <em>crossed columns</em> to capture interactions.</p>
-<p>This post introduces feature specs starting from a scenario where they don’t exist: basically, the status quo until very recently. Imagine you have a dataset like that from the <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">Porto Seguro car insurance competition</a> where some of the columns are numeric, and some are categorical. You want to train a fully connected network on it, with all categorical columns fed into embedding layers. How can you do that? We then contrast this with the feature spec way, which makes things <em>a lot</em> easier – especially when there’s a lot of categorical columns. In a second applied example, we demonstrate the use of <em>crossed columns</em> on the <em>rugged</em> dataset from Richard McElreath’s <em>rethinking</em> package. Here, we also direct attention to a few technical details that are worth knowing about.</p>
+<p>This post introduces feature specs starting from a scenario where they don’t exist: basically, the status quo until very recently. Imagine you have a dataset like that from the <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">Porto Seguro car insurance competition</a> where some of the columns are numeric, and some are categorical. You want to train a fully connected network on it, with all categorical columns fed into embedding layers. How can you do that? We then contrast this with the feature spec way, which makes things <em>a lot</em> easier – especially when there’s a lot of categorical columns.
+In a second applied example, we demonstrate the use of <em>crossed columns</em> on the <em>rugged</em> dataset from Richard McElreath’s <em>rethinking</em> package. Here, we also direct attention to a few technical details that are worth knowing about.</p>
 <h2 id="mixing-numeric-data-and-embeddings-the-pre-feature-spec-way">Mixing numeric data and embeddings, the pre-feature-spec way</h2>
-<p>Our first example dataset is taken from Kaggle. Two years ago, Brazilian car insurance company Porto Seguro asked participants to predict <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">how likely it is a car owner will file a claim</a> based on a mix of characteristics collected during the previous year. The dataset is comparatively large – there are ~ 600,000 rows in the training set, with 57 predictors. Among others, features are named so as to indicate the type of the data – binary, categorical, or continuous/ordinal. While it’s common in competitions to try to reverse-engineer column meanings, here we just make use of the type of the data, and see how far that gets us.</p>
+<p>Our first example dataset is taken from Kaggle. Two years ago, Brazilian car insurance company Porto Seguro asked participants to predict <a href="https://www.kaggle.com/c/porto-seguro-safe-driver-prediction">how likely it is a car owner will file a claim</a> based on a mix of characteristics collected during the previous year. The dataset is comparatively large – there are ~ 600,000 rows in the training set, with 57 predictors. Among others, features are named so as to indicate the type of the data – binary, categorical, or continuous/ordinal.
+While it’s common in competitions to try to reverse-engineer column meanings, here we just make use of the type of the data, and see how far that gets us.</p>
 <p>Concretely, this means we want to</p>
 <ul>
 <li>use binary features just the way they are, as zeroes and ones,</li>
@@ -2335,7 +2344,8 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <span>  <span class='fu'><a href='https://rdrr.io/r/base/sweep.html'>sweep</a></span><span class='op'>(</span><span class='fl'>2</span>, <span class='va'>train_sds</span>, <span class='st'>"/"</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>When building the network, we need to specify the input and output dimensionalities for the embedding layers. Input dimensionality refers to the number of different symbols that “come in”; in NLP tasks this would be the vocabulary size while here, it’s simply the number of values a variable can take.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> Output dimensionality, the capacity of the internal representation, can then be calculated based on some heuristic. Below, we’ll follow a popular rule of thumb that takes the square root of the dimensionality of the input.</p>
+<p>When building the network, we need to specify the input and output dimensionalities for the embedding layers. Input dimensionality refers to the number of different symbols that “come in”; in NLP tasks this would be the vocabulary size while here, it’s simply the number of values a variable can take.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>
+Output dimensionality, the capacity of the internal representation, can then be calculated based on some heuristic. Below, we’ll follow a popular rule of thumb that takes the square root of the dimensionality of the input.</p>
 <p>So as part one of the network, here we build up the embedding layers in a loop, each wired to the input layer that feeds it:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2361,7 +2371,8 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <span><span class='op'>}</span></span></code></pre>
 </div>
 </div>
-<p>In case you were wondering about the <code>flatten</code> layer following each embedding: We need to squeeze out the third dimension (introduced by the embedding layers) from the tensors, effectively rendering them rank-2. That is because we want to combine them with the rank-2 tensor coming out of the dense layer processing the numeric features.</p>
+<p>In case you were wondering about the <code>flatten</code> layer following each embedding: We need to squeeze out the third dimension (introduced by the embedding layers) from the tensors, effectively rendering them rank-2.
+That is because we want to combine them with the rank-2 tensor coming out of the dense layer processing the numeric features.</p>
 <p>In order to be able to combine it with anything, we have to actually construct that dense layer first. It will be connected to a single input layer, of shape 43, that takes in the numeric features we scaled as well as the binary features we left untouched:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2419,7 +2430,8 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <span><span class='va'>testing</span> <span class='op'>&lt;-</span> <span class='va'>porto</span><span class='op'>[</span><span class='op'>-</span><span class='va'>id_training</span>,<span class='op'>]</span></span></code></pre>
 </div>
 </div>
-<p>Data-prep-wise, recall what our goals are: leave alone if binary; scale if numeric; embed if categorical. Specifying all of this does not need more than a few lines of code:</p>
+<p>Data-prep-wise, recall what our goals are: leave alone if binary; scale if numeric; embed if categorical.
+Specifying all of this does not need more than a few lines of code:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>ft_spec</span> <span class='op'>&lt;-</span> <span class='va'>training</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span></span>
@@ -2437,9 +2449,11 @@ $ ps_calc_20_bin &lt;int&gt; 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,…<
 <span>  <span class='fu'>fit</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Note how here we are passing in the training set, and just like with <code>recipes</code>, we won’t need to repeat any of the steps for the validation set. Scaling is taken care of by <code>scaler_standard()</code>, an optional transformation function passed in to <code>step_numeric_column</code>. Categorical columns are meant to make use of the complete vocabulary<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> and pipe their outputs into embedding layers.</p>
+<p>Note how here we are passing in the training set, and just like with <code>recipes</code>, we won’t need to repeat any of the steps for the validation set. Scaling is taken care of by <code>scaler_standard()</code>, an optional transformation function passed in to <code>step_numeric_column</code>.
+Categorical columns are meant to make use of the complete vocabulary<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> and pipe their outputs into embedding layers.</p>
 <p>Now, what actually happened when we called <code>fit()</code>? A lot – for us, as we got rid of a ton of manual preparation. For TensorFlow, nothing really – it just came to know about a few pieces in the graph we’ll ask it to construct.</p>
-<p>But wait, – don’t we still have to build up that graph ourselves, connecting and concatenating layers? Concretely, above, we had to:</p>
+<p>But wait, – don’t we still have to build up that graph ourselves, connecting and concatenating layers?
+Concretely, above, we had to:</p>
 <ul>
 <li>create the correct number of input layers, of correct shape; and</li>
 <li>wire them to their matching embedding layers, of correct dimensionality.</li>
@@ -2570,7 +2584,8 @@ Variables: 3
 $ log_gdp &lt;dbl&gt; 0.8797119, 0.9647547, 1.1662705, 1.1044854, 0.9149038,…
 $ rugged  &lt;dbl&gt; 0.1383424702, 0.5525636891, 0.1239922606, 0.1249596904…
 $ africa  &lt;int&gt; 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, …</code></pre>
-<p>Now, let’s first forget about the interaction and do the very minimal thing required to work with this data. <code>rugged</code> should be a numeric column, while <code>africa</code> is categorical in nature, which means we use one of the <code>step_categorical_[...]</code> functions on it. (In this case we happen to know there are just two categories, Africa and not-Africa, so we could as well treat the column as numeric like in the previous example; but in other applications that won’t be the case, so here we show a method that generalizes to categorical features in general.)</p>
+<p>Now, let’s first forget about the interaction and do the very minimal thing required to work with this data.
+<code>rugged</code> should be a numeric column, while <code>africa</code> is categorical in nature, which means we use one of the <code>step_categorical_[...]</code> functions on it. (In this case we happen to know there are just two categories, Africa and not-Africa, so we could as well treat the column as numeric like in the previous example; but in other applications that won’t be the case, so here we show a method that generalizes to categorical features in general.)</p>
 <p>So we start out creating a feature spec and adding the two predictor columns. We check the result using <code>feature_spec</code>’s <code>dense_features()</code> method:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2637,7 +2652,8 @@ IndicatorColumn(categorical_column=IdentityCategoricalColumn(key=&#39;africa&#39
 <span>  <span class='fu'>fit</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Looking at this code you may be asking yourself, now how many features do I have in the model? Let’s check.</p>
+<p>Looking at this code you may be asking yourself, now how many features do I have in the model?
+Let’s check.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>ft_spec</span><span class='op'>$</span><span class='fu'>dense_features</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
@@ -2654,7 +2670,8 @@ BucketizedColumn(source_column=NumericColumn(key=&#39;rugged&#39;, shape=(1,), d
 
 $indicator_africa_rugged_interact
 IndicatorColumn(categorical_column=CrossedColumn(keys=(IdentityCategoricalColumn(key=&#39;africa&#39;, number_buckets=2.0, default_value=None), BucketizedColumn(source_column=NumericColumn(key=&#39;rugged&#39;, shape=(1,), default_value=None, dtype=tf.float32, normalizer_fn=None), boundaries=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8))), hash_bucket_size=16.0, hash_key=None))</code></pre>
-<p>We see that all features, original or transformed, are kept, as long as they inherit from <code>DenseColumn</code>. This means that, for example, the non-bucketized, continuous values of <code>rugged</code> are used as well.</p>
+<p>We see that all features, original or transformed, are kept, as long as they inherit from <code>DenseColumn</code>.
+This means that, for example, the non-bucketized, continuous values of <code>rugged</code> are used as well.</p>
 <p>Now setting up the training goes as expected.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">

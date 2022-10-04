@@ -152,9 +152,9 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <meta name="citation_author_institution" content="RStudio"/>
 <!--/radix_placeholder_meta_tags-->
   
-  <meta name="citation_reference" content="citation_title=Pixel recurrent neural networks;citation_publication_date=2016;citation_volume=abs/1601.06759;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Koray Kavukcuoglu"/>
-  <meta name="citation_reference" content="citation_title=Conditional image generation with PixelCNN decoders;citation_publication_date=2016;citation_volume=abs/1606.05328;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Oriol Vinyals;citation_author=Lasse Espeholt;citation_author=Alex Graves;citation_author=Koray Kavukcuoglu"/>
-  <meta name="citation_reference" content="citation_title=PixelCNN++: A PixelCNN implementation with discretized logistic mixture likelihood and other modifications;citation_publication_date=2017;citation_author=Tim Salimans;citation_author=Andrej Karpathy;citation_author=Xi Chen;citation_author=Diederik P. Kingma"/>
+  <meta name="citation_reference" content="citation_title=Pixel recurrent neural networks;citation_volume=abs/1601.06759;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Koray Kavukcuoglu"/>
+  <meta name="citation_reference" content="citation_title=Conditional image generation with PixelCNN decoders;citation_volume=abs/1606.05328;citation_author=Aaron Oord;citation_author=Nal Kalchbrenner;citation_author=Oriol Vinyals;citation_author=Lasse Espeholt;citation_author=Alex Graves;citation_author=Koray Kavukcuoglu"/>
+  <meta name="citation_reference" content="citation_title=PixelCNN++: A PixelCNN implementation with discretized logistic mixture likelihood and other modifications;citation_author=Tim Salimans;citation_author=Andrej Karpathy;citation_author=Xi Chen;citation_author=Diederik P. Kingma"/>
   <!--radix_placeholder_rmarkdown_metadata-->
 
 <script type="text/json" id="radix-rmarkdown-metadata">
@@ -840,6 +840,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1912,15 +1913,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2119,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2198,20 +2205,43 @@ gtag('config', 'UA-20375833-3');
 </div>
 
 <div class="d-article">
-<p>We’ve seen quite a few examples of unsupervised learning (or self-supervised learning, to choose the more correct but less popular term) on this blog.</p>
-<p>Often, these involved <em>Variational Autoencoders (VAEs)</em>, whose appeal lies in them allowing to model a <em>latent space</em> of underlying, independent (preferably) factors that determine the visible features. A possible downside can be the inferior quality of generated samples. Generative Adversarial Networks (GANs) are another popular approach. Conceptually, these are highly attractive due to their game-theoretic framing. However, they can be difficult to train. <em>PixelCNN</em> variants, on the other hand – we’ll subsume them all here under PixelCNN – are generally known for their good results. They seem to involve some more alchemy<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> though. Under those circumstances, what could be more welcome than an easy way of experimenting with them? Through TensorFlow Probability (TFP) and its R wrapper, <a href="https://github.io/tfprobability">tfprobability</a>, we now have such a way.</p>
-<p>This post first gives an introduction to PixelCNN, concentrating on high-level concepts (leaving the details for the curious to look them up in the respective papers). We’ll then show an example of using <code>tfprobability</code> to experiment with the TFP implementation.</p>
+<p>We’ve seen quite a few examples of unsupervised learning (or self-supervised learning, to choose the more correct but less
+popular term) on this blog.</p>
+<p>Often, these involved <em>Variational Autoencoders (VAEs)</em>, whose appeal lies in them allowing to model a <em>latent space</em> of
+underlying, independent (preferably) factors that determine the visible features. A possible downside can be the inferior
+quality of generated samples. Generative Adversarial Networks (GANs) are another popular approach. Conceptually, these are
+highly attractive due to their game-theoretic framing. However, they can be difficult to train. <em>PixelCNN</em> variants, on the
+other hand – we’ll subsume them all here under PixelCNN – are generally known for their good results. They seem to involve
+some more alchemy<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> though. Under those circumstances, what could be more welcome than an easy way of experimenting with
+them? Through TensorFlow Probability (TFP) and its R wrapper, <a href="https://github.io/tfprobability">tfprobability</a>, we now have
+such a way.</p>
+<p>This post first gives an introduction to PixelCNN, concentrating on high-level concepts (leaving the details for the curious
+to look them up in the respective papers). We’ll then show an example of using <code>tfprobability</code> to experiment with the TFP
+implementation.</p>
 <h2 id="pixelcnn-principles">PixelCNN principles</h2>
 <h3 id="autoregressivity-or-we-need-some-order">Autoregressivity, or: We need (some) order</h3>
 <p>The basic idea in PixelCNN is autoregressivity. Each pixel is modeled as depending on all prior pixels. Formally:</p>
 <p><span class="math display">\[p(\mathbf{x}) = \prod_{i}p(x_i|x_0, x_1, ..., x_{i-1})\]</span></p>
-<p>Now wait a second - what even <em>are</em> prior pixels? Last I saw one images were two-dimensional. So this means we have to impose an <em>order</em> on the pixels. Commonly this will be <em>raster scan</em> order: row after row, from left to right. But when dealing with color images, there’s something else: At each position, we actually have <em>three</em> intensity values, one for each of red, green, and blue. The original PixelCNN paper<span class="citation" data-cites="OordKK16">(<a href="#ref-OordKK16" role="doc-biblioref">Oord, Kalchbrenner, and Kavukcuoglu 2016</a>)</span> carried through autoregressivity here as well, with a pixel’s intensity for red depending on just prior pixels, those for green depending on these same prior pixels but additionally, the current value for red, and those for blue depending on the prior pixels as well as the current values for red and green.</p>
+<p>Now wait a second - what even <em>are</em> prior pixels? Last I saw one images were two-dimensional. So this means we have to impose
+an <em>order</em> on the pixels. Commonly this will be <em>raster scan</em> order: row after row, from left to right. But when dealing with
+color images, there’s something else: At each position, we actually have <em>three</em> intensity values, one for each of red, green,
+and blue. The original PixelCNN paper<span class="citation" data-cites="OordKK16">(<a href="#ref-OordKK16" role="doc-biblioref">Oord, Kalchbrenner, and Kavukcuoglu 2016</a>)</span> carried through autoregressivity here as well, with a pixel’s intensity for
+red depending on just prior pixels, those for green depending on these same prior pixels but additionally, the current value
+for red, and those for blue depending on the prior pixels as well as the current values for red and green.</p>
 <p><span class="math display">\[p(x_i|\mathbf{x}&lt;i) = p(x_{i,R}|\mathbf{x}&lt;i)\ p(x_{i,G}|\mathbf{x}&lt;i, x_{i,R})\ p(x_{i,B}|\mathbf{x}&lt;i, x_{i,R}, x_{i,G})\]</span></p>
-<p>Here, the variant implemented in TFP, PixelCNN++<span class="citation" data-cites="Salimans2017PixeCNN">(<a href="#ref-Salimans2017PixeCNN" role="doc-biblioref">Salimans et al. 2017</a>)</span> , introduces a simplification; it factorizes the joint distribution in a less compute-intensive way.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
-<p>Technically, then, we know how autoregressivity is realized; intuitively, it may still seem surprising that imposing a raster scan order “just works” (to me, at least, it is). Maybe this is one of those points where compute power successfully compensates for lack of an equivalent of a cognitive prior.</p>
+<p>Here, the variant implemented in TFP, PixelCNN++<span class="citation" data-cites="Salimans2017PixeCNN">(<a href="#ref-Salimans2017PixeCNN" role="doc-biblioref">Salimans et al. 2017</a>)</span> , introduces a simplification; it factorizes the joint
+distribution in a less compute-intensive way.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+<p>Technically, then, we know how autoregressivity is realized; intuitively, it may still seem surprising that imposing a raster
+scan order “just works” (to me, at least, it is). Maybe this is one of those points where compute power successfully
+compensates for lack of an equivalent of a cognitive prior.</p>
 <h3 id="masking-or-where-not-to-look">Masking, or: Where not to look</h3>
-<p>Now, PixelCNN ends in “CNN” for a reason – as usual in image processing, convolutional layers (or blocks thereof) are involved. But – is it not the very nature of a convolution that it computes an average of some sorts, looking, for each output pixel, not just at the corresponding input but also, at its spatial (or temporal) surroundings? How does that rhyme with the look-at-just-prior-pixels strategy?</p>
-<p>Surprisingly, this problem is easier to solve than it sounds. When applying the convolutional kernel, just multiply with a mask that zeroes out any “forbidden pixels” – like in this example for a 5x5 kernel, where we’re about to compute the convolved value for row 3, column 3:</p>
+<p>Now, PixelCNN ends in “CNN” for a reason – as usual in image processing, convolutional layers (or blocks thereof) are
+involved. But – is it not the very nature of a convolution that it computes an average of some sorts, looking, for each
+output pixel, not just at the corresponding input but also, at its spatial (or temporal) surroundings? How does that rhyme
+with the look-at-just-prior-pixels strategy?</p>
+<p>Surprisingly, this problem is easier to solve than it sounds. When applying the convolutional kernel, just multiply with a
+mask that zeroes out any “forbidden pixels” – like in this example for a 5x5 kernel, where we’re about to compute the
+convolved value for row 3, column 3:</p>
 <p><span class="math display">\[\left[\begin{array}
 {rrr}
 1 &amp; 1 &amp; 1 &amp; 1 &amp; 1\\
@@ -2221,37 +2251,63 @@ gtag('config', 'UA-20375833-3');
 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
 \end{array}\right]
 \]</span></p>
-<p>This makes the algorithm honest, but introduces a different problem: With each successive convolutional layer consuming its predecessor’s output, there is a continuously growing <em>blind spot</em> (so-called in analogy to the blind spot on the retina, but located in the top right) of pixels that are never <em>seen</em> by the algorithm. Van den Oord et al. (2016)<span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span> fix this by using two different convolutional stacks, one proceeding from top to bottom, the other from left to right<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>.</p>
+<p>This makes the algorithm honest, but introduces a different problem: With each successive convolutional layer consuming its
+predecessor’s output, there is a continuously growing <em>blind spot</em> (so-called in analogy to the blind spot on the retina, but
+located in the top right) of pixels that are never <em>seen</em> by the algorithm. Van den Oord et al. (2016)<span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span> fix this
+by using two different convolutional stacks, one proceeding from top to bottom, the other from left to right<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>.</p>
 <figure>
-<img src="images/stacks.png" alt="Fig. 1: Left: Blind spot, growing over layers. Right: Using two different stacks (a vertical and a horizontal one) solves the problem. Source: van den Oord et al., 2016." /><figcaption aria-hidden="true">Fig. 1: Left: Blind spot, growing over layers. Right: Using two different stacks (a vertical and a horizontal one) solves the problem. Source: van den Oord et al., 2016.</figcaption>
+<img src="images/stacks.png" alt="Fig. 1: Left: Blind spot, growing over layers. Right: Using two different stacks (a vertical and a horizontal one) solves the problem. Source: van den Oord et al., 2016." /><figcaption aria-hidden="true">Fig. 1: Left: Blind spot, growing over layers. Right: Using two different stacks (a vertical and a horizontal one) solves
+the problem. Source: van den Oord et al., 2016.</figcaption>
 </figure>
 <h3 id="conditioning-or-show-me-a-kitten">Conditioning, or: Show me a kitten</h3>
-<p>So far, we’ve always talked about “generating images” in a purely generic way. But the real attraction lies in creating samples of some specified type – one of the classes we’ve been training on, or orthogonal information fed into the network. This is where PixelCNN becomes <em>Conditional PixelCNN</em><span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>, and it is also where that feeling of magic resurfaces. Again, as “general math” it’s not hard to conceive. Here, <span class="math inline">\(\mathbf{h}\)</span> is the additional input we’re conditioning on:</p>
+<p>So far, we’ve always talked about “generating images” in a purely generic way. But the real attraction lies in creating
+samples of some specified type – one of the classes we’ve been training on, or orthogonal information fed into the network.
+This is where PixelCNN becomes <em>Conditional PixelCNN</em><span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>, and it is also where that feeling of magic resurfaces.
+Again, as “general math” it’s not hard to conceive. Here, <span class="math inline">\(\mathbf{h}\)</span> is the additional input we’re conditioning on:</p>
 <p><span class="math display">\[p(\mathbf{x}| \mathbf{h}) = \prod_{i}p(x_i|x_0, x_1, ..., x_{i-1}, \mathbf{h})\]</span></p>
-<p>But how does this translate into neural network operations? It’s just another matrix multiplication (<span class="math inline">\(V^T \mathbf{h}\)</span>) added to the convolutional outputs (<span class="math inline">\(W \mathbf{x}\)</span>).</p>
+<p>But how does this translate into neural network operations? It’s just another matrix multiplication (<span class="math inline">\(V^T \mathbf{h}\)</span>) added
+to the convolutional outputs (<span class="math inline">\(W \mathbf{x}\)</span>).</p>
 <p><span class="math display">\[\mathbf{y} = tanh(W_{k,f} \mathbf{x} + V^T_{k,f} \mathbf{h}) \odot \sigma(W_{k,g} \mathbf{x} + V^T_{k,g} \mathbf{h})\]</span></p>
-<p>(If you’re wondering about the second part on the right, after the Hadamard product sign – we won’t go into details, but in a nutshell, it’s another modification introduced by <span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>, a transfer of the “gating” principle from recurrent neural networks, such as GRUs and LSTMs, to the convolutional setting.)</p>
+<p>(If you’re wondering about the second part on the right, after the Hadamard product sign – we won’t go into details, but in a
+nutshell, it’s another modification introduced by <span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>, a transfer of the “gating” principle from recurrent neural
+networks, such as GRUs and LSTMs, to the convolutional setting.)</p>
 <p>So we see what goes into the decision of a pixel value to sample. But how is that decision actually <em>made</em>?</p>
 <h3 id="logistic-mixture-likelihood-or-no-pixel-is-an-island">Logistic mixture likelihood , or: No pixel is an island</h3>
-<p>Again, this is where the TFP implementation does not follow the original paper, but the latter PixelCNN++ one. Originally, pixels were modeled as discrete values, decided on by a softmax over 256 (0-255) possible values. (That this actually worked seems like another instance of deep learning magic. Imagine: In this model, 254 is as far from 255 as it is from 0.)</p>
-<p>In contrast, PixelCNN++ assumes an underlying continuous distribution of color intensity, and rounds to the nearest integer. That underlying distribution is a mixture of logistic distributions, thus allowing for multimodality:</p>
+<p>Again, this is where the TFP implementation does not follow the original paper, but the latter PixelCNN++ one. Originally,
+pixels were modeled as discrete values, decided on by a softmax over 256 (0-255) possible values. (That this actually worked
+seems like another instance of deep learning magic. Imagine: In this model, 254 is as far from 255 as it is from 0.)</p>
+<p>In contrast, PixelCNN++ assumes an underlying continuous distribution of color intensity, and rounds to the nearest integer.
+That underlying distribution is a mixture of logistic distributions, thus allowing for multimodality:</p>
 <p><span class="math display">\[\nu \sim \sum_{i} \pi_i \ logistic(\mu_i, \sigma_i)\]</span></p>
 <h3 id="overall-architecture-and-the-pixelcnn-distribution">Overall architecture and the PixelCNN distribution</h3>
-<p>Overall, PixelCNN++, as described in <span class="citation" data-cites="Salimans2017PixeCNN">(<a href="#ref-Salimans2017PixeCNN" role="doc-biblioref">Salimans et al. 2017</a>)</span>, consists of six blocks. The blocks together make up a UNet-like structure, successively downsizing the input and then, upsampling again:</p>
+<p>Overall, PixelCNN++, as described in <span class="citation" data-cites="Salimans2017PixeCNN">(<a href="#ref-Salimans2017PixeCNN" role="doc-biblioref">Salimans et al. 2017</a>)</span>, consists of six blocks. The blocks together make up a UNet-like
+structure, successively downsizing the input and then, upsampling again:</p>
 <figure>
 <img src="images/high-level.png" alt="Fig. 2: Overall structure of PixelCNN++. From: Salimans et al., 2017." /><figcaption aria-hidden="true">Fig. 2: Overall structure of PixelCNN++. From: Salimans et al., 2017.</figcaption>
 </figure>
 <p>In TFP’s PixelCNN distribution, the number of blocks is configurable as <code>num_hierarchies</code>, the default being 3.</p>
-<p>Each block consists of a customizable number of layers, called <em>ResNet layers</em> due to the residual connection (visible on the right) complementing the convolutional operations in the horizontal stack:</p>
+<p>Each block consists of a customizable number of layers, called <em>ResNet layers</em> due to the residual connection (visible on the
+right) complementing the convolutional operations in the horizontal stack:</p>
 <figure>
-<img src="images/layer.png" alt="Fig. 3: One so-called &quot;ResNet layer&quot;, featuring both a vertical and a horizontal convolutional stack. Source: van den Oord et al., 2017." /><figcaption aria-hidden="true">Fig. 3: One so-called "ResNet layer", featuring both a vertical and a horizontal convolutional stack. Source: van den Oord et al., 2017.</figcaption>
+<img src="images/layer.png" alt="Fig. 3: One so-called &quot;ResNet layer&quot;, featuring both a vertical and a horizontal convolutional stack. Source: van den Oord et al., 2017." /><figcaption aria-hidden="true">Fig. 3: One so-called "ResNet layer", featuring both a vertical and a horizontal convolutional stack. Source: van den Oord
+et al., 2017.</figcaption>
 </figure>
 <p>In TFP, the number of these layers per block is configurable as <code>num_resnet</code>.</p>
-<p><code>num_resnet</code> and <code>num_hierarchies</code> are the parameters you’re most likely to experiment with, but there are a few more you can check out in the <a href="https://rstudio.github.io/tfprobability/reference/tfd_pixel_cnn.html">documentation</a>. The number of logistic distributions in the mixture is also configurable, but from my experiments it’s best to keep that number rather low to avoid producing <code>NaN</code>s during training.</p>
+<p><code>num_resnet</code> and <code>num_hierarchies</code> are the parameters you’re most likely to experiment with, but there are a few more you can
+check out in the <a href="https://rstudio.github.io/tfprobability/reference/tfd_pixel_cnn.html">documentation</a>. The number of logistic
+distributions in the mixture is also configurable, but from my experiments it’s best to keep that number rather low to avoid
+producing <code>NaN</code>s during training.</p>
 <p>Let’s now see a complete example.</p>
 <h2 id="end-to-end-example">End-to-end example</h2>
-<p>Our playground will be <a href="https://github.com/googlecreativelab/quickdraw-dataset">QuickDraw</a>, a dataset – still growing – obtained by asking people to draw some object in at most twenty seconds, using the mouse. (To see for yourself, just check out the <a href="https://quickdraw.withgoogle.com/">website</a>). As of today, there are more than a fifty million instances, from 345 different classes.</p>
-<p>First and foremost, these data were chosen to take a break from MNIST and its variants. But just like those (and many more!), QuickDraw can be obtained, in <code>tfdatasets</code>-ready form, via <a href="https://github.com/rstudio/tfds">tfds</a>, the R wrapper to TensorFlow datasets. In contrast to the MNIST “family” though, the “real samples” are themselves highly irregular, and often even missing essential parts. So to anchor judgment, when displaying generated samples we always show eight actual drawings with them.</p>
+<p>Our playground will be <a href="https://github.com/googlecreativelab/quickdraw-dataset">QuickDraw</a>, a dataset – still growing –
+obtained by asking people to draw some object in at most twenty seconds, using the mouse. (To see for yourself, just check out
+the <a href="https://quickdraw.withgoogle.com/">website</a>). As of today, there are more than a fifty million instances, from 345
+different classes.</p>
+<p>First and foremost, these data were chosen to take a break from MNIST and its variants. But just like those (and many more!),
+QuickDraw can be obtained, in <code>tfdatasets</code>-ready form, via <a href="https://github.com/rstudio/tfds">tfds</a>, the R wrapper to
+TensorFlow datasets. In contrast to the MNIST “family” though, the “real samples” are themselves highly irregular, and often
+even missing essential parts. So to anchor judgment, when displaying generated samples we always show eight actual drawings
+with them.</p>
 <h3 id="preparing-the-data">Preparing the data</h3>
 <p>The dataset being gigantic, we instruct <code>tfds</code> to load the first 500,000 drawings “only.”</p>
 <div class="layout-chunk" data-layout="l-body">
@@ -2275,7 +2331,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>train_ds</span> <span class='op'>&lt;-</span> <span class='fu'>tfds_load</span><span class='op'>(</span><span class='st'>"quickdraw_bitmap"</span>, split<span class='op'>=</span><span class='st'>'train[:500000]'</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>To speed up training further, we then zoom in on twenty classes. This effectively leaves us with ~ 1,100 - 1,500 drawings per class.</p>
+<p>To speed up training further, we then zoom in on twenty classes. This effectively leaves us with ~ 1,100 - 1,500 drawings per
+class.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># bee, bicycle, broccoli, butterfly, cactus,</span></span>
@@ -2296,7 +2353,8 @@ gtag('config', 'UA-20375833-3');
 <span>  <span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>The PixelCNN distribution expects values in the range from 0 to 255 – no normalization required. Preprocessing then consists of just casting pixels and labels each to <code>float</code>:</p>
+<p>The PixelCNN distribution expects values in the range from 0 to 255 – no normalization required. Preprocessing then consists
+of just casting pixels and labels each to <code>float</code>:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>preprocess</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>record</span><span class='op'>)</span> <span class='op'>{</span></span>
@@ -2314,7 +2372,8 @@ gtag('config', 'UA-20375833-3');
 </div>
 </div>
 <h3 id="creating-the-model">Creating the model</h3>
-<p>We now use <a href="https://rstudio.github.io/tfprobability/reference/tfd_pixel_cnn.html">tfd_pixel_cnn</a> to define what will be the loglikelihood used by the model.</p>
+<p>We now use <a href="https://rstudio.github.io/tfprobability/reference/tfd_pixel_cnn.html">tfd_pixel_cnn</a> to define what will be the
+loglikelihood used by the model.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>dist</span> <span class='op'>&lt;-</span> <span class='fu'>tfd_pixel_cnn</span><span class='op'>(</span></span>
@@ -2332,7 +2391,8 @@ gtag('config', 'UA-20375833-3');
 <span><span class='va'>log_prob</span> <span class='op'>&lt;-</span> <span class='va'>dist</span> <span class='op'>%&gt;%</span> <span class='fu'>tfd_log_prob</span><span class='op'>(</span><span class='va'>image_input</span>, conditional_input <span class='op'>=</span> <span class='va'>label_input</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>This custom loglikelihood is added as a loss to the model, and then, the model is compiled with just an optimizer specification only. During training, loss first decreased quickly, but improvements from later epochs were smaller.</p>
+<p>This custom loglikelihood is added as a loss to the model, and then, the model is compiled with just an optimizer
+specification only. During training, loss first decreased quickly, but improvements from later epochs were smaller.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>model</span> <span class='op'>&lt;-</span> <span class='fu'>keras_model</span><span class='op'>(</span>inputs <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>image_input</span>, <span class='va'>label_input</span><span class='op'>)</span>, outputs <span class='op'>=</span> <span class='va'>log_prob</span><span class='op'>)</span></span>
@@ -2392,9 +2452,15 @@ gtag('config', 'UA-20375833-3');
 <figure>
 <img src="images/draw_246.png" alt="Fig. 9: Roller skates, drawn by people (top row) and the network (bottom row)." /><figcaption aria-hidden="true">Fig. 9: Roller skates, drawn by people (top row) and the network (bottom row).</figcaption>
 </figure>
-<p>We probably wouldn’t confuse the first and second rows, but then, the actual human drawings exhibit enormous variation, too. And no one ever said PixelCNN was an architecture for concept learning. Feel free to play around with other datasets of your choice – TFP’s PixelCNN distribution makes it easy.</p>
+<p>We probably wouldn’t confuse the first and second rows, but then, the actual human drawings exhibit enormous variation, too.
+And no one ever said PixelCNN was an architecture for concept learning. Feel free to play around with other datasets of your
+choice – TFP’s PixelCNN distribution makes it easy.</p>
 <h2 id="wrapping-up">Wrapping up</h2>
-<p>In this post, we had <code>tfprobability</code> / TFP do all the heavy lifting for us, and so, could focus on the underlying concepts. Depending on your inclinations, this can be an ideal situation – you don’t lose sight of the forest for the trees. On the other hand: Should you find that changing the provided parameters doesn’t achieve what you want, you have a reference implementation to start from. So whatever the outcome, the addition of such higher-level functionality to TFP is a win for the users. (If you’re a TFP developer reading this: Yes, we’d like more :-)).</p>
+<p>In this post, we had <code>tfprobability</code> / TFP do all the heavy lifting for us, and so, could focus on the underlying concepts.
+Depending on your inclinations, this can be an ideal situation – you don’t lose sight of the forest for the trees. On the
+other hand: Should you find that changing the provided parameters doesn’t achieve what you want, you have a reference
+implementation to start from. So whatever the outcome, the addition of such higher-level functionality to TFP is a win for the
+users. (If you’re a TFP developer reading this: Yes, we’d like more :-)).</p>
 <p>To everyone though, thanks for reading!</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
@@ -2411,7 +2477,9 @@ Salimans, Tim, Andrej Karpathy, Xi Chen, and Diederik P. Kingma. 2017. <span>“
 <section class="footnotes" role="doc-endnotes">
 <hr />
 <ol>
-<li id="fn1" role="doc-endnote"><p>Alluding to Ali Rahimi’s (in)famous “deep learning is alchemy” <a href="https://www.youtube.com/watch?v=Qi1Yry33TQE">talk</a> at NeurIPS 2017. I would suspect that to some degree, that statement resonates with many DL practitioners – although one need not agree that more mathematical rigor is the solution.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn1" role="doc-endnote"><p>Alluding to Ali Rahimi’s (in)famous “deep learning is alchemy” <a href="https://www.youtube.com/watch?v=Qi1Yry33TQE">talk</a> at
+NeurIPS 2017. I would suspect that to some degree, that statement resonates with many DL practitioners – although one
+need not agree that more mathematical rigor is the solution.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2" role="doc-endnote"><p>For details, see <span class="citation" data-cites="Salimans2017PixeCNN">(<a href="#ref-Salimans2017PixeCNN" role="doc-biblioref">Salimans et al. 2017</a>)</span>.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn3" role="doc-endnote"><p>.For details, see <span class="citation" data-cites="OordKVEGK16">(<a href="#ref-OordKVEGK16" role="doc-biblioref">Oord et al. 2016</a>)</span>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>

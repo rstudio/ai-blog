@@ -815,6 +815,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1887,15 +1888,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2094,7 +2101,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2242,7 +2249,8 @@ Figure 1: Simulated data
 </p>
 </div>
 </div>
-<p>The task here is single-predictor regression, which in principle we can achieve use Keras <code>dense</code> layers. Let’s see how to enhance this by indicating uncertainty, starting from the aleatoric type.</p>
+<p>The task here is single-predictor regression, which in principle we can achieve use Keras <code>dense</code> layers.
+Let’s see how to enhance this by indicating uncertainty, starting from the aleatoric type.</p>
 <h3 id="aleatoric-uncertainty">Aleatoric uncertainty</h3>
 <p>Aleatoric uncertainty, by definition, is not a statement about the model. So why not have the model learn the uncertainty inherent in the data?</p>
 <p>This is exactly how aleatoric uncertainty is operationalized in this approach. Instead of a single output per input – the predicted mean of the regression – here we have two outputs: one for the mean, and one for the standard deviation.</p>
@@ -2301,7 +2309,8 @@ Figure 1: Simulated data
 </div>
 <pre><code>tfp.distributions.Normal(&quot;sequential/distribution_lambda/Normal/&quot;,
 batch_shape=[150, 1], event_shape=[], dtype=float32)</code></pre>
-<p>To obtain the means and standard deviations – the latter being that measure of aleatoric uncertainty we’re interested in – we just call <a href="https://rstudio.github.io/tfprobability/reference/tfd_mean.html">tfd_mean</a> and <a href="https://rstudio.github.io/tfprobability/reference/tfd_stddev.html">tfd_stddev</a> on these distributions. That will give us the predicted mean, as well as the predicted variance, <em>per datapoint</em>.</p>
+<p>To obtain the means and standard deviations – the latter being that measure of aleatoric uncertainty we’re interested in – we just call <a href="https://rstudio.github.io/tfprobability/reference/tfd_mean.html">tfd_mean</a> and <a href="https://rstudio.github.io/tfprobability/reference/tfd_stddev.html">tfd_stddev</a> on these distributions.
+That will give us the predicted mean, as well as the predicted variance, <em>per datapoint</em>.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>mean</span> <span class='op'>&lt;-</span> <span class='va'>yhat</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>tfd_mean</span><span class='op'>(</span><span class='op'>)</span></span>
@@ -2363,7 +2372,8 @@ Figure 3: Aleatoric uncertainty on simulated data, using linear activation in th
 <p>Overall, it seems like aleatoric uncertainty is the straightforward part. We want the network to learn the variation inherent in the data, which it does. What do we gain? Instead of obtaining just point estimates, which in this example might turn out pretty bad in the two fan-like areas of the data on the left and right sides, we learn about the spread as well. We’ll thus be appropriately cautious depending on what input range we’re making predictions for.</p>
 <h3 id="epistemic-uncertainty">Epistemic uncertainty</h3>
 <p>Now our focus is on the model. Given a speficic model (e.g., one from the linear family), what kind of data does it say conforms to its expectations?</p>
-<p>To answer this question, we make use of a <a href="https://rstudio.github.io/tfprobability/reference/layer_dense_variational.html">variational-dense layer</a>. This is again a Keras layer provided by <code>tfprobability</code>. Internally, it works by minimizing the <em>evidence lower bound</em> (ELBO), thus striving to find an approximative posterior that does two things:</p>
+<p>To answer this question, we make use of a <a href="https://rstudio.github.io/tfprobability/reference/layer_dense_variational.html">variational-dense layer</a>.
+This is again a Keras layer provided by <code>tfprobability</code>. Internally, it works by minimizing the <em>evidence lower bound</em> (ELBO), thus striving to find an approximative posterior that does two things:</p>
 <ol type="1">
 <li>fit the actual data well (put differently: achieve high <em>log likelihood</em>), and</li>
 <li>stay close to a <em>prior</em> (as measured by <a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence">KL divergence</a>).</li>
@@ -2425,7 +2435,8 @@ Figure 3: Aleatoric uncertainty on simulated data, using linear activation in th
 <span>    <span class='fu'>tfd_normal</span><span class='op'>(</span>loc <span class='op'>=</span> <span class='va'>x</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>You may have noticed one argument to <code>layer_dense_variational</code> we haven’t discussed yet, <code>kl_weight</code>. This is used to scale the contribution to the total loss of the KL divergence, and normally should equal one over the number of data points.</p>
+<p>You may have noticed one argument to <code>layer_dense_variational</code> we haven’t discussed yet, <code>kl_weight</code>.
+This is used to scale the contribution to the total loss of the KL divergence, and normally should equal one over the number of data points.</p>
 <p>Training the model is straightforward. As users, we only specify the <em>negative log likelihood</em> part of the loss; the KL divergence part is taken care of transparently by the framework.</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
@@ -2434,7 +2445,8 @@ Figure 3: Aleatoric uncertainty on simulated data, using linear activation in th
 <span><span class='va'>model</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> <span class='fu'>fit</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span>, epochs <span class='op'>=</span> <span class='fl'>1000</span><span class='op'>)</span></span></code></pre>
 </div>
 </div>
-<p>Because of the stochasticity inherent in a variational-dense layer, each time we call this model, we obtain different results: different normal distributions, in this case. To obtain the uncertainty estimates we’re looking for, we therefore call the model a bunch of times – 100, say:</p>
+<p>Because of the stochasticity inherent in a variational-dense layer, each time we call this model, we obtain different results: different normal distributions, in this case.
+To obtain the uncertainty estimates we’re looking for, we therefore call the model a bunch of times – 100, say:</p>
 <div class="layout-chunk" data-layout="l-body">
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>yhats</span> <span class='op'>&lt;-</span> <span class='fu'>purrr</span><span class='fu'>::</span><span class='fu'><a href='https://purrr.tidyverse.org/reference/map.html'>map</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>100</span>, <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span> <span class='fu'>model</span><span class='op'>(</span><span class='va'>tf</span><span class='op'>$</span><span class='fu'>constant</span><span class='op'>(</span><span class='va'>x_test</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span></code></pre>
@@ -2475,7 +2487,8 @@ Figure 4: Epistemic uncertainty on simulated data, using linear activation in th
 <p>To prevent this post from growing to infinite size, we’ve refrained from performing a systematic experiment; please take what follows not as generalizable statements, but as <em>pointers to things you will want to keep in mind</em> in your own ventures. Especially, each (hyper-)parameter is not an island; they could interact in unforeseen ways.</p>
 <p>After those words of caution, here are some things we noticed.</p>
 <ol type="1">
-<li>One question you might ask: Before, in the aleatoric uncertainty setup, we added an additional dense layer to the model, with <code>relu</code> activation. What if we did this here? Firstly, we’re not adding any additional, non-variational layers in order to keep the setup “fully Bayesian” – we want priors at every level. As to using <code>relu</code> in <code>layer_dense_variational</code>, we did try that, and the results look pretty similar:</li>
+<li>One question you might ask: Before, in the aleatoric uncertainty setup, we added an additional dense layer to the model, with <code>relu</code> activation. What if we did this here?
+Firstly, we’re not adding any additional, non-variational layers in order to keep the setup “fully Bayesian” – we want priors at every level. As to using <code>relu</code> in <code>layer_dense_variational</code>, we did try that, and the results look pretty similar:</li>
 </ol>
 <div class="layout-chunk" data-layout="l-body-outset">
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-22"></span>
@@ -2884,8 +2897,11 @@ Figure 13: Uncertainty (aleatoric, epistemic, both) on the Combined Cycle Power 
 </div>
 </div>
 <h2 id="conclusion">Conclusion</h2>
-<p>Where does this leave us? Compared to the learnable-dropout approach described in the prior post, the way presented here is a lot easier, faster, and more intuitively understandable. The methods per se are that easy to use that in this first introductory post, we could afford to explore alternatives already: something we had no time to do in that previous exposition.</p>
-<p>In fact, we hope this post leaves you in a position to do your own experiments, on your own data. Obviously, you will have to make decisions, but isn’t that the way it is in data science? There’s no way around making decisions; we just should be prepared to justify them … Thanks for reading!</p>
+<p>Where does this leave us? Compared to the learnable-dropout approach described in the prior post, the way presented here is a lot easier, faster, and more intuitively understandable.
+The methods per se are that easy to use that in this first introductory post, we could afford to explore alternatives already: something we had no time to do in that previous exposition.</p>
+<p>In fact, we hope this post leaves you in a position to do your own experiments, on your own data.
+Obviously, you will have to make decisions, but isn’t that the way it is in data science? There’s no way around making decisions; we just should be prepared to justify them …
+Thanks for reading!</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <section class="footnotes" role="doc-endnotes">
 <hr />

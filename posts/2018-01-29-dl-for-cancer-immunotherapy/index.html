@@ -812,6 +812,7 @@ d-title .dt-tags {
 d-article table.gt_table td,
 d-article table.gt_table th {
   border-bottom: none;
+  font-size: 100%;
 }
 
 .html-widget {
@@ -1884,15 +1885,21 @@ function init_distill() {
 
     // hoverable references
     $('span.citation[data-cites]').each(function() {
-      if ($(this).children()[0].nodeName == "D-FOOTNOTE") {
-        var fn = $(this).children()[0]
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
         $(this).html(fn.shadowRoot.querySelector("sup"))
         $(this).id = fn.id
         fn.remove()
       }
       var refs = $(this).attr('data-cites').split(" ");
       var refHtml = refs.map(function(ref) {
-        return "<p>" + $('#ref-' + ref).html() + "</p>";
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
       }).join("\n");
       window.tippy(this, {
         allowHTML: true,
@@ -2091,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!--/radix_placeholder_distill-->
-  <script src="../../site_libs/header-attrs-2.15/header-attrs.js"></script>
+  <script src="../../site_libs/header-attrs-2.16/header-attrs.js"></script>
   <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
   <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
   <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
@@ -2172,7 +2179,8 @@ gtag('config', 'UA-20375833-3');
 <p>The aim of this post is to illustrates how deep learning is successfully being applied to model key molecular interactions in the human immune system. Molecular interactions are highly context dependent and therefore non-linear. Deep learning is a powerful tool to capture non-linearity and has therefore proven invaluable and highly successful. In particular in modelling the molecular interaction between the Major Histocompability Complex type I (MHCI) and peptides (The state-of-the-art model <a href="http://www.cbs.dtu.dk/services/NetMHCpan/">netMHCpan</a> identifies 96.5% of natural peptides at a very high specificity of 98.5%).</p>
 <h3 id="adoptive-t-cell-therapy">Adoptive T-cell therapy</h3>
 <p>Some brief background before diving in. Special immune cells (T-cells) patrol our body, scanning the cells to check if they are healthy. On the surface of our cells is the MHCI - a highly specialized molecular system, which reflects the health status inside our cells. This is done by displaying small fragments of proteins called peptides, thus reflecting the inside of the cell. T-cells probe these molecular displays to check if the peptides are from our own body (self) or foreign (non-self), e.g. from a virus infection or cancer. If a displayed peptide is non-self, the T-cells has the power to terminate the cell.</p>
-<p><img src="images/Adoptive_T-cell_therapy.png" /> <a href="https://commons.wikimedia.org/wiki/User:Simoncaulton" style="">Simon Caulton</a>, <a href="https://commons.wikimedia.org/wiki/File:Adoptive_T-cell_therapy.png">Adoptive T-cell therapy</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/legalcode">CC BY-SA 3.0</a></p>
+<p><img src="images/Adoptive_T-cell_therapy.png" />
+<a href="https://commons.wikimedia.org/wiki/User:Simoncaulton" style="">Simon Caulton</a>, <a href="https://commons.wikimedia.org/wiki/File:Adoptive_T-cell_therapy.png">Adoptive T-cell therapy</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/legalcode">CC BY-SA 3.0</a></p>
 <p>Adoptive T-cell therapy is a form of cancer immunotherapy that aims to isolate tumor infiltrating T-cells from the tumor in the patient, possibly genetically engineer them to be cancer-specific, grow them in great numbers and reintroduce them into the body to fight the cancer. In order to terminate cancer cells, the T-cell needs to be activated by being exposed to tumor peptides bound to MHCI (pMHCI). By analyzing the tumor genetics, relevant peptides can be identified and depending on the patients particular type of MHCI, we can predict which pMHCI are likely to be present in the tumor in the patient and thus which pMHCIs should be used to activate the T-cells.</p>
 <h2 id="peptide-classification-model">Peptide Classification Model</h2>
 <p>For this use case, we applied three models to classify whether a given peptide is a ‘strong binder’ <code>SB</code>, ‘weak binder’ <code>WB</code> or ‘non-binder’ <code>NB</code>. to MHCI (Specific type: <code>HLA-A*02:01</code>). Thereby, the classification uncovers which peptides, will be presented to the T-cells. The models we tested were:</p>

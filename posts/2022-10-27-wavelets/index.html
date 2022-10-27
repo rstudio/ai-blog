@@ -1,0 +1,2887 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1"/>
+  <meta name="generator" content="distill" />
+
+  <style type="text/css">
+  /* Hide doc at startup (prevent jankiness while JS renders/transforms) */
+  body {
+    visibility: hidden;
+  }
+  </style>
+
+ <!--radix_placeholder_import_source-->
+ <!--/radix_placeholder_import_source-->
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  { color: #00769e; background-color: #f1f3f5; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span { color: #00769e; } /* Normal */
+code span.al { color: #ad0000; } /* Alert */
+code span.an { color: #5e5e5e; } /* Annotation */
+code span.at { color: #657422; } /* Attribute */
+code span.bn { color: #ad0000; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #00769e; } /* ControlFlow */
+code span.ch { color: #20794d; } /* Char */
+code span.cn { color: #8f5902; } /* Constant */
+code span.co { color: #5e5e5e; } /* Comment */
+code span.cv { color: #5e5e5e; font-style: italic; } /* CommentVar */
+code span.do { color: #5e5e5e; font-style: italic; } /* Documentation */
+code span.dt { color: #ad0000; } /* DataType */
+code span.dv { color: #ad0000; } /* DecVal */
+code span.er { color: #ad0000; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #ad0000; } /* Float */
+code span.fu { color: #4758ab; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #5e5e5e; } /* Information */
+code span.kw { color: #00769e; } /* Keyword */
+code span.op { color: #5e5e5e; } /* Operator */
+code span.ot { color: #00769e; } /* Other */
+code span.pp { color: #ad0000; } /* Preprocessor */
+code span.sc { color: #5e5e5e; } /* SpecialChar */
+code span.ss { color: #20794d; } /* SpecialString */
+code span.st { color: #20794d; } /* String */
+code span.va { color: #111111; } /* Variable */
+code span.vs { color: #20794d; } /* VerbatimString */
+code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
+</style>
+
+<style>
+  div.csl-bib-body { }
+  div.csl-entry {
+    clear: both;
+    }
+  .hanging div.csl-entry {
+    margin-left:2em;
+    text-indent:-2em;
+  }
+  div.csl-left-margin {
+    min-width:2em;
+    float:left;
+  }
+  div.csl-right-inline {
+    margin-left:2em;
+    padding-left:1em;
+  }
+  div.csl-indent {
+    margin-left: 2em;
+  }
+</style>
+
+  <!--radix_placeholder_meta_tags-->
+<title>RStudio AI Blog: Wavelet Transform - with torch</title>
+
+<meta property="description" itemprop="description" content="torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press."/>
+
+<link rel="canonical" href="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"/>
+<link rel="license" href="https://creativecommons.org/licenses/by/4.0/"/>
+<link rel="icon" type="image/png" href="../../images/favicon.png"/>
+
+<!--  https://schema.org/Article -->
+<meta property="article:published" itemprop="datePublished" content="2022-10-27"/>
+<meta property="article:created" itemprop="dateCreated" content="2022-10-27"/>
+<meta name="article:author" content="Sigrid Keydana"/>
+
+<!--  https://developers.facebook.com/docs/sharing/webmasters#markup -->
+<meta property="og:title" content="RStudio AI Blog: Wavelet Transform - with torch"/>
+<meta property="og:type" content="article"/>
+<meta property="og:description" content="torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press."/>
+<meta property="og:url" content="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"/>
+<meta property="og:image" content="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/images/squirrel.jpg"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:site_name" content="RStudio AI Blog"/>
+
+<!--  https://dev.twitter.com/cards/types/summary -->
+<meta property="twitter:card" content="summary_large_image"/>
+<meta property="twitter:title" content="RStudio AI Blog: Wavelet Transform - with torch"/>
+<meta property="twitter:description" content="torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press."/>
+<meta property="twitter:url" content="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"/>
+<meta property="twitter:image" content="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/images/squirrel.jpg"/>
+
+<!--  https://scholar.google.com/intl/en/scholar/inclusion.html#indexing -->
+<meta name="citation_title" content="RStudio AI Blog: Wavelet Transform - with torch"/>
+<meta name="citation_fulltext_html_url" content="https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"/>
+<meta name="citation_fulltext_world_readable" content=""/>
+<meta name="citation_online_date" content="2022/10/27"/>
+<meta name="citation_publication_date" content="2022/10/27"/>
+<meta name="citation_author" content="Sigrid Keydana"/>
+<meta name="citation_author_institution" content="RStudio"/>
+<!--/radix_placeholder_meta_tags-->
+  
+  <meta name="citation_reference" content="citation_title=Physics of oscillations and waves. With use of matlab and python;citation_publisher=Springer;citation_author=Arnt Inge Vistnes"/>
+  <!--radix_placeholder_rmarkdown_metadata-->
+
+<script type="text/json" id="radix-rmarkdown-metadata">
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["creative_commons","title","description","author","slug","date","categories","bibliography","output","preview","citation_url","canonical_url"]}},"value":[{"type":"character","attributes":{},"value":["CC BY"]},{"type":"character","attributes":{},"value":["Wavelet Transform - with torch"]},{"type":"character","attributes":{},"value":["torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press."]},{"type":"list","attributes":{},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["name","affiliation","affiliation_url"]}},"value":[{"type":"character","attributes":{},"value":["Sigrid Keydana"]},{"type":"character","attributes":{},"value":["RStudio"]},{"type":"character","attributes":{},"value":["https://www.rstudio.com/"]}]}]},{"type":"character","attributes":{},"value":["keydanatorchwavelets"]},{"type":"character","attributes":{},"value":["2022-10-27"]},{"type":"character","attributes":{},"value":["Torch","R","Concepts"]},{"type":"character","attributes":{},"value":["bibliography.bib"]},{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["distill::distill_article"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["self_contained","toc"]}},"value":[{"type":"logical","attributes":{},"value":[false]},{"type":"logical","attributes":{},"value":[true]}]}]},{"type":"character","attributes":{},"value":["images/squirrel.jpg"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"]},{"type":"character","attributes":{},"value":["https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/"]}]}
+</script>
+<!--/radix_placeholder_rmarkdown_metadata-->
+  
+  <script type="text/json" id="radix-resource-manifest">
+  {"type":"character","attributes":{},"value":["bibliography.bib","images/squirrel.jpg","images/wav-chaffinch-fft.png","images/wav-chaffinch-spectrogram.png","images/wav-chaffinch-waveletdiag.png","images/wav-chaffinch.png","images/wav-K-omega.png","images/wav-morlet-example.png","images/wav-signal-short-transform-largeK.png","images/wav-signal-short-transform.png","images/wav-signal-short.png"]}
+  </script>
+  <!--radix_placeholder_navigation_in_header-->
+<meta name="distill:offset" content="../.."/>
+
+<script type="application/javascript">
+
+  window.headroom_prevent_pin = false;
+
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+
+    // initialize headroom for banner
+    var header = $('header').get(0);
+    var headerHeight = header.offsetHeight;
+    var headroom = new Headroom(header, {
+      tolerance: 5,
+      onPin : function() {
+        if (window.headroom_prevent_pin) {
+          window.headroom_prevent_pin = false;
+          headroom.unpin();
+        }
+      }
+    });
+    headroom.init();
+    if(window.location.hash)
+      headroom.unpin();
+    $(header).addClass('headroom--transition');
+
+    // offset scroll location for banner on hash change
+    // (see: https://github.com/WickyNilliams/headroom.js/issues/38)
+    window.addEventListener("hashchange", function(event) {
+      window.scrollTo(0, window.pageYOffset - (headerHeight + 25));
+    });
+
+    // responsive menu
+    $('.distill-site-header').each(function(i, val) {
+      var topnav = $(this);
+      var toggle = topnav.find('.nav-toggle');
+      toggle.on('click', function() {
+        topnav.toggleClass('responsive');
+      });
+    });
+
+    // nav dropdowns
+    $('.nav-dropbtn').click(function(e) {
+      $(this).next('.nav-dropdown-content').toggleClass('nav-dropdown-active');
+      $(this).parent().siblings('.nav-dropdown')
+         .children('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $("body").click(function(e){
+      $('.nav-dropdown-content').removeClass('nav-dropdown-active');
+    });
+    $(".nav-dropdown").click(function(e){
+      e.stopPropagation();
+    });
+  });
+</script>
+
+<style type="text/css">
+
+/* Theme (user-documented overrideables for nav appearance) */
+
+.distill-site-nav {
+  color: rgba(255, 255, 255, 0.8);
+  background-color: #0F2E3D;
+  font-size: 15px;
+  font-weight: 300;
+}
+
+.distill-site-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.distill-site-nav a:hover {
+  color: white;
+}
+
+@media print {
+  .distill-site-nav {
+    display: none;
+  }
+}
+
+.distill-site-header {
+
+}
+
+.distill-site-footer {
+
+}
+
+
+/* Site Header */
+
+.distill-site-header {
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.distill-site-header .nav-left {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header .nav-left {
+    margin-left: 0;
+  }
+}
+
+
+.distill-site-header .nav-right {
+  float: right;
+  margin-right: 8px;
+}
+
+.distill-site-header a,
+.distill-site-header .title {
+  display: inline-block;
+  text-align: center;
+  padding: 14px 10px 14px 10px;
+}
+
+.distill-site-header .title {
+  font-size: 18px;
+  min-width: 150px;
+}
+
+.distill-site-header .logo {
+  padding: 0;
+}
+
+.distill-site-header .logo img {
+  display: none;
+  max-height: 20px;
+  width: auto;
+  margin-bottom: -4px;
+}
+
+.distill-site-header .nav-image img {
+  max-height: 18px;
+  width: auto;
+  display: inline-block;
+  margin-bottom: -3px;
+}
+
+
+
+@media screen and (min-width: 1000px) {
+  .distill-site-header .logo img {
+    display: inline-block;
+  }
+  .distill-site-header .nav-left {
+    margin-left: 20px;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 20px;
+  }
+  .distill-site-header .title {
+    padding-left: 12px;
+  }
+}
+
+
+.distill-site-header .nav-toggle {
+  display: none;
+}
+
+.nav-dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-dropdown .nav-dropbtn {
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 16px 10px;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+  margin-top: 1px;
+  z-index: 2;
+}
+
+.nav-dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+  z-index: 1;
+  margin-top: 2px;
+  white-space: nowrap;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.nav-dropdown-content hr {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-dropdown-active {
+  display: block;
+}
+
+.nav-dropdown-content a, .nav-dropdown-content .nav-dropdown-header {
+  color: black;
+  padding: 6px 24px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+}
+
+.nav-dropdown-content .nav-dropdown-header {
+  display: block;
+  padding: 5px 24px;
+  padding-bottom: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.nav-dropdown:hover .nav-dropbtn {
+  color: white;
+}
+
+.nav-dropdown-content a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.nav-right .nav-dropdown-content {
+  margin-left: -45%;
+  right: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .distill-site-header a, .distill-site-header .nav-dropdown  {display: none;}
+  .distill-site-header a.nav-toggle {
+    float: right;
+    display: block;
+  }
+  .distill-site-header .title {
+    margin-left: 0;
+  }
+  .distill-site-header .nav-right {
+    margin-right: 0;
+  }
+  .distill-site-header {
+    overflow: hidden;
+  }
+  .nav-right .nav-dropdown-content {
+    margin-left: 0;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-header.responsive {position: relative; min-height: 500px; }
+  .distill-site-header.responsive a.nav-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  .distill-site-header.responsive a,
+  .distill-site-header.responsive .nav-dropdown {
+    display: block;
+    text-align: left;
+  }
+  .distill-site-header.responsive .nav-left,
+  .distill-site-header.responsive .nav-right {
+    width: 100%;
+  }
+  .distill-site-header.responsive .nav-dropdown {float: none;}
+  .distill-site-header.responsive .nav-dropdown-content {position: relative;}
+  .distill-site-header.responsive .nav-dropdown .nav-dropbtn {
+    display: block;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Site Footer */
+
+.distill-site-footer {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 3;
+  margin-top: 30px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+  text-align: center;
+}
+
+/* Headroom */
+
+d-title {
+  padding-top: 6rem;
+}
+
+@media print {
+  d-title {
+    padding-top: 4rem;
+  }
+}
+
+.headroom {
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.headroom--transition {
+  transition: all .4s ease-in-out;
+}
+
+.headroom--unpinned {
+  top: -100px;
+}
+
+.headroom--pinned {
+  top: 0;
+}
+
+/* adjust viewport for navbar height */
+/* helps vertically center bootstrap (non-distill) content */
+.min-vh-100 {
+  min-height: calc(100vh - 100px) !important;
+}
+
+</style>
+
+<script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<link href="../../site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet"/>
+<link href="../../site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet"/>
+<script src="../../site_libs/headroom-0.9.4/headroom.min.js"></script>
+<script src="../../site_libs/autocomplete-0.37.1/autocomplete.min.js"></script>
+<script src="../../site_libs/fuse-6.4.1/fuse.min.js"></script>
+
+<script type="application/javascript">
+
+function getMeta(metaName) {
+  var metas = document.getElementsByTagName('meta');
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute('name') === metaName) {
+      return metas[i].getAttribute('content');
+    }
+  }
+  return '';
+}
+
+function offsetURL(url) {
+  var offset = getMeta('distill:offset');
+  return offset ? offset + '/' + url : url;
+}
+
+function createFuseIndex() {
+
+  // create fuse index
+  var options = {
+    keys: [
+      { name: 'title', weight: 20 },
+      { name: 'categories', weight: 15 },
+      { name: 'description', weight: 10 },
+      { name: 'contents', weight: 5 },
+    ],
+    ignoreLocation: true,
+    threshold: 0
+  };
+  var fuse = new window.Fuse([], options);
+
+  // fetch the main search.json
+  return fetch(offsetURL('search.json'))
+    .then(function(response) {
+      if (response.status == 200) {
+        return response.json().then(function(json) {
+          // index main articles
+          json.articles.forEach(function(article) {
+            fuse.add(article);
+          });
+          // download collections and index their articles
+          return Promise.all(json.collections.map(function(collection) {
+            return fetch(offsetURL(collection)).then(function(response) {
+              if (response.status === 200) {
+                return response.json().then(function(articles) {
+                  articles.forEach(function(article) {
+                    fuse.add(article);
+                  });
+                })
+              } else {
+                return Promise.reject(
+                  new Error('Unexpected status from search index request: ' +
+                            response.status)
+                );
+              }
+            });
+          })).then(function() {
+            return fuse;
+          });
+        });
+
+      } else {
+        return Promise.reject(
+          new Error('Unexpected status from search index request: ' +
+                      response.status)
+        );
+      }
+    });
+}
+
+window.document.addEventListener("DOMContentLoaded", function (event) {
+
+  // get search element (bail if we don't have one)
+  var searchEl = window.document.getElementById('distill-search');
+  if (!searchEl)
+    return;
+
+  createFuseIndex()
+    .then(function(fuse) {
+
+      // make search box visible
+      searchEl.classList.remove('hidden');
+
+      // initialize autocomplete
+      var options = {
+        autoselect: true,
+        hint: false,
+        minLength: 2,
+      };
+      window.autocomplete(searchEl, options, [{
+        source: function(query, callback) {
+          const searchOptions = {
+            isCaseSensitive: false,
+            shouldSort: true,
+            minMatchCharLength: 2,
+            limit: 10,
+          };
+          var results = fuse.search(query, searchOptions);
+          callback(results
+            .map(function(result) { return result.item; })
+          );
+        },
+        templates: {
+          suggestion: function(suggestion) {
+            var img = suggestion.preview && Object.keys(suggestion.preview).length > 0
+              ? `<img src="${offsetURL(suggestion.preview)}"</img>`
+              : '';
+            var html = `
+              <div class="search-item">
+                <h3>${suggestion.title}</h3>
+                <div class="search-item-description">
+                  ${suggestion.description || ''}
+                </div>
+                <div class="search-item-preview">
+                  ${img}
+                </div>
+              </div>
+            `;
+            return html;
+          }
+        }
+      }]).on('autocomplete:selected', function(event, suggestion) {
+        window.location.href = offsetURL(suggestion.path);
+      });
+      // remove inline display style on autocompleter (we want to
+      // manage responsive display via css)
+      $('.algolia-autocomplete').css("display", "");
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
+
+});
+
+</script>
+
+<style type="text/css">
+
+.nav-search {
+  font-size: x-small;
+}
+
+/* Algolioa Autocomplete */
+
+.algolia-autocomplete {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: sub;
+  background-color: white;
+  color: black;
+  padding: 6px;
+  padding-top: 8px;
+  padding-bottom: 0;
+  border-radius: 6px;
+  border: 1px #0F2E3D solid;
+  width: 180px;
+}
+
+
+@media screen and (max-width: 768px) {
+  .distill-site-nav .algolia-autocomplete {
+    display: none;
+    visibility: hidden;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete {
+    display: inline-block;
+    visibility: visible;
+  }
+  .distill-site-nav.responsive .algolia-autocomplete .aa-dropdown-menu {
+    margin-left: 0;
+    width: 400px;
+    max-height: 400px;
+  }
+}
+
+.algolia-autocomplete .aa-input, .algolia-autocomplete .aa-hint {
+  width: 90%;
+  outline: none;
+  border: none;
+}
+
+.algolia-autocomplete .aa-hint {
+  color: #999;
+}
+.algolia-autocomplete .aa-dropdown-menu {
+  width: 550px;
+  max-height: 70vh;
+  overflow-x: visible;
+  overflow-y: scroll;
+  padding: 5px;
+  margin-top: 3px;
+  margin-left: -150px;
+  background-color: #fff;
+  border-radius: 5px;
+  border: 1px solid #999;
+  border-top: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion {
+  cursor: pointer;
+  padding: 5px 4px;
+  border-bottom: 1px solid #eee;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion:last-of-type {
+  border-bottom: none;
+  margin-bottom: 2px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item {
+  overflow: hidden;
+  font-size: 0.8em;
+  line-height: 1.4em;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item h3 {
+  font-size: 1rem;
+  margin-block-start: 0;
+  margin-block-end: 5px;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-description {
+  display: inline-block;
+  overflow: hidden;
+  height: 2.8em;
+  width: 80%;
+  margin-right: 4%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview {
+  display: inline-block;
+  width: 15%;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img {
+  height: 3em;
+  width: auto;
+  display: none;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion .search-item-preview img[src] {
+  display: initial;
+}
+
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion.aa-cursor {
+  background-color: #eee;
+}
+.algolia-autocomplete .aa-dropdown-menu .aa-suggestion em {
+  font-weight: bold;
+  font-style: normal;
+}
+
+</style>
+
+
+<!--/radix_placeholder_navigation_in_header-->
+  <!--radix_placeholder_distill-->
+
+<style type="text/css">
+
+body {
+  background-color: white;
+}
+
+.pandoc-table {
+  width: 100%;
+}
+
+.pandoc-table>caption {
+  margin-bottom: 10px;
+}
+
+.pandoc-table th:not([align]) {
+  text-align: left;
+}
+
+.pagedtable-footer {
+  font-size: 15px;
+}
+
+d-byline .byline {
+  grid-template-columns: 2fr 2fr;
+}
+
+d-byline .byline h3 {
+  margin-block-start: 1.5em;
+}
+
+d-byline .byline .authors-affiliations h3 {
+  margin-block-start: 0.5em;
+}
+
+.authors-affiliations .orcid-id {
+  width: 16px;
+  height:16px;
+  margin-left: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+  padding-bottom: 2px;
+}
+
+d-title .dt-tags {
+  margin-top: 1em;
+  grid-column: text;
+}
+
+.dt-tags .dt-tag {
+  text-decoration: none;
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0em 0.4em;
+  margin-right: 0.5em;
+  margin-bottom: 0.4em;
+  font-size: 70%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+d-article table.gt_table td,
+d-article table.gt_table th {
+  border-bottom: none;
+  font-size: 100%;
+}
+
+.html-widget {
+  margin-bottom: 2.0em;
+}
+
+.l-screen-inset {
+  padding-right: 16px;
+}
+
+.l-screen .caption {
+  margin-left: 10px;
+}
+
+.shaded {
+  background: rgb(247, 247, 247);
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .html-widget {
+  margin-bottom: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shaded .shaded-content {
+  background: white;
+}
+
+.text-output {
+  margin-top: 0;
+  line-height: 1.5em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+d-article {
+  padding-top: 2.5rem;
+  padding-bottom: 30px;
+}
+
+d-appendix {
+  padding-top: 30px;
+}
+
+d-article>p>img {
+  width: 100%;
+}
+
+d-article h2 {
+  margin: 1rem 0 1.5rem 0;
+}
+
+d-article h3 {
+  margin-top: 1.5rem;
+}
+
+d-article iframe {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 2.0em;
+  width: 100%;
+}
+
+/* Tweak code blocks */
+
+d-article div.sourceCode code,
+d-article pre code {
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: auto;
+}
+
+d-article div.sourceCode {
+  background-color: white;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 10px;
+  font-size: 12px;
+  border-left: 2px solid rgba(0,0,0,0.1);
+}
+
+d-article pre {
+  font-size: 12px;
+  color: black;
+  background: none;
+  margin-top: 0;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+d-article pre a {
+  border-bottom: none;
+}
+
+d-article pre a:hover {
+  border-bottom: none;
+  text-decoration: underline;
+}
+
+d-article details {
+  grid-column: text;
+  margin-bottom: 0.8em;
+}
+
+@media(min-width: 768px) {
+
+d-article pre,
+d-article div.sourceCode,
+d-article div.sourceCode pre {
+  overflow: visible !important;
+}
+
+d-article div.sourceCode pre {
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+d-article pre {
+  font-size: 14px;
+}
+
+}
+
+figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* CSS for d-contents */
+
+.d-contents {
+  grid-column: text;
+  color: rgba(0,0,0,0.8);
+  font-size: 0.9em;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+  padding-bottom: 0.5em;
+  margin-bottom: 1em;
+  padding-left: 0.25em;
+  justify-self: start;
+}
+
+@media(min-width: 1000px) {
+  .d-contents.d-contents-float {
+    height: 0;
+    grid-column-start: 1;
+    grid-column-end: 4;
+    justify-self: center;
+    padding-right: 3em;
+    padding-left: 2em;
+  }
+}
+
+.d-contents nav h3 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.d-contents li {
+  list-style-type: none
+}
+
+.d-contents nav > ul {
+  padding-left: 0;
+}
+
+.d-contents ul {
+  padding-left: 1em
+}
+
+.d-contents nav ul li {
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
+}
+
+.d-contents nav a {
+  font-size: 13px;
+  border-bottom: none;
+  text-decoration: none
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.d-contents nav a:hover {
+  text-decoration: underline solid rgba(0, 0, 0, 0.6)
+}
+
+.d-contents nav > ul > li > a {
+  font-weight: 600;
+}
+
+.d-contents nav > ul > li > ul {
+  font-weight: inherit;
+}
+
+.d-contents nav > ul > li > ul > li {
+  margin-top: 0.2em;
+}
+
+
+.d-contents nav ul {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+
+.d-article-with-toc h2:nth-child(2) {
+  margin-top: 0;
+}
+
+
+/* Figure */
+
+.figure {
+  position: relative;
+  margin-bottom: 2.5em;
+  margin-top: 1.5em;
+}
+
+.figure .caption {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  line-height: 1.5em;
+}
+
+.figure img.external {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.figure .caption a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.figure .caption b,
+.figure .caption strong, {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1.0);
+}
+
+/* Citations */
+
+d-article .citation {
+  color: inherit;
+  cursor: inherit;
+}
+
+div.hanging-indent{
+  margin-left: 1em; text-indent: -1em;
+}
+
+/* Citation hover box */
+
+.tippy-box[data-theme~=light-border] {
+  background-color: rgba(250, 250, 250, 0.95);
+}
+
+.tippy-content > p {
+  margin-bottom: 0;
+  padding: 2px;
+}
+
+
+/* Tweak 1000px media break to show more text */
+
+@media(min-width: 1000px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 80px [middle-start] 50px [text-start kicker-end] 65px 65px 65px 65px 65px 65px 65px 65px [text-end gutter-start] 65px [middle-end] 65px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 16px;
+  }
+
+  .grid {
+    grid-column-gap: 16px;
+  }
+
+  d-article {
+    font-size: 1.06rem;
+    line-height: 1.7em;
+  }
+  figure .caption, .figure .caption, figure figcaption {
+    font-size: 13px;
+  }
+}
+
+@media(min-width: 1180px) {
+  .base-grid,
+  distill-header,
+  d-title,
+  d-abstract,
+  d-article,
+  d-appendix,
+  distill-appendix,
+  d-byline,
+  d-footnote-list,
+  d-citation-list,
+  distill-footer {
+    grid-template-columns: [screen-start] 1fr [page-start kicker-start] 60px [middle-start] 60px [text-start kicker-end] 60px 60px 60px 60px 60px 60px 60px 60px [text-end gutter-start] 60px [middle-end] 60px [page-end gutter-end] 1fr [screen-end];
+    grid-column-gap: 32px;
+  }
+
+  .grid {
+    grid-column-gap: 32px;
+  }
+}
+
+
+/* Get the citation styles for the appendix (not auto-injected on render since
+   we do our own rendering of the citation appendix) */
+
+d-appendix .citation-appendix,
+.d-appendix .citation-appendix {
+  font-size: 11px;
+  line-height: 15px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 18px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 18px;
+  border-radius: 3px;
+  color: rgba(150, 150, 150, 1);
+  overflow: hidden;
+  margin-top: -12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Include appendix styles here so they can be overridden */
+
+d-appendix {
+  contain: layout style;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-top: 60px;
+  margin-bottom: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  color: rgba(0,0,0,0.5);
+  padding-top: 60px;
+  padding-bottom: 48px;
+}
+
+d-appendix h3 {
+  grid-column: page-start / text-start;
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 1em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.65);
+}
+
+d-appendix h3 + * {
+  margin-top: 1em;
+}
+
+d-appendix ol {
+  padding: 0 0 0 15px;
+}
+
+@media (min-width: 768px) {
+  d-appendix ol {
+    padding: 0 0 0 30px;
+    margin-left: -30px;
+  }
+}
+
+d-appendix li {
+  margin-bottom: 1em;
+}
+
+d-appendix a {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+d-appendix > * {
+  grid-column: text;
+}
+
+d-appendix > d-footnote-list,
+d-appendix > d-citation-list,
+d-appendix > distill-appendix {
+  grid-column: screen;
+}
+
+/* Include footnote styles here so they can be overridden */
+
+d-footnote-list {
+  contain: layout style;
+}
+
+d-footnote-list > * {
+  grid-column: text;
+}
+
+d-footnote-list a.footnote-backlink {
+  color: rgba(0,0,0,0.3);
+  padding-left: 0.5em;
+}
+
+
+
+/* Anchor.js */
+
+.anchorjs-link {
+  /*transition: all .25s linear; */
+  text-decoration: none;
+  border-bottom: none;
+}
+*:hover > .anchorjs-link {
+  margin-left: -1.125em !important;
+  text-decoration: none;
+  border-bottom: none;
+}
+
+/* Social footer */
+
+.social_footer {
+  margin-top: 30px;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.67);
+}
+
+.disqus-comments {
+  margin-right: 30px;
+}
+
+.disqus-comment-count {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#disqus_thread {
+  margin-top: 30px;
+}
+
+.article-sharing a {
+  border-bottom: none;
+  margin-right: 8px;
+}
+
+.article-sharing a:hover {
+  border-bottom: none;
+}
+
+.sidebar-section.subscribe {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.subscribe p {
+  margin-bottom: 0.5em;
+}
+
+
+.article-footer .subscribe {
+  font-size: 15px;
+  margin-top: 45px;
+}
+
+
+.sidebar-section.custom {
+  font-size: 12px;
+  line-height: 1.6em;
+}
+
+.custom p {
+  margin-bottom: 0.5em;
+}
+
+/* Styles for listing layout (hide title) */
+.layout-listing d-title, .layout-listing .d-title {
+  display: none;
+}
+
+/* Styles for posts lists (not auto-injected) */
+
+
+.posts-with-sidebar {
+  padding-left: 45px;
+  padding-right: 45px;
+}
+
+.posts-list .description h2,
+.posts-list .description p {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.posts-list .description h2 {
+  font-weight: 700;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.posts-list h2.post-tag {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  padding-bottom: 12px;
+}
+.posts-list {
+  margin-top: 60px;
+  margin-bottom: 24px;
+}
+
+.posts-list .post-preview {
+  text-decoration: none;
+  overflow: hidden;
+  display: block;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 24px 0;
+}
+
+.post-preview-last {
+  border-bottom: none !important;
+}
+
+.posts-list .posts-list-caption {
+  grid-column: screen;
+  font-weight: 400;
+}
+
+.posts-list .post-preview h2 {
+  margin: 0 0 6px 0;
+  line-height: 1.2em;
+  font-style: normal;
+  font-size: 24px;
+}
+
+.posts-list .post-preview p {
+  margin: 0 0 12px 0;
+  line-height: 1.4em;
+  font-size: 16px;
+}
+
+.posts-list .post-preview .thumbnail {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  position: relative;
+  max-width: 500px;
+}
+.posts-list .post-preview img {
+  width: 100%;
+  display: block;
+}
+
+.posts-list .metadata {
+  font-size: 12px;
+  line-height: 1.4em;
+  margin-bottom: 18px;
+}
+
+.posts-list .metadata > * {
+  display: inline-block;
+}
+
+.posts-list .metadata .publishedDate {
+  margin-right: 2em;
+}
+
+.posts-list .metadata .dt-authors {
+  display: block;
+  margin-top: 0.3em;
+  margin-right: 2em;
+}
+
+.posts-list .dt-tags {
+  display: block;
+  line-height: 1em;
+}
+
+.posts-list .dt-tags .dt-tag {
+  display: inline-block;
+  color: rgba(0,0,0,0.6);
+  padding: 0.3em 0.4em;
+  margin-right: 0.2em;
+  margin-bottom: 0.4em;
+  font-size: 60%;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.posts-list img {
+  opacity: 1;
+}
+
+.posts-list img[data-src] {
+  opacity: 0;
+}
+
+.posts-more {
+  clear: both;
+}
+
+
+.posts-sidebar {
+  font-size: 16px;
+}
+
+.posts-sidebar h3 {
+  font-size: 16px;
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.sidebar-section {
+  margin-bottom: 30px;
+}
+
+.categories ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.categories li {
+  color: rgba(0, 0, 0, 0.8);
+  margin-bottom: 0;
+}
+
+.categories li>a {
+  border-bottom: none;
+}
+
+.categories li>a:hover {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.categories .active {
+  font-weight: 600;
+}
+
+.categories .category-count {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+
+@media(min-width: 768px) {
+  .posts-list .post-preview h2 {
+    font-size: 26px;
+  }
+  .posts-list .post-preview .thumbnail {
+    float: right;
+    width: 30%;
+    margin-bottom: 0;
+  }
+  .posts-list .post-preview .description {
+    float: left;
+    width: 45%;
+  }
+  .posts-list .post-preview .metadata {
+    float: left;
+    width: 20%;
+    margin-top: 8px;
+  }
+  .posts-list .post-preview p {
+    margin: 0 0 12px 0;
+    line-height: 1.5em;
+    font-size: 16px;
+  }
+  .posts-with-sidebar .posts-list {
+    float: left;
+    width: 75%;
+  }
+  .posts-with-sidebar .posts-sidebar {
+    float: right;
+    width: 20%;
+    margin-top: 60px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+}
+
+
+/* Improve display for browsers without grid (IE/Edge <= 15) */
+
+.downlevel {
+  line-height: 1.6em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+}
+
+.downlevel .d-title {
+  padding-top: 6rem;
+  padding-bottom: 1.5rem;
+}
+
+.downlevel .d-title h1 {
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1em;
+  margin: 0 0 0.5rem;
+}
+
+.downlevel .d-title p {
+  font-weight: 300;
+  font-size: 1.2rem;
+  line-height: 1.55em;
+  margin-top: 0;
+}
+
+.downlevel .d-byline {
+  padding-top: 0.8em;
+  padding-bottom: 0.8em;
+  font-size: 0.8rem;
+  line-height: 1.8em;
+}
+
+.downlevel .section-separator {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.downlevel .d-article {
+  font-size: 1.06rem;
+  line-height: 1.7em;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+
+.downlevel .d-appendix {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+  font-size: 0.8em;
+  line-height: 1.7em;
+  margin-bottom: 0;
+  color: rgba(0,0,0,0.5);
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+.downlevel .footnotes ol {
+  padding-left: 13px;
+}
+
+.downlevel .base-grid,
+.downlevel .distill-header,
+.downlevel .d-title,
+.downlevel .d-abstract,
+.downlevel .d-article,
+.downlevel .d-appendix,
+.downlevel .distill-appendix,
+.downlevel .d-byline,
+.downlevel .d-footnote-list,
+.downlevel .d-citation-list,
+.downlevel .distill-footer,
+.downlevel .appendix-bottom,
+.downlevel .posts-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+@media(min-width: 768px) {
+  .downlevel .base-grid,
+  .downlevel .distill-header,
+  .downlevel .d-title,
+  .downlevel .d-abstract,
+  .downlevel .d-article,
+  .downlevel .d-appendix,
+  .downlevel .distill-appendix,
+  .downlevel .d-byline,
+  .downlevel .d-footnote-list,
+  .downlevel .d-citation-list,
+  .downlevel .distill-footer,
+  .downlevel .appendix-bottom,
+  .downlevel .posts-container {
+  padding-left: 150px;
+  padding-right: 150px;
+  max-width: 900px;
+}
+}
+
+.downlevel pre code {
+  display: block;
+  border-left: 2px solid rgba(0, 0, 0, .1);
+  padding: 0 0 0 20px;
+  font-size: 14px;
+}
+
+.downlevel code, .downlevel pre {
+  color: black;
+  background: none;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+}
+
+.downlevel .posts-list .post-preview {
+  color: inherit;
+}
+
+
+
+</style>
+
+<script type="application/javascript">
+
+function is_downlevel_browser() {
+  if (bowser.isUnsupportedBrowser({ msie: "12", msedge: "16"},
+                                 window.navigator.userAgent)) {
+    return true;
+  } else {
+    return window.load_distill_framework === undefined;
+  }
+}
+
+// show body when load is complete
+function on_load_complete() {
+
+  // add anchors
+  if (window.anchors) {
+    window.anchors.options.placement = 'left';
+    window.anchors.add('d-article > h2, d-article > h3, d-article > h4, d-article > h5');
+  }
+
+
+  // set body to visible
+  document.body.style.visibility = 'visible';
+
+  // force redraw for leaflet widgets
+  if (window.HTMLWidgets) {
+    var maps = window.HTMLWidgets.findAll(".leaflet");
+    $.each(maps, function(i, el) {
+      var map = this.getMap();
+      map.invalidateSize();
+      map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer)
+          layer.redraw();
+      });
+    });
+  }
+
+  // trigger 'shown' so htmlwidgets resize
+  $('d-article').trigger('shown');
+}
+
+function init_distill() {
+
+  init_common();
+
+  // create front matter
+  var front_matter = $('<d-front-matter></d-front-matter>');
+  $('#distill-front-matter').wrap(front_matter);
+
+  // create d-title
+  $('.d-title').changeElementType('d-title');
+
+  // create d-byline
+  var byline = $('<d-byline></d-byline>');
+  $('.d-byline').replaceWith(byline);
+
+  // create d-article
+  var article = $('<d-article></d-article>');
+  $('.d-article').wrap(article).children().unwrap();
+
+  // move posts container into article
+  $('.posts-container').appendTo($('d-article'));
+
+  // create d-appendix
+  $('.d-appendix').changeElementType('d-appendix');
+
+  // flag indicating that we have appendix items
+  var appendix = $('.appendix-bottom').children('h3').length > 0;
+
+  // replace footnotes with <d-footnote>
+  $('.footnote-ref').each(function(i, val) {
+    appendix = true;
+    var href = $(this).attr('href');
+    var id = href.replace('#', '');
+    var fn = $('#' + id);
+    var fn_p = $('#' + id + '>p');
+    fn_p.find('.footnote-back').remove();
+    var text = fn_p.html();
+    var dtfn = $('<d-footnote></d-footnote>');
+    dtfn.html(text);
+    $(this).replaceWith(dtfn);
+  });
+  // remove footnotes
+  $('.footnotes').remove();
+
+  // move refs into #references-listing
+  $('#references-listing').replaceWith($('#refs'));
+
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    var id = $(this).attr('id');
+    $('.d-contents a[href="#' + id + '"]').parent().remove();
+    appendix = true;
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('d-appendix'));
+  });
+
+  // show d-appendix if we have appendix content
+  $("d-appendix").css('display', appendix ? 'grid' : 'none');
+
+  // localize layout chunks to just output
+  $('.layout-chunk').each(function(i, val) {
+
+    // capture layout
+    var layout = $(this).attr('data-layout');
+
+    // apply layout to markdown level block elements
+    var elements = $(this).children().not('details, div.sourceCode, pre, script');
+    elements.each(function(i, el) {
+      var layout_div = $('<div class="' + layout + '"></div>');
+      if (layout_div.hasClass('shaded')) {
+        var shaded_content = $('<div class="shaded-content"></div>');
+        $(this).wrap(shaded_content);
+        $(this).parent().wrap(layout_div);
+      } else {
+        $(this).wrap(layout_div);
+      }
+    });
+
+
+    // unwrap the layout-chunk div
+    $(this).children().unwrap();
+  });
+
+  // remove code block used to force  highlighting css
+  $('.distill-force-highlighting-css').parent().remove();
+
+  // remove empty line numbers inserted by pandoc when using a
+  // custom syntax highlighting theme
+  $('code.sourceCode a:empty').remove();
+
+  // load distill framework
+  load_distill_framework();
+
+  // wait for window.distillRunlevel == 4 to do post processing
+  function distill_post_process() {
+
+    if (!window.distillRunlevel || window.distillRunlevel < 4)
+      return;
+
+    // hide author/affiliations entirely if we have no authors
+    var front_matter = JSON.parse($("#distill-front-matter").html());
+    var have_authors = front_matter.authors && front_matter.authors.length > 0;
+    if (!have_authors)
+      $('d-byline').addClass('hidden');
+
+    // article with toc class
+    $('.d-contents').parent().addClass('d-article-with-toc');
+
+    // strip links that point to #
+    $('.authors-affiliations').find('a[href="#"]').removeAttr('href');
+
+    // add orcid ids
+    $('.authors-affiliations').find('.author').each(function(i, el) {
+      var orcid_id = front_matter.authors[i].orcidID;
+      if (orcid_id) {
+        var a = $('<a></a>');
+        a.attr('href', 'https://orcid.org/' + orcid_id);
+        var img = $('<img></img>');
+        img.addClass('orcid-id');
+        img.attr('alt', 'ORCID ID');
+        img.attr('src','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2ZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo1N0NEMjA4MDI1MjA2ODExOTk0QzkzNTEzRjZEQTg1NyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDozM0NDOEJGNEZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDozM0NDOEJGM0ZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkZDN0YxMTc0MDcyMDY4MTE5NUZFRDc5MUM2MUUwNEREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjU3Q0QyMDgwMjUyMDY4MTE5OTRDOTM1MTNGNkRBODU3Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+84NovQAAAR1JREFUeNpiZEADy85ZJgCpeCB2QJM6AMQLo4yOL0AWZETSqACk1gOxAQN+cAGIA4EGPQBxmJA0nwdpjjQ8xqArmczw5tMHXAaALDgP1QMxAGqzAAPxQACqh4ER6uf5MBlkm0X4EGayMfMw/Pr7Bd2gRBZogMFBrv01hisv5jLsv9nLAPIOMnjy8RDDyYctyAbFM2EJbRQw+aAWw/LzVgx7b+cwCHKqMhjJFCBLOzAR6+lXX84xnHjYyqAo5IUizkRCwIENQQckGSDGY4TVgAPEaraQr2a4/24bSuoExcJCfAEJihXkWDj3ZAKy9EJGaEo8T0QSxkjSwORsCAuDQCD+QILmD1A9kECEZgxDaEZhICIzGcIyEyOl2RkgwAAhkmC+eAm0TAAAAABJRU5ErkJggg==');
+        a.append(img);
+        $(this).append(a);
+      }
+    });
+
+    // hide elements of author/affiliations grid that have no value
+    function hide_byline_column(caption) {
+      $('d-byline').find('h3:contains("' + caption + '")').parent().css('visibility', 'hidden');
+    }
+
+    // affiliations
+    var have_affiliations = false;
+    for (var i = 0; i<front_matter.authors.length; ++i) {
+      var author = front_matter.authors[i];
+      if (author.affiliation !== "&nbsp;") {
+        have_affiliations = true;
+        break;
+      }
+    }
+    if (!have_affiliations)
+      $('d-byline').find('h3:contains("Affiliations")').css('visibility', 'hidden');
+
+    // published date
+    if (!front_matter.publishedDate)
+      hide_byline_column("Published");
+
+    // document object identifier
+    var doi = $('d-byline').find('h3:contains("DOI")');
+    var doi_p = doi.next().empty();
+    if (!front_matter.doi) {
+      // if we have a citation and valid citationText then link to that
+      if ($('#citation').length > 0 && front_matter.citationText) {
+        doi.html('Citation');
+        $('<a href="#citation"></a>')
+          .text(front_matter.citationText)
+          .appendTo(doi_p);
+      } else {
+        hide_byline_column("DOI");
+      }
+    } else {
+      $('<a></a>')
+         .attr('href', "https://doi.org/" + front_matter.doi)
+         .html(front_matter.doi)
+         .appendTo(doi_p);
+    }
+
+     // change plural form of authors/affiliations
+    if (front_matter.authors.length === 1) {
+      var grid = $('.authors-affiliations');
+      grid.children('h3:contains("Authors")').text('Author');
+      grid.children('h3:contains("Affiliations")').text('Affiliation');
+    }
+
+    // remove d-appendix and d-footnote-list local styles
+    $('d-appendix > style:first-child').remove();
+    $('d-footnote-list > style:first-child').remove();
+
+    // move appendix-bottom entries to the bottom
+    $('.appendix-bottom').appendTo('d-appendix').children().unwrap();
+    $('.appendix-bottom').remove();
+
+    // hoverable references
+    $('span.citation[data-cites]').each(function() {
+      const citeChild = $(this).children()[0]
+      // Do not process if @xyz has been used without escaping and without bibliography activated
+      // https://github.com/rstudio/distill/issues/466
+      if (citeChild === undefined) return true
+
+      if (citeChild.nodeName == "D-FOOTNOTE") {
+        var fn = citeChild
+        $(this).html(fn.shadowRoot.querySelector("sup"))
+        $(this).id = fn.id
+        fn.remove()
+      }
+      var refs = $(this).attr('data-cites').split(" ");
+      var refHtml = refs.map(function(ref) {
+        // Could use CSS.escape too here, we insure backward compatibility in navigator
+        return "<p>" + $('div[id="ref-' + ref + '"]').html() + "</p>";
+      }).join("\n");
+      window.tippy(this, {
+        allowHTML: true,
+        content: refHtml,
+        maxWidth: 500,
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'light-border',
+        placement: 'bottom-start'
+      });
+    });
+
+    // fix footnotes in tables (#411)
+    // replacing broken distill.pub feature
+    $('table d-footnote').each(function() {
+      // we replace internal showAtNode methode which is triggered when hovering a footnote
+      this.hoverBox.showAtNode = function(node) {
+        // ported from https://github.com/distillpub/template/pull/105/files
+        calcOffset = function(elem) {
+            let x = elem.offsetLeft;
+            let y = elem.offsetTop;
+            // Traverse upwards until an `absolute` element is found or `elem`
+            // becomes null.
+            while (elem = elem.offsetParent && elem.style.position != 'absolute') {
+                x += elem.offsetLeft;
+                y += elem.offsetTop;
+            }
+
+            return { left: x, top: y };
+        }
+        // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetTop
+        const bbox = node.getBoundingClientRect();
+        const offset = calcOffset(node);
+        this.show([offset.left + bbox.width, offset.top + bbox.height]);
+      }
+    })
+
+    // clear polling timer
+    clearInterval(tid);
+
+    // show body now that everything is ready
+    on_load_complete();
+  }
+
+  var tid = setInterval(distill_post_process, 50);
+  distill_post_process();
+
+}
+
+function init_downlevel() {
+
+  init_common();
+
+   // insert hr after d-title
+  $('.d-title').after($('<hr class="section-separator"/>'));
+
+  // check if we have authors
+  var front_matter = JSON.parse($("#distill-front-matter").html());
+  var have_authors = front_matter.authors && front_matter.authors.length > 0;
+
+  // manage byline/border
+  if (!have_authors)
+    $('.d-byline').remove();
+  $('.d-byline').after($('<hr class="section-separator"/>'));
+  $('.d-byline a').remove();
+
+  // remove toc
+  $('.d-contents').remove();
+
+  // move appendix elements
+  $('h1.appendix, h2.appendix').each(function(i, val) {
+    $(this).changeElementType('h3');
+  });
+  $('h3.appendix').each(function(i, val) {
+    $(this).nextUntil($('h1, h2, h3')).addBack().appendTo($('.d-appendix'));
+  });
+
+
+  // inject headers into references and footnotes
+  var refs_header = $('<h3></h3>');
+  refs_header.text('References');
+  $('#refs').prepend(refs_header);
+
+  var footnotes_header = $('<h3></h3');
+  footnotes_header.text('Footnotes');
+  $('.footnotes').children('hr').first().replaceWith(footnotes_header);
+
+  // move appendix-bottom entries to the bottom
+  $('.appendix-bottom').appendTo('.d-appendix').children().unwrap();
+  $('.appendix-bottom').remove();
+
+  // remove appendix if it's empty
+  if ($('.d-appendix').children().length === 0)
+    $('.d-appendix').remove();
+
+  // prepend separator above appendix
+  $('.d-appendix').before($('<hr class="section-separator" style="clear: both"/>'));
+
+  // trim code
+  $('pre>code').each(function(i, val) {
+    $(this).html($.trim($(this).html()));
+  });
+
+  // move posts-container right before article
+  $('.posts-container').insertBefore($('.d-article'));
+
+  $('body').addClass('downlevel');
+
+  on_load_complete();
+}
+
+
+function init_common() {
+
+  // jquery plugin to change element types
+  (function($) {
+    $.fn.changeElementType = function(newType) {
+      var attrs = {};
+
+      $.each(this[0].attributes, function(idx, attr) {
+        attrs[attr.nodeName] = attr.nodeValue;
+      });
+
+      this.replaceWith(function() {
+        return $("<" + newType + "/>", attrs).append($(this).contents());
+      });
+    };
+  })(jQuery);
+
+  // prevent underline for linked images
+  $('a > img').parent().css({'border-bottom' : 'none'});
+
+  // mark non-body figures created by knitr chunks as 100% width
+  $('.layout-chunk').each(function(i, val) {
+    var figures = $(this).find('img, .html-widget');
+    // ignore leaflet img layers (#106)
+    figures = figures.filter(':not(img[class*="leaflet"])')
+    if ($(this).attr('data-layout') !== "l-body") {
+      figures.css('width', '100%');
+    } else {
+      figures.css('max-width', '100%');
+      figures.filter("[width]").each(function(i, val) {
+        var fig = $(this);
+        fig.css('width', fig.attr('width') + 'px');
+      });
+
+    }
+  });
+
+  // auto-append index.html to post-preview links in file: protocol
+  // and in rstudio ide preview
+  $('.post-preview').each(function(i, val) {
+    if (window.location.protocol === "file:")
+      $(this).attr('href', $(this).attr('href') + "index.html");
+  });
+
+  // get rid of index.html references in header
+  if (window.location.protocol !== "file:") {
+    $('.distill-site-header a[href]').each(function(i,val) {
+      $(this).attr('href', $(this).attr('href').replace(/^index[.]html/, "./"));
+    });
+  }
+
+  // add class to pandoc style tables
+  $('tr.header').parent('thead').parent('table').addClass('pandoc-table');
+  $('.kable-table').children('table').addClass('pandoc-table');
+
+  // add figcaption style to table captions
+  $('caption').parent('table').addClass("figcaption");
+
+  // initialize posts list
+  if (window.init_posts_list)
+    window.init_posts_list();
+
+  // implmement disqus comment link
+  $('.disqus-comment-count').click(function() {
+    window.headroom_prevent_pin = true;
+    $('#disqus_thread').toggleClass('hidden');
+    if (!$('#disqus_thread').hasClass('hidden')) {
+      var offset = $(this).offset();
+      $(window).resize();
+      $('html, body').animate({
+        scrollTop: offset.top - 35
+      });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (is_downlevel_browser())
+    init_downlevel();
+  else
+    window.addEventListener('WebComponentsReady', init_distill);
+});
+
+</script>
+
+<!--/radix_placeholder_distill-->
+  <script src="../../site_libs/header-attrs-2.17/header-attrs.js"></script>
+  <script src="../../site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+  <script src="../../site_libs/popper-2.6.0/popper.min.js"></script>
+  <link href="../../site_libs/tippy-6.2.7/tippy.css" rel="stylesheet" />
+  <link href="../../site_libs/tippy-6.2.7/tippy-light-border.css" rel="stylesheet" />
+  <script src="../../site_libs/tippy-6.2.7/tippy.umd.min.js"></script>
+  <script src="../../site_libs/anchor-4.2.2/anchor.min.js"></script>
+  <script src="../../site_libs/bowser-1.9.3/bowser.min.js"></script>
+  <script src="../../site_libs/webcomponents-2.0.0/webcomponents.js"></script>
+  <script src="../../site_libs/distill-2.2.21/template.v2.js"></script>
+  <!--radix_placeholder_site_in_header-->
+<script type="text/javascript" cookie-consent="tracking" async src="https://www.googletagmanager.com/gtag/js?id=UA-20375833-3"></script>
+<script type="text/javascript" cookie-consent="tracking">
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-20375833-3');
+</script>
+<!--/radix_placeholder_site_in_header-->
+
+
+</head>
+
+<body>
+
+<!--radix_placeholder_front_matter-->
+
+<script id="distill-front-matter" type="text/json">
+{"title":"Wavelet Transform - with torch","description":"torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press.","authors":[{"author":"Sigrid Keydana","authorURL":"#","affiliation":"RStudio","affiliationURL":"https://www.rstudio.com/","orcidID":""}],"publishedDate":"2022-10-27T00:00:00.000+00:00","citationText":"Keydana, 2022"}
+</script>
+
+<!--/radix_placeholder_front_matter-->
+<!--radix_placeholder_navigation_before_body-->
+<header class="header header--fixed" role="banner">
+<nav class="distill-site-nav distill-site-header">
+<div class="nav-left">
+<span class="logo">
+<img src="../../images/rstudio.png"/>
+</span>
+<a href="../../index.html" class="title">AI Blog</a>
+<input id="distill-search" class="nav-search hidden" type="text" placeholder="Search..."/>
+</div>
+<div class="nav-right">
+<a href="../../index.html">Home</a>
+<a href="../../gallery.html">Gallery</a>
+<a href="../../about.html">About</a>
+<a href="../../contributing.html">Contributing</a>
+<a href="../../index.xml">
+<i class="fa fa-rss" aria-hidden="true"></i>
+</a>
+<a href="javascript:void(0);" class="nav-toggle">&#9776;</a>
+</div>
+</nav>
+</header>
+<!--/radix_placeholder_navigation_before_body-->
+<!--radix_placeholder_site_before_body-->
+<!--/radix_placeholder_site_before_body-->
+
+<div class="d-title">
+<h1>Wavelet Transform - with torch</h1>
+<!--radix_placeholder_categories-->
+<div class="dt-tags">
+  <a href="../../index.html#category:Torch" class="dt-tag">Torch</a>
+  <a href="../../index.html#category:R" class="dt-tag">R</a>
+  <a href="../../index.html#category:Concepts" class="dt-tag">Concepts</a>
+</div>
+<!--/radix_placeholder_categories-->
+<p><p>torch does not have built-in functionality to do wavelet analysis. But we can efficiently implement what we need, making use of the Fast Fourier Transform (FFT). This post is a very first introduction to wavelets, suitable for readers that have not encountered it before. At the same time, it provides useful starter code, showing an (extensible) way to perform wavelet analysis in torch. It is an excerpt from the corresponding chapter in the forthcoming book, Deep Learning and Scientific Computing with R torch, to be published by CRC Press.</p></p>
+</div>
+
+<div class="d-byline">
+  Sigrid Keydana  (RStudio)<a href="https://www.rstudio.com/" class="uri">https://www.rstudio.com/</a>
+  
+<br/>2022-10-27
+</div>
+
+<div class="d-article">
+<div class="d-contents d-contents-float">
+<nav class="l-text toc figcaption" id="TOC">
+<h3>Contents</h3>
+<ul>
+<li><a href="#wavelets-and-the-wavelet-transform">Wavelets and the Wavelet Transform</a></li>
+<li><a href="#introducing-the-morlet-wavelet">Introducing the Morlet wavelet</a></li>
+<li><a href="#the-roles-of-k-and-omega_a">The roles of <span class="math inline">\(K\)</span> and <span class="math inline">\(\omega_a\)</span></a></li>
+<li><a href="#wavelet-transform-a-straightforward-implementation">Wavelet Transform: A straightforward implementation</a></li>
+<li><a href="#resolution-in-time-versus-in-frequency">Resolution in time versus in frequency</a></li>
+<li><a href="#performing-the-wavelet-transform-in-the-fourier-domain">Performing the Wavelet Transform in the Fourier domain</a></li>
+<li><a href="#creating-the-wavelet-diagram">Creating the wavelet diagram</a></li>
+<li><a href="#a-real-world-example-chaffinchs-song">A real-world example: Chaffinch’s song</a></li>
+</ul>
+</nav>
+</div>
+<p><em>Note: Like several prior ones, this post is an excerpt from the forthcoming book, Deep Learning and Scientific Computing with R torch. And like many excerpts, it is a product of hard trade-offs. For additional depth and more examples, I have to ask you to please consult the book.</em></p>
+<h2 id="wavelets-and-the-wavelet-transform">Wavelets and the Wavelet Transform</h2>
+<p>What are wavelets? Like the Fourier basis, they’re functions; but they don’t extend infinitely. Instead, they are localized in time: Away from the center, they quickly decay to zero. In addition to a <em>location</em> parameter, they also have a <em>scale</em>: At different scales, they appear squished or stretched. Squished, they will do better at detecting high frequencies; the converse applies when they’re stretched out in time.</p>
+<p>The basic operation involved in the Wavelet Transform is convolution – have the (flipped) wavelet slide over the data, computing a sequence of dot products. This way, the wavelet is basically looking for <em>similarity</em>.</p>
+<p>As to the wavelet functions themselves, there are many of them. In a practical application, we’d want to experiment and pick the one that works best for the given data. Compared to the DFT and spectrograms, more experimentation tends to be involved in wavelet analysis.</p>
+<p>The topic of wavelets is very different from that of Fourier transforms in other respects, as well. Notably, there is a lot less standardization in terminology, use of symbols, and actual practices. In this introduction, I’m leaning heavily on one specific exposition, the one in Arnt Vistnes’ very nice book on waves <span class="citation" data-cites="waves">(<a href="#ref-waves" role="doc-biblioref">Vistnes 2018</a>)</span>. In other words, both terminology and examples reflect the choices made in that book.</p>
+<h2 id="introducing-the-morlet-wavelet">Introducing the Morlet wavelet</h2>
+<p>The Morlet, also known as Gabor<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, wavelet is defined like so:</p>
+<p><span class="math display">\[
+\Psi_{\omega_{a},K,t_{k}}(t_n) = (e^{-i \omega_{a} (t_n - t_k)} - e^{-K^2}) \ e^{- \omega_a^2 (t_n - t_k )^2 /(2K )^2} 
+\]</span></p>
+<p>This formulation pertains to discretized data, the kinds of data we work with in practice. Thus, <span class="math inline">\(t_k\)</span> and <span class="math inline">\(t_n\)</span> designate points in time, or equivalently, individual time-series samples.</p>
+<p>This equation looks daunting at first, but we can “tame” it a bit by analyzing its structure, and pointing to the main actors. For concreteness, though, we first look at an example wavelet.</p>
+<p>We start by implementing the above equation:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://torch.mlverse.org/docs'>torch</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://ggplot2.tidyverse.org'>ggplot2</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://patchwork.data-imaginist.com'>patchwork</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://tidyr.tidyverse.org'>tidyr</a></span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'><a href='https://github.com/nteetor/zeallot'>zeallot</a></span><span class='op'>)</span></span>
+<span>  </span>
+<span><span class='va'>morlet</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>omega</span>, <span class='va'>K</span>, <span class='va'>t_k</span>, <span class='va'>t</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='op'>(</span><span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fl'>1i</span> <span class='op'>*</span> <span class='va'>omega</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>t</span> <span class='op'>-</span> <span class='va'>t_k</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>-</span></span>
+<span>    <span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>K</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>*</span></span>
+<span>    <span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>omega</span><span class='op'>)</span> <span class='op'>*</span> <span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>t</span> <span class='op'>-</span> <span class='va'>t_k</span><span class='op'>)</span> <span class='op'>/</span></span>
+<span>      <span class='fu'>torch_square</span><span class='op'>(</span><span class='fl'>2</span> <span class='op'>*</span> <span class='va'>K</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>Comparing code and mathematical formulation, we notice a difference. The function itself takes one argument, <span class="math inline">\(t_n\)</span>; its realization, four (<code>omega</code>, <code>K</code>, <code>t_k</code>, and <code>t</code>). This is because the <code>torch</code> code is vectorized: On the one hand, <code>omega</code>, <code>K</code>, and <code>t_k</code>, which, in the formula, correspond to <span class="math inline">\(\omega_{a}\)</span>, <span class="math inline">\(K\)</span>, and <span class="math inline">\(t_k\)</span> , are scalars. (In the equation, they’re assumed to be fixed.) <code>t</code>, on the other hand, is a vector; it will hold the measurement times of the series to be analyzed.</p>
+<p>We pick example values for <code>omega</code>, <code>K</code>, and <code>t_k</code>, as well as a range of times to evaluate the wavelet on, and plot its values:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>omega</span> <span class='op'>&lt;-</span> <span class='fl'>6</span> <span class='op'>*</span> <span class='va'>pi</span></span>
+<span><span class='va'>K</span> <span class='op'>&lt;-</span> <span class='fl'>6</span></span>
+<span><span class='va'>t_k</span> <span class='op'>&lt;-</span> <span class='fl'>5</span></span>
+<span> </span>
+<span><span class='va'>sample_time</span> <span class='op'>&lt;-</span> <span class='fu'>torch_arange</span><span class='op'>(</span><span class='fl'>3</span>, <span class='fl'>7</span>, <span class='fl'>0.0001</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>create_wavelet_plot</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>omega</span>, <span class='va'>K</span>, <span class='va'>t_k</span>, <span class='va'>sample_time</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>morlet</span> <span class='op'>&lt;-</span> <span class='fu'>morlet</span><span class='op'>(</span><span class='va'>omega</span>, <span class='va'>K</span>, <span class='va'>t_k</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span>  <span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>    x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>sample_time</span><span class='op'>)</span>,</span>
+<span>    real <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>morlet</span><span class='op'>$</span><span class='va'>real</span><span class='op'>)</span>,</span>
+<span>    imag <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>morlet</span><span class='op'>$</span><span class='va'>imag</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span> <span class='op'>%&gt;%</span></span>
+<span>    <span class='fu'>pivot_longer</span><span class='op'>(</span><span class='op'>-</span><span class='va'>x</span>, names_to <span class='op'>=</span> <span class='st'>"part"</span>, values_to <span class='op'>=</span> <span class='st'>"value"</span><span class='op'>)</span></span>
+<span>  <span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>value</span>, color <span class='op'>=</span> <span class='va'>part</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>scale_colour_grey</span><span class='op'>(</span>start <span class='op'>=</span> <span class='fl'>0.8</span>, end <span class='op'>=</span> <span class='fl'>0.4</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"time"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"wavelet value"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>ggtitle</span><span class='op'>(</span><span class='st'>"Morlet wavelet"</span>,</span>
+<span>      subtitle <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"ω_a = "</span>, <span class='va'>omega</span> <span class='op'>/</span> <span class='va'>pi</span>, <span class='st'>"π , K = "</span>, <span class='va'>K</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span> <span class='op'>+</span></span>
+<span>    <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='va'>omega</span>, <span class='va'>K</span>, <span class='va'>t_k</span>, <span class='va'>sample_time</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-morlet-example.png" id="fig-wav-morlet-example" data-fig-alt="Two sine curves, shifted by pi/2, in a Gaussian envelope." alt="A Morlet wavelet." /><figcaption aria-hidden="true">A Morlet wavelet.</figcaption>
+</figure>
+<p>What we see here is a complex sine curve – note the real and imaginary parts, separated by a phase shift of <span class="math inline">\(\pi/2\)</span> – that decays on both sides of the center. Looking back at the equation, we can identify the factors responsible for both features. The first term in the equation, <span class="math inline">\(e^{-i \omega_{a} (t_n - t_k)}\)</span>, generates the oscillation; the third, <span class="math inline">\(e^{- \omega_a^2 (t_n - t_k )^2 /(2K )^2}\)</span>, causes the exponential decay away from the center. (In case you’re wondering about the second term, <span class="math inline">\(e^{-K^2}\)</span>: For given <span class="math inline">\(K\)</span>, it is just a constant.)</p>
+<p>The third term actually is a Gaussian, with location parameter <span class="math inline">\(t_k\)</span> and scale <span class="math inline">\(K\)</span>. We’ll talk about <span class="math inline">\(K\)</span> in great detail soon, but what’s with <span class="math inline">\(t_k\)</span>? <span class="math inline">\(t_k\)</span> is the center of the wavelet; for the Morlet wavelet, this is also the location of maximum amplitude. As distance from the center increases, values quickly approach zero. This is what is meant by wavelets being localized: They are “active” only on a short range of time.</p>
+<h2 id="the-roles-of-k-and-omega_a">The roles of <span class="math inline">\(K\)</span> and <span class="math inline">\(\omega_a\)</span></h2>
+<p>Now, we already said that <span class="math inline">\(K\)</span> is the scale of the Gaussian; it thus determines how far the curve spreads out in time. But there is also <span class="math inline">\(\omega_a\)</span>. Looking back at the Gaussian term, it, too, will impact the spread.</p>
+<p>First though, what is <span class="math inline">\(\omega_a\)</span>? The subscript <span class="math inline">\(a\)</span> stands for “analysis”; thus, <span class="math inline">\(\omega_a\)</span> denotes a single frequency being probed.</p>
+<p>Now, let’s first inspect visually the respective impacts of <span class="math inline">\(\omega_a\)</span> and <span class="math inline">\(K\)</span>.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>p1</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>6</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>4</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span><span class='va'>p2</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>6</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>6</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span><span class='va'>p3</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>6</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>8</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span><span class='va'>p4</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>4</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>6</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span><span class='va'>p5</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>6</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>6</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span><span class='va'>p6</span> <span class='op'>&lt;-</span> <span class='fu'>create_wavelet_plot</span><span class='op'>(</span><span class='fl'>8</span> <span class='op'>*</span> <span class='va'>pi</span>, <span class='fl'>6</span>, <span class='fl'>5</span>, <span class='va'>sample_time</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='op'>(</span><span class='va'>p1</span> <span class='op'>|</span> <span class='va'>p4</span><span class='op'>)</span> <span class='op'>/</span></span>
+<span>  <span class='op'>(</span><span class='va'>p2</span> <span class='op'>|</span> <span class='va'>p5</span><span class='op'>)</span> <span class='op'>/</span></span>
+<span>  <span class='op'>(</span><span class='va'>p3</span> <span class='op'>|</span> <span class='va'>p6</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-K-omega.png" id="fig-wav-K-omega" data-fig-alt="A 3x3 arrangement of sine waves, squished or spread out in time." alt="Morlet wavelet: Effects of varying scale and analysis frequency." /><figcaption aria-hidden="true">Morlet wavelet: Effects of varying scale and analysis frequency.</figcaption>
+</figure>
+<p>In the left column, we keep <span class="math inline">\(\omega_a\)</span> constant, and vary <span class="math inline">\(K\)</span>. On the right, <span class="math inline">\(\omega_a\)</span> changes, and <span class="math inline">\(K\)</span> stays the same.</p>
+<p>Firstly, we observe that the higher <span class="math inline">\(K\)</span>, the more the curve gets spread out. In a wavelet analysis, this means that more points in time will contribute to the transform’s output, resulting in high precision as to frequency content, but loss of resolution in time. (We’ll return to this – central – trade-off soon.)</p>
+<p>As to <span class="math inline">\(\omega_a\)</span>, its impact is twofold. On the one hand, in the Gaussian term, it counteracts – <em>exactly</em>, even – the scale parameter, <span class="math inline">\(K\)</span>. On the other, it determines the frequency, or equivalently, the period, of the wave. To see this, take a look at the right column. Corresponding to the different frequencies, we have, in the interval between 4 and 6, four, six, or eight peaks, respectively.</p>
+<p>This double role of <span class="math inline">\(\omega_a\)</span> is the reason why, all-in-all, it <em>does</em> make a difference whether we shrink <span class="math inline">\(K\)</span>, keeping <span class="math inline">\(\omega_a\)</span> constant, or increase <span class="math inline">\(\omega_a\)</span>, holding <span class="math inline">\(K\)</span> fixed.</p>
+<p>This state of things sounds complicated, but is less problematic than it might seem. In practice, understanding the role of <span class="math inline">\(K\)</span> is important, since we need to pick sensible <span class="math inline">\(K\)</span> values to try. As to the <span class="math inline">\(\omega_a\)</span>, on the other hand, there will be a multitude of them, corresponding to the range of frequencies we analyze.</p>
+<p>So we can understand the impact of <span class="math inline">\(K\)</span> in more detail, we need to take a first look at the Wavelet Transform.</p>
+<h2 id="wavelet-transform-a-straightforward-implementation">Wavelet Transform: A straightforward implementation</h2>
+<p>While overall, the topic of wavelets is more multifaceted, and thus, may seem more enigmatic than Fourier analysis, the transform itself is easier to grasp. It is a sequence of local convolutions between wavelet and signal. Here is the formula for specific scale parameter <span class="math inline">\(K\)</span>, analysis frequency <span class="math inline">\(\omega_a\)</span>, and wavelet location <span class="math inline">\(t_k\)</span>:</p>
+<p><span class="math display">\[
+W_{K, \omega_a, t_k} = \sum_n  x_n \Psi_{\omega_{a},K,t_{k}}^*(t_n)
+\]</span></p>
+<p>This is just a dot product, computed between signal and complex-conjugated wavelet. (Here complex conjugation flips the wavelet in time, making this <em>convolution</em>, not correlation – a fact that matters a lot, as you’ll see soon.)</p>
+<p>Correspondingly, straightforward implementation results in a sequence of dot products, each corresponding to a different alignment of wavelet and signal. Below, in <code>wavelet_transform()</code>, arguments <code>omega</code> and <code>K</code> are scalars, while <code>x</code>, the signal, is a vector. The result is the wavelet-transformed signal, for some specific <code>K</code> and <code>omega</code> of interest.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>wavelet_transform</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>omega</span>, <span class='va'>K</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>n_samples</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span></span>
+<span>  <span class='va'>W</span> <span class='op'>&lt;-</span> <span class='fu'>torch_complex</span><span class='op'>(</span></span>
+<span>    <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>n_samples</span><span class='op'>)</span>, <span class='fu'>torch_zeros</span><span class='op'>(</span><span class='va'>n_samples</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span></span>
+<span>  <span class='kw'>for</span> <span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>n_samples</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='co'># move center of wavelet</span></span>
+<span>    <span class='va'>t_k</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>i</span>, <span class='fl'>1</span><span class='op'>]</span></span>
+<span>    <span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>morlet</span><span class='op'>(</span><span class='va'>omega</span>, <span class='va'>K</span>, <span class='va'>t_k</span>, <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span></span>
+<span>    <span class='co'># compute local dot product</span></span>
+<span>    <span class='co'># note wavelet is conjugated</span></span>
+<span>    <span class='va'>dot</span> <span class='op'>&lt;-</span> <span class='fu'>torch_matmul</span><span class='op'>(</span></span>
+<span>      <span class='va'>m</span><span class='op'>$</span><span class='fu'>conj</span><span class='op'>(</span><span class='op'>)</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>)</span>,</span>
+<span>      <span class='va'>x</span><span class='op'>[</span>, <span class='fl'>2</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>to</span><span class='op'>(</span>dtype <span class='op'>=</span> <span class='fu'>torch_cfloat</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span></span>
+<span>    <span class='va'>W</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>dot</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  <span class='va'>W</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>To test this, we generate a simple sine wave that has a frequency of 100 Hertz in its first part, and double that in the second.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>gencos</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>amp</span>, <span class='va'>freq</span>, <span class='va'>phase</span>, <span class='va'>fs</span>, <span class='va'>duration</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_arange</span><span class='op'>(</span><span class='fl'>0</span>, <span class='va'>duration</span>, <span class='fl'>1</span> <span class='op'>/</span> <span class='va'>fs</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='op'>-</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>unsqueeze</span><span class='op'>(</span><span class='fl'>2</span><span class='op'>)</span></span>
+<span>  <span class='va'>y</span> <span class='op'>&lt;-</span> <span class='va'>amp</span> <span class='op'>*</span> <span class='fu'>torch_cos</span><span class='op'>(</span><span class='fl'>2</span> <span class='op'>*</span> <span class='va'>pi</span> <span class='op'>*</span> <span class='va'>freq</span> <span class='op'>*</span> <span class='va'>x</span> <span class='op'>+</span> <span class='va'>phase</span><span class='op'>)</span></span>
+<span>  <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>y</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>2</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span>
+<span></span>
+<span><span class='co'># sampling frequency</span></span>
+<span><span class='va'>fs</span> <span class='op'>&lt;-</span> <span class='fl'>8000</span></span>
+<span></span>
+<span><span class='va'>f1</span> <span class='op'>&lt;-</span> <span class='fl'>100</span></span>
+<span><span class='va'>f2</span> <span class='op'>&lt;-</span> <span class='fl'>200</span></span>
+<span><span class='va'>phase</span> <span class='op'>&lt;-</span> <span class='fl'>0</span></span>
+<span><span class='va'>duration</span> <span class='op'>&lt;-</span> <span class='fl'>0.25</span></span>
+<span></span>
+<span><span class='va'>s1</span> <span class='op'>&lt;-</span> <span class='fu'>gencos</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>f1</span>, <span class='va'>phase</span>, <span class='va'>fs</span>, <span class='va'>duration</span><span class='op'>)</span></span>
+<span><span class='va'>s2</span> <span class='op'>&lt;-</span> <span class='fu'>gencos</span><span class='op'>(</span><span class='fl'>1</span>, <span class='va'>f2</span>, <span class='va'>phase</span>, <span class='va'>fs</span>, <span class='va'>duration</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>s3</span> <span class='op'>&lt;-</span> <span class='fu'>torch_cat</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>s1</span>, <span class='va'>s2</span><span class='op'>)</span>, dim <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span></span>
+<span><span class='va'>s3</span><span class='op'>[</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s1</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s1</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>]</span> <span class='op'>&lt;-</span></span>
+<span>  <span class='va'>s3</span><span class='op'>[</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s1</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s1</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>*</span> <span class='fl'>2</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>]</span> <span class='op'>+</span> <span class='va'>duration</span></span>
+<span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>,</span>
+<span>  y <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>[</span>, <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"time"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"amplitude"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-signal-short.png" id="fig-wav-signal-short" data-fig-alt="A sine wave that oscillates a lot faster in its second part." alt="An example signal, consisting of a low-frequency and a high-frequency half." /><figcaption aria-hidden="true">An example signal, consisting of a low-frequency and a high-frequency half.</figcaption>
+</figure>
+<p>Now, we run the Wavelet Transform on this signal, for an analysis frequency of 100 Hertz, and with a <code>K</code> parameter of 2, found through quick experimentation:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>K</span> <span class='op'>&lt;-</span> <span class='fl'>2</span></span>
+<span><span class='va'>omega</span> <span class='op'>&lt;-</span> <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>pi</span> <span class='op'>*</span> <span class='va'>f1</span></span>
+<span></span>
+<span><span class='va'>res</span> <span class='op'>&lt;-</span> <span class='fu'>wavelet_transform</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>s3</span>, <span class='va'>omega</span>, <span class='va'>K</span><span class='op'>)</span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>,</span>
+<span>  y <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"time"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"Wavelet Transform"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-signal-short-transform.png" id="fig-wav-signal-short-transform" data-fig-alt="A square wave that starts high, then drops to zero." alt="Wavelet Transform of the above two-part signal. Analysis frequency is 100 Hertz." /><figcaption aria-hidden="true">Wavelet Transform of the above two-part signal. Analysis frequency is 100 Hertz.</figcaption>
+</figure>
+<p>The transform correctly picks out the part of the signal that matches the analysis frequency. If you feel like, you might want to double-check what happens for an analysis frequency of 200 Hertz.</p>
+<p>Now, in reality we will want to run this analysis not for a single frequency, but a range of frequencies we’re interested in. And we will want to try different scales <code>K</code>. Now, if you executed the code above, you might be worried that this could take a <em>lot</em> of time.</p>
+<p>Well, it by necessity takes longer to compute than its Fourier analogue, the spectrogram. For one, that’s because with spectrograms, the analysis is “just” two-dimensional, the axes being time and frequency. With wavelets there are, in addition, different scales to be explored. And secondly, spectrograms operate on whole windows (with configurable overlap); a wavelet, on the other hand, slides over the signal in unit steps.</p>
+<p>Still, the situation is not as grave as it sounds. The Wavelet Transform being a <em>convolution</em>, we can implement it in the Fourier domain instead. We’ll do that very soon, but first, as promised, let’s revisit the topic of varying <code>K</code>.</p>
+<h2 id="resolution-in-time-versus-in-frequency">Resolution in time versus in frequency</h2>
+<p>We already saw that the higher <code>K</code>, the more spread-out the wavelet. We can use our first, maximally straightforward, example, to investigate one immediate consequence. What, for example, happens for <code>K</code> set to twenty?</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>K</span> <span class='op'>&lt;-</span> <span class='fl'>20</span></span>
+<span></span>
+<span><span class='va'>res</span> <span class='op'>&lt;-</span> <span class='fu'>wavelet_transform</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>s3</span>, <span class='va'>omega</span>, <span class='va'>K</span><span class='op'>)</span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>[</span>, <span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span>,</span>
+<span>  y <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>res</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"time"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"Wavelet Transform"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-signal-short-transform-largeK.png" id="fig-wav-signal-short-transform-largeK" data-fig-alt="A sine wave that peaks in the first half of samples, and is mostly zero in the second." alt="Wavelet Transform of the above two-part signal, with K set to twenty instead of two." /><figcaption aria-hidden="true">Wavelet Transform of the above two-part signal, with <code>K</code> set to twenty instead of two.</figcaption>
+</figure>
+<p>The Wavelet Transform still picks out the correct region of the signal – but now, instead of a rectangle-like result, we get a significantly smoothed version that does not sharply separate the two regions.</p>
+<p>Notably, the first 0.05 seconds, too, show considerable smoothing. The larger a wavelet, the more element-wise products will be lost at the end and the beginning. This is because transforms are computed aligning the wavelet at all signal positions, from the very first to the last. Concretely, when we compute the dot product at location <code>t_k = 1</code>, just a single sample of the signal is considered.</p>
+<p>Apart from possibly introducing unreliability at the boundaries, how does wavelet scale affect the analysis? Well, since we’re <em>correlating</em> (<em>convolving</em>, technically; but in this case, the effect, in the end, is the same) the wavelet with the signal, point-wise similarity is what matters. Concretely, assume the signal is a pure sine wave, the wavelet we’re using is a windowed sinusoid like the Morlet, and that we’ve found an optimal <code>K</code> that nicely captures the signal’s frequency. Then any other <code>K</code>, be it larger or smaller, will result in less point-wise overlap.</p>
+<h2 id="performing-the-wavelet-transform-in-the-fourier-domain">Performing the Wavelet Transform in the Fourier domain</h2>
+<p>Soon, we will run the Wavelet Transform on a longer signal. Thus, it is time to speed up computation. We already said that here, we benefit from time-domain convolution being equivalent to multiplication in the Fourier domain. The overall process then is this: First, compute the DFT of both signal and wavelet; second, multiply the results; third, inverse-transform back to the time domain.</p>
+<p>The DFT of the signal is quickly computed:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='cn'>F</span> <span class='op'>&lt;-</span> <span class='fu'>torch_fft_fft</span><span class='op'>(</span><span class='va'>s3</span><span class='op'>[</span> , <span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<p>With the Morlet wavelet, we don’t even have to run the FFT: Its Fourier-domain representation can be stated in closed form. We’ll just make use of that formulation from the outset. Here it is:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>morlet_fourier</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>K</span>, <span class='va'>omega_a</span>, <span class='va'>omega</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='fl'>2</span> <span class='op'>*</span> <span class='op'>(</span><span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fu'>torch_square</span><span class='op'>(</span></span>
+<span>    <span class='va'>K</span> <span class='op'>*</span> <span class='op'>(</span><span class='va'>omega</span> <span class='op'>-</span> <span class='va'>omega_a</span><span class='op'>)</span> <span class='op'>/</span> <span class='va'>omega_a</span></span>
+<span>  <span class='op'>)</span><span class='op'>)</span> <span class='op'>-</span></span>
+<span>    <span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>K</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>*</span></span>
+<span>      <span class='fu'>torch_exp</span><span class='op'>(</span><span class='op'>-</span><span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>K</span> <span class='op'>*</span> <span class='va'>omega</span> <span class='op'>/</span> <span class='va'>omega_a</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>Comparing this statement of the wavelet to the time-domain one, we see that – as expected – instead of parameters <code>t</code> and <code>t_k</code> it now takes <code>omega</code> and <code>omega_a</code>. The latter, <code>omega_a</code>, is the analysis frequency, the one we’re probing for, a scalar; the former, <code>omega</code>, the range of frequencies that appear in the DFT of the signal.</p>
+<p>In instantiating the wavelet, there is one thing we need to pay special attention to. In FFT-think, the frequencies are bins; their number is determined by the length of the signal (a length that, for its part, directly depends on sampling frequency). Our wavelet, on the other hand, works with frequencies in Hertz (nicely, from a user’s perspective; since this unit is meaningful to us). What this means is that to <code>morlet_fourier</code>, as <code>omega_a</code> we need to pass not the value in Hertz, but the corresponding FFT bin. Conversion is done relating the number of bins, <code>dim(x)[1]</code>, to the sampling frequency of the signal, <code>fs</code>:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># again look for 100Hz parts</span></span>
+<span><span class='va'>omega</span> <span class='op'>&lt;-</span> <span class='fl'>2</span> <span class='op'>*</span> <span class='va'>pi</span> <span class='op'>*</span> <span class='va'>f1</span></span>
+<span></span>
+<span><span class='co'># need the bin corresponding to some frequency in Hz</span></span>
+<span><span class='va'>omega_bin</span> <span class='op'>&lt;-</span> <span class='va'>f1</span><span class='op'>/</span><span class='va'>fs</span> <span class='op'>*</span> <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span></span></code></pre>
+</div>
+</div>
+<p>We instantiate the wavelet, perform the Fourier-domain multiplication, and inverse-transform the result:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>K</span> <span class='op'>&lt;-</span> <span class='fl'>3</span></span>
+<span></span>
+<span><span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>morlet_fourier</span><span class='op'>(</span><span class='va'>K</span>, <span class='va'>omega_bin</span>, <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>s3</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='va'>prod</span> <span class='op'>&lt;-</span> <span class='cn'>F</span> <span class='op'>*</span> <span class='va'>m</span></span>
+<span><span class='va'>transformed</span> <span class='op'>&lt;-</span> <span class='fu'>torch_fft_ifft</span><span class='op'>(</span><span class='va'>prod</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<p>Putting together wavelet instantiation and the steps involved in the analysis, we have the following. (Note how to <code>wavelet_transform_fourier</code>, we now, conveniently, pass in the frequency value in Hertz.)</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>wavelet_transform_fourier</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>omega_a</span>, <span class='va'>K</span>, <span class='va'>fs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>N</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span></span>
+<span>  <span class='va'>omega_bin</span> <span class='op'>&lt;-</span> <span class='va'>omega_a</span> <span class='op'>/</span> <span class='va'>fs</span> <span class='op'>*</span> <span class='va'>N</span></span>
+<span>  <span class='va'>m</span> <span class='op'>&lt;-</span> <span class='fu'>morlet_fourier</span><span class='op'>(</span><span class='va'>K</span>, <span class='va'>omega_bin</span>, <span class='fl'>1</span><span class='op'>:</span><span class='va'>N</span><span class='op'>)</span></span>
+<span>  <span class='va'>x_fft</span> <span class='op'>&lt;-</span> <span class='fu'>torch_fft_fft</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span>  <span class='va'>prod</span> <span class='op'>&lt;-</span> <span class='va'>x_fft</span> <span class='op'>*</span> <span class='va'>m</span></span>
+<span>  <span class='va'>w</span> <span class='op'>&lt;-</span> <span class='fu'>torch_fft_ifft</span><span class='op'>(</span><span class='va'>prod</span><span class='op'>)</span></span>
+<span>  <span class='va'>w</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>We’ve already made significant progress. We’re ready for the final step: automating analysis over a range of frequencies of interest. This will result in a three-dimensional representation, the wavelet diagram.</p>
+<h2 id="creating-the-wavelet-diagram">Creating the wavelet diagram</h2>
+<p>In the Fourier Transform, the number of coefficients we obtain depends on signal length, and effectively reduces to half the sampling frequency. With its wavelet analogue, since anyway we’re doing a loop over frequencies, we might as well decide which frequencies to analyze.</p>
+<p>Firstly, the range of frequencies of interest can be determined running the DFT. The next question, then, is about granularity. Here, I’ll be following the recommendation given in Vistnes’ book, which is based on the relation between current frequency value and wavelet scale, <code>K</code>.</p>
+<p>Iteration over frequencies is then implemented as a loop:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>wavelet_grid</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>K</span>, <span class='va'>f_start</span>, <span class='va'>f_end</span>, <span class='va'>fs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='co'># downsample analysis frequency range</span></span>
+<span>  <span class='co'># as per Vistnes, eq. 14.17</span></span>
+<span>  <span class='va'>num_freqs</span> <span class='op'>&lt;-</span> <span class='fl'>1</span> <span class='op'>+</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='va'>f_end</span> <span class='op'>/</span> <span class='va'>f_start</span><span class='op'>)</span><span class='op'>/</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log</a></span><span class='op'>(</span><span class='fl'>1</span> <span class='op'>+</span> <span class='fl'>1</span><span class='op'>/</span><span class='op'>(</span><span class='fl'>8</span> <span class='op'>*</span> <span class='va'>K</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='va'>freqs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span><span class='op'>(</span><span class='va'>f_start</span>, <span class='va'>f_end</span>, length.out <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>floor</a></span><span class='op'>(</span><span class='va'>num_freqs</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='va'>transformed</span> <span class='op'>&lt;-</span> <span class='fu'>torch_zeros</span><span class='op'>(</span></span>
+<span>    <span class='va'>num_freqs</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>,</span>
+<span>    dtype <span class='op'>=</span> <span class='fu'>torch_cfloat</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>    <span class='op'>)</span></span>
+<span>  <span class='kw'>for</span><span class='op'>(</span><span class='va'>i</span> <span class='kw'>in</span> <span class='fl'>1</span><span class='op'>:</span><span class='va'>num_freqs</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>    <span class='va'>w</span> <span class='op'>&lt;-</span> <span class='fu'>wavelet_transform_fourier</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>freqs</span><span class='op'>[</span><span class='va'>i</span><span class='op'>]</span>, <span class='va'>K</span>, <span class='va'>fs</span><span class='op'>)</span></span>
+<span>    <span class='va'>transformed</span><span class='op'>[</span><span class='va'>i</span>, <span class='op'>]</span> <span class='op'>&lt;-</span> <span class='va'>w</span></span>
+<span>  <span class='op'>}</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='va'>transformed</span>, <span class='va'>freqs</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>Calling <code>wavelet_grid()</code> will give us the analysis frequencies used, together with the respective outputs from the Wavelet Transform.</p>
+<p>Next, we create a utility function that visualizes the result. By default, <code>plot_wavelet_diagram()</code> displays the magnitude of the wavelet-transformed series; it can, however, plot the squared magnitudes, too, as well as their square root, a method much recommended by Vistnes whose effectiveness we will soon have opportunity to witness.</p>
+<p>The function deserves a few further comments.</p>
+<p>Firstly, same as we did with the analysis frequencies, we down-sample the signal itself, avoiding to suggest a resolution that is not actually present. The formula, again, is taken from Vistnes’ book.</p>
+<p>Then, we use interpolation to obtain a new time-frequency grid. This step may even be necessary if we keep the original grid, since when distances between grid points are very small, R’s <code>image()</code> may refuse to accept axes as evenly spaced.</p>
+<p>Finally, note how frequencies are arranged on a log scale. This leads to much more useful visualizations.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>plot_wavelet_diagram</span> <span class='op'>&lt;-</span> <span class='kw'>function</span><span class='op'>(</span><span class='va'>x</span>,</span>
+<span>                                 <span class='va'>freqs</span>,</span>
+<span>                                 <span class='va'>grid</span>,</span>
+<span>                                 <span class='va'>K</span>,</span>
+<span>                                 <span class='va'>fs</span>,</span>
+<span>                                 <span class='va'>f_end</span>,</span>
+<span>                                 <span class='va'>type</span> <span class='op'>=</span> <span class='st'>"magnitude"</span><span class='op'>)</span> <span class='op'>{</span></span>
+<span>  <span class='va'>grid</span> <span class='op'>&lt;-</span> <span class='kw'><a href='https://rdrr.io/r/base/switch.html'>switch</a></span><span class='op'>(</span><span class='va'>type</span>,</span>
+<span>    magnitude <span class='op'>=</span> <span class='va'>grid</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span>,</span>
+<span>    magnitude_squared <span class='op'>=</span> <span class='fu'>torch_square</span><span class='op'>(</span><span class='va'>grid</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span>,</span>
+<span>    magnitude_sqrt <span class='op'>=</span> <span class='fu'>torch_sqrt</span><span class='op'>(</span><span class='va'>grid</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span></span>
+<span></span>
+<span>  <span class='co'># downsample time series</span></span>
+<span>  <span class='co'># as per Vistnes, eq. 14.9</span></span>
+<span>  <span class='va'>new_x_take_every</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Extremes.html'>max</a></span><span class='op'>(</span><span class='va'>K</span> <span class='op'>/</span> <span class='fl'>24</span> <span class='op'>*</span> <span class='va'>fs</span> <span class='op'>/</span> <span class='va'>f_end</span>, <span class='fl'>1</span><span class='op'>)</span></span>
+<span>  <span class='va'>new_x_length</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Round.html'>floor</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>grid</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span> <span class='op'>/</span> <span class='va'>new_x_take_every</span><span class='op'>)</span></span>
+<span>  <span class='va'>new_x</span> <span class='op'>&lt;-</span> <span class='fu'>torch_arange</span><span class='op'>(</span></span>
+<span>    <span class='va'>x</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>,</span>
+<span>    <span class='va'>x</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span>,</span>
+<span>    step <span class='op'>=</span> <span class='va'>x</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span> <span class='op'>/</span> <span class='va'>new_x_length</span></span>
+<span>  <span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='co'># interpolate grid</span></span>
+<span>  <span class='va'>new_grid</span> <span class='op'>&lt;-</span> <span class='fu'>nnf_interpolate</span><span class='op'>(</span></span>
+<span>    <span class='va'>grid</span><span class='op'>$</span><span class='fu'>view</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>grid</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>grid</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span><span class='op'>)</span>,</span>
+<span>    <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>grid</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, <span class='va'>new_x_length</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='op'>)</span></span>
+<span>  <span class='va'>out</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>new_grid</span><span class='op'>)</span></span>
+<span></span>
+<span>  <span class='co'># plot log frequencies</span></span>
+<span>  <span class='va'>freqs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log10</a></span><span class='op'>(</span><span class='va'>freqs</span><span class='op'>)</span></span>
+<span>  </span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/graphics/image.html'>image</a></span><span class='op'>(</span></span>
+<span>    x <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>new_x</span><span class='op'>)</span>,</span>
+<span>    y <span class='op'>=</span> <span class='va'>freqs</span>,</span>
+<span>    z <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/t.html'>t</a></span><span class='op'>(</span><span class='va'>out</span><span class='op'>)</span>,</span>
+<span>    ylab <span class='op'>=</span> <span class='st'>"log frequency [Hz]"</span>,</span>
+<span>    xlab <span class='op'>=</span> <span class='st'>"time [s]"</span>,</span>
+<span>    col <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/grDevices/palettes.html'>hcl.colors</a></span><span class='op'>(</span><span class='fl'>12</span>, palette <span class='op'>=</span> <span class='st'>"Light grays"</span><span class='op'>)</span></span>
+<span>  <span class='op'>)</span></span>
+<span>  <span class='va'>main</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"Wavelet Transform, K = "</span>, <span class='va'>K</span><span class='op'>)</span></span>
+<span>  <span class='va'>sub</span> <span class='op'>&lt;-</span> <span class='kw'><a href='https://rdrr.io/r/base/switch.html'>switch</a></span><span class='op'>(</span><span class='va'>type</span>,</span>
+<span>    magnitude <span class='op'>=</span> <span class='st'>"Magnitude"</span>,</span>
+<span>    magnitude_squared <span class='op'>=</span> <span class='st'>"Magnitude squared"</span>,</span>
+<span>    magnitude_sqrt <span class='op'>=</span> <span class='st'>"Magnitude (square root)"</span></span>
+<span>  <span class='op'>)</span></span>
+<span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/graphics/mtext.html'>mtext</a></span><span class='op'>(</span>side <span class='op'>=</span> <span class='fl'>3</span>, line <span class='op'>=</span> <span class='fl'>2</span>, at <span class='op'>=</span> <span class='fl'>0</span>, adj <span class='op'>=</span> <span class='fl'>0</span>, cex <span class='op'>=</span> <span class='fl'>1.3</span>, <span class='va'>main</span><span class='op'>)</span></span>
+<span>  <span class='fu'><a href='https://rdrr.io/r/graphics/mtext.html'>mtext</a></span><span class='op'>(</span>side <span class='op'>=</span> <span class='fl'>3</span>, line <span class='op'>=</span> <span class='fl'>1</span>, at <span class='op'>=</span> <span class='fl'>0</span>, adj <span class='op'>=</span> <span class='fl'>0</span>, cex <span class='op'>=</span> <span class='fl'>1</span>, <span class='va'>sub</span><span class='op'>)</span></span>
+<span><span class='op'>}</span></span></code></pre>
+</div>
+</div>
+<p>Let’s use this on a real-world example.</p>
+<h2 id="a-real-world-example-chaffinchs-song">A real-world example: Chaffinch’s song</h2>
+<p>For the case study, I’ve chosen what, to me, was the most impressive wavelet analysis shown in Vistnes’ book. It’s a sample of a chaffinch’s singing, and it’s available on Vistnes’ website.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>url</span> <span class='op'>&lt;-</span> <span class='st'>"http://www.physics.uio.no/pow/wavbirds/chaffinch.wav"</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/utils/download.file.html'>download.file</a></span><span class='op'>(</span></span>
+<span> <span class='fu'><a href='https://rdrr.io/r/base/file.path.html'>file.path</a></span><span class='op'>(</span><span class='va'>url</span><span class='op'>)</span>,</span>
+<span> destfile <span class='op'>=</span> <span class='st'>"/tmp/chaffinch.wav"</span></span>
+<span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<p>We use <code>torchaudio</code> to load the file, and convert from stereo to mono using <code>tuneR</code>’s appropriately named <code>mono()</code>. (For the kind of analysis we’re doing, there is no point in keeping two channels around.)</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>torchaudio</span><span class='op'>)</span></span>
+<span><span class='kw'><a href='https://rdrr.io/r/base/library.html'>library</a></span><span class='op'>(</span><span class='va'>tuneR</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>wav</span> <span class='op'>&lt;-</span> <span class='fu'>tuneR_loader</span><span class='op'>(</span><span class='st'>"/tmp/chaffinch.wav"</span><span class='op'>)</span></span>
+<span><span class='va'>wav</span> <span class='op'>&lt;-</span> <span class='fu'>mono</span><span class='op'>(</span><span class='va'>wav</span>, <span class='st'>"both"</span><span class='op'>)</span></span>
+<span><span class='va'>wav</span></span></code></pre>
+</div>
+</div>
+<pre><code>Wave Object
+    Number of Samples:      1864548
+    Duration (seconds):     42.28
+    Samplingrate (Hertz):   44100
+    Channels (Mono/Stereo): Mono
+    PCM (integer format):   TRUE
+    Bit (8/16/24/32/64):    16 </code></pre>
+<p>For analysis, we don’t need the complete sequence. Helpfully, Vistnes also published a recommendation as to which range of samples to analyze.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>waveform_and_sample_rate</span> <span class='op'>&lt;-</span> <span class='fu'>transform_to_tensor</span><span class='op'>(</span><span class='va'>wav</span><span class='op'>)</span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>waveform_and_sample_rate</span><span class='op'>[[</span><span class='fl'>1</span><span class='op'>]</span><span class='op'>]</span><span class='op'>$</span><span class='fu'>squeeze</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>fs</span> <span class='op'>&lt;-</span> <span class='va'>waveform_and_sample_rate</span><span class='op'>[[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='co'># http://www.physics.uio.no/pow/wavbirds/chaffinchInfo.txt</span></span>
+<span><span class='va'>start</span> <span class='op'>&lt;-</span> <span class='fl'>34000</span></span>
+<span><span class='va'>N</span> <span class='op'>&lt;-</span> <span class='fl'>1024</span> <span class='op'>*</span> <span class='fl'>128</span></span>
+<span><span class='va'>end</span> <span class='op'>&lt;-</span> <span class='va'>start</span> <span class='op'>+</span> <span class='va'>N</span> <span class='op'>-</span> <span class='fl'>1</span></span>
+<span><span class='va'>x</span> <span class='op'>&lt;-</span> <span class='va'>x</span><span class='op'>[</span><span class='va'>start</span><span class='op'>:</span><span class='va'>end</span><span class='op'>]</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<pre><code>[1] 131072</code></pre>
+<p>How does this look in the time domain? (Don’t miss out on the occasion to actually <em>listen</em> to it, on your laptop.)</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span>, y <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>)</span></span>
+<span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>geom_line</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"sample"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"amplitude"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-chaffinch.png" id="fig-wav-chaffinch" data-fig-alt="A sequence of several bursts, varying in height and thickness." alt="Chaffinch’s song." /><figcaption aria-hidden="true">Chaffinch’s song.</figcaption>
+</figure>
+<p>Now, we need to determine a reasonable range of analysis frequencies. To that end, we run the FFT:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='cn'>F</span> <span class='op'>&lt;-</span> <span class='fu'>torch_fft_fft</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<p>On the x-axis, we plot frequencies, not sample numbers, and for better visibility, we zoom in a bit.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>bins</span> <span class='op'>&lt;-</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='cn'>F</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span></span>
+<span><span class='va'>freqs</span> <span class='op'>&lt;-</span> <span class='va'>bins</span> <span class='op'>/</span> <span class='va'>N</span> <span class='op'>*</span> <span class='va'>fs</span></span>
+<span></span>
+<span><span class='co'># the bin, not the frequency</span></span>
+<span><span class='va'>cutoff</span> <span class='op'>&lt;-</span> <span class='va'>N</span><span class='op'>/</span><span class='fl'>4</span></span>
+<span></span>
+<span><span class='va'>df</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span><span class='op'>(</span></span>
+<span>  x <span class='op'>=</span> <span class='va'>freqs</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>cutoff</span><span class='op'>]</span>,</span>
+<span>  y <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/numeric.html'>as.numeric</a></span><span class='op'>(</span><span class='cn'>F</span><span class='op'>$</span><span class='fu'>abs</span><span class='op'>(</span><span class='op'>)</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>:</span><span class='va'>cutoff</span><span class='op'>]</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='fu'>ggplot</span><span class='op'>(</span><span class='va'>df</span>, <span class='fu'>aes</span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>x</span>, y <span class='op'>=</span> <span class='va'>y</span><span class='op'>)</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>geom_col</span><span class='op'>(</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>xlab</span><span class='op'>(</span><span class='st'>"frequency (Hz)"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>ylab</span><span class='op'>(</span><span class='st'>"magnitude"</span><span class='op'>)</span> <span class='op'>+</span></span>
+<span>  <span class='fu'>theme_minimal</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-chaffinch-fft.png" id="fig-wav-chaffinch-fft" data-fig-alt="A sequence of spikes, skewed to the left." alt="Chaffinch’s song, Fourier spectrum (excerpt)." /><figcaption aria-hidden="true">Chaffinch’s song, Fourier spectrum (excerpt).</figcaption>
+</figure>
+<p>Based on this distribution, we can safely restrict the range of analysis frequencies to between, approximately, 1800 and 8500 Hertz. (This is also the range recommended by Vistnes.)</p>
+<p>First, though, let’s anchor expectations by creating a spectrogram for this signal. Suitable values for FFT size and window size were found experimentally. And though, in spectrograms, you don’t see this done often, I found that displaying square roots of coefficient magnitudes yielded the most informative output.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>fft_size</span> <span class='op'>&lt;-</span> <span class='fl'>1024</span></span>
+<span><span class='va'>window_size</span> <span class='op'>&lt;-</span> <span class='fl'>1024</span></span>
+<span><span class='va'>power</span> <span class='op'>&lt;-</span> <span class='fl'>0.5</span></span>
+<span></span>
+<span><span class='va'>spectrogram</span> <span class='op'>&lt;-</span> <span class='fu'>transform_spectrogram</span><span class='op'>(</span></span>
+<span>  n_fft <span class='op'>=</span> <span class='va'>fft_size</span>,</span>
+<span>  win_length <span class='op'>=</span> <span class='va'>window_size</span>,</span>
+<span>  normalized <span class='op'>=</span> <span class='cn'>TRUE</span>,</span>
+<span>  power <span class='op'>=</span> <span class='va'>power</span></span>
+<span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>spec</span> <span class='op'>&lt;-</span> <span class='fu'>spectrogram</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>spec</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<pre><code>[1] 513 257</code></pre>
+<p>Like we do with wavelet diagrams, we plot frequencies on a log scale.</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>bins</span> <span class='op'>&lt;-</span> <span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>spec</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span></span>
+<span><span class='va'>freqs</span> <span class='op'>&lt;-</span> <span class='va'>bins</span> <span class='op'>*</span> <span class='va'>fs</span> <span class='op'>/</span> <span class='va'>fft_size</span></span>
+<span><span class='va'>log_freqs</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/Log.html'>log10</a></span><span class='op'>(</span><span class='va'>freqs</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='va'>frames</span> <span class='op'>&lt;-</span> <span class='fl'>1</span><span class='op'>:</span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>spec</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span></span>
+<span><span class='va'>seconds</span> <span class='op'>&lt;-</span> <span class='op'>(</span><span class='va'>frames</span> <span class='op'>/</span> <span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>spec</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span>  <span class='op'>*</span> <span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>1</span><span class='op'>]</span> <span class='op'>/</span> <span class='va'>fs</span><span class='op'>)</span></span>
+<span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/graphics/image.html'>image</a></span><span class='op'>(</span>x <span class='op'>=</span> <span class='va'>seconds</span>,</span>
+<span>      y <span class='op'>=</span> <span class='va'>log_freqs</span>,</span>
+<span>      z <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/t.html'>t</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>as.matrix</a></span><span class='op'>(</span><span class='va'>spec</span><span class='op'>)</span><span class='op'>)</span>,</span>
+<span>      ylab <span class='op'>=</span> <span class='st'>'log frequency [Hz]'</span>,</span>
+<span>      xlab <span class='op'>=</span> <span class='st'>'time [s]'</span>,</span>
+<span>      col <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/grDevices/palettes.html'>hcl.colors</a></span><span class='op'>(</span><span class='fl'>12</span>, palette <span class='op'>=</span> <span class='st'>"Light grays"</span><span class='op'>)</span></span>
+<span><span class='op'>)</span></span>
+<span><span class='va'>main</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/paste.html'>paste0</a></span><span class='op'>(</span><span class='st'>"Spectrogram, window size = "</span>, <span class='va'>window_size</span><span class='op'>)</span></span>
+<span><span class='va'>sub</span> <span class='op'>&lt;-</span> <span class='st'>"Magnitude (square root)"</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/graphics/mtext.html'>mtext</a></span><span class='op'>(</span>side <span class='op'>=</span> <span class='fl'>3</span>, line <span class='op'>=</span> <span class='fl'>2</span>, at <span class='op'>=</span> <span class='fl'>0</span>, adj <span class='op'>=</span> <span class='fl'>0</span>, cex <span class='op'>=</span> <span class='fl'>1.3</span>, <span class='va'>main</span><span class='op'>)</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/graphics/mtext.html'>mtext</a></span><span class='op'>(</span>side <span class='op'>=</span> <span class='fl'>3</span>, line <span class='op'>=</span> <span class='fl'>1</span>, at <span class='op'>=</span> <span class='fl'>0</span>, adj <span class='op'>=</span> <span class='fl'>0</span>, cex <span class='op'>=</span> <span class='fl'>1</span>, <span class='va'>sub</span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-chaffinch-spectrogram.png" id="fig-wav-chaffinch-spectrogram" data-fig-alt="A two-dimensional heat map, indicating high values, strongly varying in time, around log frequency 3.5 Hz." alt="Chaffinch’s song, spectrogram." /><figcaption aria-hidden="true">Chaffinch’s song, spectrogram.</figcaption>
+</figure>
+<p>The spectrogram already shows a distinctive pattern. Let’s see what can be done with wavelet analysis. Having experimented with a few different <code>K</code>, I agree with Vistnes that <code>K = 48</code> makes for an excellent choice:</p>
+<div class="layout-chunk" data-layout="l-body">
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>f_start</span> <span class='op'>&lt;-</span> <span class='fl'>1800</span></span>
+<span><span class='va'>f_end</span> <span class='op'>&lt;-</span> <span class='fl'>8500</span></span>
+<span></span>
+<span><span class='va'>K</span> <span class='op'>&lt;-</span> <span class='fl'>48</span></span>
+<span><span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='va'>grid</span>, <span class='va'>freqs</span><span class='op'>)</span> <span class='op'>%&lt;-%</span> <span class='fu'>wavelet_grid</span><span class='op'>(</span><span class='va'>x</span>, <span class='va'>K</span>, <span class='va'>f_start</span>, <span class='va'>f_end</span>, <span class='va'>fs</span><span class='op'>)</span></span>
+<span><span class='fu'>plot_wavelet_diagram</span><span class='op'>(</span></span>
+<span>  <span class='fu'>torch_tensor</span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fu'><a href='https://rdrr.io/r/base/dim.html'>dim</a></span><span class='op'>(</span><span class='va'>grid</span><span class='op'>)</span><span class='op'>[</span><span class='fl'>2</span><span class='op'>]</span><span class='op'>)</span>,</span>
+<span>  <span class='va'>freqs</span>, <span class='va'>grid</span>, <span class='va'>K</span>, <span class='va'>fs</span>, <span class='va'>f_end</span>,</span>
+<span>  type <span class='op'>=</span> <span class='st'>"magnitude_sqrt"</span></span>
+<span><span class='op'>)</span></span></code></pre>
+</div>
+</div>
+<figure>
+<img src="images/wav-chaffinch-waveletdiag.png" id="fig-wav-chaffinch-waveletdiag" data-fig-alt="A two-dimensional heat map, of high resolution, that strongly emphasizes how patterns vary in time." alt="Chaffinch’s song, wavelet diagram." /><figcaption aria-hidden="true">Chaffinch’s song, wavelet diagram.</figcaption>
+</figure>
+<p>The gain in resolution, on both the time and the frequency axis, is utterly impressive.</p>
+<p>Thanks for reading!</p>
+<p>Photo by <a href="https://unsplash.com/@witikiki?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Vlad Panov</a> on <a href="https://unsplash.com/s/photos/squirrel-snow?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
+<div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-waves" class="csl-entry" role="doc-biblioentry">
+Vistnes, Arnt Inge. 2018. <em>Physics of Oscillations and Waves. With Use of Matlab and Python</em>. Springer.
+</div>
+</div>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>After Dennis Gabor, who came up with the idea of using Gaussian-windowed complex exponentials for time-frequency decomposition, and Jean Morlet, who elaborated on and formalized the resulting transform.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+<!--radix_placeholder_article_footer-->
+<div class="article-footer">
+  <p class="social_footer">
+    <span class="disqus-comments">
+      <i class="fas fa-comments"></i>
+      &nbsp;
+      <span class="disqus-comment-count" data-disqus-identifier="posts/2022-10-27-wavelets/">Comment on this article</span>
+    </span>
+    <span class="article-sharing">
+      Share: &nbsp;
+      <a href="https://twitter.com/share?text=Wavelet%20Transform%20-%20with%20torch&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2022-10-27-wavelets%2F" aria-label="share on twitter">
+        <i class="fab fa-twitter" aria-hidden="true"></i>
+      </a>
+      <a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fblogs.rstudio.com%2Ftensorflow%2Fposts%2F2022-10-27-wavelets%2F&amp;title=Wavelet%20Transform%20-%20with%20torch" aria-label="share on linkedin">
+        <i class="fab fa-linkedin" aria-hidden="true"></i>
+      </a>
+    </span>
+  </p>
+  <script id="dsq-count-scr" src="https://tensorflow-for-r-blog.disqus.com/count.js" async></script>
+  <div id="disqus_thread" class="hidden"></div>
+  <script type="text/javascript" cookie-consent="functionality">
+var disqus_config = function () {
+  this.page.url = 'https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/';
+  this.page.identifier = 'posts/2022-10-27-wavelets/';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://tensorflow-for-r-blog.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
+  <p>
+    <div class="subscribe">
+<div id="subscribe-caption" style="line-height: 1.2; margin-bottom: 2px;">Enjoy this blog? Get notified of new posts by email:</div>
+
+<script src="https://app-ab02.marketo.com/js/forms2/js/forms2.min.js"></script>
+<form class="mtktoBlogEmailForm" id="mktoForm_2224"></form>
+<script>
+
+// establish metrics based on where the form is located
+var in_sidebar = $('#subscribe-caption').parents('.sidebar-section').length;
+if (in_sidebar) {
+  var form_width = 190;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '';
+  var font_size = '12px';
+} else {
+  var form_width = 400;
+  var base_width = form_width - 23;
+  var email_width = base_width + 'px';
+  var label_width = (base_width - 20) + 'px';
+  var button_width = email_width;
+  var button_padding = '30px';
+  var button_margin = '12px';
+  var font_size = '15px';
+}
+
+$('#subscribe-caption')
+  .css('width', base_width)
+  .css('font-size', font_size);
+
+
+MktoForms2.loadForm("https://app-ab02.marketo.com", "709-NXN-706", 2224, function(form) {
+
+  // get jquery reference to form
+  form = $(form.getFormElem().get(0));
+
+  $(form).css('width', form_width + 'px');
+  $(form).find('.mktoOffset').remove();
+  $(form).find('.mktoGutter').remove();
+  $(form).find('.mktoEmailField').css('width', email_width);
+  $(form).find('.mktoLabel').children().attr('style', 'font-weight: 400');
+  $(form).find('.mktoLabel')
+      .css('width', label_width)
+      .css('font-size', font_size);
+  $(form).find('.mktoButtonRow')
+      .css('width', button_width)
+      .css('text-align', 'center');
+  $(form).find('.mktoButtonWrap').attr('style', '');
+  $(form).find('.mktoButton')
+      .css('margin-top', '10px')
+      .css('padding-left', button_padding)
+      .css('padding-right', button_padding)
+      .css('font-size', font_size)
+      .css('margin-top', button_margin);
+});
+</script>
+Posts also available at <a href="https://www.r-bloggers.com">r-bloggers</a>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function(){
+    var menulink = document.querySelector("a[href='#category:R']");
+    if (menulink) menulink.parentNode.style.display = "None";
+    
+    for (var e of document.querySelectorAll(".dt-tag")) {
+      if (e.innerHTML == 'R') e.style.display = "None";
+    }
+  });
+</script>
+</div>
+  </p>
+</div>
+<!--/radix_placeholder_article_footer-->
+</div>
+
+<div class="d-appendix">
+</div>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+<!--radix_placeholder_site_after_body-->
+<!--/radix_placeholder_site_after_body-->
+<!--radix_placeholder_appendices-->
+<div class="appendix-bottom">
+  <h3 id="references">References</h3>
+  <div id="references-listing"></div>
+  <h3 id="reuse">Reuse</h3>
+  <p>Text and figures are licensed under Creative Commons Attribution <a rel="license" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The figures that have been reused from other sources don't fall under this license and can be recognized by a note in their caption: "Figure from ...".</p>
+  <h3 id="citation">Citation</h3>
+  <p>For attribution, please cite this work as</p>
+  <pre class="citation-appendix short">Keydana (2022, Oct. 27). RStudio AI Blog: Wavelet Transform - with torch. Retrieved from https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/</pre>
+  <p>BibTeX citation</p>
+  <pre class="citation-appendix long">@misc{keydanatorchwavelets,
+  author = {Keydana, Sigrid},
+  title = {RStudio AI Blog: Wavelet Transform - with torch},
+  url = {https://blogs.rstudio.com/tensorflow/posts/2022-10-27-wavelets/},
+  year = {2022}
+}</pre>
+</div>
+<!--/radix_placeholder_appendices-->
+<!--radix_placeholder_navigation_after_body-->
+<!--/radix_placeholder_navigation_after_body-->
+
+</body>
+
+</html>

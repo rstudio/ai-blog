@@ -22,7 +22,7 @@ preview: images/net.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE, fig.width = 6, fig.height = 6)
 ```
 
-If, in deep-learning world, the first half of the last decade has been the age of images, and the second, that of language, one could say that now, we're living in the age of graphs. At least, that's what commonly cited research metrics suggest. But as we're all aware, deep-learning research is anything but an ivory tower. To see real-world implications, it suffices to reflect on how many things can be modeled as graphs. Some things quite naturally "are" graphs, in the sense of having nodes and edges: take neurons, underground stations, social networks. Other things can fruitfully be modeled as graphs: molecules, for example: or language, concepts, three-dimensional shapes ... If deep learning on graphs is desirable, what are the challenges, and what do we get for free?
+If, in deep-learning world, the first half of the last decade has been the age of images, and the second, that of language, one could say that now, we're living in the age of graphs. At least, that's what commonly cited research metrics suggest. But as we're all aware, deep-learning research is anything but an ivory tower. To see real-world implications, it suffices to reflect on how many things can be modeled as graphs. Some things quite naturally "are" graphs, in the sense of having nodes and edges: neurons, underground stations, social networks. Other things can fruitfully be modeled as graphs: molecules, for example; or language, concepts, three-dimensional shapes ... If deep learning on graphs is desirable, what are the challenges, and what do we get for free?
 
 ## What's so special about deep learning on graphs?
 
@@ -34,13 +34,13 @@ At this point, let me switch gears and move on to the practical part: the raison
 
 ## Implementations
 
-Deep learning on graphs can be done in both frameworks currently dominating the market, TensorFlow as well as PyTorch. The most popular, at this time -- and fastest-growing in terms of functionality -- library seems to be [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/#) (from hereon: PyG). In particular, this tendency is documented by more and more research groups switching to PyG -- and often, extending it in significant ways.
+Deep learning on graphs can be done in both frameworks currently dominating the market, TensorFlow as well as PyTorch. The most popular, at this time -- and fastest-growing in terms of functionality -- library is [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/#) (from hereon: PyG). In particular, this tendency is documented by more and more research groups switching to PyG -- and often, extending it in significant ways.
 
-Of course, you can do deep learning on graphs in other libraries and frameworks. For researchers, though, enabling quick experimentation is of utmost importance; the same goes for extensive documentation and realistic use cases. On this blog, I have an additional reason to pick PyG over alternatives: I plan to write regularly about uses of deep learning in the sciences, and to no big surprise, there graphs and graph-like structures are widely used as domain models.
+Of course, you can do deep learning on graphs in other libraries and frameworks. For researchers, though, to enable quick experimentation is of utmost importance; the same goes for extensive documentation and realistic use cases. For this and upcoming posts, thus, I have an immediate reason to choose PyG: I plan to write regularly about applications of deep learning in the sciences, and as far as GNNs are concerned, PyG is what an overwhelming amount of research papers uses.
 
-As a regular reader, you may have stumbled across me writing: "PyTorch Geometric". What about R `torch`? Well, we'd love to have PyG in the `torch` ecosystem! But looking at the extent of this project, and more importantly, its rapid, ever-accelerating growth, it would make sense for a `torchgeometric` to be a community effort. If you're interested to help, or if the upcoming posts make you so, please don't hesitate to let us know!
+As a regular reader, you may have stumbled across me writing: "PyTorch Geometric". What about R `torch`? Well, we'd love to have PyG in the `torch` ecosystem! But looking at the extent of this project, and, more importantly, its rapid, ever-accelerating growth, it would make sense for a `torchgeometric` to be a community effort. If you'd like to help, or if the upcoming posts make you feel like, please don't hesitate to let us know!
 
-That said, let me come to what *this* post is for: *get started with PyG for deep learning on graphs --the low-level, "I want-to-really-understand" way*.
+That said, let me come to what *this* post is for: get started with PyG for deep learning on graphs -- the low-level, "I want to _really_ understand" way.
 
 ## Matching concepts and code: PyTorch Geometric
 
@@ -54,7 +54,7 @@ $$
 
 Scary though this looks, once we read it from the right, we see that it nicely fits the conceptual description. The $(\mathbf{x}_i^{(k-1)}, \mathbf{x}_j^{(k-1)},\mathbf{e}_{j,i})$ are the three types of incoming messages a node can receive: its own state at the previous layer, the states of its neighbors (the nodes $j \in \mathcal{N}(i)$) at the previous layer, and features/embeddings associated to the edge in question. (I'm leaving out edge features in this discussion completely, so as to not further enhance complexity.) These messages are (optionally) transformed by the neural network $\phi$, and whatever comes out is summarized by the aggregator function $\square$. Finally, a node will update itself based on that summary as well as its own previous-layer state, possibly by means of applying neural network $\gamma$.
 
-Now we have this conceptual/mathematical representation, how does it map to code we see, or would like to write? PyG has excellent, extensive documentation, including at the beginner level. But here, I'd like to spell things out in detail -- pedantically, if you like, but in a way that tells us a lot about how GNNs work.
+Now that we have this conceptual/mathematical representation, how does it map to code we see, or would like to write? PyG has excellent, extensive documentation, including at the beginner level. But here, I'd like to spell things out in detail -- pedantically, if you like, but in a way that tells us a lot about how GNNs work.
 
 Let's start by the information given in one of the key documentation pages, [Creating message passing networks](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_gnn.html):
 
@@ -234,7 +234,7 @@ Let me spell this out. In `data.edge_index`, repeated here for convenience:
     tensor([[0, 1, 0, 2, 1, 2, 2, 3, 2, 4, 3, 4],
             [1, 0, 2, 0, 2, 1, 3, 2, 4, 2, 4, 3]])
 
-the first pair denotes the edge from node `0` (that had features `(1, 1)`) to node `1`. This information is found in `x_j`'s first row. Then row two holds the information flowing in the opposite direction, namely, the features associated with node `1`. And so on.
+the first pair denotes the edge from node `0` (that had features `(1, 1)`) to node `1`. This information is found in `x_j`'s first row. Then the second row holds the information flowing in the opposite direction, namely, the features associated with node `1`. And so on.
 
 Interestingly, since we're passing through this module just once, we can see the messages that will be sent without even running it.
 
@@ -265,7 +265,7 @@ data.x[data.edge_index[0]]
 
 Now, what does this tell us? Node `0`, for example, received messages from nodes `1` and `2`: `(2, 2)` and `(3, 3)`, respectively. We know that the default aggregation mode is `add`; and so, would expect an outcome of `(5, 5)`. Indeed, this is the new embedding for node `0`.
 
-In a nutshell, thus, the minimal GNN updates every node's embedding so as to prototypically reflect the node's neighborhood. Take care though: Nodes represent their neighborhoods, but themselves, they don't count. We will change that now.
+In a nutshell, thus, the minimal GNN updates every node's embedding so as to prototypically reflect the node's neighborhood. Take care though: Nodes represent their neighborhoods, but themselves, they count for nothing. We will change that now.
 
 ### Adding self loops
 
@@ -362,15 +362,15 @@ out
             [-15., -15.],
             [-14., -14.]])
 
-In `aggregate()`, we have two types of tensors to work with. One, `inputs`, holds what was returned from `message()`. In our case, this is identical to `x_j`, since we didn't make any modifications to the default behavior. The second, `index`, holds the recipe for where in the aggregation those features should go. Here, the very first tuple, (`(1, 1)`), will contribute to the summary for node `1`; the second, ((`2, 2)`), to that for node `0` -- and so on. By the way, just like `x_j` (in a single-layer, single-pass setup) is "just" `data.x[data.edge_index[0]]`, that `index` is just `data.edge_index[1]`. Meaning, this is the list of target nodes connected to the edges in question.
+In `aggregate()`, we have two types of tensors to work with. One, `inputs`, holds what was returned from `message()`. In our case, this is identical to `x_j`, since we didn't make any modifications to the default behavior. The second, `index`, holds the recipe for where in the aggregation those features should go. Here, the very first tuple, `(1, 1)`, will contribute to the summary for node `1`; the second, `(2, 2)`, to that for node `0` -- and so on. By the way, just like `x_j` (in a single-layer, single-pass setup) is "just" `data.x[data.edge_index[0]]`, that `index` is "just" `data.edge_index[1]`. Meaning, this is the list of target nodes connected to the edges in question.
 
 At this point, all kinds of manipulations could be done on either `inputs` or `index`; however, we content ourselves with just passing them through to `torch_scatter.scatter()`, and returning the negated sums. We've successfully built a network of contrarians.
 
 By now, we've played with `message()` as well as `aggregate()`. What about `update()`?
 
-### Add memory to `update()`
+### Adding memory to `update()`
 
-There's one thing really strange in what we're doing. It doesn't jump to the eye, since we're not simulating a real training phase; we've been calling the layer just once. If we hadn't, we'd have noticed that at every call, the nodes happily forget who they've been before, dutifully assuming the new identities assigned. In reality, we probably want them to evolve in a more consistent way.
+There's one thing really strange in what we're doing. It doesn't jump to the eye, since we're not simulating a real training phase; we've been calling the layer just once. If we hadn't, we'd have noticed that at every call, the nodes happily forget who they were before, dutifully assuming the new identities assigned. In reality, we probably want them to evolve in a more consistent way.
 
 For example:
 
@@ -414,9 +414,9 @@ out
 
 In `update()`, we have access to both the final message aggregate (`inputs`) and the nodes' prior states (`x`). Here, I'm just averaging those two.
 
-At this point, we've successfully acquainted ourselves with the three stages of message passing: acting on individual messages, aggregating them, and self-updating based on past state and present information. But none of our models so far could be called a neural network, since there was no learning involved.
+At this point, we've successfully acquainted ourselves with the three stages of message passing: acting on individual messages, aggregating them, and self-updating based on past state and new information. But none of our models so far could be called a neural network, since there was no learning involved.
 
-### Add parameters
+### Adding parameters
 
 If we look back at the generic message passing formulation:
 
@@ -494,9 +494,9 @@ tensor([[ 0.0573, -0.6988],
 
 At this point, I hope you'll feel comfortable to play around, subclassing the `MessagePassing` base class. Also, if now you consult the above-mentioned documentation page ([Creating message passing networks](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_gnn.html)), you'll be able to map the example implementations (dedicated to popular GNN layer types) to where they "hook into" the message passing process.
 
-Experimentation with `MessagePassing()` was the point of this post. However, you may be wondering: How do I actually use this for node classification? Didn't the graph have a class defined for each node? (It did: `data.y`.)
+Experimentation with `MessagePassing` was the point of this post. However, you may be wondering: How do I actually use this for node classification? Didn't the graph have a class defined for each node? (It did: `data.y`.)
 
-So let me conclude by a (minimal) end-to-end example that uses one of the above modules.
+So let me conclude with a (minimal) end-to-end example that uses one of the above modules.
 
 ### A minimal workflow
 

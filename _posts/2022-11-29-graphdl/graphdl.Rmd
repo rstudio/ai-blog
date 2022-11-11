@@ -9,7 +9,8 @@ author:
 slug: keydanagraphdl
 date: 2022-11-29
 categories:
-  - Torch
+  - PyTorch
+  - Python
   - Graphs
 output:
   distill::distill_article:
@@ -22,6 +23,8 @@ preview: images/net.jpg
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE, fig.width = 6, fig.height = 6)
 ```
 
+*Note: With RStudio having become [Posit](www.posit.co), and aiming to support both R and Python communities, we will have a mix of R and Python posts on this blog. To our dear R-loving readers: Please rest assured that, just like Posit will continue the work on R packages, you will continue to see R-related content on this blog.*
+
 If, in deep-learning world, the first half of the last decade has been the age of images, and the second, that of language, one could say that now, we're living in the age of graphs. At least, that's what commonly cited research metrics suggest. But as we're all aware, deep-learning research is anything but an ivory tower. To see real-world implications, it suffices to reflect on how many things can be modeled as graphs. Some things quite naturally "are" graphs, in the sense of having nodes and edges: neurons, underground stations, social networks. Other things can fruitfully be modeled as graphs: molecules, for example; or language, concepts, three-dimensional shapes ... If deep learning on graphs is desirable, what are the challenges, and what do we get for free?
 
 ## What's so special about deep learning on graphs?
@@ -30,19 +33,11 @@ Graphs are different from images, language, as well as tabular data in that node
 
 When relationships are modeled as graphs, both nodes and edges can have features. This, too, adds complexity. But not everything is harder with graphs. Think of how cumbersome it can be to obtain labeled data for supervised learning. With graphs, often an astonishingly small amount of labeled data is needed. More surprisingly still, a graph can be constructed when not a single edge is present. Put differently, learning on *sets* can morph into learning on *graphs*.
 
-At this point, let me switch gears and move on to the practical part: the raison d'être of this post. Before, a quick note on software.
-
-## Implementations
-
-Deep learning on graphs can be done in both frameworks currently dominating the market, TensorFlow as well as PyTorch. The most popular, at this time -- and fastest-growing in terms of functionality -- library is [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/#) (from hereon: PyG). In particular, this tendency is documented by more and more research groups switching to PyG -- and often, extending it in significant ways.
-
-Of course, you can do deep learning on graphs in other libraries and frameworks. For researchers, though, to enable quick experimentation is of utmost importance; the same goes for extensive documentation and realistic use cases. For this and upcoming posts, thus, I have an immediate reason to choose PyG: I plan to write regularly about applications of deep learning in the sciences, and as far as GNNs are concerned, PyG is what an overwhelming amount of research papers uses.
-
-As a regular reader, you may have stumbled across me writing: "PyTorch Geometric". What about R `torch`? Well, we'd love to have PyG in the `torch` ecosystem! But looking at the extent of this project, and, more importantly, its rapid, ever-accelerating growth, it would make sense for a `torchgeometric` to be a community effort. If you'd like to help, or if the upcoming posts make you feel like, please don't hesitate to let us know!
-
-That said, let me come to what *this* post is for: get started with PyG for deep learning on graphs -- the low-level, "I want to _really_ understand" way.
+At this point, let me switch gears and move on to the practical part: the raison d'être of this post.
 
 ## Matching concepts and code: PyTorch Geometric
+
+In this (and future) posts, we'll make use of [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/#) (from hereon: PyG), the most popular, at this time, and fastest-growing in terms of functionality as well as user base, library dedicated to graph DL.
 
 Deep learning on graphs, in its most general form, is usually characterized by the term *message passing*. Messages are passed between nodes that are linked by an edge: If node $A$ has three neighbors, it will receive three messages. Those messages have to be summarized in some meaningful way. Finally -- GNNs consisting of consecutive layers -- the node will have to decide how to modify its previous-layer features (a.k.a. embeddings) based on that summary.
 
@@ -66,28 +61,11 @@ Thus, the question becomes: What happens if we code the *minimal PyG GNN*? To fi
 
 ### A minimal graph
 
-First, let me list all imports required for this post.
-
-```{python}
-import numpy as np
-
-import torch
-from torch.nn import Sequential as Seq, Linear, ReLU
-import torch.nn.functional as F
-
-from torch_geometric.nn import MessagePassing
-from torch_geometric.data import Data
-from torch_geometric.utils import add_self_loops, degree, to_networkx
-
-from torch_scatter import scatter
-
-import networkx as nx
-import matplotlib.pyplot as plt
-```
-
 Now, a basic `Data` object is created from three tensors. The first holds the node features: two features each for five nodes. (Both features are identical on purpose, for "cognitive ease" -- on our, not the algorithm's, part.)
 
 ```{python}
+import torch
+
 x = torch.tensor([[1, 1], [2, 2], [3, 3], [11, 11], [12, 12]], dtype=torch.float)
 ```
 
@@ -120,6 +98,8 @@ y = torch.tensor([[0], [0], [0], [1], [1]], dtype=torch.float)
 Constructing and inspecting the resulting graph, we have:
 
 ```{python}
+from torch_geometric.data import Data
+
 data = Data(x = x, edge_index = edge_index.t().contiguous(), y = y)
 data.x
 data.edge_index
@@ -144,6 +124,10 @@ data.y
 For our upcoming experiments, it's more helpful, though, to visualize the graph:
 
 ```{python}
+import networkx as nx
+import matplotlib.pyplot as plt
+from torch_geometric.utils import to_networkx
+
 def visualize_graph(G, color, labels):
     plt.figure(figsize=(7,7))
     plt.axis('off')
@@ -170,6 +154,8 @@ Although our experiments won't be about training performance (how could they be,
 Now, we code and run the minimal GNN. We're not interested in class labels (yet); we just want to see each node's embeddings after a single pass.
 
 ```{python}
+from torch_geometric.nn import MessagePassing
+
 class IAmLazy(MessagePassing):
     def forward(self, x, edge_index):
         out = self.propagate(edge_index, x = x)
@@ -272,6 +258,8 @@ In a nutshell, thus, the minimal GNN updates every node's embedding so as to pro
 All we need to do is modify the adjacency matrix to include edges going from each node back to itself.
 
 ```{python}
+from torch_geometric.utils import add_self_loops
+
 class IAmMyOthersAndMyselfAsWell(MessagePassing):
     def forward(self, x, edge_index):
         edge_index, _ = add_self_loops(edge_index, num_nodes = x.size(0))
@@ -315,6 +303,8 @@ def __init__(self):
 To implement custom summaries, however, we make use of `torch_scatter` (one of PyG's installation prerequisites) for optimal performance. Let me show this by means of a simple example.
 
 ```{python}
+from torch_scatter import scatter
+
 class IAmJustTheOppositeReally(MessagePassing):
     def forward(self, x, edge_index):
         out = self.propagate(edge_index, x = x)
@@ -425,6 +415,8 @@ $$
 $$ we see two places where neural network modules can act on the computation: before message aggregation, and as part of the node update process. First, we illustrate the former option. For example, we can apply a MLP in `forward()`, before the call to `aggregate()`:
 
 ```{python}
+from torch.nn import Sequential as Seq, Linear, ReLU
+
 class ILearnAndEvolve(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super().__init__(aggr = "sum")
@@ -462,19 +454,19 @@ We keep the MLP from the previous class, and add a second in `update()`:
 class ILearnAndEvolveDoubly(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super().__init__(aggr = "sum")
-        self.mlp1 = Seq(Linear(in_channels, out_channels),
+        self.mlp_msg = Seq(Linear(in_channels, out_channels),
                        ReLU(),
                        Linear(out_channels, out_channels))
-        self.mlp2 = Seq(Linear(out_channels, out_channels),
+        self.mlp_upd = Seq(Linear(out_channels, out_channels),
                        ReLU(),
                        Linear(out_channels, out_channels))
     def forward(self, x, edge_index):
         edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
-        x = self.mlp1(x)
+        x = self.mlp_msg(x)
         out = self.propagate(edge_index = edge_index, x = x)
         return out
     def update(self, inputs, x):
-        return self.mlp2((inputs + x)/2)
+        return self.mlp_upd((inputs + x)/2)
 
 module = ILearnAndEvolveDoubly(2, 2)
 out = module(data.x, data.edge_index)
@@ -483,14 +475,12 @@ out
 
 ```
 
-```{python}
-result is:
-tensor([[ 0.0573, -0.6988],
-        [ 0.0358, -0.6894],
-        [-0.1730, -0.6450],
-        [-0.5855, -0.4171],
-        [-0.5890, -0.4141]], grad_fn=<AddmmBackward0>)
-```
+    result is:
+    tensor([[ 0.0573, -0.6988],
+            [ 0.0358, -0.6894],
+            [-0.1730, -0.6450],
+            [-0.5855, -0.4171],
+            [-0.5890, -0.4141]], grad_fn=<AddmmBackward0>)
 
 At this point, I hope you'll feel comfortable to play around, subclassing the `MessagePassing` base class. Also, if now you consult the above-mentioned documentation page ([Creating message passing networks](https://pytorch-geometric.readthedocs.io/en/latest/notes/create_gnn.html)), you'll be able to map the example implementations (dedicated to popular GNN layer types) to where they "hook into" the message passing process.
 
@@ -519,6 +509,9 @@ model = Network(2, 2, 1)
 We can then train the model like any other:
 
 ```{python}
+
+import torch.nn.functional as F
+
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.01)
 model.train()
 
@@ -544,4 +537,3 @@ And that's it for this time. Stay tuned for examples of how graph models are app
 Thanks for reading!
 
 Photo by <a href="https://unsplash.com/@alinnnaaaa?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Alina Grubnyak</a> on <a href="https://unsplash.com/?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>
-

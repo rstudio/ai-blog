@@ -1,6 +1,6 @@
 ---
 title: "AO, NAO, ENSO: A wavelet analysis example"
-description: > El Niño-Southern Oscillation (ENSO), North Atlantic Oscillation (NAO), and Arctic Oscillation (AO) are atmospheric phenomena of global impact that strongly affect people's lives. ENSO, first and foremost, brings with it floods, droughts, and ensuing poverty, in developing countries in the Southern Hemisphere. Here, we use the new torchwavelets package to comparatively inspect patterns in the three series.
+description: > El Niño-Southern Oscillation (ENSO), North Atlantic Oscillation (NAO), and Arctic Oscillation (AO) are atmospheric phenomena of global impact that strongly affect people's lives. ENSO, first and foremost, brings with it floods, droughts, and ensuing poverty, in developing countries in the Southern hemisphere. Here, we use the new torchwavelets package to comparatively inspect patterns in the three series.
 author:
   - name: Sigrid Keydana
     affiliation: Posit
@@ -30,9 +30,9 @@ As explained in that book excerpt, though, there are significant differences. Fo
 
 With this post, then, my goal is two-fold.
 
-First, to introduce [`torchwavelets]`{spellcheck="false"}(<https://github.com/skeydan/torchwavelets>), a tiny, yet useful package that automates all of the essential steps involved. ComparArctic Oscillation (AO)ed to the Fourier Transform and its applications, the topic of wavelets is rather "chaotic" -- meaning, it enjoys much less shared terminology, and much less shared practice. Consequently, it makes sense for implementations to follow established, community-embraced approaches, whenever such are available and well documented. With `torchwavelets`, we provide an implementation of Torrence and Compo's 1998 "Practical Guide to Wavelet Analysis" (@Torrence.Compo1998tbd), an oft-cited paper that proved influential across a wide range of application domains. Code-wise, our package is mostly a port of [Tom Runia's PyTorch implementation](https://github.com/QUVA-Lab/PyTorchWavelets/), itself based on a prior implementation by [Aaron O'Leary](https://github.com/aaren/wavelets/).
+First, to introduce [torchwavelets](https://github.com/skeydan/torchwavelets){.uri}, a tiny, yet useful package that automates all of the essential steps involved. Compared to the Fourier Transform and its applications, the topic of wavelets is rather "chaotic" -- meaning, it enjoys much less shared terminology, and much less shared practice. Consequently, it makes sense for implementations to follow established, community-embraced approaches, whenever such are available and well documented. With `torchwavelets`, we provide an implementation of Torrence and Compo's 1998 "Practical Guide to Wavelet Analysis" (@Torrence.Compo1998), an oft-cited paper that proved influential across a wide range of application domains. Code-wise, our package is mostly a port of [Tom Runia's PyTorch implementation](https://github.com/QUVA-Lab/PyTorchWavelets/), itself based on a prior implementation by [Aaron O'Leary](https://github.com/aaren/wavelets/).
 
-Resuming from the above, my second goal is to show an attractive use case of wavelet analysis in an area of great scientific interest and tremendous societal importance (meteorology/climatology). Being by no means an expert myself, I'd like to hope this could be inspiring to people working in these fields, as well as to scientists and analysts in other areas where temporal data arise.
+Resuming from the above, my second goal is to show an attractive use case of wavelet analysis in an area of great scientific interest (meteorology/climatology) and tremendous social importance. Being by no means an expert myself, I'd like to hope this could be inspiring to people working in these fields, as well as to scientists and analysts in other areas where temporal data arise.
 
 Concretely, what we'll do is take three different atmospheric phenomena -- El Niño--Southern Oscillation (ENSO), North Atlantic Oscillation (NAO), and Arctic Oscillation (AO) -- and investigate them using wavelet analysis. In each case, we also look at the overall frequency spectrum, given by the Discrete Fourier Transform (DFT), as well as a classic time-series decomposition into trend, seasonal components, and remainder.
 
@@ -42,15 +42,15 @@ By far the best-known -- the most infamous, I should say -- among the three is [
 
 El Niño occurs when surface water temperatures in the eastern Pacific are higher than normal, and the strong winds that normally blow from east to west are unusually weak. From April to October, this leads to hot, extremely wet weather conditions along the coasts of northern Peru and Ecuador, continually resulting in major floods. La Niña, on the other hand, causes a drop in sea surface temperatures over Southeast Asia as well as heavy rains over Malaysia, the Philippines, and Indonesia. While these are the areas most gravely impacted, changes in ENSO reverberate across the globe.
 
-Less well known than ENSO, but highly influential as well, is the [North Atlantic Oscillation (NAO)](https://en.wikipedia.org/wiki/North_Atlantic_oscillation). It strongly affects winter weather in Europe, Greenland, and North America. Its two states relate to the size of the pressure difference between the Icelandic High and the Azores Low. When the pressure difference is high, the jet stream -- those strong westerly winds that blow between North America and Northern Europe -- is yet stronger than normal, leading to warm, wet European winters and calmer-than-normal conditions in Eastern North America. With a lower-than-normal pressure difference, however, heavy storms and cold-air outbreaks tend to occur in the American East, while winters in Northern Europe are colder and more dry.
+Less well known than ENSO, but highly influential as well, is the [North Atlantic Oscillation (NAO)](https://en.wikipedia.org/wiki/North_Atlantic_oscillation). It strongly affects winter weather in Europe, Greenland, and North America. Its two states relate to the size of the pressure difference between the Icelandic High and the Azores Low. When the pressure difference is high, the jet stream -- those strong westerly winds that blow between North America and Northern Europe -- is yet stronger than normal, leading to warm, wet European winters and calmer-than-normal conditions in Eastern North America. With a lower-than-normal pressure difference, however, the American East tends to incur more heavy storms and cold-air outbreaks, while winters in Northern Europe are colder and more dry.
 
-Finally, the [Arctic Oscillation (AO)](https://en.wikipedia.org/wiki/Arctic_oscillation) is a ring-like pattern of sea-level pressure anomalies centered at the North Pole. (Its sourthern-hemisphere equivalent is the [Antarctic Oscillation](https://en.wikipedia.org/wiki/Antarctic_oscillation).) AO's influence extends beyond the polar, however; it is indicative of whether and how much Arctic air flows down into the middle latitudes. AO and NAO are strongly related, and might designate the same physical phenomenon at a fundamental level.
+Finally, the [Arctic Oscillation (AO)](https://en.wikipedia.org/wiki/Arctic_oscillation) is a ring-like pattern of sea-level pressure anomalies centered at the North Pole. (Its Southern-hemisphere equivalent is the [Antarctic Oscillation](https://en.wikipedia.org/wiki/Antarctic_oscillation).) AO's influence extends beyond the Arctic Circle, however; it is indicative of whether and how much Arctic air flows down into the middle latitudes. AO and NAO are strongly related, and might designate the same physical phenomenon at a fundamental level.
 
 Now, let's make these characterizations more concrete by looking at actual data.
 
 ## Analysis: ENSO
 
-Let's begin with the best-known of these phenomena: ENSO. Data are available from 1854 onwards; however, for comparability with AO, we discard all data prior to January, 1950. For analysis, we pick `NINO34_MEAN`, the monthly average sea surface temperature in the Niño 3.4 region (i.e., the area between 5° South, 5° North, 190° East, and 240° East). Finally, we convert to a `tsibble`, the format expected by `feasts::STL()`.
+We begin with the best-known of these phenomena: ENSO. Data are available from 1854 onwards; however, for comparability with AO, we discard all records prior to January, 1950. For analysis, we pick `NINO34_MEAN`, the monthly average sea surface temperature in the Niño 3.4 region (i.e., the area between 5° South, 5° North, 190° East, and 240° East). Finally, we convert to a `tsibble`, the format expected by `feasts::STL()`.
 
 ```{r}
 library(tidyverse)
@@ -160,7 +160,8 @@ We now pass these to `feasts::STL()`, to obtain a five-fold decomposition into t
 ```{r}
 library(feasts)
 enso %>%
-  model(STL(enso ~ season(period = 12) + season(period = 44) + season(period = 145))) %>%
+  model(STL(enso ~ season(period = 12) + season(period = 44) +
+              season(period = 145))) %>%
   components() %>%
   autoplot()
 ```
@@ -171,7 +172,7 @@ According to Loess decomposition, there still is significant noise in the data -
 
 By now, we're well informed about how dominant temporal rhythms determine, or fail to determine, what actually happens in atmosphere and ocean. But we don't know anything about whether, and how, those rhythms may have varied in strength over the time span considered. This is where wavelet analysis comes in.
 
-In `torchwavelets`{spellcheck="false"}, the central operation is a call to `wavelet_transform()`, to instantiate an object that takes care of all required operations. One argument is required: `signal_length`, the number of data points in the series. And one of the defaults we *need* to override: `dt`, the time between samples, expressed in the unit we're working with. In our case, that's *year*, and, having monthly samples, we need to pass a value of 1/12. With all other defaults untouched, analysis will be done using the [Morlet wavelet](tbd) (available alternatives are [Mexican Hat]() and [Paul]()), and the transform will be computed in the Fourier domain (the fastest way, unless you have a GPU).
+In `torchwavelets`{spellcheck="false"}, the central operation is a call to `wavelet_transform()`, to instantiate an object that takes care of all required operations. One argument is required: `signal_length`, the number of data points in the series. And one of the defaults we *need* to override: `dt`, the time between samples, expressed in the unit we're working with. In our case, that's *year*, and, having monthly samples, we need to pass a value of 1/12. With all other defaults untouched, analysis will be done using the [Morlet wavelet](https://en.wikipedia.org/wiki/Morlet_wavelet) (available alternatives are [Mexican Hat](https://en.wikipedia.org/wiki/Ricker_wavelet) and [Paul](https://reference.wolfram.com/language/ref/PaulWavelet.html)), and the transform will be computed in the Fourier domain (the fastest way, unless you have a GPU).
 
 ```{r}
 library(torchwavelets)
@@ -194,9 +195,9 @@ The result is two-dimensional. The second dimension holds measurement times, i.e
 
 Namely, we have here the set of scales the transform has been computed for. If you're familiar with the Fourier Transform and its analogue, the spectrogram, you'll probably think in terms of time versus frequency. With wavelets, there is an additional parameter, the scale, that determines the spread of the analysis pattern.
 
-<aside>The aforementioned book excerpt discusses this in detail.</aside>
+<aside>The aforementioned [book excerpt](https://blogs.rstudio.com/ai/posts/2022-10-27-wavelets/) discusses this in detail.</aside>
 
-Some wavelets have both a scale and a frequency, in which case both can interact in complex ways. Others are defined such that no separate frequency appears. In the latter case, you immediately end up with the time vs. scale layout we see in wavelet diagrams (scaleograms). In the former, most software hides the complexity by merging scale and frequency into one, leaving just scale as a user-visible parameter. In `torchwavelets`, too, the wavelet frequency (if existent) has been "streamlined away". Consequently, we'll end up plotting time versus scale, as well. I'll say more when we actually see such a scaleogram.
+Some wavelets have both a scale and a frequency, in which case these can interact in complex ways. Others are defined such that no separate frequency appears. In the latter case, you immediately end up with the time vs. scale layout we see in wavelet diagrams (scaleograms). In the former, most software hides the complexity by merging scale and frequency into one, leaving just scale as a user-visible parameter. In `torchwavelets`, too, the wavelet frequency (if existent) has been "streamlined away". Consequently, we'll end up plotting time versus scale, as well. I'll say more when we actually see such a scaleogram.
 
 For visualization, we transpose the data and put it into a `ggplot`-friendly format:
 
@@ -250,21 +251,22 @@ ggplot(df) +
   xlab("year") +
   geom_contour_filled(aes(time, scale, z = power), show.legend = FALSE) +
   scale_fill_viridis_d(option = "turbo") +
-  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)), fill = "black", alpha = 0.6) +
+  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)),
+              fill = "black", alpha = 0.6) +
   theme(legend.position = "none")
 ```
 
 ![Scaleogram of ENSO data.](images/scaleogram-enso.png)
 
-What we see here is how in ENSO, different rhythms have prevailed. over time. Instead of "rhythms", I could have said "scales", or "frequencies", or "periods" - all those translate into one another. Since, to us humans, wavelet scales don't mean that much, the period (in years) is displayed on an additional y axis on the right.
+What we see here is how, in ENSO, different rhythms have prevailed over time. Instead of "rhythms", I could have said "scales", or "frequencies", or "periods" -- all those translate into one another. Since, to us humans, wavelet scales don't mean that much, the period (in years) is displayed on an additional y axis on the right.
 
-So, we see that, in the eighties, an about-four-year period had exceptional influence. Thereafter, yet longer periodicities gained in dominance. And, in accordance with what we expect from our prior analysis, there is a *basso continuo* of annual similarity.
+So, we see that in the eighties, an (approximately) four-year period had exceptional influence. Thereafter, yet longer periodicities gained in dominance. And, in accordance with what we expect from prior analysis, there is a *basso continuo* of annual similarity.
 
 Also, note how, at first sight, there seems to have been a decade where a six-year period stood out: right at the beginning of where (for us) measurement starts, in the fifties. However, the dark shading -- the COI -- tells us that, in this region, the data is not to be trusted.
 
 Summing up, the two-dimensional analysis nicely complements the more compressed characterization we got from the DFT. Before we move on to the next series, however, let me just quickly address one question, in case you were wondering (if not, just read on, since I won't be going into details anyway): How is this different from a spectrogram?
 
-In a nutshell, the spectrogram splits the data into several "windows", and computes the DFT independently on all of them. To compute the scaleogram, on the other hand, the analysis wavelet slides continuously over the data, resulting in a spectrum-equivalent for the neighborhood of each sample in the series. With the spectrogram, a fixed window size means that not all frequencies are resolved equally well: The higher frequencies appear more frequently in the interval than the lower ones, and thus, will allow for better resolution. Wavelet analysis, in contrast, is done on a set of scales deliberately arranged so as to capture a broad range of frequencies theoretically visible in a series of the given length.
+In a nutshell, the spectrogram splits the data into several "windows", and computes the DFT independently on all of them. To compute the scaleogram, on the other hand, the analysis wavelet slides continuously over the data, resulting in a spectrum-equivalent for the neighborhood of each sample in the series. With the spectrogram, a fixed window size means that not all frequencies are resolved equally well: The higher frequencies appear more frequently in the interval than the lower ones, and thus, will allow for better resolution. Wavelet analysis, in contrast, is done on a set of scales deliberately arranged so as to capture a broad range of frequencies theoretically visible in a series of given length.
 
 <aside>Take a look at the aforementioned [book excerpt](https://blogs.rstudio.com/ai/posts/2022-10-27-wavelets/) to see spectrogram and scaleogram compared in a nice application.</aside>
 
@@ -346,7 +348,7 @@ df %>% ggplot(aes(f, y)) +
 
 ![Spectrum of NAO data, 1950 to present.](images/spectrum-nao.png)
 
-Have you been wondering, for a tiny moment, whether this was time-domain data (not spectral)? It does look a lot more noisy than the ENSO spectrum for sure. And really, with NAO, predictability is much worse - forecast lead time usually amounts to just [one or two weeks](https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/nao_index_mrf.shtml).
+Have you been wondering, for a tiny moment, whether this was time-domain data -- not spectral? It does look a lot more noisy than the ENSO spectrum for sure. And really, with NAO, predictability is much worse - forecast lead time usually amounts to just [one or two weeks](https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/nao_index_mrf.shtml).
 
 Proceeding as before, we pick dominant seasonalities (at least this still is possible!) to pass to `feasts::STL()`.
 
@@ -394,7 +396,9 @@ Important seasonal periods are of length six, nine, eleven, fifteen, and twenty-
 
 ```{r}
 nao %>%
-  model(STL(nao ~ season(period = 6) + season(period = 9) + season(period = 15) + season(period = 27) + season(period = 12))) %>%
+  model(STL(nao ~ season(period = 6) + season(period = 9) +
+              season(period = 15) + season(period = 27) +
+              season(period = 12))) %>%
   components() %>%
   autoplot()
 ```
@@ -441,7 +445,8 @@ ggplot(df) +
   xlab("year") +
   geom_contour_filled(aes(time, scale, z = power), show.legend = FALSE) +
   scale_fill_viridis_d(option = "turbo") +
-  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)), fill = "black", alpha = 0.6) +
+  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)),
+              fill = "black", alpha = 0.6) +
   theme(legend.position = "none")
 ```
 
@@ -449,7 +454,7 @@ ggplot(df) +
 
 That, literally, is a much more colorful picture than with ENSO! High frequencies are present, and continually dominant, over the whole time period.
 
-Interestingly, though, we see similarities to ENSO, as well: In both, there is an important pattern, of periodicity four or slightly more years, that exerces influence during the eighties, nineties, and early two-thousands -- only with ENSO, it shows peak impact during the nineties, while with NAO, its dominance is most visible in the first decade of this century. Also, both phenomena exhibit a strongly visible peak, of period two years, around 1970. So is there a close(-ish) connection between both oscillations? This question, of course, is for the domain experts to answer. At least I found a recent study (@scaife2014skillful) that not only suggests there is, but uses one (ENSO, the more predictable one) to inform forecasts of the other:
+Interestingly, though, we see similarities to ENSO, as well: In both, there is an important pattern, of periodicity four or slightly more years, that exerces influence during the eighties, nineties, and early two-thousands -- only with ENSO, it shows peak impact during the nineties, while with NAO, its dominance is most visible in the first decade of this century. Also, both phenomena exhibit a strongly visible peak, of period two years, around 1970. So, is there a close(-ish) connection between both oscillations? This question, of course, is for the domain experts to answer. At least I found a recent study (@scaife2014skillful) that not only suggests there is, but uses one (ENSO, the more predictable one) to inform forecasts of the other:
 
 > Previous studies have shown that the El Niño--Southern Oscillation can drive interannual variations in the NAO [Brönnimann et al., 2007] and hence Atlantic and European winter climate via the stratosphere [Bell et al., 2009]. [...] this teleconnection to the tropical Paciﬁc is active in our experiments, with forecasts initialized in El Niño/La Niña conditions in November tending to be followed by negative/positive NAO conditions in winter.
 
@@ -537,7 +542,8 @@ num_observations_in_season
 # [1] 873.000000  33.576923   6.767442   9.387097 174.600000 
 
 ao %>%
-  model(STL(ao ~ season(period = 33) + season(period = 7) + season(period = 9) + season(period = 174))) %>%
+  model(STL(ao ~ season(period = 33) + season(period = 7) +
+              season(period = 9) + season(period = 174))) %>%
   components() %>%
   autoplot()
 
@@ -585,7 +591,8 @@ ggplot(df) +
   xlab("year") +
   geom_contour_filled(aes(time, scale, z = power), show.legend = FALSE) +
   scale_fill_viridis_d(option = "turbo") +
-  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)), fill = "black", alpha = 0.6) +
+  geom_ribbon(data = coi_df, aes(x = x, ymin = y, ymax = max(scales)),
+              fill = "black", alpha = 0.6) +
   theme(legend.position = "none")
 
 ```

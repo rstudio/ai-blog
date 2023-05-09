@@ -27,9 +27,13 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE, fig.width = 6, fig.height = 6)
 
 Today, we resume our exploration of group equivariance. This is the third post in the series. The [first](https://blogs.rstudio.com/ai/posts/2023-03-09-group-equivariant-cnn-1/) was a high-level introduction: what this is all about; how equivariance is operationalized; and why it is of relevance to many deep-learning applications. The [second](https://blogs.rstudio.com/ai/posts/2023-03-27-group-equivariant-cnn-2/) sought to concretize the key ideas by developing a group-equivariant CNN from scratch. That being instructive, but too tedious for practical use, today we look at a carefully designed, highly-performant [library](https://github.com/QUVA-Lab/escnn) that hides the technicalities and enables a convenient workflow.
 
-First though, let me again set the context. In physics, an all-important concept is that of symmetry[^1], a symmetry being present whenever some quantity is being conserved. But we don't even need to look to science. Examples arise in daily life, and -- otherwise why write about it - in the tasks we apply deep learning to. In daily life: Think about speech -- me stating "it is cold", for example. Formally, or denotation-wise, the sentence will have the same meaning now as in five hours. (Connotations, on the other hand, can and will probably be different!). This is a form of translation symmetry, translation in time. In deep learning: Take image classification. For the usual convolutional neural network, a cat in the center of the image is just that, a cat; a cat on the bottom is, too. But one sleeping, comfortably curled like a half-moon "open to the right", will not be "the same" as one in a mirrored position. Of course, we can train the network to treat both as equivalent by providing training images of cats in both positions, but that is not a scaleable approach. Instead, we'd like to make the network aware of these symmetries, so they are automatically preserved throughout the network architecture.
+First though, let me again set the context. In physics, an all-important concept is that of symmetry[^1], a symmetry being present whenever some quantity is being conserved. But we don't even need to look to science. Examples arise in daily life, and -- otherwise why write about it - in the tasks we apply deep learning to.
 
 [^1]: This is nicely explained in, for example, Jakob Schwichtenberg's [Physics from symmetry](http://physicsfromsymmetry.com/).
+
+In daily life: Think about speech -- me stating "it is cold", for example. Formally, or denotation-wise, the sentence will have the same meaning now as in five hours. (Connotations, on the other hand, can and will probably be different!). This is a form of translation symmetry, translation in time.
+
+In deep learning: Take image classification. For the usual convolutional neural network, a cat in the center of the image is just that, a cat; a cat on the bottom is, too. But one sleeping, comfortably curled like a half-moon "open to the right", will not be "the same" as one in a mirrored position. Of course, we can train the network to treat both as equivalent by providing training images of cats in both positions, but that is not a scaleable approach. Instead, we'd like to make the network aware of these symmetries, so they are automatically preserved throughout the network architecture.
 
 ## Purpose and scope of this post
 
@@ -53,9 +57,11 @@ That said, let's start with the software.
 
 ## Using *escnn*
 
-`Escnn` depends on PyTorch. Yes, PyTorch, not `torch`; unfortunately, the library hasn't been ported to R yet. (If, after reading this post, you feel that maybe *you* would be interested in porting it -- I can definitely say I think that's a great idea!) For now, thus, we'll employ [`reticulate`](https://rstudio.github.io/reticulate/)[^6] to access the Python objects directly.
+`Escnn` depends on PyTorch. Yes, PyTorch, not `torch`; unfortunately, the library hasn't been ported to R yet.[^6] For now, thus, we'll employ [`reticulate`](https://rstudio.github.io/reticulate/)[^7] to access the Python objects directly.
 
-[^6]: If you're new to `reticulate`, please consult its excellent documentation on topics like [calling Python from R](https://rstudio.github.io/reticulate/articles/calling_python.html), [determining the Python version used](https://rstudio.github.io/reticulate/articles/versions.html), [installing Python packages](https://rstudio.github.io/reticulate/articles/python_packages.html), as well as an outstanding [introduction to Python for R users](https://rstudio.github.io/reticulate/articles/python_primer.html).
+[^6]: If, after reading this post, you feel that maybe *you* would be interested in porting it -- I can definitely say I think that's a great idea!
+
+[^7]: If you're new to `reticulate`, please consult its excellent documentation on topics like [calling Python from R](https://rstudio.github.io/reticulate/articles/calling_python.html), [determining the Python version used](https://rstudio.github.io/reticulate/articles/versions.html), [installing Python packages](https://rstudio.github.io/reticulate/articles/python_packages.html), as well as an outstanding [introduction to Python for R users](https://rstudio.github.io/reticulate/articles/python_primer.html).
 
 The way I'm doing this is install `escnn` in a virtual environment, with PyTorch version 1.13.1. As of this writing, Python 3.11 is not yet supported by one of `escnn`'s dependencies; the virtual environment thus builds on Python 3.10. As to the library itself, I am using the development version from GitHub, running `pip install git+https://github.com/QUVA-Lab/escnn`.
 
@@ -321,14 +327,18 @@ tensor([[[[ 0.,  0.,  0.,  1.],
 
 You see that at the end, we are back at the original "image".
 
-Now, for equivariance. We could first apply a rotation, then convolve. Rotate:
+Now, for equivariance. We could first apply a rotation, then convolve.
+
+Rotate:
 
 ```{r}
 x_rot <- x$transform(g1)
 x_rot$tensor
 ```
 
-This is the first in the above list of four tensors. -- Convolve:
+This is the first in the above list of four tensors.
+
+Convolve:
 
 ```{r}
 y <- conv(x_rot)
@@ -349,7 +359,9 @@ tensor([[[[ 1.1955,  1.7110],
           [ 4.5065,  5.9689]]]], grad_fn=<ConvolutionBackward0>)
 ```
 
-Alternatively, we can do the convolution first, then rotate its output. Convolve:
+Alternatively, we can do the convolution first, then rotate its output.
+
+Convolve:
 
 ```{r}
 y_conv <- conv(x)
@@ -397,7 +409,9 @@ At this point, we know how to employ group-equivariant convolutions. The final s
 
 ## A group-equivariant neural network
 
-Basically, we have two questions to answer. The first concerns the non-linearities. This is a potentially intricate topic, but as long as we stay with point-wise operations (such as that performed by ReLU) equivariance is given intrinsically.
+Basically, we have two questions to answer. The first concerns the non-linearities; the second is how to get from extended space to the data type of the target.
+
+First, about the non-linearities. This is a potentially intricate topic, but as long as we stay with point-wise operations (such as that performed by ReLU) equivariance is given intrinsically.
 
 In consequence, we can already assemble a model:
 
@@ -481,12 +495,10 @@ We end up with an architecture that, from the outside, will look like a standard
 
 This "introduction to an introduction" has been the attempt to draw a high-level map of the terrain, so you can decide if this is useful to you. If it's not just useful, but interesting theory-wise as well, you'll find lots of excellent materials linked from the [README](https://github.com/QUVA-Lab/escnn). The way I see it, though, this post already should enable you to actually experiment with different setups.
 
-One such experiment, that would be of high interest to me, might investigate how well different types and degrees of equivariance actually work for a given task and dataset. Overall, a reasonable assumption is that, the higher "up" we go in the feature hierarchy, the less equivariance we require. For edges and corners, taken by themselves, full rotation equivariance seems desirable, as does equivariance to reflection; for higher-level features, we might want to successively restrict allowed operations, maybe ending up with equivariance to mirroring merely. Experiments could be designed to compare different ways, and levels, of restriction.[^7]
+One such experiment, that would be of high interest to me, might investigate how well different types and degrees of equivariance actually work for a given task and dataset. Overall, a reasonable assumption is that, the higher "up" we go in the feature hierarchy, the less equivariance we require. For edges and corners, taken by themselves, full rotation equivariance seems desirable, as does equivariance to reflection; for higher-level features, we might want to successively restrict allowed operations, maybe ending up with equivariance to mirroring merely. Experiments could be designed to compare different ways, and levels, of restriction.[^8]
 
-[^7]: See the documentation for [`escnn$nn$RestrictionModule`](https://quva-lab.github.io/escnn/api/escnn.nn.html?highlight=restrictionmodule#escnn.nn.RestrictionModule) for how to do this.
+[^8]: See the documentation for [`escnn$nn$RestrictionModule`](https://quva-lab.github.io/escnn/api/escnn.nn.html?highlight=restrictionmodule#escnn.nn.RestrictionModule) for how to do this.
 
 Thanks for reading!
 
 Photo by <a href="https://unsplash.com/@astrovol?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Volodymyr Tokar</a> on <a href="https://unsplash.com/photos/hwcWBLq1jO8?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>
-  
-

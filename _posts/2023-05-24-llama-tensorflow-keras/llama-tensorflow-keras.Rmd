@@ -1,12 +1,12 @@
 ---
 title: "LLaMA in R with Keras and TensorFlow"
 description: >
-  Walk-through an implementation of LLaMA in R
+  Implementation and walk-through of LLaMA, a Large Language Model, in R
   with TensorFlow and Keras.
 author:
   - name: Tomasz Kalinowski
-    affiliation: RStudio
-    affiliation_url: https://www.rstudio.com/
+    affiliation: Posit
+    affiliation_url: https://www.posit.co/
 slug: kalinowskillama
 date: 2023-05-24
 output:
@@ -18,13 +18,14 @@ categories:
   - R
   - Generative Models
   - Natural Language Processing
-preview: images/preview.png
+bibliography: references.bib
+preview: images/preview.jpg
 ---
 
 OpenAI’s chatGPT has awakened a collective awareness of what Large
 Language Models (LLMs) are capable of. With that awakening comes a daily
 march of LLM news: new products, new features, new models, new
-capabilities, (and new worries). It seems we’re in the early parts of a
+capabilities, (and new worries). It seems we’re in the early stages of a
 Cambrian explosion of LLMs and LLM powered tools; it’s not yet clear how
 LLMs will impact and influence our professional and personal lives, but
 it seems clear that they will, in some way.
@@ -49,7 +50,7 @@ activity ([HuggingFace](https://huggingface.co/models),
 [TFHub](https://tfhub.dev/s?module-type=text-language-model),
 [reddit](https://www.reddit.com/r/deeplearning/),
 [HackerNews](https://hn.algolia.com/?q=LLM)) muddies the waters even
-more. How to pick?
+more. How to pick a specific model?
 
 Of the many LLM-related news items in the past months, one that stands
 head-and-shoulders above the crowd is the [release of
@@ -60,8 +61,8 @@ while being substantially smaller (though still *large*).
 
 LLaMA is a great starting place because it is a simple and modern
 architecture, has excellent performance on benchmarks, and is open. The
-model architecture has just a few new ideas incorporated into it since
-the original paper that first described the Transformer architecture,
+model architecture has had just a few new ideas incorporated into it since
+the original Transformer architecture first described in,
 “[Attention Is All You Need](https://arxiv.org/abs/1706.03762)”
 published from Google [@vaswani2017attention]. Four different sizes of
 LLaMA have been released: 7 billion and 13 billion parameter models
@@ -114,6 +115,7 @@ options(tensorflow.extract.warn_tensors_passed_asis = FALSE)
 attach_eval({
   import_from(glue, glue)
   import_from(jsonlite, read_json)
+  import_from(withr, with_dir, with_options)
   import_from(keras$layers, Dense)
   np <- reticulate::import("numpy", convert = FALSE)
 
@@ -123,12 +125,12 @@ attach_eval({
 
 If you’ve acquired the pre-trained weights, it’ll be convenient to
 convert them from the torch checkpoint format to something that’s more
-framework agnostic (you only need to do this once of course):
+framework agnostic (you only need to do this once, of course):
 
 ``` r
 # reticulate::py_install("torch", pip = TRUE)
 torch <- reticulate::import("torch", convert = FALSE)
-withr::with_dir("~/github/facebookresearch/llama/weights/LLaMA/7B", {
+with_dir("~/github/facebookresearch/llama/weights/LLaMA/7B", {
   pretrained_weights <- torch$load("consolidated.00.pth",
                                    map_location = "cpu")
   for (name in names(pretrained_weights)) {
@@ -176,7 +178,7 @@ through
 [`tf_text.SentencepieceTokenizer`](https://www.tensorflow.org/text/api_docs/python/text/SentencepieceTokenizer),
 and also as a Keras layer in
 [`keras_nlp.tokenizers.SentencepieceTokenizer`](https://keras.io/api/keras_nlp/tokenizers/sentence_piece_tokenizer/).
-By choice of a coin-flip, we’ll use the lower-level `tf_text` interface.
+By choice of a coin flip, we’ll use the lower-level `tf_text` interface.
 
 ``` r
 tf_text <- reticulate::import("tensorflow_text")
@@ -231,7 +233,7 @@ show_tokens(prompt)
 
 Note that “bees” is two tokens. Not every token corresponds to a word.
 For example, one non-word token we can reliably expect to show up in a
-tokenizer trained on a corpus of english text is “ing”. However when the
+tokenizer trained on a corpus of English text is “ing”. However, _when_ the
 “ing” token shows up will not always follow your intuitions, because
 common words get their own token id, even if they can be decomposed into
 multiple tokens.
@@ -450,7 +452,7 @@ taking the time to go through it slowly.
 
 We implement the `TransformerBlock` as a subclassed
 `keras.layers.Layer`. This is gives us some niceties like the ability to
-compose with other keras layers, but these are mostly irrelevant to the
+compose with other Keras layers, but these are mostly irrelevant to the
 purpose of this blog post; we could just as easily implement this as,
 for example, a vanilla R6 class. Our `TransformerBlock` class has two
 methods: `initialize`, called when we first create the block, and
@@ -493,7 +495,7 @@ There are many kinds of normalization layers, but to slightly
 over-generalize, they can all be thought of as a stabilizer that helps
 with training. Like their deep-learning cousins the regularizers, their
 main function is to keep values passing through in a sensible range–in
-the ball park of \[-1, 1\], typically. We’ll take a closer look at
+the ball park of (-1, 1), typically. We’ll take a closer look at
 `RMSNorm` soon.
 
 Stripped of two tricks that are mostly there to help the model train,
@@ -776,7 +778,7 @@ Attention(keras$layers$Layer) %py_class% {
 
 `Attention` in LLaMA is similar but not identical to the Attention
 described in the [original Transformers
-paper](https://arxiv.org/abs/1706.03762), (and available as a keras
+paper](https://arxiv.org/abs/1706.03762) (and available as a keras
 builtin under `keras$layers$MultiHeadAttention()`). The core novelty is
 the addition of the `apply_rotary_embedding()` function, which we’ll
 describe shortly. The additional novelty is balanced by the simplicity
@@ -857,7 +859,14 @@ make_mask <- function(seqlen, dtype = k_floatx()) {
 The mask is a strictly upper triangular matrix filled with `-Inf`
 values. Adding the mask to the attention scores prevents the model from
 being able to “look ahead” and see the attention score for a token
-pairings it hasn’t seen yet at a particular position in the sequence.
+pairing it hasn’t seen yet at a particular position in the sequence.
+This need for a mask is best thought of as a vestige from training,
+an apparatus that the model needed to learn with and now it can't function without.
+During training, gradients are calculated for predictions from all
+token positions in a sequence, including predictions tokens where the correct
+answer is _right there_, as the very next token in same sequence. The mask
+prevents the model from being able to cheat and look ahead into the future,
+something it won't be able to do once it's we're running it for inference.
 
 ``` r
 make_mask(seqlen = 5L)
@@ -1089,7 +1098,7 @@ x <- x |>
   )
 
 # slice out the logits for the last token
-withr::with_options(c(tensorflow.extract.warn_negatives_pythonic = FALSE), {
+with_options(c(tensorflow.extract.warn_negatives_pythonic = FALSE), {
   output <- x[, -1, ]
 })
 

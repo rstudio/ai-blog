@@ -120,10 +120,67 @@ integrating into `chattr`
 - If streaming (`stream` is TRUE), output the current output as it is occurring. 
 Generally through a `cat()` function call. 
 
+Here is a simple toy example that shows how to create a custom method for
+`chattr`: 
+
+``` r
+library(chattr)
+ch_submit.ch_my_llm <- function(defaults,
+                                prompt = NULL,
+                                stream = NULL,
+                                prompt_build = TRUE,
+                                preview = FALSE,
+                                ...) {
+  # Use `prompt_build` to append the prompts you with to append
+  if(prompt_build) prompt <- paste0("Use the tidyverse\n", prompt)
+  # If `preview` is true, return the resulting prompt back
+  if(preview) return(prompt)
+  llm_response <- paste0("You said this: \n", prompt)
+  if(stream) {
+    cat(">> Streaming:\n")
+    for(i in seq_len(nchar(llm_response))) {
+      # If `stream` is true, make sure to `cat()` the current output
+      cat(substr(llm_response, i, i))
+      Sys.sleep(0.1)
+    }
+  }
+  # Make sure to return the entire output from the LLM at the end
+  llm_response
+}
+
+chattr_defaults("console", provider = "my llm")
+#>
+chattr("hello")
+#> >> Streaming:
+#> You said this: 
+#> Use the tidyverse
+#> hello
+chattr("chattr is cool!", stream = FALSE)
+#> You said this: 
+#> Use the tidyverse
+#> chattr is cool!
+chattr("I can use it right from RStudio", prompt_build = FALSE)
+#> >> Streaming:
+#> You said this: 
+#> I can use it right from RStudio
+chattr("and can preview my prompt", preview = TRUE)
+#> 
+#> ── chattr ──────────────────────────────────────────────────────────────────────
+#> 
+#> ── Preview for: Console
+#> • Provider: my llm
+#> • Path/URL:
+#> • Model:
+#> • Label:
+#> 
+#> ── Prompt:
+#> 
+#> Use the tidyverse
+#> and can preview my prompt
+```
+
 For more detail, please visit the function's reference page, link 
 [here](https://mlverse.github.io/chattr/reference/ch_submit.html).
-
-
 
 ## Next steps
 

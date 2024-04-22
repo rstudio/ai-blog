@@ -38,30 +38,35 @@ and it now only supports Spark 2.4 and above
 
 ## pysparklyr 0.1.4
 
-### New
+`spark_apply()` now works on Databricks Connect v2. The latest `pysparklyr` 
+release uses the `rpy2` Python library as the backbone of the integration.
 
-* Adds support for `spark_apply()` via the `rpy2` Python library
-  * It will not automatically distribute packages, it will assume that the
-  necessary packages are already installed in each node. This also means that
-  the `packages` argument is not supported
-  * As in its original implementation, schema inferring works, and as with the
-  original implementation, it has a performance cost. Unlike the original, the 
-  Databricks, and Spark, Connect version will return a 'columns' specification
-  that you can use for the next time you run the call.
-  
-  
+Databricks Connect v2, is based on Spark Connect. At this time, it supports 
+Python user-defined functions (UDFs), but not R user-defined functions. 
+Using `rpy2` circumvents this limitation. As shown in the diagram, `sparklyr`
+sends the the R code to the locally installed `rpy2`, which in turn sends it
+to Spark. Then the `rpy2` installed in the remote Databricks cluster will run 
+the R code.
+
+
 ```{r, echo=FALSE, eval=TRUE, out.width="600px", fig.cap="R code via rpy2", fig.alt="Diagram that shows how sparklyr transmits the R code via the rpy2 python package, and how Spark uses it to run the R code"}
 knitr::include_graphics("images/r-udfs.png")
 ```
+
+A big advantage of this approach, is that `rpy2` supports Arrow. In fact it
+is the recommended Python library to use when integrating [Spark, Arrow and
+R](https://arrow.apache.org/docs/python/integration/python_r.html).
+This means that the data exchange between the three languages will be much 
+faster!
+
+As in its original implementation, schema inferring works, and as with the
+original implementation, it has a performance cost. But unlike the original,
+this implementation will return a 'columns' specification that you can use
+for the next time you run the call.
+
+A full article about this new capability is available here: 
+[Run R inside Databricks Connect](https://spark.posit.co/deployment/databricks-connect-udfs.html)
   
-### Improvements
-
-* At connection time, it enables Arrow by default. It does this by setting
-these two configuration settings to true: 
-  * `spark.sql.execution.arrow.pyspark.enabled`
-  * `spark.sql.execution.arrow.pyspark.fallback.enabled`
-
-
 ## sparklyr 1.8.5
 
 ### Fixes

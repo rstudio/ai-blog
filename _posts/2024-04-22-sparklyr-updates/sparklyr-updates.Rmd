@@ -65,6 +65,24 @@ original implementation, it has a performance cost. But unlike the original,
 this implementation will return a 'columns' specification that you can use
 for the next time you run the call.
 
+```r
+spark_apply(
+  tbl_mtcars,
+  nrow,
+  group_by = "am"
+)
+
+#> To increase performance, use the following schema:
+#> columns = "am double, x long"
+
+#> # Source:   table<`sparklyr_tmp_table_b84460ea_b1d3_471b_9cef_b13f339819b6`> [2 x 2]
+#> # Database: spark_connection
+#>      am     x
+#>   <dbl> <dbl>
+#> 1     0    19
+#> 2     1    13
+```
+
 A full article about this new capability is available here: 
 [Run R inside Databricks Connect](https://spark.posit.co/deployment/databricks-connect-udfs.html)
   
@@ -99,6 +117,38 @@ the way `sparkxgb` automatically starts and stops the Spark session for testing
 was modernized, and the continuous integration tests were restored. This will 
 ensure the package's health going forward.
 
+```r
+remotes::install_github("rstudio/sparkxgb")
+
+library(sparkxgb)
+library(sparklyr)
+
+sc <- spark_connect(master = "local")
+iris_tbl <- copy_to(sc, iris)
+
+xgb_model <- xgboost_classifier(
+  iris_tbl,
+  Species ~ .,
+  num_class = 3,
+  num_round = 50,
+  max_depth = 4
+)
+
+xgb_model %>% 
+  ml_predict(iris_tbl) %>% 
+  select(Species, predicted_label, starts_with("probability_")) %>% 
+  dplyr::glimpse()
+#> Rows: ??
+#> Columns: 5
+#> Database: spark_connection
+#> $ Species                <chr> "setosa", "setosa", "setosa", "setosa", "setosa…
+#> $ predicted_label        <chr> "setosa", "setosa", "setosa", "setosa", "setosa…
+#> $ probability_setosa     <dbl> 0.9971547, 0.9948581, 0.9968392, 0.9968392, 0.9…
+#> $ probability_versicolor <dbl> 0.002097376, 0.003301427, 0.002284616, 0.002284…
+#> $ probability_virginica  <dbl> 0.0007479066, 0.0018403779, 0.0008762418, 0.000…
+
+```
+
 ## sparklyr 1.8.5
 
 The new version of `sparklyr` does not have user facing improvements. But 
@@ -108,10 +158,10 @@ code needed to do so is no longer part of the package. As per Spark's versioning
 policy, [found here](https://spark.apache.org/versioning-policy.html), 
 Spark 2.3 was 'end-of-life' in 2018. 
 
-This is part of a larger, and ongoing effort 
-to make the immense code-base of  `sparklyr` a little easier to maintain, and hence 
-reduce the risk of failures. As part of the same effort, the number of upstream
-packages that `sparklyr` depends on have been reduced. This has been happening
-across multiple CRAN releases, and in this latest release `tibble`, and `rappdirs`
-are no longer imported by `sparklyr`. 
+This is part of a larger, and ongoing effort  to make the immense code-base of 
+`sparklyr` a little easier to maintain, and hence reduce the risk of failures. 
+As part of the same effort, the number of upstream packages that `sparklyr` 
+depends on have been reduced. This has been happening across multiple CRAN 
+releases, and in this latest release `tibble`, and `rappdirs` are no longer 
+imported by `sparklyr`. 
 

@@ -24,113 +24,125 @@ jobs:
       - name: Install Rsync
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y rsync
-      - name: Query Dependencies
-        run: |
-          print(R.version)
-          install.packages('remotes')
-
-          pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
-          pkg_versions <- lapply(
-            pkgs,
-            function(x) {
-              tryCatch(packageVersion(x), error = function(e) NULL )
-            }
-          )
-          saveRDS(pkg_versions, '.github/pkg-versions.Rds', version = 2)
-          saveRDS(remotes::package_deps(pkgs, dependencies = TRUE), '.github/pkg-deps.Rds', version = 2)
-
-          writeLines(sprintf('R-%i.%i', getRversion()$major, getRversion()$minor), '.github/R-version')
-
-          writeLines(Sys.getenv('AI_BLOG_PANDOC_VERSION'), '.github/pandoc-version')
-        shell: Rscript {0}
-
-      - name: Cache R Packages
-        uses: actions/cache@v4
+      - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
-          restore-keys: ${{ hashFiles('.github/R-version') }}-
-
-      - name: Upgrade Dependent Packages
-        run: |
-          pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
-          remotes::install_cran(pkgs = pkgs, upgrade = TRUE)
-          remotes::install_github('hadley/emo')
-          # bug in downlit 0.4.1, rollback until the new version is on cran:
-          # https://github.com/r-lib/downlit/commit/24ccb0b5d41a80583b1c998077fe528dd6c5af16
-          if (packageVersion("downlit") == "0.4.1")
-            remotes::install_version("downlit", "0.4.0")
-        shell: Rscript {0}
-
-      - name: Cache Build Artifacts
-        uses: actions/cache@v4
-        with:
-          path: /tmp/_posts
-          key: ${{ hashFiles('.github/pandoc-version') }}-${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
-
-      - name: Render Posts
-        run: |
-          rm -rf docs/
-          mv _posts/2019-12-20-differential-privacy/differential_privacy.Rmd _posts/2019-12-20-differential-privacy/differential_privacy_2019.Rmd
-          set -x
-          for file in $(find _posts -type f -name '*.Rmd')
-          do
-            (\
-              diff -q {,/tmp/}"${file}" && \
-                rsync -rv {/tmp/,}$(dirname "${file}")/ \
-            ) || \
-              R -e "rmarkdown::render('${file}')"
-          done
-          rm -rf /tmp/_posts
-          cp -r _posts /tmp
-        shell: bash
-      - name: Install distill
-        run: |
-          R -e 'install.packages("distill")'        
-      - name: Render Site
-        run: |
-          R -e 'rmarkdown::render_site()'
-      - name: Copy redirects
-        run: |
-          cp redirect/_redirects docs/
-      - name: Deploy to GitHub
-        uses: s0/git-publish-subdir-action@develop
-        if: github.ref == 'refs/heads/main'
-        env:
-          REPO: self
-          BRANCH: docs
-          FOLDER: docs
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v1.1
-        with:
-          publish-dir: './docs'
-          production-branch: main
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Deploy from GitHub Actions"
-          enable-pull-request-comment: false
-          enable-commit-comment: true
-          overwrites-pull-request-comment: true
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        timeout-minutes: 3
-      - name: Prepare Preview Directory
-        if: github.ref != 'refs/heads/main'
-        run: |
-          rm -rf ai-blog-preview
-          mkdir ai-blog-preview
-          mv docs ai-blog-preview/ai-blog-preview
-      - name: Upload Preview Directory as GitHub Artifact
-        uses: actions/upload-artifact@v4
-        if: github.ref != 'refs/heads/main'
-        with:
-          name: ai-blog-preview
-          path: ai-blog-preview
-  README:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Please download and unzip the GitHub artifact named 'ai-blog-preview' to obtain a browsable preview of the site.
-        run: |
-          echo "Please download and unzip the GitHub artifact named 'ai-blog-preview' to obtain a browsable preview of the site."
+          cache-version: 2
+          extra-packages: |
+            any::rmarkdown
+            any::distill
+            any::reticulate
+            any::dplyr
+            any::data.table
+            any::DT
+          needs: |
+            website          
+  #     - name: Query Dependencies
+  #       run: |
+  #         print(R.version)
+  #         install.packages('remotes')
+  # 
+  #         pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
+  #         pkg_versions <- lapply(
+  #           pkgs,
+  #           function(x) {
+  #             tryCatch(packageVersion(x), error = function(e) NULL )
+  #           }
+  #         )
+  #         saveRDS(pkg_versions, '.github/pkg-versions.Rds', version = 2)
+  #         saveRDS(remotes::package_deps(pkgs, dependencies = TRUE), '.github/pkg-deps.Rds', version = 2)
+  # 
+  #         writeLines(sprintf('R-%i.%i', getRversion()$major, getRversion()$minor), '.github/R-version')
+  # 
+  #         writeLines(Sys.getenv('AI_BLOG_PANDOC_VERSION'), '.github/pandoc-version')
+  #       shell: Rscript {0}
+  # 
+  #     - name: Cache R Packages
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ${{ env.R_LIBS_USER }}
+  #         key: ${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
+  #         restore-keys: ${{ hashFiles('.github/R-version') }}-
+  # 
+  #     - name: Upgrade Dependent Packages
+  #       run: |
+  #         pkgs <- strsplit(Sys.getenv('AI_BLOG_REQUIRED_PKGS'), ',')[[1]]
+  #         remotes::install_cran(pkgs = pkgs, upgrade = TRUE)
+  #         remotes::install_github('hadley/emo')
+  #         # bug in downlit 0.4.1, rollback until the new version is on cran:
+  #         # https://github.com/r-lib/downlit/commit/24ccb0b5d41a80583b1c998077fe528dd6c5af16
+  #         if (packageVersion("downlit") == "0.4.1")
+  #           remotes::install_version("downlit", "0.4.0")
+  #       shell: Rscript {0}
+  # 
+  #     - name: Cache Build Artifacts
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: /tmp/_posts
+  #         key: ${{ hashFiles('.github/pandoc-version') }}-${{ hashFiles('.github/R-version') }}-${{ hashFiles('.github/pkg-versions.Rds') }}-${{ hashFiles('.github/pkg-deps.Rds') }}
+  # 
+  #     - name: Render Posts
+  #       run: |
+  #         rm -rf docs/
+  #         mv _posts/2019-12-20-differential-privacy/differential_privacy.Rmd _posts/2019-12-20-differential-privacy/differential_privacy_2019.Rmd
+  #         set -x
+  #         for file in $(find _posts -type f -name '*.Rmd')
+  #         do
+  #           (\
+  #             diff -q {,/tmp/}"${file}" && \
+  #               rsync -rv {/tmp/,}$(dirname "${file}")/ \
+  #           ) || \
+  #             R -e "rmarkdown::render('${file}')"
+  #         done
+  #         rm -rf /tmp/_posts
+  #         cp -r _posts /tmp
+  #       shell: bash
+  #     - name: Install distill
+  #       run: |
+  #         R -e 'install.packages("distill")'        
+  #     - name: Render Site
+  #       run: |
+  #         R -e 'rmarkdown::render_site()'
+  #     - name: Copy redirects
+  #       run: |
+  #         cp redirect/_redirects docs/
+  #     - name: Deploy to GitHub
+  #       uses: s0/git-publish-subdir-action@develop
+  #       if: github.ref == 'refs/heads/main'
+  #       env:
+  #         REPO: self
+  #         BRANCH: docs
+  #         FOLDER: docs
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Deploy to Netlify
+  #       uses: nwtgck/actions-netlify@v1.1
+  #       with:
+  #         publish-dir: './docs'
+  #         production-branch: main
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         deploy-message: "Deploy from GitHub Actions"
+  #         enable-pull-request-comment: false
+  #         enable-commit-comment: true
+  #         overwrites-pull-request-comment: true
+  #       env:
+  #         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  #         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+  #       timeout-minutes: 3
+  #     - name: Prepare Preview Directory
+  #       if: github.ref != 'refs/heads/main'
+  #       run: |
+  #         rm -rf ai-blog-preview
+  #         mkdir ai-blog-preview
+  #         mv docs ai-blog-preview/ai-blog-preview
+  #     - name: Upload Preview Directory as GitHub Artifact
+  #       uses: actions/upload-artifact@v4
+  #       if: github.ref != 'refs/heads/main'
+  #       with:
+  #         name: ai-blog-preview
+  #         path: ai-blog-preview
+  # README:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   steps:
+  #     - name: Please download and unzip the GitHub artifact named 'ai-blog-preview' to obtain a browsable preview of the site.
+  #       run: |
+  #         echo "Please download and unzip the GitHub artifact named 'ai-blog-preview' to obtain a browsable preview of the site."
